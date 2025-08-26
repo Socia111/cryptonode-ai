@@ -1,31 +1,60 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-// Environment variables with fallbacks for development
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key'
+// Environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Check if we have real credentials (not placeholders)
-const hasValidCredentials = supabaseUrl !== 'https://placeholder.supabase.co' && supabaseAnonKey !== 'placeholder-key'
+// Check if we have valid credentials
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey && 
+  supabaseUrl !== 'your_supabase_url_here' && 
+  supabaseAnonKey !== 'your_supabase_anon_key_here')
 
-if (!hasValidCredentials) {
-  console.warn('⚠️ Supabase credentials not configured. Using mock client.')
+// Create client only if we have valid credentials
+let supabaseClient: SupabaseClient | null = null
+
+if (isSupabaseConfigured) {
+  supabaseClient = createClient(supabaseUrl!, supabaseAnonKey!, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
+    },
+  })
+} else {
+  console.warn('⚠️ Supabase credentials not configured.')
   console.warn('📝 To connect to Supabase:')
   console.warn('1. Create a .env file in your project root')
-  console.warn('2. Add: VITE_SUPABASE_URL=your_project_url')
-  console.warn('3. Add: VITE_SUPABASE_ANON_KEY=your_anon_key')
+  console.warn('2. Add: VITE_SUPABASE_URL=https://your-project.supabase.co')
+  console.warn('3. Add: VITE_SUPABASE_ANON_KEY=your-anon-key-here')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Mock client for development when Supabase is not configured
+const mockClient = {
+  from: (table: string) => ({
+    select: () => ({ data: [], error: null }),
+    insert: () => ({ data: [], error: null }),
+    update: () => ({ data: [], error: null }),
+    delete: () => ({ data: [], error: null }),
+    upsert: () => ({ data: [], error: null }),
+    eq: () => ({ data: [], error: null }),
+    order: () => ({ data: [], error: null }),
+    limit: () => ({ data: [], error: null }),
+    gte: () => ({ data: [], error: null }),
+    single: () => ({ data: null, error: null }),
+  }),
+  functions: {
+    invoke: async () => ({ data: { success: true, message: 'Mock response' }, error: null })
+  },
+  channel: () => ({
+    on: () => ({ subscribe: () => ({ unsubscribe: () => {} }) })
+  }),
   auth: {
-    autoRefreshToken: hasValidCredentials,
-    persistSession: hasValidCredentials,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: hasValidCredentials ? 10 : 0,
-    },
-  },
-})
+    getUser: async () => ({ data: { user: null }, error: null })
+  }
+} as any
 
-// Export a flag to check if Supabase is properly configured
-export const isSupabaseConfigured = hasValidCredentials
+export const supabase = supabaseClient || mockClient
