@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Database, Check, X, AlertCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
 const DatabaseSetup = () => {
@@ -21,6 +21,15 @@ const DatabaseSetup = () => {
   ];
 
   const createTables = async () => {
+    if (!isSupabaseConfigured) {
+      toast({
+        title: "Supabase Not Configured",
+        description: "Please set up your Supabase credentials first. Check the console for instructions.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsCreating(true);
     
     try {
@@ -117,46 +126,63 @@ const DatabaseSetup = () => {
             <Database className="w-5 h-5 text-primary" />
             <span>Database Setup</span>
           </div>
-          <Badge variant={allTablesExist ? "secondary" : "destructive"}>
-            {allTablesExist ? "Ready" : "Setup Required"}
+          <Badge variant={isSupabaseConfigured ? (allTablesExist ? "secondary" : "destructive") : "outline"}>
+            {!isSupabaseConfigured ? "Not Connected" : allTablesExist ? "Ready" : "Setup Required"}
           </Badge>
         </CardTitle>
       </CardHeader>
       
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {requiredTables.map((table) => (
-            <div key={table} className="flex items-center space-x-2 text-sm">
-              {tables[table] ? (
-                <Check className="w-4 h-4 text-success" />
-              ) : (
-                <X className="w-4 h-4 text-destructive" />
-              )}
-              <span className={tables[table] ? 'text-success' : 'text-muted-foreground'}>
-                {table}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {!allTablesExist && (
+        {!isSupabaseConfigured ? (
           <div className="flex items-start space-x-2 p-4 bg-warning/10 rounded-lg border border-warning/20">
             <AlertCircle className="w-5 h-5 text-warning mt-0.5" />
             <div className="text-sm">
-              <p className="font-medium text-warning">Database Setup Required</p>
+              <p className="font-medium text-warning">Supabase Configuration Required</p>
               <p className="text-muted-foreground mt-1">
-                Some required tables are missing. Click the button below to create them automatically.
+                Create a <code>.env</code> file with your Supabase credentials to enable database features.
+                Check the browser console for setup instructions.
               </p>
             </div>
           </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {requiredTables.map((table) => (
+                <div key={table} className="flex items-center space-x-2 text-sm">
+                  {tables[table] ? (
+                    <Check className="w-4 h-4 text-success" />
+                  ) : (
+                    <X className="w-4 h-4 text-destructive" />
+                  )}
+                  <span className={tables[table] ? 'text-success' : 'text-muted-foreground'}>
+                    {table}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {!allTablesExist && (
+              <div className="flex items-start space-x-2 p-4 bg-warning/10 rounded-lg border border-warning/20">
+                <AlertCircle className="w-5 h-5 text-warning mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-warning">Database Setup Required</p>
+                  <p className="text-muted-foreground mt-1">
+                    Some required tables are missing. Click the button below to create them automatically.
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         <Button 
           onClick={createTables}
-          disabled={isCreating || allTablesExist}
+          disabled={isCreating || allTablesExist || !isSupabaseConfigured}
           className="w-full"
         >
-          {isCreating ? 'Creating Tables...' : allTablesExist ? 'Database Ready' : 'Setup Database'}
+          {isCreating ? 'Creating Tables...' : 
+           !isSupabaseConfigured ? 'Configure Supabase First' :
+           allTablesExist ? 'Database Ready' : 'Setup Database'}
         </Button>
       </CardContent>
     </Card>
