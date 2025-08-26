@@ -1,11 +1,32 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React from 'react';
+import TradingHeader from '../components/TradingHeader';
+import MarketOverview from '../components/MarketOverview';
+import SignalsList from '../components/SignalsList';
+import TradingChart from '../components/TradingChart';
+import PortfolioStats from '../components/PortfolioStats';
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <div className="min-h-screen bg-background">
+      <TradingHeader />
+      
+      <div className="container mx-auto px-6 py-8 space-y-8">
+        {/* Market Overview */}
+        <MarketOverview />
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Trading Chart */}
+          <div className="lg:col-span-2">
+            <TradingChart />
+          </div>
+          
+          {/* Signals Panel */}
+          <div className="space-y-6">
+            <PortfolioStats />
+            <SignalsList />
+          </div>
+        </div>
       </div>
     </div>
   );
