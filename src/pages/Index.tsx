@@ -7,6 +7,10 @@ import TradingChart from '../components/TradingChart';
 import PortfolioStats from '../components/PortfolioStats';
 import DatabaseSetup from '../components/DatabaseSetup';
 import SpynxScoreCard from '../components/SpynxScoreCard';
+import TelegramIntegration from '../components/TelegramIntegration';
+import TradingPanel from '../components/TradingPanel';
+import BacktestEngine from '../components/BacktestEngine';
+import QuantumAnalysis from '../components/QuantumAnalysis';
 
 const Index = () => {
   return (
@@ -22,13 +26,17 @@ const Index = () => {
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Trading Chart */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
             <TradingChart />
+            <BacktestEngine />
           </div>
           
           {/* Signals Panel */}
           <div className="space-y-6">
             <PortfolioStats />
+            <TradingPanel />
+            <TelegramIntegration />
+            <QuantumAnalysis />
             <SpynxScoreCard />
             <SignalsList />
           </div>

@@ -16,6 +16,12 @@ export interface Signal {
   trend_projection: string
   volume_strength: number
   roi_projection: number
+  signal_strength: string
+  risk_level: string
+  quantum_probability: number
+  stels_max_leverage?: number
+  stels_recommended_capital?: number
+  stels_risk_score?: number
   status: string
   created_at: string
   expires_at?: string
