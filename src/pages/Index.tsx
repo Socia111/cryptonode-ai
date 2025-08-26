@@ -5,6 +5,8 @@ import MarketOverview from '../components/MarketOverview';
 import SignalsList from '../components/SignalsList';
 import TradingChart from '../components/TradingChart';
 import PortfolioStats from '../components/PortfolioStats';
+import DatabaseSetup from '../components/DatabaseSetup';
+import SpynxScoreCard from '../components/SpynxScoreCard';
 
 const Index = () => {
   return (
@@ -12,6 +14,9 @@ const Index = () => {
       <TradingHeader />
       
       <div className="container mx-auto px-6 py-8 space-y-8">
+        {/* Database Setup */}
+        <DatabaseSetup />
+        
         {/* Market Overview */}
         <MarketOverview />
         
@@ -24,6 +29,7 @@ const Index = () => {
           {/* Signals Panel */}
           <div className="space-y-6">
             <PortfolioStats />
+            <SpynxScoreCard />
             <SignalsList />
           </div>
         </div>
