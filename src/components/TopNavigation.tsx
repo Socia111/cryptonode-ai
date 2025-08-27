@@ -14,16 +14,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import LivePrice from '@/components/LivePrice';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { useAuth } from './AuthProvider';
-
 const TopNavigation = () => {
-  const { user, signOut } = useAuth();
-
-  const handleSignOut = async () => {
-    await signOut();
-  };
-
-  const userInitials = user?.email ? user.email.slice(0, 2).toUpperCase() : 'U';
+  const userInitials = 'U';
 
   return (
     <header className="h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
@@ -89,7 +81,7 @@ const TopNavigation = () => {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel className="flex items-center gap-2">
                 <Shield className="w-4 h-4" />
-                <span className="truncate">{user?.email}</span>
+                <span className="truncate">User</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
@@ -103,7 +95,7 @@ const TopNavigation = () => {
                 Theme
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" onClick={handleSignOut}>
+              <DropdownMenuItem className="text-destructive">
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign out
               </DropdownMenuItem>
