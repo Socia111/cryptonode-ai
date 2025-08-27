@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Activity, TrendingUp, Zap } from 'lucide-react';
+import LivePrice from '@/components/LivePrice';
 
 const TradingHeader = () => {
   return (
@@ -22,21 +23,18 @@ const TradingHeader = () => {
             </div>
           </div>
 
-          {/* Status Indicators */}
+          {/* Live Price Display */}
           <div className="flex items-center space-x-6">
+            <LivePrice />
+            
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-success rounded-full pulse-glow"></div>
-              <span className="text-sm text-muted-foreground">Live Market Data</span>
+              <span className="text-sm text-muted-foreground">Live WebSocket</span>
             </div>
             
             <div className="flex items-center space-x-2">
               <Activity className="w-4 h-4 text-primary" />
-              <span className="text-sm trading-mono">1,247 Coins Tracked</span>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="w-4 h-4 text-success" />
-              <span className="text-sm trading-mono text-success">+12.4% Today</span>
+              <span className="text-sm trading-mono">Multi-Exchange</span>
             </div>
           </div>
         </div>
