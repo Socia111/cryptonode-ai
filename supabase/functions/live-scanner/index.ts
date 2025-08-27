@@ -1,670 +1,711 @@
+// deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Canonical AItradeX1 Configuration
-const CANONICAL_CONFIG = {
-  inputs: {
-    emaLen: 21,
-    smaLen: 200,
-    adxThreshold: 28,
-    stochLength: 14,
-    stochSmoothK: 3,
-    stochSmoothD: 3,
-    volSpikeMult: 1.7,
-    obvEmaLen: 21,
-    hvpLower: 55,
-    hvpUpper: 85,
-    breakoutLen: 5,
-    spreadMaxPct: 0.10,
-    atrLen: 14,
-    exitBars: 18,
-    useDailyTrendFilter: true
-  },
-  relaxedMode: {
-    adxThreshold: 22,
-    volSpikeMult: 1.4,
-    hvpLower: 50,
-    hvpUpper: 90,
-    breakoutLen: 3,
-    useDailyTrendFilter: false
-  }
+/* -------------------------- ENV + SUPABASE CLIENT -------------------------- */
+const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
+const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID") ?? "";
+
+/* ---------------------------- CANONICAL SETTINGS --------------------------- */
+type Inputs = {
+  adxThreshold: number;
+  volSpikeMult: number;
+  hvpLower: number;
+  hvpUpper: number;
+  breakoutLen: number;
+  useDailyTrendFilter: boolean;
+  emaLen: number;
+  smaLen: number;
+  atrLen: number;
+  stochLength: number;
+  stochSmoothK: number;
+  stochSmoothD: number;
+  obvEmaLen: number;
+  spreadMaxPct: number;
+  cooldownByTF: Record<string, number>;
 };
 
-// OHLCV Data Interface
-interface OHLCVData {
-  timestamp: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
+const CANONICAL: Inputs = {
+  adxThreshold: 28,
+  volSpikeMult: 1.7,
+  hvpLower: 55,
+  hvpUpper: 85,
+  breakoutLen: 5,
+  useDailyTrendFilter: true,
+  emaLen: 21,
+  smaLen: 200,
+  atrLen: 14,
+  stochLength: 14,
+  stochSmoothK: 3,
+  stochSmoothD: 3,
+  obvEmaLen: 21,
+  spreadMaxPct: 0.10,
+  cooldownByTF: { "1m": 1, "5m": 3, "15m": 10, "1h": 30 },
+};
+
+const RELAXED: Partial<Inputs> = {
+  adxThreshold: 22,
+  volSpikeMult: 1.4,
+  hvpLower: 50,
+  hvpUpper: 90,
+  breakoutLen: 3,
+  useDailyTrendFilter: false,
+};
+
+/* -------------------------------- SYMBOL SET ------------------------------- */
+const DEFAULT_SYMBOLS = [
+  "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
+  "ADAUSDT", "DOGEUSDT", "LINKUSDT", "LTCUSDT", "APTUSDT",
+  "ARBUSDT", "OPUSDT", "NEARUSDT", "ATOMUSDT", "ETCUSDT",
+];
+
+/* ---------------------------- UTILS / INDICATORS --------------------------- */
+type Bar = { open: number; high: number; low: number; close: number; volume: number; ts: number };
+const tfMap: Record<string, string> = { "1m": "1", "5m": "5", "15m": "15", "1h": "60", "4h": "240" };
+
+// Helper functions
+async function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Technical Indicators Interface
-interface TechnicalIndicators {
-  ema21: number;
-  sma200: number;
-  adx: number;
-  diPlus: number;
-  diMinus: number;
-  stochK: number;
-  stochD: number;
-  obv: number;
-  obvEma: number;
-  hvp: number;
-  atr: number;
-  volSma21: number;
-  spread: number;
-  breakoutHigh: number;
-}
-
-// Signal Interface
-interface Signal {
-  exchange: string;
-  symbol: string;
-  timeframe: string;
-  direction: 'LONG' | 'SHORT';
-  price: number;
-  score: number;
-  atr: number;
-  sl: number;
-  tp: number;
-  hvp: number;
-  filters: Record<string, boolean>;
-  indicators: TechnicalIndicators;
-  relaxed_mode: boolean;
-}
-
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+async function safeText(response: Response): Promise<string> {
   try {
-    console.log('🚀 AItradeX1 Live Scanner started');
+    return await response.text();
+  } catch {
+    return `HTTP ${response.status}`;
+  }
+}
+
+function tfToMs(timeframe: string): number {
+  const map: Record<string, number> = {
+    "1m": 60 * 1000,
+    "5m": 5 * 60 * 1000,
+    "15m": 15 * 60 * 1000,
+    "1h": 60 * 60 * 1000,
+    "4h": 4 * 60 * 60 * 1000,
+  };
+  return map[timeframe] || 60 * 60 * 1000;
+}
+
+// Retry + rate limits for Bybit
+async function getBybit(url: string, tries = 3, backoff = 300): Promise<any> {
+  let lastErr: any;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const response = await fetch(url, { 
+        headers: { 'User-Agent': 'aitradex1/1.0' } 
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+      
+      lastErr = await safeText(response);
+      if (response.status === 429 || response.status >= 500) {
+        console.warn(`⚠️  Bybit rate limit/server error, retrying in ${backoff * (i + 1)}ms...`);
+        await delay(backoff * (i + 1));
+      } else {
+        break; // Don't retry for 4xx errors
+      }
+    } catch (error) {
+      lastErr = error;
+      console.warn(`⚠️  Network error, retrying in ${backoff * (i + 1)}ms...`, error);
+      await delay(backoff * (i + 1));
+    }
+  }
+  throw new Error(`Bybit fetch failed after ${tries} attempts: ${url} :: ${JSON.stringify(lastErr)}`);
+}
+
+// Technical indicators
+const sma = (arr: number[], len: number) =>
+  arr.map((_, i) => i + 1 >= len ? arr.slice(i + 1 - len, i + 1).reduce((a, b) => a + b, 0) / len : NaN);
+
+const ema = (arr: number[], len: number) => {
+  const k = 2 / (len + 1);
+  const out: number[] = [];
+  let prev = NaN;
+  for (let i = 0; i < arr.length; i++) {
+    const v = arr[i];
+    if (i < len - 1) out.push(NaN);
+    else if (i === len - 1) {
+      const base = arr.slice(0, len).reduce((a, b) => a + b, 0) / len;
+      prev = base; out.push(base);
+    } else {
+      prev = v * k + prev * (1 - k);
+      out.push(prev);
+    }
+  }
+  return out;
+};
+
+const rma = (arr: number[], len: number) => {
+  const out: number[] = []; let prev = NaN;
+  for (let i = 0; i < arr.length; i++) {
+    const v = arr[i];
+    if (i === 0) { prev = v; out.push(v); }
+    else { prev = (prev * (len - 1) + v) / len; out.push(prev); }
+  }
+  return out;
+};
+
+function atr(high: number[], low: number[], close: number[], len: number) {
+  const tr = high.map((h, i) => {
+    if (i === 0) return h - low[i];
+    return Math.max(h - low[i], Math.abs(h - close[i - 1]), Math.abs(low[i] - close[i - 1]));
+  });
+  return rma(tr, len);
+}
+
+function dmiAdx(high: number[], low: number[], close: number[], len: number) {
+  const plusDM: number[] = [NaN];
+  const minusDM: number[] = [NaN];
+  for (let i = 1; i < high.length; i++) {
+    const up = high[i] - high[i - 1];
+    const down = low[i - 1] - low[i];
+    plusDM.push(up > 0 && up > down ? up : 0);
+    minusDM.push(down > 0 && down > up ? down : 0);
+  }
+  const trArr = high.map((h, i) => i === 0 ? h - low[i] :
+    Math.max(h - low[i], Math.abs(h - close[i - 1]), Math.abs(low[i] - close[i - 1])));
+  const ATR = rma(trArr, len);
+  const plusDI = plusDM.map((v, i) => 100 * rma(plusDM, len)[i] / ATR[i]);
+  const minusDI = minusDM.map((v, i) => 100 * rma(minusDM, len)[i] / ATR[i]);
+  const dx = plusDI.map((p, i) => 100 * Math.abs((p - minusDI[i]) / (p + minusDI[i])));
+  const ADX = rma(dx.map(v => isFinite(v) ? v : 0), len);
+  return { plusDI, minusDI, ADX };
+}
+
+const stoch = (high: number[], low: number[], close: number[], len = 14, smoothK = 3, smoothD = 3) => {
+  const kRaw = close.map((c, i) => {
+    if (i + 1 < len) return NaN;
+    const hh = Math.max(...high.slice(i + 1 - len, i + 1));
+    const ll = Math.min(...low.slice(i + 1 - len, i + 1));
+    return hh === ll ? 50 : 100 * (c - ll) / (hh - ll);
+  });
+  const k = sma(kRaw, smoothK);
+  const d = sma(k.map(v => isNaN(v) ? 50 : v), smoothD);
+  return { k, d };
+};
+
+const obv = (close: number[], vol: number[]) => {
+  const out: number[] = [vol[0] || 0];
+  for (let i = 1; i < close.length; i++) {
+    if (close[i] > close[i - 1]) out.push(out[i - 1] + vol[i]);
+    else if (close[i] < close[i - 1]) out.push(out[i - 1] - vol[i]);
+    else out.push(out[i - 1]);
+  }
+  return out;
+};
+
+function hvp(close: number[]) {
+  const rets = close.map((c, i) => i === 0 ? 0 : (c - close[i - 1]) / close[i - 1]);
+  const sigma21 = rets.map((_, i) => {
+    if (i + 1 < 21) return NaN;
+    const slice = rets.slice(i + 1 - 21, i + 1);
+    const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+    const sd = Math.sqrt(slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / slice.length);
+    return sd * Math.sqrt(252);
+  });
+  const window252 = (i: number) => Math.max(0, i + 1 - 252);
+  const hvpPct = sigma21.map((sig, i) => {
+    if (isNaN(sig)) return NaN;
+    const maxLast = Math.max(...sigma21.slice(window252(i), i + 1).filter(x => !isNaN(x)));
+    return maxLast > 0 ? (100 * sig / maxLast) : NaN;
+  });
+  return hvpPct;
+}
+
+/* ------------------------------ DATA PROVIDERS ----------------------------- */
+async function fetchBybitBars(symbol: string, tf: string, limit = 500, category = "linear"): Promise<Bar[]> {
+  const interval = tfMap[tf] ?? "60";
+  const url = `https://api.bybit.com/v5/market/kline?category=${category}&symbol=${symbol}&interval=${interval}&limit=${limit}`;
+  
+  const data = await getBybit(url);
+  
+  if (!data?.result?.list) {
+    throw new Error(`Bybit kline error for ${symbol} ${tf}: ${JSON.stringify(data)}`);
+  }
+  
+  // result.list: newest first -> sort oldest first
+  const rows = [...data.result.list].reverse();
+  const bars = rows.map((row: any) => ({
+    ts: Number(row[0]),
+    open: Number(row[1]),
+    high: Number(row[2]),
+    low: Number(row[3]),
+    close: Number(row[4]),
+    volume: Number(row[5]),
+  }));
+  
+  // A. Candle provenance logging
+  console.log('bybit.ohlcv', {
+    symbol, tf, bars: bars.length,
+    firstBar: new Date(bars[0].ts).toISOString(),
+    lastBar: new Date(bars[bars.length - 1].ts).toISOString(),
+    source: 'bybit-rest'
+  });
+  
+  return bars;
+}
+
+async function crossCheckPrice(symbol: string, lastClose: number): Promise<void> {
+  try {
+    const url = `https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`;
+    const data = await getBybit(url);
     
-    const body = await req.json();
-    const relaxed = body.relaxed_filters === true;
+    if (data?.result?.list?.[0]?.lastPrice) {
+      const tickerPrice = Number(data.result.list[0].lastPrice);
+      const delta = Math.abs(tickerPrice - lastClose);
+      const deltaPercent = (delta / lastClose) * 100;
+      
+      console.log('price.crosscheck', {
+        symbol,
+        ohlcClose: lastClose,
+        tickerPrice,
+        delta,
+        deltaPercent: deltaPercent.toFixed(4) + '%',
+        withinTolerance: deltaPercent < 0.5
+      });
+      
+      if (deltaPercent > 1.0) {
+        console.warn(`⚠️  Price divergence detected for ${symbol}: OHLC=${lastClose}, Ticker=${tickerPrice} (${deltaPercent.toFixed(2)}%)`);
+      }
+    }
+  } catch (error) {
+    console.warn(`Failed to cross-check price for ${symbol}:`, error);
+  }
+}
+
+async function persistCandleBatch(symbol: string, timeframe: string, bars: Bar[]): Promise<string> {
+  const candleSetId = crypto.randomUUID();
+  
+  try {
+    const candleInserts = bars.map(bar => ({
+      id: crypto.randomUUID(),
+      symbol,
+      timeframe,
+      bar_time: new Date(bar.ts).toISOString(),
+      open: bar.open,
+      high: bar.high,
+      low: bar.low,
+      close: bar.close,
+      volume: bar.volume,
+      source: 'bybit'
+    }));
     
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const { error } = await supabase.from('candles').insert(candleInserts);
+    if (error) {
+      console.warn('Failed to persist candle batch:', error);
+    } else {
+      console.log(`✅ Persisted ${candleInserts.length} candles for ${symbol} ${timeframe}`);
+    }
+  } catch (error) {
+    console.warn('Error persisting candles:', error);
+  }
+  
+  return candleSetId;
+}
 
-    // Get configuration
-    const config = relaxed 
-      ? { ...CANONICAL_CONFIG.inputs, ...CANONICAL_CONFIG.relaxedMode }
-      : CANONICAL_CONFIG.inputs;
+/* --------------------------------- LOGIC ---------------------------------- */
+function confidenceScore(buckets: Record<string, boolean>) {
+  const hits = Object.values(buckets).filter(Boolean).length;
+  return Math.min(100, hits * 10); // Adjusted for 10 buckets
+}
 
-    console.log('🔧 Using config:', { relaxed, adxThreshold: config.adxThreshold });
+function riskTargets(price: number, atrv: number, hvpVal: number) {
+  const tpATR = hvpVal > 75 ? 3.5 : hvpVal > 65 ? 3.0 : 2.5;
+  return { 
+    tpATR, 
+    longTP: price + tpATR * atrv, 
+    shortTP: price - tpATR * atrv, 
+    slLong: price - 1.5 * atrv, 
+    slShort: price + 1.5 * atrv 
+  };
+}
 
-    // Start scan record
-    const { data: scanRecord } = await supabase
+function tfCooldownMinutes(tf: string, inputs: Inputs) {
+  return inputs.cooldownByTF[tf] ?? 10;
+}
+
+/* ------------------------------ DB + TELEGRAM ------------------------------ */
+async function hasSignalKey(uniqueKey: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("signals_state")
+    .select("last_emitted_at")
+    .eq("unique_key", uniqueKey)
+    .maybeSingle();
+    
+  return !error && !!data;
+}
+
+async function markEmitted(symbol: string, tf: string, dir: "LONG" | "SHORT", uniqueKey: string) {
+  await supabase.from("signals_state").upsert(
+    { 
+      symbol, 
+      timeframe: tf, 
+      direction: dir, 
+      unique_key: uniqueKey,
+      last_emitted_at: new Date().toISOString() 
+    },
+    { onConflict: "symbol,timeframe,direction" },
+  );
+}
+
+async function saveSignal(payload: any) {
+  const { error } = await supabase.from("signals").insert(payload);
+  if (error) console.warn("signals insert error:", error.message);
+}
+
+async function sendTelegram(text: string) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+  
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: "Markdown" }),
+    });
+    
+    if (response.ok) {
+      await supabase.from("alerts_log").insert({ 
+        channel: "telegram", 
+        status: "sent", 
+        payload: text 
+      });
+      console.log("✅ Telegram alert sent");
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (e: any) {
+    console.error("❌ Telegram send failed:", e);
+    await supabase.from("alerts_log").insert({ 
+      channel: "telegram", 
+      status: "error", 
+      payload: e?.message ?? "unknown" 
+    });
+  }
+}
+
+/* --------------------------------- SERVER --------------------------------- */
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  let scanId: string | null = null;
+  
+  try {
+    const body = req.method === "POST" ? await req.json() : {};
+    const {
+      exchange = "bybit",
+      timeframe = "1h",
+      relaxed_filters = false,
+      symbols = DEFAULT_SYMBOLS,
+      category = "linear",
+    } = body ?? {};
+
+    const inputs: Inputs = { ...CANONICAL, ...(relaxed_filters ? RELAXED : {}) };
+    
+    // Create scan record
+    const { data: scanData, error: scanError } = await supabase
       .from('scans')
       .insert({
-        exchange: 'bybit',
-        timeframe: '1h',
-        relaxed_mode: relaxed
+        exchange,
+        timeframe,
+        status: 'running'
       })
       .select()
       .single();
+      
+    if (scanError) {
+      console.warn('Failed to create scan record:', scanError);
+    } else {
+      scanId = scanData.id;
+    }
 
-    // Fetch live market data and analyze
-    const signals = await scanLiveMarkets(config, relaxed);
-    
-    // Process and store signals
-    let signalsProcessed = 0;
-    for (const signal of signals) {
+    const results: any[] = [];
+    let signalsFound = 0;
+    let symbolsProcessed = 0;
+
+    for (const symbol of symbols) {
       try {
-        // Check for duplicate
-        const existingSignal = await checkSignalExists(supabase, signal);
-        if (existingSignal) {
-          console.log(`⚠️ Signal already exists for ${signal.symbol} ${signal.direction}`);
+        console.log(`🔍 Scanning ${symbol} ${timeframe}...`);
+        
+        // 1) Fetch data with retry/backoff
+        const bars = await fetchBybitBars(symbol, timeframe, 600, category);
+        if (bars.length < 250) {
+          console.warn(`⚠️  Insufficient data for ${symbol}: ${bars.length} bars`);
           continue;
         }
 
-        // Insert signal
-        const { data: insertedSignal, error } = await supabase
-          .from('signals')
-          .insert({
-            exchange: signal.exchange,
-            symbol: signal.symbol,
-            timeframe: signal.timeframe,
-            direction: signal.direction,
-            bar_time: new Date().toISOString(),
-            price: signal.price,
-            score: signal.score,
-            atr: signal.atr,
-            sl: signal.sl,
-            tp: signal.tp,
-            hvp: signal.hvp,
-            filters: signal.filters,
-            indicators: signal.indicators,
-            relaxed_mode: signal.relaxed_mode
-          })
-          .select()
-          .single();
-
-        if (error) {
-          console.error('❌ Signal insert error:', error);
-          continue;
+        // 2) Bar-close only (avoid repaint)
+        const now = Date.now();
+        const tfMs = tfToMs(timeframe);
+        const lastBar = bars[bars.length - 1];
+        const barClosed = now >= lastBar.ts + tfMs;
+        
+        if (!barClosed) {
+          bars.pop(); // Drop partial bar
+          console.log(`⏰ Dropped partial bar for ${symbol} (bar not closed)`);
         }
+        
+        if (bars.length < 250) continue;
 
-        signalsProcessed++;
+        // 3) Cross-check price
+        await crossCheckPrice(symbol, lastBar.close);
+        
+        // 4) Persist candle batch for lineage
+        const candleSetId = await persistCandleBatch(symbol, timeframe, bars.slice(-100)); // Last 100 bars
 
-        // Update signals state for deduplication
-        await supabase
-          .from('signals_state')
-          .upsert({
-            exchange: signal.exchange,
-            symbol: signal.symbol,
-            timeframe: signal.timeframe,
-            direction: signal.direction,
-            last_emitted: new Date().toISOString(),
-            last_price: signal.price,
-            last_score: signal.score
-          });
+        // Evaluate on last CLOSED bar
+        const lastIdx = bars.length - 1;
+        const slice = bars.slice(0, lastIdx + 1);
 
-        // Send to Telegram if high confidence
-        if (signal.score >= 75) {
-          console.log(`📢 Sending high-confidence signal: ${signal.symbol} ${signal.direction} (Score: ${signal.score})`);
+        const close = slice.map(b => b.close);
+        const high = slice.map(b => b.high);
+        const low = slice.map(b => b.low);
+        const open = slice.map(b => b.open);
+        const vol = slice.map(b => b.volume);
+
+        // 5) Indicators
+        const ema21 = ema(close, inputs.emaLen);
+        const sma200 = sma(close, inputs.smaLen);
+        const ATR = atr(high, low, close, inputs.atrLen);
+        const { plusDI, minusDI, ADX } = dmiAdx(high, low, close, inputs.atrLen);
+        const { k, d } = stoch(high, low, close, inputs.stochLength, inputs.stochSmoothK, inputs.stochSmoothD);
+        const volSMA21 = sma(vol, 21);
+        const obvSeries = obv(close, vol);
+        const obvEMA = ema(obvSeries, inputs.obvEmaLen);
+        const HVP = hvp(close);
+
+        const i = lastIdx;
+
+        const trendUp = ema21[i] > sma200[i] && ema21[i] > ema21[i - 3];
+        const trendDown = ema21[i] < sma200[i] && ema21[i] < ema21[i - 3];
+
+        const adxOK = ADX[i] >= inputs.adxThreshold;
+        const dmiBull = plusDI[i] > minusDI[i] && plusDI[i] > plusDI[i - 3];
+        const dmiBear = minusDI[i] > plusDI[i] && minusDI[i] > minusDI[i - 3];
+
+        const stochBull = k[i] > d[i] && k[i] < 35 && d[i] < 40;
+        const stochBear = k[i] < d[i] && k[i] > 65 && d[i] > 60;
+
+        const volSpike = vol[i] > inputs.volSpikeMult * (volSMA21[i] ?? Infinity);
+        const obvBull = obvSeries[i] > obvEMA[i] && obvSeries[i] > obvSeries[i - 3];
+        const obvBear = obvSeries[i] < obvEMA[i] && obvSeries[i] < obvSeries[i - 3];
+
+        const hvpVal = HVP[i];
+        const hvpOK = hvpVal >= inputs.hvpLower && hvpVal <= inputs.hvpUpper;
+
+        const spreadPct = Math.abs(close[i] - open[i]) / Math.max(1e-9, open[i]) * 100;
+        const spreadOK = spreadPct <= inputs.spreadMaxPct;
+
+        const breakoutLong = close[i] > Math.max(...high.slice(i - inputs.breakoutLen, i));
+        const breakoutShort = close[i] < Math.min(...low.slice(i - inputs.breakoutLen, i));
+
+        // Buckets & score
+        const longBuckets = {
+          trend: trendUp,
+          adx: adxOK,
+          dmi: dmiBull,
+          stoch: stochBull,
+          volume: volSpike,
+          obv: obvBull,
+          hvp: hvpOK,
+          spread: spreadOK,
+          breakout: breakoutLong,
+        };
+        
+        const shortBuckets = {
+          trend: trendDown,
+          adx: adxOK,
+          dmi: dmiBear,
+          stoch: stochBear,
+          volume: volSpike,
+          obv: obvBear,
+          hvp: hvpOK,
+          spread: spreadOK,
+          breakout: breakoutShort,
+        };
+
+        const longPass = Object.values(longBuckets).every(Boolean);
+        const shortPass = Object.values(shortBuckets).every(Boolean);
+        const price = close[i];
+
+        // 6) Cooldown & dedupe
+        const barTime = slice[i].ts;
+        
+        if (longPass) {
+          const uniqueKey = `${exchange}:${symbol}:${timeframe}:LONG:${barTime}`;
+          const exists = await hasSignalKey(uniqueKey);
           
-          try {
-            await supabase.functions.invoke('telegram-bot', {
-              body: { 
-                signal: formatTelegramSignal(signal)
-              }
-            });
+          if (!exists) {
+            const { tpATR, longTP, slLong } = riskTargets(price, ATR[i], hvpVal);
+            const score = confidenceScore(longBuckets as any);
 
-            // Log successful delivery
-            await supabase.from('alerts_log').insert({
-              signal_id: insertedSignal.id,
-              channel: 'telegram',
-              payload: { signal: formatTelegramSignal(signal) },
-              status: 'sent'
-            });
-          } catch (telegramError) {
-            console.error('❌ Telegram send error:', telegramError);
-            await supabase.from('alerts_log').insert({
-              signal_id: insertedSignal.id,
-              channel: 'telegram',
-              payload: { signal: formatTelegramSignal(signal) },
-              status: 'failed',
-              response: { error: telegramError.message }
-            });
+            const payload = {
+              algo: "AItradeX1",
+              exchange,
+              symbol,
+              timeframe,
+              direction: "LONG",
+              bar_time: new Date(barTime).toISOString(),
+              price,
+              score,
+              risk: { atr: ATR[i], tpATR, sl: slLong, tp: longTP },
+              indicators: {
+                adx: ADX[i], diPlus: plusDI[i], diMinus: minusDI[i],
+                k: k[i], d: d[i], hvp: hvpVal, vol_spike: volSpike,
+              },
+              filters: longBuckets,
+              relaxed_mode: relaxed_filters,
+              candle_set_id: candleSetId,
+              unique_key: uniqueKey
+            };
+
+            await saveSignal(payload);
+            await markEmitted(symbol, timeframe, "LONG", uniqueKey);
+            signalsFound++;
+
+            // Enhanced Telegram format
+            if (score >= 75) {
+              const alertText = 
+                `*AItradeX1* — *LONG* ${exchange.toUpperCase()}:${symbol} *${timeframe}*\n` +
+                `@ ${price.toLocaleString()}   Score: *${score.toFixed(1)}*\n` +
+                `ADX: ${ADX[i].toFixed(1)}  HVP: ${hvpVal.toFixed(0)}  %K: ${k[i].toFixed(0)}  OBV${obvBull ? '↑' : '↓'}\n` +
+                `SL: ${slLong.toLocaleString()}  TP: ${longTP.toLocaleString()}\n` +
+                `#aitradex1 #${exchange} #${timeframe.replace('m', 'min')} #long`;
+              
+              await sendTelegram(alertText);
+            }
+
+            results.push(payload);
+          } else {
+            console.log(`⏭️  Skipping duplicate LONG signal for ${symbol} (cooldown)`);
           }
         }
 
-      } catch (signalError) {
-        console.error('❌ Signal processing error:', signalError);
-        await supabase.from('errors_log').insert({
-          where_at: 'signal_processing',
-          symbol: signal.symbol,
-          details: { error: signalError.message, signal }
-        });
+        if (shortPass) {
+          const uniqueKey = `${exchange}:${symbol}:${timeframe}:SHORT:${barTime}`;
+          const exists = await hasSignalKey(uniqueKey);
+          
+          if (!exists) {
+            const { tpATR, shortTP, slShort } = riskTargets(price, ATR[i], hvpVal);
+            const score = confidenceScore(shortBuckets as any);
+
+            const payload = {
+              algo: "AItradeX1",
+              exchange,
+              symbol,
+              timeframe,
+              direction: "SHORT",
+              bar_time: new Date(barTime).toISOString(),
+              price,
+              score,
+              risk: { atr: ATR[i], tpATR, sl: slShort, tp: shortTP },
+              indicators: {
+                adx: ADX[i], diPlus: plusDI[i], diMinus: minusDI[i],
+                k: k[i], d: d[i], hvp: hvpVal, vol_spike: volSpike,
+              },
+              filters: shortBuckets,
+              relaxed_mode: relaxed_filters,
+              candle_set_id: candleSetId,
+              unique_key: uniqueKey
+            };
+
+            await saveSignal(payload);
+            await markEmitted(symbol, timeframe, "SHORT", uniqueKey);
+            signalsFound++;
+
+            if (score >= 75) {
+              const alertText = 
+                `*AItradeX1* — *SHORT* ${exchange.toUpperCase()}:${symbol} *${timeframe}*\n` +
+                `@ ${price.toLocaleString()}   Score: *${score.toFixed(1)}*\n` +
+                `ADX: ${ADX[i].toFixed(1)}  HVP: ${hvpVal.toFixed(0)}  %K: ${k[i].toFixed(0)}  OBV${obvBear ? '↓' : '↑'}\n` +
+                `SL: ${slShort.toLocaleString()}  TP: ${shortTP.toLocaleString()}\n` +
+                `#aitradex1 #${exchange} #${timeframe.replace('m', 'min')} #short`;
+              
+              await sendTelegram(alertText);
+            }
+
+            results.push(payload);
+          } else {
+            console.log(`⏭️  Skipping duplicate SHORT signal for ${symbol} (cooldown)`);
+          }
+        }
+        
+        symbolsProcessed++;
+        
+      } catch (err) {
+        console.warn(`❌ Scan error for ${symbol}:`, (err as Error).message);
       }
     }
-
+    
     // Update scan record
-    await supabase
-      .from('scans')
-      .update({
-        finished_at: new Date().toISOString(),
-        symbols_count: signals.length,
-        signals_count: signalsProcessed
-      })
-      .eq('id', scanRecord?.id);
+    if (scanId) {
+      await supabase
+        .from('scans')
+        .update({
+          status: 'completed',
+          signals_found: signalsFound,
+          symbols_processed: symbolsProcessed,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', scanId);
+    }
 
-    return new Response(JSON.stringify({
+    const response = {
       success: true,
-      algorithm: "AItradeX1",
-      scan_id: scanRecord?.id,
-      signals_found: signals.length,
-      signals_processed: signalsProcessed,
-      relaxed_mode: relaxed,
-      timestamp: new Date().toISOString()
-    }), { 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      exchange,
+      timeframe,
+      relaxed_filters,
+      signals_found: signalsFound,
+      symbols_processed: symbolsProcessed,
+      items: results,
+      scan_id: scanId,
+      data_source: 'bybit_real_ohlcv',
+      bar_close_only: true,
+      timestamp: new Date().toISOString(),
+    };
+
+    console.log(`✅ Live scan completed: ${signalsFound} signals from ${symbolsProcessed} symbols`);
+
+    return new Response(JSON.stringify(response), { 
+      headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
 
-  } catch (error) {
-    console.error('❌ Live Scanner Error:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: error.message,
+  } catch (error: any) {
+    console.error("❌ Live scanner error:", error?.message || error);
+    
+    // Update scan record with error
+    if (scanId) {
+      await supabase
+        .from('scans')
+        .update({
+          status: 'error',
+          error_message: error?.message || String(error),
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', scanId);
+    }
+    
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: String(error),
+      scan_id: scanId,
       timestamp: new Date().toISOString()
-    }), { 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500 
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
     });
   }
 });
-
-async function scanLiveMarkets(config: any, relaxed: boolean): Promise<Signal[]> {
-  const signals: Signal[] = [];
-  
-  // Top crypto symbols for scanning
-  const symbols = [
-    'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'SOLUSDT',
-    'XRPUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'LINKUSDT',
-    'MATICUSDT', 'LTCUSDT', 'UNIUSDT', 'ATOMUSDT', 'FILUSDT'
-  ];
-
-  for (const symbol of symbols) {
-    try {
-      console.log(`📊 Analyzing ${symbol}...`);
-      
-      // Fetch real market data from Bybit
-      const ohlcvData = await fetchBybitData(symbol, '1h');
-      
-      if (ohlcvData.length < 250) {
-        console.log(`⚠️ Insufficient data for ${symbol}: ${ohlcvData.length} bars`);
-        continue;
-      }
-
-      // Compute technical indicators
-      const indicators = computeIndicators(ohlcvData, config);
-      
-      // Evaluate AItradeX1 strategy
-      const evaluation = evaluateAItradeX1(indicators, config, ohlcvData);
-      
-      if (evaluation.signal !== 'NONE') {
-        const currentPrice = ohlcvData[ohlcvData.length - 1].close;
-        
-        signals.push({
-          exchange: 'bybit',
-          symbol,
-          timeframe: '1h',
-          direction: evaluation.signal,
-          price: currentPrice,
-          score: evaluation.score,
-          atr: indicators.atr,
-          sl: evaluation.signal === 'LONG' 
-            ? currentPrice - (1.5 * indicators.atr)
-            : currentPrice + (1.5 * indicators.atr),
-          tp: evaluation.signal === 'LONG'
-            ? currentPrice + (getTpMultiplier(indicators.hvp) * indicators.atr)
-            : currentPrice - (getTpMultiplier(indicators.hvp) * indicators.atr),
-          hvp: indicators.hvp,
-          filters: evaluation.filters,
-          indicators,
-          relaxed_mode: relaxed
-        });
-        
-        console.log(`✅ Signal found: ${symbol} ${evaluation.signal} (Score: ${evaluation.score})`);
-      }
-    } catch (error) {
-      console.error(`❌ Error analyzing ${symbol}:`, error);
-    }
-  }
-
-  return signals;
-}
-
-async function fetchBybitData(symbol: string, timeframe: string): Promise<OHLCVData[]> {
-  const interval = timeframe === '1h' ? 60 : timeframe === '5m' ? 5 : 1;
-  const limit = 500; // Fetch enough data for indicators
-  
-  const url = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${interval}&limit=${limit}`;
-  
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (data.retCode !== 0) {
-      throw new Error(`Bybit API error: ${data.retMsg}`);
-    }
-    
-    return data.result.list.map((item: any) => ({
-      timestamp: parseInt(item[0]),
-      open: parseFloat(item[1]),
-      high: parseFloat(item[2]),
-      low: parseFloat(item[3]),
-      close: parseFloat(item[4]),
-      volume: parseFloat(item[5])
-    })).reverse(); // Bybit returns newest first, we need oldest first
-    
-  } catch (error) {
-    console.error(`Failed to fetch data for ${symbol}:`, error);
-    throw error;
-  }
-}
-
-function computeIndicators(data: OHLCVData[], config: any): TechnicalIndicators {
-  const closes = data.map(d => d.close);
-  const highs = data.map(d => d.high);
-  const lows = data.map(d => d.low);
-  const volumes = data.map(d => d.volume);
-  
-  // EMA 21
-  const ema21 = calculateEMA(closes, config.emaLen);
-  
-  // SMA 200
-  const sma200 = calculateSMA(closes, config.smaLen);
-  
-  // ADX and DMI
-  const { adx, diPlus, diMinus } = calculateADX(highs, lows, closes, 14);
-  
-  // Stochastic
-  const { k: stochK, d: stochD } = calculateStochastic(
-    highs, lows, closes, 
-    config.stochLength, config.stochSmoothK, config.stochSmoothD
-  );
-  
-  // OBV and OBV EMA
-  const obvValues = calculateOBV(closes, volumes);
-  const obvEma = calculateEMA(obvValues, config.obvEmaLen);
-  
-  // HVP (Historical Volatility Percentile)
-  const hvp = calculateHVP(closes, 21, 252);
-  
-  // ATR
-  const atr = calculateATR(highs, lows, closes, config.atrLen);
-  
-  // Volume SMA
-  const volSma21 = calculateSMA(volumes, 21);
-  
-  // Spread
-  const spread = Math.abs(data[data.length - 1].close - data[data.length - 1].open) / data[data.length - 1].open * 100;
-  
-  // Breakout high
-  const recentHighs = highs.slice(-config.breakoutLen - 1, -1); // Exclude current bar
-  const breakoutHigh = Math.max(...recentHighs);
-  
-  return {
-    ema21: ema21[ema21.length - 1],
-    sma200: sma200[sma200.length - 1],
-    adx: adx[adx.length - 1],
-    diPlus: diPlus[diPlus.length - 1],
-    diMinus: diMinus[diMinus.length - 1],
-    stochK: stochK[stochK.length - 1],
-    stochD: stochD[stochD.length - 1],
-    obv: obvValues[obvValues.length - 1],
-    obvEma: obvEma[obvEma.length - 1],
-    hvp,
-    atr: atr[atr.length - 1],
-    volSma21: volSma21[volSma21.length - 1],
-    spread,
-    breakoutHigh
-  };
-}
-
-function evaluateAItradeX1(indicators: TechnicalIndicators, config: any, data: OHLCVData[]) {
-  const current = data[data.length - 1];
-  const prev1 = data[data.length - 2];
-  const prev4 = data[data.length - 5];
-  
-  // Long conditions
-  const trendFilter = indicators.ema21 > indicators.sma200;
-  const trendSlope = indicators.ema21 > calculateEMA(data.slice(-5).map(d => d.close), config.emaLen)[0];
-  const adxFilter = indicators.adx >= config.adxThreshold;
-  const dmiFilter = indicators.diPlus > indicators.diMinus;
-  const dmiSlope = indicators.diPlus > calculateDMI(
-    data.slice(-5).map(d => d.high),
-    data.slice(-5).map(d => d.low),
-    data.slice(-5).map(d => d.close)
-  ).diPlus[0];
-  const stochFilter = indicators.stochK > indicators.stochD && indicators.stochK < 35 && indicators.stochD < 40;
-  const volumeFilter = current.volume > config.volSpikeMult * indicators.volSma21;
-  const obvFilter = indicators.obv > indicators.obvEma;
-  const obvSlope = indicators.obv > calculateOBV(
-    data.slice(-5).map(d => d.close),
-    data.slice(-5).map(d => d.volume)
-  )[0];
-  const hvpFilter = indicators.hvp >= config.hvpLower && indicators.hvp <= config.hvpUpper;
-  const spreadFilter = indicators.spread < config.spreadMaxPct;
-  const breakoutFilter = current.close > indicators.breakoutHigh;
-  
-  const longFilters = {
-    trend: trendFilter && trendSlope,
-    adx: adxFilter,
-    dmi: dmiFilter && dmiSlope,
-    stoch: stochFilter,
-    volume: volumeFilter,
-    obv: obvFilter && obvSlope,
-    hvp: hvpFilter,
-    spread: spreadFilter,
-    breakout: breakoutFilter
-  };
-  
-  const longSignal = Object.values(longFilters).every(Boolean);
-  
-  // Short conditions (mirror of long)
-  const shortTrendFilter = indicators.ema21 < indicators.sma200;
-  const shortTrendSlope = indicators.ema21 < calculateEMA(data.slice(-5).map(d => d.close), config.emaLen)[0];
-  const shortDmiFilter = indicators.diMinus > indicators.diPlus;
-  const shortDmiSlope = indicators.diMinus > calculateDMI(
-    data.slice(-5).map(d => d.high),
-    data.slice(-5).map(d => d.low),
-    data.slice(-5).map(d => d.close)
-  ).diMinus[0];
-  const shortStochFilter = indicators.stochK < indicators.stochD && indicators.stochK > 65 && indicators.stochD > 60;
-  const shortObvFilter = indicators.obv < indicators.obvEma;
-  const shortObvSlope = indicators.obv < calculateOBV(
-    data.slice(-5).map(d => d.close),
-    data.slice(-5).map(d => d.volume)
-  )[0];
-  const shortBreakoutFilter = current.close < Math.min(...data.slice(-config.breakoutLen - 1, -1).map(d => d.low));
-  
-  const shortFilters = {
-    trend: shortTrendFilter && shortTrendSlope,
-    adx: adxFilter,
-    dmi: shortDmiFilter && shortDmiSlope,
-    stoch: shortStochFilter,
-    volume: volumeFilter,
-    obv: shortObvFilter && shortObvSlope,
-    hvp: hvpFilter,
-    spread: spreadFilter,
-    breakout: shortBreakoutFilter
-  };
-  
-  const shortSignal = Object.values(shortFilters).every(Boolean);
-  
-  // Calculate score (exclude daily filter from score)
-  const scoreFilters = longSignal ? longFilters : shortFilters;
-  const scoreCount = Object.entries(scoreFilters)
-    .filter(([key]) => key !== 'daily')
-    .reduce((acc, [_, value]) => acc + (value ? 1 : 0), 0);
-  
-  const score = (scoreCount / 8) * 100; // 8 buckets total
-  
-  if (longSignal) {
-    return { signal: 'LONG' as const, score, filters: longFilters };
-  } else if (shortSignal) {
-    return { signal: 'SHORT' as const, score, filters: shortFilters };
-  } else {
-    return { signal: 'NONE' as const, score: 0, filters: {} };
-  }
-}
-
-// Technical Indicator Calculation Functions
-function calculateEMA(data: number[], period: number): number[] {
-  const ema = [];
-  const multiplier = 2 / (period + 1);
-  ema[0] = data[0];
-  
-  for (let i = 1; i < data.length; i++) {
-    ema[i] = (data[i] * multiplier) + (ema[i - 1] * (1 - multiplier));
-  }
-  
-  return ema;
-}
-
-function calculateSMA(data: number[], period: number): number[] {
-  const sma = [];
-  for (let i = period - 1; i < data.length; i++) {
-    const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
-    sma.push(sum / period);
-  }
-  return sma;
-}
-
-function calculateATR(highs: number[], lows: number[], closes: number[], period: number): number[] {
-  const trueRanges = [];
-  
-  for (let i = 1; i < highs.length; i++) {
-    const tr1 = highs[i] - lows[i];
-    const tr2 = Math.abs(highs[i] - closes[i - 1]);
-    const tr3 = Math.abs(lows[i] - closes[i - 1]);
-    trueRanges.push(Math.max(tr1, tr2, tr3));
-  }
-  
-  return calculateEMA(trueRanges, period);
-}
-
-function calculateADX(highs: number[], lows: number[], closes: number[], period: number = 14) {
-  const dmPlus = [];
-  const dmMinus = [];
-  const trueRanges = [];
-  
-  for (let i = 1; i < highs.length; i++) {
-    const highDiff = highs[i] - highs[i - 1];
-    const lowDiff = lows[i - 1] - lows[i];
-    
-    dmPlus.push(highDiff > lowDiff && highDiff > 0 ? highDiff : 0);
-    dmMinus.push(lowDiff > highDiff && lowDiff > 0 ? lowDiff : 0);
-    
-    const tr1 = highs[i] - lows[i];
-    const tr2 = Math.abs(highs[i] - closes[i - 1]);
-    const tr3 = Math.abs(lows[i] - closes[i - 1]);
-    trueRanges.push(Math.max(tr1, tr2, tr3));
-  }
-  
-  const smoothedDmPlus = calculateEMA(dmPlus, period);
-  const smoothedDmMinus = calculateEMA(dmMinus, period);
-  const smoothedTr = calculateEMA(trueRanges, period);
-  
-  const diPlus = smoothedDmPlus.map((dm, i) => (dm / smoothedTr[i]) * 100);
-  const diMinus = smoothedDmMinus.map((dm, i) => (dm / smoothedTr[i]) * 100);
-  
-  const dx = diPlus.map((plus, i) => {
-    const sum = plus + diMinus[i];
-    return sum === 0 ? 0 : (Math.abs(plus - diMinus[i]) / sum) * 100;
-  });
-  
-  const adx = calculateEMA(dx, period);
-  
-  return { adx, diPlus, diMinus };
-}
-
-function calculateDMI(highs: number[], lows: number[], closes: number[]) {
-  const dmPlus = [];
-  const dmMinus = [];
-  
-  for (let i = 1; i < highs.length; i++) {
-    const highDiff = highs[i] - highs[i - 1];
-    const lowDiff = lows[i - 1] - lows[i];
-    
-    dmPlus.push(highDiff > lowDiff && highDiff > 0 ? highDiff : 0);
-    dmMinus.push(lowDiff > highDiff && lowDiff > 0 ? lowDiff : 0);
-  }
-  
-  return { diPlus: dmPlus, diMinus: dmMinus };
-}
-
-function calculateStochastic(highs: number[], lows: number[], closes: number[], kPeriod: number, kSmooth: number, dSmooth: number) {
-  const kValues = [];
-  
-  for (let i = kPeriod - 1; i < closes.length; i++) {
-    const highestHigh = Math.max(...highs.slice(i - kPeriod + 1, i + 1));
-    const lowestLow = Math.min(...lows.slice(i - kPeriod + 1, i + 1));
-    const k = ((closes[i] - lowestLow) / (highestHigh - lowestLow)) * 100;
-    kValues.push(k);
-  }
-  
-  const kSmoothed = calculateSMA(kValues, kSmooth);
-  const dSmoothed = calculateSMA(kSmoothed, dSmooth);
-  
-  return { k: kSmoothed, d: dSmoothed };
-}
-
-function calculateOBV(closes: number[], volumes: number[]): number[] {
-  const obv = [volumes[0]];
-  
-  for (let i = 1; i < closes.length; i++) {
-    if (closes[i] > closes[i - 1]) {
-      obv.push(obv[i - 1] + volumes[i]);
-    } else if (closes[i] < closes[i - 1]) {
-      obv.push(obv[i - 1] - volumes[i]);
-    } else {
-      obv.push(obv[i - 1]);
-    }
-  }
-  
-  return obv;
-}
-
-function calculateHVP(closes: number[], shortPeriod: number, longPeriod: number): number {
-  if (closes.length < longPeriod) return 50;
-  
-  const returns = [];
-  for (let i = 1; i < closes.length; i++) {
-    returns.push((closes[i] - closes[i - 1]) / closes[i - 1]);
-  }
-  
-  // Calculate current volatility (21-day)
-  const recentReturns = returns.slice(-shortPeriod);
-  const avgReturn = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
-  const variance = recentReturns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / recentReturns.length;
-  const currentVol = Math.sqrt(variance * 252); // Annualized
-  
-  // Calculate historical volatilities (252-day rolling)
-  const historicalVols = [];
-  for (let i = longPeriod; i <= returns.length; i++) {
-    const periodReturns = returns.slice(i - longPeriod, i);
-    const periodAvg = periodReturns.reduce((a, b) => a + b, 0) / periodReturns.length;
-    const periodVariance = periodReturns.reduce((sum, ret) => sum + Math.pow(ret - periodAvg, 2), 0) / periodReturns.length;
-    const periodVol = Math.sqrt(periodVariance * 252);
-    historicalVols.push(periodVol);
-  }
-  
-  // Calculate percentile rank
-  const lowerCount = historicalVols.filter(vol => vol < currentVol).length;
-  return (lowerCount / historicalVols.length) * 100;
-}
-
-function getTpMultiplier(hvp: number): number {
-  if (hvp > 75) return 3.5;
-  if (hvp > 65) return 3.0;
-  return 2.5;
-}
-
-async function checkSignalExists(supabase: any, signal: Signal): Promise<boolean> {
-  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-  
-  const { data } = await supabase
-    .from('signals_state')
-    .select('last_emitted')
-    .eq('exchange', signal.exchange)
-    .eq('symbol', signal.symbol)
-    .eq('timeframe', signal.timeframe)
-    .eq('direction', signal.direction)
-    .single();
-  
-  return data && new Date(data.last_emitted) > new Date(thirtyMinutesAgo);
-}
-
-function formatTelegramSignal(signal: Signal) {
-  return {
-    signal_id: `${signal.exchange}_${signal.symbol}_${Date.now()}`,
-    token: signal.symbol.replace('USDT', ''),
-    direction: signal.direction,
-    entry_price: signal.price,
-    confidence_score: signal.score,
-    atr: signal.atr,
-    sl: signal.sl,
-    tp: signal.tp,
-    hvp: signal.hvp,
-    indicators: {
-      adx: signal.indicators.adx,
-      stoch_k: signal.indicators.stochK,
-      volume_spike: signal.filters.volume
-    },
-    is_premium: signal.score >= 85
-  };
-}
