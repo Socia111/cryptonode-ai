@@ -154,19 +154,26 @@ class EdgeFunctionTestHarness {
     
     const startTime = Date.now();
 
-    // Run all tests in parallel for maximum speed
-    const testPromises = [
+    // Run all tests in parallel batches for maximum efficiency
+    console.log('📦 Batch 1: Core Trading Functions');
+    const batch1 = await Promise.allSettled([
       this.testScannerEngine(),
       this.testEnhancedSignalGeneration(),
       this.testCalculateSpynxScores(),
+    ]);
+
+    console.log('\n📦 Batch 2: Analysis & Execution Functions');
+    const batch2 = await Promise.allSettled([
       this.testBacktestEngine(),
       this.testSentimentAnalysis(),
       this.testTradeExecution(),
+    ]);
+
+    console.log('\n📦 Batch 3: Telegram Signal Delivery');
+    const batch3 = await Promise.allSettled([
       this.sendTestSignal(false), // Free signal
       this.sendTestSignal(true),  // Premium signal
-    ];
-
-    await Promise.allSettled(testPromises);
+    ]);
 
     const totalDuration = Date.now() - startTime;
     this.printSummary(totalDuration);
@@ -242,16 +249,45 @@ class EdgeFunctionTestHarness {
   async stressTest(iterations: number = 5): Promise<void> {
     console.log(`🔥 Running stress test with ${iterations} iterations...\n`);
     
+    const stressResults: { iteration: number; success: number; failed: number; duration: number }[] = [];
+    
     for (let i = 1; i <= iterations; i++) {
       console.log(`\n--- Iteration ${i}/${iterations} ---`);
-      await this.runCoreTests();
+      const iterationStart = Date.now();
       
-      // Wait between iterations
+      // Run core tests with error tracking
+      const beforeCount = this.results.length;
+      await this.runCoreTests();
+      const afterCount = this.results.length;
+      
+      const iterationResults = this.results.slice(beforeCount);
+      const success = iterationResults.filter(r => r.success).length;
+      const failed = iterationResults.filter(r => !r.success).length;
+      const duration = Date.now() - iterationStart;
+      
+      stressResults.push({ iteration: i, success, failed, duration });
+      
+      // Wait between iterations with backoff
       if (i < iterations) {
-        console.log('⏳ Waiting 2 seconds before next iteration...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        const waitTime = failed > 0 ? 5000 : 2000; // Wait longer if failures
+        console.log(`⏳ Waiting ${waitTime/1000} seconds before next iteration...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
+    
+    // Print stress test summary
+    console.log('\n🏁 Stress Test Summary:');
+    console.log('='.repeat(60));
+    stressResults.forEach(result => {
+      const statusIcon = result.failed === 0 ? '✅' : '⚠️';
+      console.log(`${statusIcon} Iteration ${result.iteration}: ${result.success}✅ ${result.failed}❌ (${result.duration}ms)`);
+    });
+    
+    const totalSuccess = stressResults.reduce((sum, r) => sum + r.success, 0);
+    const totalFailed = stressResults.reduce((sum, r) => sum + r.failed, 0);
+    const avgDuration = stressResults.reduce((sum, r) => sum + r.duration, 0) / stressResults.length;
+    
+    console.log(`\n📊 Overall: ${totalSuccess}✅ ${totalFailed}❌ | Avg: ${avgDuration.toFixed(0)}ms/iteration`);
   }
 
   async monitorPerformance(): Promise<void> {
