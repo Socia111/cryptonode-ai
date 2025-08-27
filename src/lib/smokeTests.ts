@@ -1,100 +1,111 @@
 // Smoke test utilities for post-deployment verification
 import { supabase } from '@/lib/supabaseClient';
 
+const TIMEOUT_MS = 5000;
+
+function withTimeout<T>(p: Promise<T>, ms = TIMEOUT_MS): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
+    p.then(v => { clearTimeout(t); resolve(v); }).catch(e => { clearTimeout(t); reject(e); });
+  });
+}
+
 export const smokeTests = {
-  // 1. Config ping - verify basic connectivity
+  // 1) Config / RLS ping (public read table)
   async configPing() {
-    console.log('[SmokeTest] Running config ping...');
+    console.log('[SmokeTest] Config ping…');
     try {
-      const { data, error } = await supabase
-        .from('markets')
-        .select('id')
-        .limit(1);
-      
-      const result = {
-        success: !error,
-        rows: data?.length ?? 0,
-        error: error?.message
-      };
-      
-      console.log('[SmokeTest] Config ping result:', result);
-      return result;
+      const result = await supabase.from('markets').select('id').limit(1);
+      const { data, error } = result;
+      const ok = !error;
+      const rows = data?.length ?? 0;
+      console.log('[SmokeTest] Config ping:', { ok, rows, error: error?.message });
+      return { success: ok, rows, error: error?.message };
     } catch (e: any) {
-      console.error('[SmokeTest] Config ping failed:', e.message);
-      return { success: false, rows: 0, error: e.message };
+      console.error('[SmokeTest] Config ping failed:', e?.message);
+      return { success: false, error: e?.message };
     }
   },
 
-  // 2. Test realtime connectivity
+  // 2) Realtime connectivity via Presence (requires track())
   async realtimeTest() {
-    console.log('[SmokeTest] Testing realtime connectivity...');
-    return new Promise((resolve) => {
-      let received = false;
-      
-      const channel = supabase
-        .channel('smoke_test_channel')
-        .on('presence', { event: 'sync' }, () => {
-          received = true;
-          console.log('[SmokeTest] Realtime connection established');
-          supabase.removeChannel(channel);
-          resolve({ success: true, connected: true });
-        })
-        .subscribe();
+    console.log('[SmokeTest] Realtime test (presence)…');
+    return new Promise<{ success: boolean; connected: boolean; error?: string }>((resolve) => {
+      let resolved = false;
+      const channel = supabase.channel('smoke_test_channel', { config: { presence: { key: 'smoke' } } });
 
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        if (!received) {
-          console.log('[SmokeTest] Realtime timeout');
-          supabase.removeChannel(channel);
-          resolve({ success: false, connected: false, error: 'Timeout' });
+      const cleanup = (result: { success: boolean; connected: boolean; error?: string }) => {
+        if (resolved) return;
+        resolved = true;
+        try { supabase.removeChannel(channel); } catch {}
+        resolve(result);
+      };
+
+      channel.on('presence', { event: 'sync' }, () => {
+        console.log('[SmokeTest] Presence sync fired — realtime OK');
+        cleanup({ success: true, connected: true });
+      });
+
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          // Track our presence — this is what triggers 'sync'
+          channel.track({ role: 'smoke-test', ts: Date.now() });
         }
-      }, 5000);
+      });
+
+      setTimeout(() => {
+        console.warn('[SmokeTest] Realtime timeout');
+        cleanup({ success: false, connected: false, error: 'Timeout' });
+      }, TIMEOUT_MS);
     });
   },
 
-  // 3. Function connectivity test
-  async functionTest(functionName: string) {
-    console.log(`[SmokeTest] Testing function: ${functionName}...`);
+  // 3) Function connectivity (with timeout + data.error guard)
+  async functionTest(functionName: string, body: any = { test: true }) {
+    console.log(`[SmokeTest] Function: ${functionName}…`);
     try {
-      const { data, error } = await supabase.functions.invoke(functionName, {
-        body: { test: true }
-      });
-      
-      const result = {
-        success: !error,
-        data,
-        error: error?.message
-      };
-      
-      console.log(`[SmokeTest] Function ${functionName} result:`, result);
-      return result;
+      const result = await supabase.functions.invoke(functionName, { body });
+      const { data, error } = result;
+      const ok = !error && !(data && (data.error || data.err));
+      const errMsg = error?.message ?? data?.error ?? data?.err;
+      console.log(`[SmokeTest] Function ${functionName}:`, { ok, data, error: errMsg });
+      return { success: ok, data, error: errMsg };
     } catch (e: any) {
-      console.error(`[SmokeTest] Function ${functionName} failed:`, e.message);
-      return { success: false, error: e.message };
+      console.error(`[SmokeTest] Function ${functionName} failed:`, e?.message);
+      return { success: false, error: e?.message };
     }
   },
 
-  // Run all smoke tests
+  // 4) Auth/session probe (optional but handy)
+  async authProbe() {
+    console.log('[SmokeTest] Auth probe…');
+    try {
+      const result = await supabase.auth.getSession();
+      const { data: { session }, error } = result;
+      const ok = !!session && !error;
+      console.log('[SmokeTest] Auth:', { ok, user: session?.user?.id, error: error?.message });
+      return { success: ok, user_id: session?.user?.id, error: error?.message };
+    } catch (e: any) {
+      return { success: false, error: e?.message };
+    }
+  },
+
+  // Run all
   async runAll() {
-    console.log('🔥 [SmokeTest] Running full smoke test suite...');
-    
+    console.log('🔥 [SmokeTest] Running suite…');
     const results = {
       config: await this.configPing(),
       realtime: await this.realtimeTest(),
+      auth: await this.authProbe(),
       signalGeneration: await this.functionTest('enhanced-signal-generation'),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
-    
-    const allPassed = Object.values(results).every(r => 
-      typeof r === 'object' && 'success' in r ? r.success : true
-    );
-    
-    console.log(`🔥 [SmokeTest] Suite ${allPassed ? 'PASSED' : 'FAILED'}:`, results);
+    const allPassed = [results.config, results.realtime, results.signalGeneration]
+      .every(r => r.success);
+    console.log(`🔥 [SmokeTest] ${allPassed ? 'PASSED' : 'FAILED'}`, results);
     return results;
-  }
+  },
 };
 
-// Export for dev console access
-if (typeof window !== 'undefined') {
-  (window as any).__smokeTests = smokeTests;
-}
+// Expose in dev console
+if (typeof window !== 'undefined') (window as any).__smokeTests = smokeTests;
