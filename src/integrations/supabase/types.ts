@@ -1983,6 +1983,51 @@ export type Database = {
         }
         Relationships: []
       }
+      scanner_signals: {
+        Row: {
+          confidence_score: number
+          created_at: string
+          direction: string
+          exchange: string
+          generated_at: string
+          id: string
+          indicators: Json | null
+          is_active: boolean
+          price: number
+          symbol: string
+          telegram_sent: boolean
+          timeframe: string
+        }
+        Insert: {
+          confidence_score: number
+          created_at?: string
+          direction: string
+          exchange: string
+          generated_at?: string
+          id?: string
+          indicators?: Json | null
+          is_active?: boolean
+          price: number
+          symbol: string
+          telegram_sent?: boolean
+          timeframe: string
+        }
+        Update: {
+          confidence_score?: number
+          created_at?: string
+          direction?: string
+          exchange?: string
+          generated_at?: string
+          id?: string
+          indicators?: Json | null
+          is_active?: boolean
+          price?: number
+          symbol?: string
+          telegram_sent?: boolean
+          timeframe?: string
+        }
+        Relationships: []
+      }
       scores: {
         Row: {
           category_breakdown: Json | null

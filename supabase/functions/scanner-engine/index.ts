@@ -326,6 +326,56 @@ serve(async (req) => {
 
       if (insertError) {
         console.error('Error inserting signals:', insertError);
+      } else {
+        // Send high-confidence signals to Telegram
+        for (const signal of signals) {
+          if (signal.confidence_score >= 75) {
+            try {
+              const telegramSignal = {
+                signal_id: `${signal.exchange}_${signal.symbol}_${Date.now()}`,
+                token: signal.symbol.replace('USDT', '').replace('USD', ''),
+                direction: signal.direction === 'LONG' ? 'BUY' : 'SELL',
+                signal_type: `AITRADEX1_${signal.direction}`,
+                entry_price: signal.price,
+                exit_target: signal.direction === 'LONG' 
+                  ? signal.price * 1.025 
+                  : signal.price * 0.975,
+                stop_loss: signal.direction === 'LONG'
+                  ? signal.price * 0.98
+                  : signal.price * 1.02,
+                leverage: signal.confidence_score >= 85 ? 3 : 2,
+                confidence_score: signal.confidence_score,
+                roi_projection: 2.5,
+                quantum_probability: signal.confidence_score / 100,
+                risk_level: signal.confidence_score >= 85 ? 'LOW' : 'MEDIUM',
+                signal_strength: signal.confidence_score >= 85 ? 'VERY_STRONG' : 'STRONG',
+                trend_projection: signal.direction === 'LONG' ? 'BULLISH_MOMENTUM' : 'BEARISH_MOMENTUM',
+                is_premium: signal.confidence_score >= 85
+              };
+
+              // Send to Telegram bot
+              const { error: telegramError } = await supabase.functions.invoke('telegram-bot', {
+                body: { signal: telegramSignal }
+              });
+
+              if (telegramError) {
+                console.error('Error sending to Telegram:', telegramError);
+              } else {
+                console.log(`Sent ${signal.confidence_score}% confidence signal for ${signal.symbol} to Telegram`);
+                
+                // Mark signal as sent to Telegram
+                await supabase
+                  .from('scanner_signals')
+                  .update({ telegram_sent: true })
+                  .eq('symbol', signal.symbol)
+                  .eq('exchange', signal.exchange)
+                  .eq('generated_at', signal.generated_at);
+              }
+            } catch (error) {
+              console.error('Error processing Telegram signal:', error);
+            }
+          }
+        }
       }
     }
 
