@@ -22,6 +22,41 @@ serve(async (req) => {
 
     console.log(`📡 Signals API called: ${req.method} ${path}`);
 
+    // Handle POST requests with path routing
+    if (req.method === 'POST') {
+      const body = await req.json();
+      const requestPath = body.path;
+      
+      // GET /signals/live - Live signals endpoint
+      if (requestPath === '/signals/live') {
+        const { data: signals, error } = await supabase
+          .from('signals')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) {
+          console.error('❌ Live signals query error:', error);
+          return new Response(JSON.stringify({
+            success: false,
+            error: error.message
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500
+          });
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          items: signals || [],
+          count: signals?.length || 0,
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     // GET /signals - List signals with filtering
     if (req.method === 'GET' && path.includes('/signals')) {
       const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 500);
