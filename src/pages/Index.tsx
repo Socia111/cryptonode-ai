@@ -1,6 +1,6 @@
 
 import React from 'react';
-import TradingHeader from '../components/TradingHeader';
+import MainLayout from '../layouts/MainLayout';
 import MarketOverview from '../components/MarketOverview';
 import SignalsList from '../components/SignalsList';
 import TradingChart from '../components/TradingChart';
@@ -14,9 +14,7 @@ import QuantumAnalysis from '../components/QuantumAnalysis';
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-background">
-      <TradingHeader />
-      
+    <MainLayout>
       <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Database Setup */}
         <DatabaseSetup />
@@ -42,7 +40,7 @@ const Index = () => {
           </div>
         </div>
       </div>
-    </div>
+    </MainLayout>
   );
 };
 

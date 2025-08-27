@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,53 +6,52 @@
 
 @layer base {
   :root {
-    /* Background System */
-    --background: 222 84% 4.9%; /* Deep dark blue */
-    --foreground: 210 40% 98%; /* Crisp white */
-
-    /* Surface Colors */
-    --card: 222 47% 11%; /* Elevated dark surfaces */
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-
-    /* Brand Colors - Electric Trading Theme */
-    --primary: 204 100% 60%; /* Electric blue */
-    --primary-foreground: 222 84% 4.9%;
-    --secondary: 222 47% 15%; /* Darker blue-gray */
-    --secondary-foreground: 210 40% 98%;
-
-    /* Trading Status Colors */
-    --success: 142 76% 36%; /* Bull green */
-    --success-foreground: 210 40% 98%;
-    --warning: 43 96% 56%; /* Alert gold */
-    --warning-foreground: 222 84% 4.9%;
-    --destructive: 0 84% 60%; /* Bear red */
-    --destructive-foreground: 210 40% 98%;
-
-    /* Accent System */
-    --muted: 222 47% 15%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 204 100% 60%; /* Electric blue accent */
-    --accent-foreground: 222 84% 4.9%;
-
-    /* Interactive Elements */
-    --border: 222 47% 20%;
-    --input: 222 47% 15%;
-    --ring: 204 100% 60%;
-
-    /* Trading Chart Colors */
-    --chart-bull: 142 76% 36%; /* Green for gains */
-    --chart-bear: 0 84% 60%; /* Red for losses */
-    --chart-neutral: 204 100% 60%; /* Blue for neutral */
-    --chart-volume: 270 60% 50%; /* Purple for volume */
-
-    /* Glow Effects */
-    --glow-primary: 204 100% 60%;
-    --glow-success: 142 76% 36%;
-    --glow-danger: 0 84% 60%;
-
-    --radius: 0.75rem;
+    /* AItradeX Color Palette */
+    --background: 212 47% 5%;         /* #0B0F14 */
+    --foreground: 210 17% 90%;        /* #E5E7EB */
+    --card: 213 35% 11%;              /* #111820 */
+    --card-foreground: 210 17% 90%;   /* #E5E7EB */
+    --popover: 213 35% 11%;           /* #111820 */
+    --popover-foreground: 210 17% 90%; /* #E5E7EB */
+    
+    /* Primary: Electric Teal #00E0B8 */
+    --primary: 168 100% 44%;
+    --primary-foreground: 212 47% 5%;
+    
+    /* Secondary: Indigo Glow #6C5CE7 */
+    --secondary: 248 62% 63%;
+    --secondary-foreground: 210 17% 90%;
+    
+    /* Surface variations */
+    --muted: 213 28% 15%;             /* #141C24 */
+    --muted-foreground: 214 15% 58%;  /* #94A3B8 */
+    --accent: 213 28% 15%;            /* #141C24 */
+    --accent-foreground: 210 17% 90%;
+    
+    /* Status colors */
+    --success: 142 76% 36%;           /* #10B981 */
+    --success-foreground: 138 76% 97%;
+    --warning: 32 95% 44%;            /* #F59E0B */
+    --warning-foreground: 48 96% 12%;
+    --destructive: 0 84% 60%;         /* #EF4444 */
+    --destructive-foreground: 210 17% 90%;
+    
+    /* Info */
+    --info: 199 89% 48%;              /* #38BDF8 */
+    --info-foreground: 210 17% 90%;
+    
+    /* Borders */
+    --border: 215 28% 17%;            /* #1F2937 */
+    --input: 215 28% 17%;
+    --ring: 168 100% 44%;             /* Electric Teal */
+    
+    /* Trading specific */
+    --chart-bull: 168 100% 44%;       /* #00E0B8 */
+    --chart-bear: 0 84% 60%;          /* #EF4444 */
+    --chart-neutral: 214 15% 58%;     /* #94A3B8 */
+    --chart-volume: 213 28% 15%;      /* #141C24 */
+    
+    --radius: 1rem;
   }
 
   .dark {
@@ -67,89 +65,134 @@
   }
 
   body {
-    @apply bg-background text-foreground font-mono;
-    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(222 47% 8%) 100%);
+    background: hsl(var(--background));
     min-height: 100vh;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Trading Typography */
   .trading-mono {
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-    font-variant-numeric: tabular-nums;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: "tnum" 1, "ss01" 1;
   }
 
   .price-display {
-    @apply trading-mono text-lg font-semibold tracking-wide;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: "tnum" 1, "ss01" 1;
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
   }
 
   .metric-label {
-    @apply text-sm font-medium text-muted-foreground uppercase tracking-wider;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .brand-display {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 }
 
 @layer utilities {
-  /* Glow Effects for Trading Elements */
   .glow-primary {
-    box-shadow: 0 0 20px hsla(var(--glow-primary), 0.3);
+    box-shadow: 0 0 24px hsla(var(--primary), 0.4);
   }
 
   .glow-success {
-    box-shadow: 0 0 20px hsla(var(--glow-success), 0.3);
+    box-shadow: 0 0 24px hsla(var(--success), 0.4);
   }
 
   .glow-danger {
-    box-shadow: 0 0 20px hsla(var(--glow-danger), 0.3);
+    box-shadow: 0 0 24px hsla(var(--destructive), 0.4);
   }
 
-  /* Glass Morphism for Cards */
   .glass-card {
     background: hsla(var(--card), 0.8);
-    backdrop-filter: blur(12px);
-    border: 1px solid hsla(var(--border), 0.5);
+    backdrop-filter: blur(16px);
+    border: 1px solid hsl(var(--border));
   }
 
-  /* Animated Gradients */
+  .surface-elevated {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+  }
+
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--chart-neutral)) 100%);
+    background: linear-gradient(135deg, 
+      hsl(var(--primary)) 0%, 
+      hsl(var(--secondary)) 100%);
   }
 
   .gradient-success {
-    background: linear-gradient(135deg, hsl(var(--success)) 0%, hsl(142 76% 45%) 100%);
+    background: linear-gradient(135deg, 
+      hsl(var(--success)) 0%, 
+      hsl(var(--chart-bull)) 100%);
   }
 
   .gradient-danger {
-    background: linear-gradient(135deg, hsl(var(--destructive)) 0%, hsl(0 84% 70%) 100%);
+    background: linear-gradient(135deg, 
+      hsl(var(--destructive)) 0%, 
+      hsl(var(--chart-bear)) 100%);
   }
 
-  /* Pulse Animation for Live Data */
   .pulse-glow {
     animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
-  @keyframes pulse-glow {
-    0%, 100% {
-      opacity: 1;
-      box-shadow: 0 0 15px hsla(var(--primary), 0.4);
-    }
-    50% {
-      opacity: 0.8;
-      box-shadow: 0 0 25px hsla(var(--primary), 0.6);
-    }
+  @keyframes gradient-shift {
+    0%, 100% { filter: hue-rotate(0deg); }
+    50% { filter: hue-rotate(10deg); }
   }
 
-  /* Market Movement Indicators */
+  /* Trading status styles */
   .trend-up {
-    @apply text-green-400;
-    text-shadow: 0 0 8px hsla(var(--success), 0.6);
+    color: hsl(var(--chart-bull));
+    text-shadow: 0 0 8px hsla(var(--chart-bull), 0.4);
   }
 
   .trend-down {
-    @apply text-red-400;
-    text-shadow: 0 0 8px hsla(var(--destructive), 0.6);
+    color: hsl(var(--chart-bear));
+    text-shadow: 0 0 8px hsla(var(--chart-bear), 0.4);
   }
 
   .trend-neutral {
-    @apply text-blue-400;
-    text-shadow: 0 0 8px hsla(var(--primary), 0.6);
+    color: hsl(var(--chart-neutral));
+  }
+
+  /* Status chips */
+  .status-chip-long {
+    background: hsla(var(--chart-bull), 0.15);
+    color: hsl(var(--chart-bull));
+    border: 1px solid hsla(var(--chart-bull), 0.3);
+  }
+
+  .status-chip-short {
+    background: hsla(var(--chart-bear), 0.15);
+    color: hsl(var(--chart-bear));
+    border: 1px solid hsla(var(--chart-bear), 0.3);
+  }
+
+  .status-chip-strong {
+    background: hsla(var(--primary), 0.2);
+    color: hsl(var(--primary));
+    border: 1px solid hsla(var(--primary), 0.3);
+  }
+
+  .status-chip-medium {
+    background: hsla(var(--warning), 0.2);
+    color: hsl(var(--warning));
+    border: 1px solid hsla(var(--warning), 0.3);
+  }
+
+  .status-chip-weak {
+    background: hsla(var(--muted-foreground), 0.2);
+    color: hsl(var(--muted-foreground));
+    border: 1px solid hsla(var(--muted-foreground), 0.3);
   }
 }
