@@ -90,7 +90,7 @@ async function fetchSignals(): Promise<Signal[]> {
             exchange: 'bybit',
             timeframe: timeframe,
             relaxed_filters: true,
-            symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'BNBUSDT', 'XRPUSDT']
+            symbols: [] // Empty to scan all available USDT pairs
           }
         }).catch(error => {
           console.warn(`[Signals] ${timeframe} scan failed:`, error);
@@ -107,12 +107,14 @@ async function fetchSignals(): Promise<Signal[]> {
       console.warn('[Signals] Auto-scanner failed:', scannerError);
     }
 
-    // Now fetch all signals from database (recent and older)
+    // Now fetch only high-quality signals (score >= 75%) from last 24 hours
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
+      .gte('score', 75) // Only high ROI signals
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (signalsError) {
       console.error('[Signals] Signals query failed:', signalsError.message);
@@ -324,7 +326,7 @@ export async function generateSignals() {
   try {
     console.info('[generateSignals] Triggering comprehensive live signal generation...');
     
-    const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'BNBUSDT', 'XRPUSDT'];
+    const symbols: string[] = []; // Empty to scan all available USDT pairs
     
     // Run multiple timeframes in parallel for faster execution
     const scanPromises = [

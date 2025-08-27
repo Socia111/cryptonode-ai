@@ -268,9 +268,36 @@ serve(async (req) => {
     const exchange = "bybit";
     const timeframe = body.timeframe ?? "15m";
     const relaxed = !!body.relaxed_filters;
-    const symbols = (body.symbols && body.symbols.length>0)
-      ? body.symbols
-      : ["BTCUSDT","ETHUSDT","SOLUSDT","ADAUSDT","DOTUSDT","BNBUSDT","XRPUSDT"];
+    let symbols = body.symbols;
+    
+    // If no symbols provided, fetch all USDT pairs from Bybit
+    if (!symbols || symbols.length === 0) {
+      try {
+        console.log("🔍 Fetching all USDT trading pairs from Bybit...");
+        const symbolsUrl = "https://api.bybit.com/v5/market/instruments-info?category=linear";
+        const symbolsData = await getBybit(symbolsUrl);
+        
+        if (symbolsData.retCode === 0) {
+          const allSymbols = symbolsData.result.list
+            .filter((instrument: any) => 
+              instrument.symbol.endsWith('USDT') && 
+              instrument.status === 'Trading' &&
+              instrument.symbol !== 'USDC' // Exclude stablecoins
+            )
+            .map((instrument: any) => instrument.symbol)
+            .sort();
+          
+          console.log(`📊 Found ${allSymbols.length} active USDT trading pairs`);
+          symbols = allSymbols;
+        } else {
+          console.warn("⚠️ Failed to fetch symbols, using defaults");
+          symbols = ["BTCUSDT","ETHUSDT","SOLUSDT","ADAUSDT","DOTUSDT","BNBUSDT","XRPUSDT"];
+        }
+      } catch (e) {
+        console.error("❌ Error fetching symbols:", e);
+        symbols = ["BTCUSDT","ETHUSDT","SOLUSDT","ADAUSDT","DOTUSDT","BNBUSDT","XRPUSDT"];
+      }
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!, 
@@ -323,8 +350,8 @@ serve(async (req) => {
           created_at: new Date().toISOString(),
         };
 
-        // Try LONG
-        if (ev.longOk){
+        // Try LONG - Only save high-quality signals (score >= 75%)
+        if (ev.longOk && ev.longScore >= 75){
           const payload = {
             ...common,
             direction: "LONG",
@@ -346,8 +373,8 @@ serve(async (req) => {
           }
         }
 
-        // Try SHORT
-        if (ev.shortOk){
+        // Try SHORT - Only save high-quality signals (score >= 75%)
+        if (ev.shortOk && ev.shortScore >= 75){
           const payload = {
             ...common,
             direction: "SHORT",
