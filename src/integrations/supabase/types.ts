@@ -876,6 +876,30 @@ export type Database = {
         }
         Relationships: []
       }
+      configs: {
+        Row: {
+          created_at: string | null
+          id: number
+          is_active: boolean | null
+          name: string
+          payload: Json
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          name: string
+          payload: Json
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          name?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
       contract_deployments: {
         Row: {
           block_number: number | null
@@ -1079,6 +1103,39 @@ export type Database = {
           request_count?: number | null
           user_id?: string | null
           window_start?: string | null
+        }
+        Relationships: []
+      }
+      eval_logs: {
+        Row: {
+          bar_time: string
+          created_at: string | null
+          exchange: string
+          filters: Json
+          id: number
+          score: number
+          symbol: string
+          timeframe: string
+        }
+        Insert: {
+          bar_time: string
+          created_at?: string | null
+          exchange: string
+          filters: Json
+          id?: number
+          score: number
+          symbol: string
+          timeframe: string
+        }
+        Update: {
+          bar_time?: string
+          created_at?: string | null
+          exchange?: string
+          filters?: Json
+          id?: number
+          score?: number
+          symbol?: string
+          timeframe?: string
         }
         Relationships: []
       }
@@ -1985,46 +2042,73 @@ export type Database = {
       }
       scanner_signals: {
         Row: {
+          algo: string | null
+          atr: number | null
+          bar_time: string | null
           confidence_score: number
           created_at: string
           direction: string
           exchange: string
+          expires_at: string | null
+          filters: Json | null
           generated_at: string
+          hvp: number | null
           id: string
           indicators: Json | null
           is_active: boolean
           price: number
+          score: number | null
+          sl: number | null
           symbol: string
           telegram_sent: boolean
           timeframe: string
+          tp: number | null
         }
         Insert: {
+          algo?: string | null
+          atr?: number | null
+          bar_time?: string | null
           confidence_score: number
           created_at?: string
           direction: string
           exchange: string
+          expires_at?: string | null
+          filters?: Json | null
           generated_at?: string
+          hvp?: number | null
           id?: string
           indicators?: Json | null
           is_active?: boolean
           price: number
+          score?: number | null
+          sl?: number | null
           symbol: string
           telegram_sent?: boolean
           timeframe: string
+          tp?: number | null
         }
         Update: {
+          algo?: string | null
+          atr?: number | null
+          bar_time?: string | null
           confidence_score?: number
           created_at?: string
           direction?: string
           exchange?: string
+          expires_at?: string | null
+          filters?: Json | null
           generated_at?: string
+          hvp?: number | null
           id?: string
           indicators?: Json | null
           is_active?: boolean
           price?: number
+          score?: number | null
+          sl?: number | null
           symbol?: string
           telegram_sent?: boolean
           timeframe?: string
+          tp?: number | null
         }
         Relationships: []
       }
@@ -2279,6 +2363,39 @@ export type Database = {
           purchased_at?: string
           status?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      subscribers: {
+        Row: {
+          active: boolean | null
+          channel: string
+          created_at: string | null
+          id: number
+          min_score: number | null
+          only_direction: string | null
+          target: string
+          user_id: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          channel: string
+          created_at?: string | null
+          id?: number
+          min_score?: number | null
+          only_direction?: string | null
+          target: string
+          user_id?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          channel?: string
+          created_at?: string | null
+          id?: number
+          min_score?: number | null
+          only_direction?: string | null
+          target?: string
+          user_id?: string | null
         }
         Relationships: []
       }
