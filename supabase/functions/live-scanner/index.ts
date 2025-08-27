@@ -367,33 +367,82 @@ async function saveSignal(payload: any) {
   if (error) console.warn("signals insert error:", error.message);
 }
 
-async function sendTelegram(text: string) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
-  
+async function sendTelegram(alertText: string) {
+  // Use the telegram-bot function for proper signal formatting and delivery
   try {
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: "Markdown" }),
+    // Parse the alert text to extract signal data
+    const lines = alertText.split('\n');
+    const headerMatch = lines[0].match(/\*(\w+)\*.*\*(\w+)\* (\w+):(\w+) \*(\w+)\*/);
+    const priceMatch = lines[1].match(/@ ([\d.,]+).*Score: \*([\d.]+)\*/);
+    const indicatorsMatch = lines[2].match(/ADX: ([\d.]+).*HVP: ([\d.]+).*%K: ([\d.]+)/);
+    const targetsMatch = lines[3].match(/SL: ([\d.,]+).*TP: ([\d.,]+)/);
+    
+    if (!headerMatch || !priceMatch) {
+      console.warn('⚠️ Could not parse alert text for Telegram');
+      return;
+    }
+    
+    const [, algo, direction, exchange, symbol, timeframe] = headerMatch;
+    const [, priceStr, scoreStr] = priceMatch;
+    const price = parseFloat(priceStr.replace(/,/g, ''));
+    const score = parseFloat(scoreStr);
+    
+    let indicators: any = {};
+    let sl: number | undefined;
+    let tp: number | undefined;
+    
+    if (indicatorsMatch) {
+      const [, adxStr, hvpStr, kStr] = indicatorsMatch;
+      indicators = {
+        adx: parseFloat(adxStr),
+        stoch_k: parseFloat(kStr),
+        volume_spike: alertText.includes('OBV↑') || alertText.includes('OBV↓')
+      };
+    }
+    
+    if (targetsMatch) {
+      const [, slStr, tpStr] = targetsMatch;
+      sl = parseFloat(slStr.replace(/,/g, ''));
+      tp = parseFloat(tpStr.replace(/,/g, ''));
+    }
+    
+    const signal = {
+      signal_id: `${symbol}_${timeframe}_${direction}_${Date.now()}`,
+      token: symbol,
+      direction: direction === 'LONG' ? 'LONG' : 'SHORT',
+      entry_price: price,
+      confidence_score: score,
+      sl,
+      tp,
+      hvp: indicators.adx ? parseFloat(indicatorsMatch![2]) : undefined,
+      indicators,
+      is_premium: score >= 85
+    };
+    
+    console.log('📤 Sending Telegram signal:', { symbol, direction, score });
+    
+    const { error } = await supabase.functions.invoke('telegram-bot', {
+      body: { signal }
     });
     
-    if (response.ok) {
+    if (error) {
+      await supabase.from("alerts_log").insert({ 
+        channel: "telegram", 
+        status: "error", 
+        payload: alertText,
+        error_msg: error.message 
+      });
+      console.error('❌ Telegram send error:', error);
+    } else {
       await supabase.from("alerts_log").insert({ 
         channel: "telegram", 
         status: "sent", 
-        payload: text 
+        payload: alertText 
       });
-      console.log("✅ Telegram alert sent");
-    } else {
-      throw new Error(`HTTP ${response.status}`);
+      console.log('✅ Telegram alert sent successfully');
     }
-  } catch (e: any) {
-    console.error("❌ Telegram send failed:", e);
-    await supabase.from("alerts_log").insert({ 
-      channel: "telegram", 
-      status: "error", 
-      payload: e?.message ?? "unknown" 
-    });
+  } catch (err) {
+    console.error('❌ Telegram function error:', err);
   }
 }
 
