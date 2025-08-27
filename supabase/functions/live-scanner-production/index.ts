@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Production cooldown periods (minutes)
+// Production cooldown periods (minutes) - based on your recommendations
 const COOLDOWN_PERIODS = {
   '1m': 1,
   '5m': 3,
@@ -16,11 +16,12 @@ const COOLDOWN_PERIODS = {
   '1d': 720
 };
 
-// Symbol universe by volume tier
+// Symbol universe by volume tier (>$5-10M 24h volume)
 const SYMBOL_TIERS = {
-  tier1: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'],
-  tier2: ['ADAUSDT', 'DOGEUSDT', 'LINKUSDT', 'MATICUSDT', 'LTCUSDT'],
-  tier3: ['NEARUSDT', 'APTUSDT', 'INJUSDT', 'STXUSDT', 'TONUSDT']
+  tier1: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'], // Top liquid
+  tier2: ['ADAUSDT', 'DOGEUSDT', 'LINKUSDT', 'MATICUSDT', 'LTCUSDT'], // High volume
+  tier3: ['NEARUSDT', 'APTUSDT', 'INJUSDT', 'STXUSDT', 'TONUSDT'], // Mid volume
+  tier4: ['AVAXUSDT', 'DOTUSDT', 'ATOMUSDT', 'FILUSDT', 'UNIUSDT'] // Extended universe
 };
 
 interface Signal {
