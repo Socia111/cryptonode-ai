@@ -24,6 +24,21 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
       "@typescript-eslint/no-unused-vars": "off",
+      // Prevent multiple Supabase clients
+      "no-restricted-imports": ["error", {
+        "paths": [
+          { 
+            "name": "@/lib/supabase", 
+            "message": "Use @/lib/supabaseClient instead - single client pattern" 
+          },
+        ],
+        "patterns": [
+          {
+            "group": ["**/supabase.ts", "**/supabase.js"],
+            "message": "Use @/lib/supabaseClient - avoid duplicate clients"
+          }
+        ]
+      }],
     },
   }
 );

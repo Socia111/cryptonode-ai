@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
+import { openSignalsChannel } from '@/lib/realtime';
 
 type Signal = {
   id: string;
@@ -118,8 +119,9 @@ function getMockSignals(): Signal[] {
 }
 
 function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) => void) {
-  return supabase
-    .channel('strategy_signals_channel')
+  const { ch } = openSignalsChannel('main');
+  
+  return ch
     .on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'strategy_signals' },
       (payload) => onInsert(mapDbToSignal(payload.new)))

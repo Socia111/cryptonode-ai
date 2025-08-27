@@ -8,6 +8,7 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, LineChart, L
 import { TrendingUp, PlayCircle, BarChart3, Target, Clock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
+import { toNum, clampPercent, safePercent } from '@/lib/num';
 
 interface BacktestParams {
   symbol: string
@@ -106,9 +107,6 @@ const BacktestEngine = () => {
       setParams(prev => ({ ...prev, [key]: value }));
     }
   };
-
-  // NaN-proofing utility
-  const toNum = (x: any, d = 0) => Number.isFinite(Number(x)) ? Number(x) : d;
 
   const performanceData = results?.trades?.map((trade, index) => ({
     trade: index + 1,
@@ -241,13 +239,13 @@ const BacktestEngine = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-3 bg-success/10 rounded-lg border border-success/20">
                 <TrendingUp className="w-5 h-5 mx-auto mb-1 text-success" />
-                <p className="text-lg font-bold text-success">{Math.max(-100, Math.min(100, toNum(results.total_return * 100))).toFixed(1)}%</p>
+                <p className="text-lg font-bold text-success">{safePercent(results.total_return * 100)}</p>
                 <p className="text-xs text-muted-foreground">Total Return</p>
               </div>
               
               <div className="text-center p-3 bg-primary/10 rounded-lg border border-primary/20">
                 <Target className="w-5 h-5 mx-auto mb-1 text-primary" />
-                <p className="text-lg font-bold text-primary">{Math.max(0, Math.min(100, toNum(results.win_rate * 100))).toFixed(1)}%</p>
+                <p className="text-lg font-bold text-primary">{safePercent(results.win_rate * 100)}</p>
                 <p className="text-xs text-muted-foreground">Win Rate</p>
               </div>
               
@@ -259,7 +257,7 @@ const BacktestEngine = () => {
               
               <div className="text-center p-3 bg-destructive/10 rounded-lg border border-destructive/20">
                 <Clock className="w-5 h-5 mx-auto mb-1 text-destructive" />
-                <p className="text-lg font-bold text-destructive">{Math.max(-100, Math.min(0, toNum(results.max_drawdown * 100))).toFixed(1)}%</p>
+                <p className="text-lg font-bold text-destructive">{safePercent(results.max_drawdown * 100)}</p>
                 <p className="text-xs text-muted-foreground">Max Drawdown</p>
               </div>
             </div>
