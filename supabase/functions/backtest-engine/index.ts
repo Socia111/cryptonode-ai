@@ -114,14 +114,20 @@ serve(async (req) => {
             if (status === 'WIN') winCount++;
             else lossCount++;
             
+            const projectedROI = ((takeProfit - entryPrice) / entryPrice) * 100;
+            
             trades.push({
               id: trades.length + 1,
               timestamp: new Date(parseInt(currentBar[0])).toISOString(),
               direction,
               entry_price: entryPrice,
               exit_price: exitPrice,
+              take_profit: takeProfit,
+              stop_loss: stopLoss,
               pnl,
               pnl_percentage: profit * 100,
+              projected_roi: projectedROI,
+              actual_roi: profit * 100,
               status
             });
           }
@@ -129,7 +135,12 @@ serve(async (req) => {
         
         const totalReturn = ((currentCapital - startCapital) / startCapital) * 100;
         const winRate = trades.length > 0 ? (winCount / trades.length) * 100 : 0;
-        const sharpeRatio = totalReturn / Math.max(maxDrawdownValue, 1); // Simplified Sharpe
+        const avgProjectedROI = trades.length > 0 ? trades.reduce((sum, t) => sum + t.projected_roi, 0) / trades.length : 0;
+        const avgActualROI = trades.length > 0 ? trades.reduce((sum, t) => sum + t.actual_roi, 0) / trades.length : 0;
+        const roiAccuracy = trades.length > 0 ? trades.filter(t => 
+          (t.projected_roi > 0 && t.actual_roi > 0) || (t.projected_roi < 0 && t.actual_roi < 0)
+        ).length / trades.length * 100 : 0;
+        const sharpeRatio = calculateSharpeRatio(trades.map(t => t.actual_roi));
         
         return {
           summary: {
@@ -142,7 +153,14 @@ serve(async (req) => {
             sharpe_ratio: sharpeRatio,
             initial_capital: startCapital,
             final_capital: currentCapital,
-            net_profit: currentCapital - startCapital
+            net_profit: currentCapital - startCapital,
+            roi_metrics: {
+              avg_projected_roi: avgProjectedROI,
+              avg_actual_roi: avgActualROI,
+              roi_prediction_accuracy: roiAccuracy,
+              best_trade_roi: trades.length > 0 ? Math.max(...trades.map(t => t.actual_roi)) : 0,
+              worst_trade_roi: trades.length > 0 ? Math.min(...trades.map(t => t.actual_roi)) : 0
+            }
           },
           trades,
           performance_chart: trades.map((trade, index) => ({
@@ -168,6 +186,17 @@ serve(async (req) => {
       }
       
       return ema;
+    }
+
+    // Calculate Sharpe Ratio for risk-adjusted returns
+    function calculateSharpeRatio(returns: number[]): number {
+      if (returns.length === 0) return 0;
+      
+      const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+      const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+      const stdDev = Math.sqrt(variance);
+      
+      return stdDev === 0 ? 0 : (avgReturn / stdDev) * Math.sqrt(252); // Annualized
     }
 
     const results = await runRealBacktest();

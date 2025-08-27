@@ -35,6 +35,13 @@ serve(async (req) => {
           .order('created_at', { ascending: false })
           .limit(50);
 
+        // Enhance signals with ROI projections
+        const enhancedSignals = signals?.map(signal => ({
+          ...signal,
+          projected_roi: calculateProjectedROI(signal),
+          risk_reward_ratio: calculateRiskReward(signal)
+        })) || [];
+
         if (error) {
           console.error('❌ Live signals query error:', error);
           return new Response(JSON.stringify({
@@ -48,9 +55,15 @@ serve(async (req) => {
 
         return new Response(JSON.stringify({
           success: true,
-          items: signals || [],
-          count: signals?.length || 0,
-          timestamp: new Date().toISOString()
+          items: enhancedSignals,
+          count: enhancedSignals.length,
+          timestamp: new Date().toISOString(),
+          roi_summary: {
+            avg_projected_roi: enhancedSignals.length > 0 
+              ? (enhancedSignals.reduce((sum, s) => sum + s.projected_roi, 0) / enhancedSignals.length).toFixed(2)
+              : 0,
+            high_roi_signals: enhancedSignals.filter(s => s.projected_roi > 5).length
+          }
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -78,6 +91,13 @@ serve(async (req) => {
 
       const { data: signals, error } = await query;
 
+      // Enhance with ROI calculations
+      const enhancedSignals = signals?.map(signal => ({
+        ...signal,
+        projected_roi: calculateProjectedROI(signal),
+        risk_reward_ratio: calculateRiskReward(signal)
+      })) || [];
+
       if (error) {
         console.error('❌ Signals query error:', error);
         return new Response(JSON.stringify({
@@ -91,9 +111,15 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({
         success: true,
-        items: signals || [],
-        count: signals?.length || 0,
-        filters: { symbol, timeframe, direction, min_score: minScore }
+        items: enhancedSignals,
+        count: enhancedSignals.length,
+        filters: { symbol, timeframe, direction, min_score: minScore },
+        roi_analytics: {
+          avg_projected_roi: enhancedSignals.length > 0 
+            ? (enhancedSignals.reduce((sum, s) => sum + s.projected_roi, 0) / enhancedSignals.length).toFixed(2)
+            : 0,
+          high_confidence_roi: enhancedSignals.filter(s => s.score >= 80 && s.projected_roi > 3).length
+        }
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -267,7 +293,13 @@ serve(async (req) => {
             ? (signalStats.reduce((sum, s) => sum + s.score, 0) / signalStats.length).toFixed(2)
             : 0,
           unique_symbols: [...new Set(signalStats.map(s => s.symbol))].length,
-          time_range_hours: hoursBack
+          time_range_hours: hoursBack,
+          roi_metrics: {
+            avg_projected_roi: signalStats.length > 0 
+              ? (signalStats.reduce((sum, s) => sum + calculateProjectedROI(s), 0) / signalStats.length).toFixed(2)
+              : 0,
+            high_roi_count: signalStats.filter(s => calculateProjectedROI(s) > 5).length
+          }
         };
 
         return new Response(JSON.stringify({
@@ -314,3 +346,30 @@ serve(async (req) => {
     });
   }
 });
+
+// ROI Calculation Functions
+function calculateProjectedROI(signal: any): number {
+  if (!signal || !signal.price || !signal.exit_target) return 0;
+  
+  const entryPrice = parseFloat(signal.price);
+  const exitTarget = parseFloat(signal.exit_target);
+  
+  if (signal.direction === 'LONG') {
+    return ((exitTarget - entryPrice) / entryPrice) * 100;
+  } else {
+    return ((entryPrice - exitTarget) / entryPrice) * 100;
+  }
+}
+
+function calculateRiskReward(signal: any): number {
+  if (!signal || !signal.price || !signal.exit_target || !signal.stop_loss) return 0;
+  
+  const entryPrice = parseFloat(signal.price);
+  const exitTarget = parseFloat(signal.exit_target);
+  const stopLoss = parseFloat(signal.stop_loss);
+  
+  const rewardPotential = Math.abs(exitTarget - entryPrice);
+  const riskPotential = Math.abs(entryPrice - stopLoss);
+  
+  return riskPotential > 0 ? rewardPotential / riskPotential : 0;
+}
