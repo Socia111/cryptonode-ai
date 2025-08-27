@@ -11,6 +11,7 @@ import TelegramIntegration from '../components/TelegramIntegration';
 import TradingPanel from '../components/TradingPanel';
 import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
+import ScannerDashboard from '../components/ScannerDashboard';
 
 const Index = () => {
   return (
@@ -18,6 +19,9 @@ const Index = () => {
       <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Database Setup */}
         <DatabaseSetup />
+        
+        {/* AItradeX1 Scanner */}
+        <ScannerDashboard />
         
         {/* Market Overview */}
         <MarketOverview />
