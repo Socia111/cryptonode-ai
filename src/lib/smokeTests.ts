@@ -4,15 +4,20 @@ import { supabase } from '@/lib/supabaseClient';
 const TIMEOUT_MS = 5000;
 
 function withTimeout<T>(p: Promise<T>, ms = TIMEOUT_MS): Promise<T> {
-  return new Promise((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
-    p.then(v => { clearTimeout(t); resolve(v); }).catch(e => { clearTimeout(t); reject(e); });
+    p.then(v => { clearTimeout(t); resolve(v); })
+     .catch(e => { clearTimeout(t); reject(e); });
   });
 }
 
+type Ok = { success: true } & Record<string, any>;
+type Fail = { success: false; error?: string } & Record<string, any>;
+type Res = Ok | Fail;
+
 export const smokeTests = {
   // 1) Config / RLS ping (public read table)
-  async configPing() {
+  async configPing(): Promise<Res> {
     console.log('[SmokeTest] Config ping…');
     try {
       const result = await supabase.from('markets').select('id').limit(1);
@@ -28,13 +33,18 @@ export const smokeTests = {
   },
 
   // 2) Realtime connectivity via Presence (requires track())
-  async realtimeTest() {
-    console.log('[SmokeTest] Realtime test (presence)…');
-    return new Promise<{ success: boolean; connected: boolean; error?: string }>((resolve) => {
+  async realtimeTest(): Promise<Res> {
+    console.log('[SmokeTest] Realtime test (presence)… Note: Requires browser + Realtime enabled');
+    // Guard for SSR/Node environments
+    if (typeof window === 'undefined' || typeof WebSocket === 'undefined') {
+      console.warn('[SmokeTest] Skipping realtime test - not in browser environment');
+      return { success: false, connected: false, error: 'Not in browser environment' };
+    }
+      return new Promise<Res>((resolve) => {
       let resolved = false;
       const channel = supabase.channel('smoke_test_channel', { config: { presence: { key: 'smoke' } } });
 
-      const cleanup = (result: { success: boolean; connected: boolean; error?: string }) => {
+      const cleanup = (result: Res) => {
         if (resolved) return;
         resolved = true;
         try { supabase.removeChannel(channel); } catch {}
@@ -61,7 +71,7 @@ export const smokeTests = {
   },
 
   // 3) Function connectivity (with timeout + data.error guard)
-  async functionTest(functionName: string, body: any = { test: true }) {
+  async functionTest(functionName: string, body: any = { test: true }): Promise<Res> {
     console.log(`[SmokeTest] Function: ${functionName}…`);
     try {
       const result = await supabase.functions.invoke(functionName, { body });
@@ -77,7 +87,7 @@ export const smokeTests = {
   },
 
   // 4) Auth/session probe (optional but handy)
-  async authProbe() {
+  async authProbe(): Promise<Res> {
     console.log('[SmokeTest] Auth probe…');
     try {
       const result = await supabase.auth.getSession();
@@ -91,7 +101,7 @@ export const smokeTests = {
   },
 
   // Run all
-  async runAll() {
+  async runAll(): Promise<{ config: Res; realtime: Res; auth: Res; signalGeneration: Res; timestamp: string }> {
     console.log('🔥 [SmokeTest] Running suite…');
     const results = {
       config: await this.configPing(),

@@ -28,3 +28,6 @@ export async function isSupabaseConfigured(): Promise<boolean> {
     return false;
   }
 }
+
+// Expose client for dev console access
+if (typeof window !== 'undefined') (window as any).__supabase = supabase;
