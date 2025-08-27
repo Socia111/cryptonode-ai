@@ -77,43 +77,51 @@ function mapDbSignal(row: any): Signal {
 
 async function fetchSignals(): Promise<Signal[]> {
   try {
-    // Fetch signals from database first
-    const { data: dbSignals, error } = await supabase
-      .from('signals')
-      .select('*')
-      .in('timeframe', ['5m', '15m', '30m', '1h', '2h', '4h'])
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(20);
+    // Fetch live signals from the signals API
+    const { data: apiData, error: apiError } = await supabase.functions.invoke('signals-api', {
+      body: { path: '/signals/live' }
+    });
 
-    if (error) {
-      console.warn('[Signals] DB query failed, falling back to strategy_signals:', error.message);
+    if (apiError) {
+      console.error('[Signals] API query failed:', apiError.message);
+      throw apiError;
     }
 
-    // Also fetch from strategy_signals table as fallback
-    const { data: strategySignals } = await supabase
-      .from('strategy_signals')
-      .select('*')
-      .eq('is_active', true)
-      .order('generated_at', { ascending: false })
-      .limit(10);
+    if (apiData?.success && apiData?.items?.length > 0) {
+      // Map API signals to our Signal type
+      const liveSignals = apiData.items.map((item: any): Signal => ({
+        id: item.id.toString(),
+        token: item.symbol.replace('USDT', '/USDT'),
+        direction: item.direction === 'LONG' ? 'BUY' : 'SELL',
+        signal_type: `${item.algo} ${item.timeframe}`,
+        timeframe: item.timeframe,
+        entry_price: Number(item.price),
+        exit_target: item.tp ? Number(item.tp) : null,
+        stop_loss: item.sl ? Number(item.sl) : null,
+        leverage: 1,
+        confidence_score: Number(item.score),
+        pms_score: Number(item.score),
+        trend_projection: item.direction === 'LONG' ? '⬆️' : '⬇️',
+        volume_strength: item.indicators?.volSma21 ? Number(item.indicators.volSma21) / 1000000 : 1.0,
+        roi_projection: Math.abs((Number(item.tp || item.price * 1.1) - Number(item.price)) / Number(item.price) * 100),
+        signal_strength: item.score > 80 ? 'STRONG' : item.score > 60 ? 'MEDIUM' : 'WEAK',
+        risk_level: item.score > 80 ? 'LOW' : item.score > 60 ? 'MEDIUM' : 'HIGH',
+        quantum_probability: Number(item.score) / 100,
+        status: 'active',
+        created_at: item.created_at || new Date().toISOString(),
+      }));
 
-    // Combine and filter by timeframes
-    const allSignals = [
-      ...(dbSignals ?? []).map(mapDbSignal),
-      ...(strategySignals ?? []).map(mapDbToSignal)
-    ];
+      // Filter for requested timeframes
+      const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
+      return liveSignals.filter(signal => 
+        validTimeframes.includes(signal.timeframe)
+      );
+    }
 
-    // Filter for 5m to 4h timeframes and remove duplicates
-    const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
-    const filteredSignals = allSignals.filter(signal => 
-      validTimeframes.includes(signal.timeframe)
-    );
-
-    return filteredSignals.length > 0 ? filteredSignals : getMockSignals();
+    return [];
   } catch (e) {
-    console.warn('[Signals] Query threw, using mock:', e);
-    return getMockSignals();
+    console.error('[Signals] Failed to fetch live signals:', e);
+    return [];
   }
 }
 
