@@ -3559,6 +3559,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      generate_live_signals: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       get_active_stakes: {
         Args: { user_uuid: string }
         Returns: {
