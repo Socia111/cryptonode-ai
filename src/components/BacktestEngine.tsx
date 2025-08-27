@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, LineChart, Line } from 'recharts';
 import { TrendingUp, PlayCircle, BarChart3, Target, Clock } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 
 interface BacktestParams {
@@ -64,18 +64,26 @@ const BacktestEngine = () => {
         body: params
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[Backtest] Error:', error);
+        throw new Error(error.message || 'Backtest failed');
+      }
+
+      if (!data?.results) {
+        throw new Error('No backtest results returned');
+      }
 
       setResults(data.results);
       
       toast({
         title: "Backtest Complete",
-        description: `Analyzed ${data.results.total_trades} trades with ${(data.results.win_rate * 100).toFixed(1)}% win rate`,
+        description: `Analyzed ${data.results?.total_trades || 0} trades with ${((data.results?.win_rate || 0) * 100).toFixed(1)}% win rate`,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[Backtest] Failed:', error);
       toast({
         title: "Backtest Failed",
-        description: error.message,
+        description: error?.message || 'An unknown error occurred',
         variant: "destructive",
       });
     } finally {
@@ -100,8 +108,8 @@ const BacktestEngine = () => {
 
   const performanceData = results?.trades?.map((trade, index) => ({
     trade: index + 1,
-    pnl: trade.pnl,
-    cumulative: results.trades.slice(0, index + 1).reduce((sum, t) => sum + t.pnl, 0)
+    pnl: trade?.pnl || 0,
+    cumulative: results.trades.slice(0, index + 1).reduce((sum, t) => sum + (t?.pnl || 0), 0)
   })) || [];
 
   return (
