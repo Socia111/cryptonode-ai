@@ -42,14 +42,34 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Configuration
-const DEFAULT_EXCHANGE = 'bybit';
-const DEFAULT_TIMEFRAME = '1h';
-const MAX_SYMBOLS = 60;
-const HVP_LOWER = 55;
-const HVP_UPPER = 85;
-const ADX_MIN = 28;
-const VOL_SPIKE_MULT = 1.7;
+// Canonical AItradeX1 Configuration
+const AITRADEX1_CONFIG = {
+  emaLen: 21,
+  smaLen: 200,
+  adxThreshold: 28,
+  stochLength: 14,
+  stochSmoothK: 3,
+  stochSmoothD: 3,
+  volSpikeMult: 1.7,
+  obvEmaLen: 21,
+  hvpLower: 55,
+  hvpUpper: 85,
+  breakoutLen: 5,
+  spreadMaxPct: 0.10,
+  atrLen: 14,
+  exitBars: 18,
+  useDailyTrendFilter: true
+}
+
+const RELAXED_CONFIG = {
+  ...AITRADEX1_CONFIG,
+  adxThreshold: 22,
+  volSpikeMult: 1.4,
+  hvpLower: 50,
+  hvpUpper: 90,
+  breakoutLen: 3,
+  useDailyTrendFilter: false
+}
 
 function calculateSMA(values: number[], period: number): number {
   if (values.length < period) return NaN;
@@ -153,7 +173,7 @@ async function fetchMarketData(symbol: string): Promise<OHLCVData[]> {
   return mockData;
 }
 
-function computeIndicators(ohlcv: OHLCVData[]): TechnicalIndicators | null {
+function computeIndicators(ohlcv: OHLCVData[], relaxed: boolean = false): TechnicalIndicators | null {
   if (ohlcv.length < 210) return null;
   
   const closes = ohlcv.map(d => d.close);
@@ -171,7 +191,7 @@ function computeIndicators(ohlcv: OHLCVData[]): TechnicalIndicators | null {
   // Volume spike calculation
   const volSma21 = calculateSMA(volumes, 21);
   const currentVolume = volumes[volumes.length - 1];
-  const volSpike = currentVolume > VOL_SPIKE_MULT * volSma21;
+  const volSpike = currentVolume > AITRADEX1_CONFIG.volSpikeMult * volSma21;
   
   // HVP-lite calculation (simplified volatility percentile)
   const returns = closes.slice(1).map((price, i) => (price - closes[i]) / closes[i]);
@@ -199,50 +219,63 @@ function computeIndicators(ohlcv: OHLCVData[]): TechnicalIndicators | null {
   };
 }
 
-function evaluateAITradeX1Rules(ohlcv: OHLCVData[], indicators: TechnicalIndicators): { long: boolean; short: boolean; score: number } {
-  if (!indicators) return { long: false, short: false, score: 0 };
+function evaluateCanonicalAItradeX1(ohlcv: OHLCVData[], indicators: TechnicalIndicators, relaxed: boolean = false): { long: boolean; short: boolean; score: number; filters: any } {
+  if (!indicators) return { long: false, short: false, score: 0, filters: {} };
   
+  const config = relaxed ? RELAXED_CONFIG : AITRADEX1_CONFIG;
   const lastPrices = ohlcv.slice(-10).map(d => d.close);
-  const recentHighs = ohlcv.slice(-5).map(d => d.high);
-  const recentLows = ohlcv.slice(-5).map(d => d.low);
+  const recentHighs = ohlcv.slice(-config.breakoutLen - 1, -1).map(d => d.high);
+  const recentLows = ohlcv.slice(-config.breakoutLen - 1, -1).map(d => d.low);
   const currentPrice = lastPrices[lastPrices.length - 1];
   
-  // Trend conditions
-  const bullTrend = indicators.ema21 > indicators.sma200;
-  const bearTrend = indicators.ema21 < indicators.sma200;
+  // Get EMA21 values for slope check
+  const closes = ohlcv.map(d => d.close);
+  const ema21Values = closes.map((_, i) => {
+    if (i < config.emaLen - 1) return NaN;
+    return calculateEMA(closes.slice(0, i + 1), config.emaLen);
+  }).filter(v => !isNaN(v));
   
-  // HVP window
-  const hvpOk = indicators.hvp >= HVP_LOWER && indicators.hvp <= HVP_UPPER;
+  const ema21Current = ema21Values[ema21Values.length - 1];
+  const ema21_3ago = ema21Values[ema21Values.length - 4];
   
-  // ADX/DMI conditions
-  const adxOk = indicators.adx >= ADX_MIN;
-  const bullDmi = indicators.di_plus > indicators.di_minus;
-  const bearDmi = indicators.di_minus > indicators.di_plus;
-  
-  // Stochastic conditions
-  const stochBull = indicators.stoch_k > indicators.stoch_d && indicators.stoch_k < 35;
-  const stochBear = indicators.stoch_k < indicators.stoch_d && indicators.stoch_k > 65;
-  
-  // Volume and spread conditions
-  const volSpike = indicators.vol_spike;
-  const lowSpread = indicators.spread_pct < 0.1;
-  
-  // Breakout conditions
-  const breakoutLong = currentPrice > Math.max(...recentHighs.slice(0, -1));
-  const breakoutShort = currentPrice < Math.min(...recentLows.slice(0, -1));
-  
-  // Combine conditions
-  const longSignal = bullTrend && adxOk && bullDmi && stochBull && volSpike && hvpOk && breakoutLong && lowSpread;
-  const shortSignal = bearTrend && adxOk && bearDmi && stochBear && volSpike && hvpOk && breakoutShort && lowSpread;
-  
-  // Calculate confidence score
-  const conditions = [bullTrend || bearTrend, adxOk, bullDmi || bearDmi, stochBull || stochBear, volSpike, hvpOk, lowSpread];
-  const score = conditions.filter(Boolean).length * 12.5;
-  
+  // Canonical AItradeX1 Long Signal Conditions
+  const longFilters = {
+    trend: indicators.ema21 > indicators.sma200 && ema21Current > ema21_3ago,
+    adx: indicators.adx >= config.adxThreshold,
+    dmi: indicators.di_plus > indicators.di_minus, // +DI rising check would need historical data
+    stoch: indicators.stoch_k > indicators.stoch_d && indicators.stoch_k < 35 && indicators.stoch_d < 40,
+    volume: indicators.vol_spike,
+    obv: true, // OBV check would need historical OBV data
+    hvp: indicators.hvp >= config.hvpLower && indicators.hvp <= config.hvpUpper,
+    spread: indicators.spread_pct < config.spreadMaxPct,
+    breakout: currentPrice > Math.max(...recentHighs)
+  };
+
+  // Canonical AItradeX1 Short Signal Conditions  
+  const shortFilters = {
+    trend: indicators.ema21 < indicators.sma200 && ema21Current < ema21_3ago,
+    adx: indicators.adx >= config.adxThreshold,
+    dmi: indicators.di_minus > indicators.di_plus, // -DI rising check would need historical data
+    stoch: indicators.stoch_k < indicators.stoch_d && indicators.stoch_k > 65 && indicators.stoch_d > 60,
+    volume: indicators.vol_spike,
+    obv: true, // OBV check would need historical OBV data  
+    hvp: indicators.hvp >= config.hvpLower && indicators.hvp <= config.hvpUpper,
+    spread: indicators.spread_pct < config.spreadMaxPct,
+    breakout: currentPrice < Math.min(...recentLows)
+  };
+
+  // Calculate confidence scores (8 buckets × 12.5 points each)
+  const longScore = Object.values(longFilters).filter(Boolean).length * 12.5;
+  const shortScore = Object.values(shortFilters).filter(Boolean).length * 12.5;
+
+  const longSignal = Object.values(longFilters).every(Boolean);
+  const shortSignal = Object.values(shortFilters).every(Boolean);
+
   return {
     long: longSignal,
     short: shortSignal,
-    score: Math.min(100, score)
+    score: longSignal ? Math.min(100, longScore) : (shortSignal ? Math.min(100, shortScore) : 0),
+    filters: longSignal ? longFilters : shortFilters
   };
 }
 
@@ -252,10 +285,21 @@ serve(async (req) => {
   }
 
   try {
+    const url = new URL(req.url);
+    const body = req.method === 'POST' ? await req.json() : {};
+    const relaxedFilters = url.searchParams.get('relaxed_filters') === 'true' || body.relaxed_filters === true;
+    const forceGenerate = body.force_generate === true;
+    
+    console.log(`🔍 AItradeX1 Scanner - Relaxed: ${relaxedFilters}, Force: ${forceGenerate}`);
+    
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Exchange and timeframe from request or defaults
+    const exchange = body.exchange || 'bybit';
+    const timeframe = body.timeframe || '1h';
 
     // Mock symbols for demonstration
     const symbols = [
@@ -270,24 +314,25 @@ serve(async (req) => {
     for (const symbol of symbols.slice(0, 15)) {
       try {
         const ohlcv = await fetchMarketData(symbol);
-        const indicators = computeIndicators(ohlcv);
+        const indicators = computeIndicators(ohlcv, relaxedFilters);
         
         if (!indicators) continue;
         
-        const evaluation = evaluateAITradeX1Rules(ohlcv, indicators);
+        const evaluation = evaluateCanonicalAItradeX1(ohlcv, indicators, relaxedFilters);
         
         if (evaluation.long || evaluation.short) {
           const lastPrice = ohlcv[ohlcv.length - 1].close;
           
           signals.push({
             symbol,
-            exchange: DEFAULT_EXCHANGE,
-            timeframe: DEFAULT_TIMEFRAME,
+            exchange,
+            timeframe,
             direction: evaluation.long ? 'LONG' : 'SHORT',
             confidence_score: evaluation.score,
             price: lastPrice,
             indicators,
-            generated_at: new Date().toISOString()
+            generated_at: new Date().toISOString(),
+            filters: evaluation.filters
           });
         }
       } catch (error) {
@@ -382,10 +427,13 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
+        algorithm: "AItradeX1",
         signals_count: signals.length,
         updated_at: new Date().toISOString(),
-        exchange: DEFAULT_EXCHANGE,
-        timeframe: DEFAULT_TIMEFRAME,
+        exchange,
+        timeframe,
+        relaxed_mode: relaxedFilters,
+        config_used: relaxedFilters ? "relaxed" : "canonical",
         signals: signals.slice(0, 10) // Return top 10 signals
       }),
       {
