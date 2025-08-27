@@ -59,7 +59,7 @@ const SignalsList = () => {
               Generate
             </Button>
             <Badge variant="secondary" className="pulse-glow bg-primary/20 text-primary">
-              {signals.length} Active
+              {signals.length} Active (5m-4h)
             </Badge>
           </div>
         </CardTitle>

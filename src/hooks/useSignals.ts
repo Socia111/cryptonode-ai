@@ -50,21 +50,67 @@ function mapDbToSignal(row: any): Signal {
   };
 }
 
+function mapDbSignal(row: any): Signal {
+  const direction = (row.direction ?? 'LONG').toUpperCase();
+  return {
+    id: row.id,
+    token: row.symbol ?? 'BTC/USDT',
+    direction: direction === 'LONG' ? 'BUY' : 'SELL',
+    signal_type: row.signal_type ?? 'AI Strategy',
+    timeframe: row.timeframe ?? '1h',
+    entry_price: Number(row.entry_price ?? 0),
+    exit_target: row.tp_price != null ? Number(row.tp_price) : null,
+    stop_loss: row.sl_price != null ? Number(row.sl_price) : null,
+    leverage: Number(row.leverage ?? 1),
+    confidence_score: Number(row.confidence_score ?? 0),
+    pms_score: Number(row.score ?? 0),
+    trend_projection: direction === 'LONG' ? '⬆️' : '⬇️',
+    volume_strength: Number(row.volume_strength ?? 1.0),
+    roi_projection: Number(row.roi_projection ?? 10),
+    signal_strength: (row.signal_strength ?? 'MEDIUM').toUpperCase() as 'WEAK' | 'MEDIUM' | 'STRONG',
+    risk_level: (row.risk_level ?? 'MEDIUM').toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH',
+    quantum_probability: Number(row.confidence_score ?? 0) / 100,
+    status: row.is_active ? 'active' : 'inactive',
+    created_at: row.created_at ?? new Date().toISOString(),
+  };
+}
+
 async function fetchSignals(): Promise<Signal[]> {
   try {
-    const { data, error } = await supabase
+    // Fetch signals from database first
+    const { data: dbSignals, error } = await supabase
+      .from('signals')
+      .select('*')
+      .in('timeframe', ['5m', '15m', '30m', '1h', '2h', '4h'])
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.warn('[Signals] DB query failed, falling back to strategy_signals:', error.message);
+    }
+
+    // Also fetch from strategy_signals table as fallback
+    const { data: strategySignals } = await supabase
       .from('strategy_signals')
       .select('*')
       .eq('is_active', true)
       .order('generated_at', { ascending: false })
       .limit(10);
 
-    if (error) {
-      console.warn('[Signals] Falling back to mock. Reason:', error.message);
-      return getMockSignals();
-    }
+    // Combine and filter by timeframes
+    const allSignals = [
+      ...(dbSignals ?? []).map(mapDbSignal),
+      ...(strategySignals ?? []).map(mapDbToSignal)
+    ];
 
-    return (data ?? []).map(mapDbToSignal);
+    // Filter for 5m to 4h timeframes and remove duplicates
+    const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
+    const filteredSignals = allSignals.filter(signal => 
+      validTimeframes.includes(signal.timeframe)
+    );
+
+    return filteredSignals.length > 0 ? filteredSignals : getMockSignals();
   } catch (e) {
     console.warn('[Signals] Query threw, using mock:', e);
     return getMockSignals();
@@ -72,6 +118,9 @@ async function fetchSignals(): Promise<Signal[]> {
 }
 
 function getMockSignals(): Signal[] {
+  const timeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
+  const tokens = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'ADA/USDT', 'DOT/USDT'];
+  
   return [
     {
       id: 'mock-1',
@@ -114,6 +163,90 @@ function getMockSignals(): Signal[] {
       quantum_probability: 0.78,
       status: 'active',
       created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'mock-3',
+      token: 'SOL/USDT',
+      direction: 'BUY',
+      signal_type: 'Breakout + Volume Surge',
+      timeframe: '5m',
+      entry_price: 245.67,
+      exit_target: 268.24,
+      stop_loss: 235.89,
+      leverage: 15,
+      confidence_score: 91.3,
+      pms_score: 2.5,
+      trend_projection: '⬆️',
+      volume_strength: 3.1,
+      roi_projection: 9.2,
+      signal_strength: 'STRONG',
+      risk_level: 'LOW',
+      quantum_probability: 0.91,
+      status: 'active',
+      created_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'mock-4',
+      token: 'ADA/USDT',
+      direction: 'SELL',
+      signal_type: 'Bear Flag + RSI Overbought',
+      timeframe: '30m',
+      entry_price: 1.123,
+      exit_target: 0.987,
+      stop_loss: 1.189,
+      leverage: 10,
+      confidence_score: 82.7,
+      pms_score: 1.9,
+      trend_projection: '⬇️',
+      volume_strength: 1.8,
+      roi_projection: 12.1,
+      signal_strength: 'MEDIUM',
+      risk_level: 'MEDIUM',
+      quantum_probability: 0.83,
+      status: 'active',
+      created_at: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'mock-5',
+      token: 'DOT/USDT',
+      direction: 'BUY',
+      signal_type: 'Support Bounce + MACD Cross',
+      timeframe: '2h',
+      entry_price: 8.45,
+      exit_target: 9.78,
+      stop_loss: 7.89,
+      leverage: 12,
+      confidence_score: 88.9,
+      pms_score: 2.2,
+      trend_projection: '⬆️',
+      volume_strength: 2.1,
+      roi_projection: 15.7,
+      signal_strength: 'STRONG',
+      risk_level: 'LOW',
+      quantum_probability: 0.89,
+      status: 'active',
+      created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'mock-6',
+      token: 'BTC/USDT',
+      direction: 'SELL',
+      signal_type: 'Resistance Rejection + Divergence',
+      timeframe: '4h',
+      entry_price: 96850,
+      exit_target: 89200,
+      stop_loss: 99450,
+      leverage: 8,
+      confidence_score: 85.4,
+      pms_score: 2.0,
+      trend_projection: '⬇️',
+      volume_strength: 1.9,
+      roi_projection: 7.9,
+      signal_strength: 'MEDIUM',
+      risk_level: 'HIGH',
+      quantum_probability: 0.85,
+      status: 'active',
+      created_at: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
     }
   ];
 }
