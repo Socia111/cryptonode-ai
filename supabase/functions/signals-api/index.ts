@@ -18,41 +18,52 @@ serve(async (req) => {
     );
 
     const url = new URL(req.url);
-    const endpoint = url.pathname.split('/').pop();
+    
+    // GET /recent - Recent signals
+    if (req.method === 'GET' && url.pathname.includes('/recent')) {
+      const { data: signals, error } = await supabase
+        .from('scanner_signals')
+        .select('*')
+        .eq('is_active', true)
+        .order('generated_at', { ascending: false })
+        .limit(50);
 
-    switch (endpoint) {
-      case 'recent': {
-        const limit = parseInt(url.searchParams.get('limit') || '50');
-        const { data, error } = await supabase
-          .from('scanner_signals')
-          .select('*')
-          .order('generated_at', { ascending: false })
-          .limit(limit);
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ success: true, signals: data }), 
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-
-      case 'live': {
-        const { data, error } = await supabase
-          .from('scanner_signals')
-          .select('*')
-          .eq('is_active', true)
-          .order('confidence_score', { ascending: false });
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ success: true, live_signals: data }), 
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-
-      default: {
-        return new Response(JSON.stringify({ success: false, error: 'Invalid endpoint' }), 
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
+      return new Response(JSON.stringify({
+        success: true,
+        signals: signals || [],
+        count: signals?.length || 0
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
+    // POST /scan - Trigger scan
+    if (req.method === 'POST' && url.pathname.includes('/scan')) {
+      const body = await req.json();
+      
+      const { data, error } = await supabase.functions.invoke('live-scanner', {
+        body
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        scan_result: data
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Endpoint not found'
+    }), { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 404 
+    });
+
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, error: error.message }), 
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
+    }), { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500 
+    });
   }
 });
