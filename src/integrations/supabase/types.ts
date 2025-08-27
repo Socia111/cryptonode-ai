@@ -2237,6 +2237,36 @@ export type Database = {
         }
         Relationships: []
       }
+      telegram_notifications: {
+        Row: {
+          channel_type: string | null
+          confidence_score: number | null
+          created_at: string
+          id: string
+          message_type: string
+          sent_at: string
+          signal_id: string
+        }
+        Insert: {
+          channel_type?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          message_type?: string
+          sent_at?: string
+          signal_id: string
+        }
+        Update: {
+          channel_type?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          message_type?: string
+          sent_at?: string
+          signal_id?: string
+        }
+        Relationships: []
+      }
       token_rewards: {
         Row: {
           amount: number
