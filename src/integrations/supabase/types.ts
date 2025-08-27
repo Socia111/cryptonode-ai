@@ -374,6 +374,30 @@ export type Database = {
         }
         Relationships: []
       }
+      alert_subscriptions: {
+        Row: {
+          created_at: string | null
+          id: string
+          target: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          target: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          target?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       amarean_memory: {
         Row: {
           aura_color: string | null
@@ -703,6 +727,74 @@ export type Database = {
         }
         Relationships: []
       }
+      backtests: {
+        Row: {
+          created_at: string | null
+          id: string
+          params: Json
+          period: Json
+          results: Json | null
+          strategy: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          params: Json
+          period: Json
+          results?: Json | null
+          strategy: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          params?: Json
+          period?: Json
+          results?: Json | null
+          strategy?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      candles_1m: {
+        Row: {
+          c: number
+          h: number
+          l: number
+          market_id: string
+          o: number
+          ts: string
+          v: number
+        }
+        Insert: {
+          c: number
+          h: number
+          l: number
+          market_id: string
+          o: number
+          ts: string
+          v: number
+        }
+        Update: {
+          c?: number
+          h?: number
+          l?: number
+          market_id?: string
+          o?: number
+          ts?: string
+          v?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candles_1m_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       challenges: {
         Row: {
           activity_type: string
@@ -987,6 +1079,68 @@ export type Database = {
           request_count?: number | null
           user_id?: string | null
           window_start?: string | null
+        }
+        Relationships: []
+      }
+      exchange_accounts: {
+        Row: {
+          created_at: string | null
+          enc_api_key: string
+          enc_api_secret: string
+          exchange_id: string
+          id: string
+          is_paper: boolean | null
+          label: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          enc_api_key: string
+          enc_api_secret: string
+          exchange_id: string
+          id?: string
+          is_paper?: boolean | null
+          label?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          enc_api_key?: string
+          enc_api_secret?: string
+          exchange_id?: string
+          id?: string
+          is_paper?: boolean | null
+          label?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exchange_accounts_exchange_id_fkey"
+            columns: ["exchange_id"]
+            isOneToOne: false
+            referencedRelation: "exchanges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exchanges: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          slug?: string
         }
         Relationships: []
       }
@@ -1339,6 +1493,47 @@ export type Database = {
           },
         ]
       }
+      markets: {
+        Row: {
+          base_asset: string
+          exchange_id: string | null
+          id: string
+          is_active: boolean
+          lot_size: number
+          quote_asset: string
+          symbol: string
+          tick_size: number
+        }
+        Insert: {
+          base_asset: string
+          exchange_id?: string | null
+          id?: string
+          is_active?: boolean
+          lot_size?: number
+          quote_asset: string
+          symbol: string
+          tick_size?: number
+        }
+        Update: {
+          base_asset?: string
+          exchange_id?: string | null
+          id?: string
+          is_active?: boolean
+          lot_size?: number
+          quote_asset?: string
+          symbol?: string
+          tick_size?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "markets_exchange_id_fkey"
+            columns: ["exchange_id"]
+            isOneToOne: false
+            referencedRelation: "exchanges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
@@ -1404,6 +1599,73 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      orders: {
+        Row: {
+          client_order_id: string | null
+          exchange_order_ref: string | null
+          id: string
+          market_id: string | null
+          meta: Json | null
+          order_type: string
+          placed_at: string | null
+          portfolio_id: string | null
+          price: number | null
+          qty: number
+          side: string
+          status: string | null
+        }
+        Insert: {
+          client_order_id?: string | null
+          exchange_order_ref?: string | null
+          id?: string
+          market_id?: string | null
+          meta?: Json | null
+          order_type: string
+          placed_at?: string | null
+          portfolio_id?: string | null
+          price?: number | null
+          qty: number
+          side: string
+          status?: string | null
+        }
+        Update: {
+          client_order_id?: string | null
+          exchange_order_ref?: string | null
+          id?: string
+          market_id?: string | null
+          meta?: Json | null
+          order_type?: string
+          placed_at?: string | null
+          portfolio_id?: string | null
+          price?: number | null
+          qty?: number
+          side?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "v_portfolio_performance"
+            referencedColumns: ["portfolio_id"]
+          },
+        ]
       }
       performance_alerts: {
         Row: {
@@ -1473,6 +1735,100 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      portfolios: {
+        Row: {
+          base_ccy: string
+          created_at: string | null
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          base_ccy?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          user_id: string
+        }
+        Update: {
+          base_ccy?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      positions: {
+        Row: {
+          closed_at: string | null
+          entry_price: number
+          id: string
+          leverage: number | null
+          market_id: string | null
+          opened_at: string | null
+          pnl: number | null
+          portfolio_id: string | null
+          qty: number
+          side: string
+          sl: number | null
+          status: string | null
+          tp: number | null
+        }
+        Insert: {
+          closed_at?: string | null
+          entry_price: number
+          id?: string
+          leverage?: number | null
+          market_id?: string | null
+          opened_at?: string | null
+          pnl?: number | null
+          portfolio_id?: string | null
+          qty: number
+          side: string
+          sl?: number | null
+          status?: string | null
+          tp?: number | null
+        }
+        Update: {
+          closed_at?: string | null
+          entry_price?: number
+          id?: string
+          leverage?: number | null
+          market_id?: string | null
+          opened_at?: string | null
+          pnl?: number | null
+          portfolio_id?: string | null
+          qty?: number
+          side?: string
+          sl?: number | null
+          status?: string | null
+          tp?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "positions_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "positions_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "positions_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "v_portfolio_performance"
+            referencedColumns: ["portfolio_id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1723,6 +2079,62 @@ export type Database = {
         }
         Relationships: []
       }
+      strategy_signals: {
+        Row: {
+          confidence: number | null
+          entry_hint: number | null
+          generated_at: string | null
+          id: string
+          is_active: boolean | null
+          market_id: string | null
+          meta: Json | null
+          score: number | null
+          side: string
+          sl_hint: number | null
+          strategy: string
+          tp_hint: number | null
+          user_id: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          entry_hint?: number | null
+          generated_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          market_id?: string | null
+          meta?: Json | null
+          score?: number | null
+          side: string
+          sl_hint?: number | null
+          strategy: string
+          tp_hint?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          entry_hint?: number | null
+          generated_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          market_id?: string | null
+          meta?: Json | null
+          score?: number | null
+          side?: string
+          sl_hint?: number | null
+          strategy?: string
+          tp_hint?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "strategy_signals_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       streak_achievements: {
         Row: {
           achievement_type: string
@@ -1824,6 +2236,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      trades: {
+        Row: {
+          fee: number | null
+          fee_ccy: string | null
+          id: string
+          order_id: string | null
+          price: number
+          qty: number
+          trade_ts: string
+        }
+        Insert: {
+          fee?: number | null
+          fee_ccy?: string | null
+          id?: string
+          order_id?: string | null
+          price: number
+          qty: number
+          trade_ts?: string
+        }
+        Update: {
+          fee?: number | null
+          fee_ccy?: string | null
+          id?: string
+          order_id?: string | null
+          price?: number
+          qty?: number
+          trade_ts?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trades_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trait_snapshots: {
         Row: {
@@ -2396,6 +2846,35 @@ export type Database = {
         }
         Relationships: []
       }
+      watchlist_items: {
+        Row: {
+          created_at: string | null
+          id: string
+          market_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          market_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          market_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watchlist_items_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       weekly_leaderboards: {
         Row: {
           bonus_tokens: number
@@ -2462,6 +2941,62 @@ export type Database = {
           last_updated: string | null
           tier: string | null
           tier_limit: number | null
+        }
+        Relationships: []
+      }
+      v_active_positions: {
+        Row: {
+          base_asset: string | null
+          closed_at: string | null
+          entry_price: number | null
+          exchange_name: string | null
+          id: string | null
+          leverage: number | null
+          market_id: string | null
+          opened_at: string | null
+          pnl: number | null
+          portfolio_id: string | null
+          qty: number | null
+          quote_asset: string | null
+          side: string | null
+          sl: number | null
+          status: string | null
+          symbol: string | null
+          tp: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "positions_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "positions_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "positions_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "v_portfolio_performance"
+            referencedColumns: ["portfolio_id"]
+          },
+        ]
+      }
+      v_portfolio_performance: {
+        Row: {
+          base_ccy: string | null
+          closed_positions: number | null
+          name: string | null
+          open_positions: number | null
+          portfolio_id: string | null
+          realized_pnl: number | null
+          unrealized_pnl: number | null
         }
         Relationships: []
       }
