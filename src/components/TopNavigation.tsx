@@ -1,8 +1,9 @@
 import React from 'react';
-import { Search, Bell, User, Wallet, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Search, Bell, User, Wallet, ArrowUpRight, ArrowDownLeft, LogOut, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,8 +14,17 @@ import {
 } from '@/components/ui/dropdown-menu';
 import LivePrice from '@/components/LivePrice';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { useAuth } from './AuthProvider';
 
 const TopNavigation = () => {
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
+  const userInitials = user?.email ? user.email.slice(0, 2).toUpperCase() : 'U';
+
   return (
     <header className="h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
       <div className="flex items-center justify-between h-full px-4">
@@ -68,12 +78,19 @@ const TopNavigation = () => {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <User className="w-5 h-5" />
+              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {userInitials}
+                  </AvatarFallback>
+                </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuLabel className="flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                <span className="truncate">{user?.email}</span>
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <Wallet className="w-4 h-4 mr-2" />
@@ -86,8 +103,9 @@ const TopNavigation = () => {
                 Theme
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                Logout
+              <DropdownMenuItem className="text-destructive" onClick={handleSignOut}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
