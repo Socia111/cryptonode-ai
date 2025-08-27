@@ -371,6 +371,39 @@ function isBarClosed(ohlcvData: any[], timeframe: string): boolean {
   return now >= (barEndTime - 30000);
 }
 
+// Retry + rate limits for Bybit
+async function getBybit(url: string, tries = 3, backoff = 300): Promise<any> {
+  let lastErr: any;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const response = await fetch(url, { 
+        headers: { 'User-Agent': 'aitradex1/1.0' } 
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+      
+      const errorText = await response.text();
+      lastErr = errorText;
+      if (response.status === 429 || response.status >= 500) {
+        console.warn(`⚠️  Bybit rate limit/server error, retrying in ${backoff * (i + 1)}ms...`);
+        await new Promise(resolve => setTimeout(resolve, backoff * (i + 1)));
+      } else {
+        break; // Don't retry for 4xx errors
+      }
+    } catch (err) {
+      lastErr = err;
+      if (i < tries - 1) {
+        console.warn(`🔄 Network error, retrying in ${backoff * (i + 1)}ms...`);
+        await new Promise(resolve => setTimeout(resolve, backoff * (i + 1)));
+      }
+    }
+  }
+  throw new Error(`Bybit API failed after ${tries} attempts: ${lastErr}`);
+}
+
 // Fetch REAL market data from Bybit API - NO MOCK DATA, NO SIMULATION
 async function fetchBybitData(symbol: string, timeframe: string, limit: number = 200): Promise<any[]> {
   const baseUrl = 'https://api.bybit.com/v5/market/kline';
@@ -381,27 +414,51 @@ async function fetchBybitData(symbol: string, timeframe: string, limit: number =
     limit: limit.toString()
   });
 
+  const url = `${baseUrl}?${params}`;
   console.log(`🔄 Fetching REAL MARKET DATA for ${symbol} ${timeframe} (${limit} candles)`);
+  console.log(`📡 API URL: ${url}`);
   
-  const response = await fetch(`${baseUrl}?${params}`);
-  const data = await response.json();
-  
-  if (data.retCode !== 0) {
-    throw new Error(`Bybit API error: ${data.retMsg}`);
+  try {
+    const data = await getBybit(url);
+    console.log(`📊 API Response for ${symbol}:`, JSON.stringify(data, null, 2));
+    
+    if (data.retCode !== 0) {
+      throw new Error(`Bybit API error: ${data.retMsg || 'Unknown error'}`);
+    }
+
+    if (!data.result || !data.result.list || !Array.isArray(data.result.list)) {
+      console.error(`❌ Invalid API response structure for ${symbol}:`, data);
+      throw new Error(`Invalid Bybit API response: missing result.list array`);
+    }
+
+    if (data.result.list.length === 0) {
+      console.warn(`⚠️  Empty data returned for ${symbol} ${timeframe}`);
+      return [];
+    }
+
+    // Convert Bybit format to standard OHLCV with REAL timestamps
+    const ohlcv = data.result.list.reverse().map((item: any, index: number) => {
+      if (!item || !Array.isArray(item) || item.length < 6) {
+        console.error(`❌ Invalid candle data at index ${index} for ${symbol}:`, item);
+        throw new Error(`Invalid candle data format at index ${index}`);
+      }
+      
+      return {
+        time: parseInt(item[0]), // Real timestamp from Bybit
+        open: parseFloat(item[1]), // Real open price
+        high: parseFloat(item[2]), // Real high price
+        low: parseFloat(item[3]),  // Real low price
+        close: parseFloat(item[4]), // Real close price
+        volume: parseFloat(item[5]) // Real volume data
+      };
+    });
+
+    console.log(`✅ Retrieved ${ohlcv.length} REAL candles for ${symbol}, latest: ${new Date(ohlcv[ohlcv.length - 1].time)}, price: ${ohlcv[ohlcv.length - 1].close}`);
+    return ohlcv;
+  } catch (error) {
+    console.error(`❌ Error fetching data for ${symbol} ${timeframe}:`, error);
+    throw error;
   }
-
-  // Convert Bybit format to standard OHLCV with REAL timestamps
-  const ohlcv = data.result.list.reverse().map((item: any) => ({
-    time: parseInt(item[0]), // Real timestamp from Bybit
-    open: parseFloat(item[1]), // Real open price
-    high: parseFloat(item[2]), // Real high price
-    low: parseFloat(item[3]),  // Real low price
-    close: parseFloat(item[4]), // Real close price
-    volume: parseFloat(item[5]) // Real volume data
-  }));
-
-  console.log(`✅ Retrieved ${ohlcv.length} REAL candles for ${symbol}, latest: ${new Date(ohlcv[ohlcv.length - 1].time)}, price: ${ohlcv[ohlcv.length - 1].close}`);
-  return ohlcv;
 }
 
 // ALIGNED EMA/SMA series calculation - FIXES INDEXING BUG

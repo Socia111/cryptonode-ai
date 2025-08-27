@@ -322,42 +322,59 @@ function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) =
 
 export async function generateSignals() {
   try {
-    console.info('[generateSignals] Triggering live scanner for multiple timeframes...');
+    console.info('[generateSignals] Triggering comprehensive live signal generation...');
     
-    // Use multiple timeframes and symbols for better signal coverage  
-    const timeframes = ['5m', '15m', '30m', '1h'];
     const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'BNBUSDT', 'XRPUSDT'];
-    let totalSignals = 0;
     
-    for (const timeframe of timeframes) {
-      try {
-        console.log(`[generateSignals] Scanning ${timeframe} timeframe...`);
-        
-        const { data: scanData, error: scanError } = await supabase.functions.invoke('live-scanner-production', {
-          body: { 
-            exchange: 'bybit',
-            timeframe: timeframe,
-            relaxed_filters: true,
-            symbols: symbols
-          }
-        });
-
-        if (scanError) {
-          console.warn(`[generateSignals] ${timeframe} scan failed:`, scanError);
-          continue;
+    // Run multiple timeframes in parallel for faster execution
+    const scanPromises = [
+      // 5-minute scan for quick opportunities  
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '5m',
+          relaxed_filters: true,
+          symbols: symbols
         }
-
-        if (scanData?.signals_found > 0) {
-          totalSignals += scanData.signals_found;
-          console.log(`[generateSignals] Found ${scanData.signals_found} signals for ${timeframe}`);
+      }),
+      // 15-minute scan for balanced signals
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit', 
+          timeframe: '15m',
+          relaxed_filters: true,
+          symbols: symbols
         }
-      } catch (tfError) {
-        console.warn(`[generateSignals] ${timeframe} scan threw:`, tfError);
+      }),
+      // 1-hour scan for higher confidence signals
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '1h', 
+          relaxed_filters: false, // Use canonical settings for higher timeframe
+          symbols: symbols
+        }
+      })
+    ];
+
+    // Wait for all scans to complete
+    const results = await Promise.allSettled(scanPromises);
+    
+    let totalSignals = 0;
+    const timeframes = ['5m', '15m', '1h'];
+    
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value.data) {
+        const signalsFound = result.value.data.signals_found || 0;
+        totalSignals += signalsFound;
+        console.log(`[generateSignals] ${timeframes[index]} scan: ${signalsFound} signals generated`);
+        if (result.value.error) {
+          console.warn(`[generateSignals] ${timeframes[index]} scan had errors:`, result.value.error);
+        }
+      } else if (result.status === 'rejected') {
+        console.error(`[generateSignals] ${timeframes[index]} scan failed:`, result.reason);
       }
-      
-      // Small delay between scans to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
+    });
 
     if (totalSignals === 0) {
       // Fallback to regular scanner with even more relaxed settings
