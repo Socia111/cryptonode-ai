@@ -398,6 +398,44 @@ export type Database = {
         }
         Relationships: []
       }
+      alerts_log: {
+        Row: {
+          channel: string
+          created_at: string
+          id: number
+          payload: Json
+          response: Json | null
+          signal_id: number | null
+          status: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          id?: number
+          payload: Json
+          response?: Json | null
+          signal_id?: number | null
+          status: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          id?: number
+          payload?: Json
+          response?: Json | null
+          signal_id?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_log_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       amarean_memory: {
         Row: {
           aura_color: string | null
@@ -1103,6 +1141,30 @@ export type Database = {
           request_count?: number | null
           user_id?: string | null
           window_start?: string | null
+        }
+        Relationships: []
+      }
+      errors_log: {
+        Row: {
+          created_at: string
+          details: Json | null
+          id: number
+          symbol: string | null
+          where_at: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          id?: number
+          symbol?: string | null
+          where_at: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          id?: number
+          symbol?: string | null
+          where_at?: string
         }
         Relationships: []
       }
@@ -2112,6 +2174,39 @@ export type Database = {
         }
         Relationships: []
       }
+      scans: {
+        Row: {
+          exchange: string
+          finished_at: string | null
+          id: number
+          relaxed_mode: boolean | null
+          signals_count: number | null
+          started_at: string
+          symbols_count: number | null
+          timeframe: string
+        }
+        Insert: {
+          exchange: string
+          finished_at?: string | null
+          id?: number
+          relaxed_mode?: boolean | null
+          signals_count?: number | null
+          started_at?: string
+          symbols_count?: number | null
+          timeframe: string
+        }
+        Update: {
+          exchange?: string
+          finished_at?: string | null
+          id?: number
+          relaxed_mode?: boolean | null
+          signals_count?: number | null
+          started_at?: string
+          symbols_count?: number | null
+          timeframe?: string
+        }
+        Relationships: []
+      }
       scores: {
         Row: {
           category_breakdown: Json | null
@@ -2172,6 +2267,96 @@ export type Database = {
           severity?: string | null
           user_agent?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      signals: {
+        Row: {
+          algo: string
+          atr: number | null
+          bar_time: string
+          created_at: string
+          direction: string
+          exchange: string
+          filters: Json
+          hvp: number | null
+          id: number
+          indicators: Json
+          price: number
+          relaxed_mode: boolean | null
+          score: number
+          sl: number | null
+          symbol: string
+          timeframe: string
+          tp: number | null
+        }
+        Insert: {
+          algo?: string
+          atr?: number | null
+          bar_time: string
+          created_at?: string
+          direction: string
+          exchange: string
+          filters: Json
+          hvp?: number | null
+          id?: number
+          indicators: Json
+          price: number
+          relaxed_mode?: boolean | null
+          score: number
+          sl?: number | null
+          symbol: string
+          timeframe: string
+          tp?: number | null
+        }
+        Update: {
+          algo?: string
+          atr?: number | null
+          bar_time?: string
+          created_at?: string
+          direction?: string
+          exchange?: string
+          filters?: Json
+          hvp?: number | null
+          id?: number
+          indicators?: Json
+          price?: number
+          relaxed_mode?: boolean | null
+          score?: number
+          sl?: number | null
+          symbol?: string
+          timeframe?: string
+          tp?: number | null
+        }
+        Relationships: []
+      }
+      signals_state: {
+        Row: {
+          direction: string
+          exchange: string
+          last_emitted: string
+          last_price: number | null
+          last_score: number | null
+          symbol: string
+          timeframe: string
+        }
+        Insert: {
+          direction: string
+          exchange: string
+          last_emitted: string
+          last_price?: number | null
+          last_score?: number | null
+          symbol: string
+          timeframe: string
+        }
+        Update: {
+          direction?: string
+          exchange?: string
+          last_emitted?: string
+          last_price?: number | null
+          last_score?: number | null
+          symbol?: string
+          timeframe?: string
         }
         Relationships: []
       }
