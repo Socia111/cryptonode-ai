@@ -77,52 +77,100 @@ function mapDbSignal(row: any): Signal {
 
 async function fetchSignals(): Promise<Signal[]> {
   try {
-    // Fetch live signals from the signals API
-    const { data: apiData, error: apiError } = await supabase.functions.invoke('signals-api', {
-      body: { path: '/signals/live' }
-    });
-
-    if (apiError) {
-      console.error('[Signals] API query failed:', apiError.message);
-      throw apiError;
-    }
-
-    if (apiData?.success && apiData?.items?.length > 0) {
-      // Map API signals to our Signal type
-      const liveSignals = apiData.items.map((item: any): Signal => ({
-        id: item.id.toString(),
-        token: item.symbol.replace('USDT', '/USDT'),
-        direction: item.direction === 'LONG' ? 'BUY' : 'SELL',
-        signal_type: `${item.algo} ${item.timeframe}`,
-        timeframe: item.timeframe,
-        entry_price: Number(item.price),
-        exit_target: item.tp ? Number(item.tp) : null,
-        stop_loss: item.sl ? Number(item.sl) : null,
-        leverage: 1,
-        confidence_score: Number(item.score),
-        pms_score: Number(item.score),
-        trend_projection: item.direction === 'LONG' ? '⬆️' : '⬇️',
-        volume_strength: item.indicators?.volSma21 ? Number(item.indicators.volSma21) / 1000000 : 1.0,
-        roi_projection: Math.abs((Number(item.tp || item.price * 1.1) - Number(item.price)) / Number(item.price) * 100),
-        signal_strength: item.score > 80 ? 'STRONG' : item.score > 60 ? 'MEDIUM' : 'WEAK',
-        risk_level: item.score > 80 ? 'LOW' : item.score > 60 ? 'MEDIUM' : 'HIGH',
-        quantum_probability: Number(item.score) / 100,
-        status: 'active',
-        created_at: item.created_at || new Date().toISOString(),
-      }));
-
-      // Filter for requested timeframes
-      const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
-      return liveSignals.filter(signal => 
-        validTimeframes.includes(signal.timeframe)
+    console.log('[Signals] Fetching live signals from database...');
+    
+    // Always trigger fresh signal generation first to ensure we have live data
+    console.log('[Signals] Auto-triggering fresh signal scan...');
+    
+    try {
+      // Trigger multiple timeframes for comprehensive coverage
+      const promises = ['5m', '15m', '1h'].map(timeframe => 
+        supabase.functions.invoke('live-scanner-production', {
+          body: { 
+            exchange: 'bybit',
+            timeframe: timeframe,
+            relaxed_filters: true,
+            symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'BNBUSDT', 'XRPUSDT']
+          }
+        }).catch(error => {
+          console.warn(`[Signals] ${timeframe} scan failed:`, error);
+          return null;
+        })
       );
+      
+      // Execute all scans in parallel
+      await Promise.allSettled(promises);
+      
+      // Wait for signals to be processed
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    } catch (scannerError) {
+      console.warn('[Signals] Auto-scanner failed:', scannerError);
     }
 
-    return [];
+    // Now fetch all signals from database (recent and older)
+    const { data: allSignals, error: signalsError } = await supabase
+      .from('signals')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (signalsError) {
+      console.error('[Signals] Signals query failed:', signalsError.message);
+      return [];
+    }
+
+    if (allSignals && allSignals.length > 0) {
+      console.log(`[Signals] Found ${allSignals.length} total signals`);
+      return mapSignalsToInterface(allSignals);
+    }
+
+    // Final fallback: get any signals from the table
+    const { data: fallbackSignals, error: fallbackError } = await supabase
+      .from('signals')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (fallbackError) {
+      console.error('[Signals] Fallback query failed:', fallbackError.message);
+      return [];
+    }
+
+    console.log(`[Signals] Using fallback signals: ${fallbackSignals?.length || 0} found`);
+    return fallbackSignals ? mapSignalsToInterface(fallbackSignals) : [];
+
   } catch (e) {
-    console.error('[Signals] Failed to fetch live signals:', e);
+    console.error('[Signals] Failed to fetch signals:', e);
     return [];
   }
+}
+
+function mapSignalsToInterface(signals: any[]): Signal[] {
+  const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
+  
+  return signals
+    .filter(item => validTimeframes.includes(item.timeframe))
+    .map((item: any): Signal => ({
+      id: item.id.toString(),
+      token: item.symbol.replace('USDT', '/USDT'),
+      direction: item.direction === 'LONG' ? 'BUY' : 'SELL',
+      signal_type: `${item.algo} ${item.timeframe}`,
+      timeframe: item.timeframe,
+      entry_price: Number(item.price),
+      exit_target: item.tp ? Number(item.tp) : null,
+      stop_loss: item.sl ? Number(item.sl) : null,
+      leverage: 1,
+      confidence_score: Number(item.score),
+      pms_score: Number(item.score),
+      trend_projection: item.direction === 'LONG' ? '⬆️' : '⬇️',
+      volume_strength: item.indicators?.volSma21 ? Number(item.indicators.volSma21) / 1000000 : 1.0,
+      roi_projection: Math.abs((Number(item.tp || item.price * 1.1) - Number(item.price)) / Number(item.price) * 100),
+      signal_strength: item.score > 80 ? 'STRONG' : item.score > 60 ? 'MEDIUM' : 'WEAK',
+      risk_level: item.score > 80 ? 'LOW' : item.score > 60 ? 'MEDIUM' : 'HIGH',
+      quantum_probability: Number(item.score) / 100,
+      status: 'active',
+      created_at: item.created_at || new Date().toISOString(),
+    }));
 }
 
 function getMockSignals(): Signal[] {
@@ -274,18 +322,65 @@ function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) =
 
 export async function generateSignals() {
   try {
-    console.info('[generateSignals] Invoking enhanced-signal-generation...');
-    const { data, error } = await supabase.functions.invoke('enhanced-signal-generation', {
-      body: { symbol: 'BTCUSDT', timeframe: '1h' }
-    });
+    console.info('[generateSignals] Triggering live scanner for multiple timeframes...');
     
-    if (error) {
-      console.error('[generateSignals] enhanced-signal-generation failed:', error.message);
-      throw error;
+    // Use multiple timeframes and symbols for better signal coverage  
+    const timeframes = ['5m', '15m', '30m', '1h'];
+    const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'BNBUSDT', 'XRPUSDT'];
+    let totalSignals = 0;
+    
+    for (const timeframe of timeframes) {
+      try {
+        console.log(`[generateSignals] Scanning ${timeframe} timeframe...`);
+        
+        const { data: scanData, error: scanError } = await supabase.functions.invoke('live-scanner-production', {
+          body: { 
+            exchange: 'bybit',
+            timeframe: timeframe,
+            relaxed_filters: true,
+            symbols: symbols
+          }
+        });
+
+        if (scanError) {
+          console.warn(`[generateSignals] ${timeframe} scan failed:`, scanError);
+          continue;
+        }
+
+        if (scanData?.signals_found > 0) {
+          totalSignals += scanData.signals_found;
+          console.log(`[generateSignals] Found ${scanData.signals_found} signals for ${timeframe}`);
+        }
+      } catch (tfError) {
+        console.warn(`[generateSignals] ${timeframe} scan threw:`, tfError);
+      }
+      
+      // Small delay between scans to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    if (totalSignals === 0) {
+      // Fallback to regular scanner with even more relaxed settings
+      console.log('[generateSignals] No signals found, trying fallback scanner...');
+      
+      const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('live-scanner', {
+        body: { 
+          exchange: 'bybit',
+          timeframe: '1h',
+          relaxed_filters: true,
+          symbols: [...symbols, 'LINKUSDT', 'LTCUSDT', 'DOGEUSDT', 'NEARUSDT']
+        }
+      });
+
+      if (fallbackError) {
+        throw fallbackError;
+      }
+
+      totalSignals = fallbackData?.signals_found || 0;
     }
     
-    console.info('[generateSignals] Success:', data);
-    return data;
+    console.info(`[generateSignals] Success: ${totalSignals} signals generated`);
+    return { signals_created: totalSignals, success: true };
   } catch (e: any) {
     console.error('[generateSignals] Exception:', e);
     throw e;
