@@ -5,6 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Content-Type': 'application/json',
 }
 
 interface MarketData {
@@ -137,19 +138,22 @@ serve(async (req) => {
           data: insertedSignals,
           average_confidence: signals.reduce((acc, s) => acc + s.confidence_score, 0) / signals.length
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: corsHeaders }
       )
     }
 
     return new Response(
       JSON.stringify({ success: true, signals: 0, message: 'No high-confidence signals generated' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: corsHeaders }
     )
 
-  } catch (error) {
+  } catch (error: any) {
+    const msg = error?.message ?? 'Unexpected error';
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        error: msg.includes('RLS') ? 'Permission denied (RLS). Check policies.' : msg 
+      }),
+      { status: 400, headers: corsHeaders }
     )
   }
 })

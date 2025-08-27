@@ -237,6 +237,7 @@ export const useSignals = () => {
       }
     );
 
+    // Proper realtime cleanup
     return () => {
       supabase.removeChannel(channel);
     };

@@ -81,9 +81,10 @@ const BacktestEngine = () => {
       });
     } catch (error: any) {
       console.error('[Backtest] Failed:', error);
+      const msg = error?.message ?? 'Unexpected error';
       toast({
         title: "Backtest Failed",
-        description: error?.message || 'An unknown error occurred',
+        description: msg.includes('RLS') ? 'Permission denied (RLS). Check policies.' : msg,
         variant: "destructive",
       });
     } finally {
@@ -106,10 +107,13 @@ const BacktestEngine = () => {
     }
   };
 
+  // NaN-proofing utility
+  const toNum = (x: any, d = 0) => Number.isFinite(Number(x)) ? Number(x) : d;
+
   const performanceData = results?.trades?.map((trade, index) => ({
     trade: index + 1,
-    pnl: trade?.pnl || 0,
-    cumulative: results.trades.slice(0, index + 1).reduce((sum, t) => sum + (t?.pnl || 0), 0)
+    pnl: toNum(trade?.pnl),
+    cumulative: results.trades.slice(0, index + 1).reduce((sum, t) => sum + toNum(t?.pnl), 0)
   })) || [];
 
   return (
@@ -237,25 +241,25 @@ const BacktestEngine = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-3 bg-success/10 rounded-lg border border-success/20">
                 <TrendingUp className="w-5 h-5 mx-auto mb-1 text-success" />
-                <p className="text-lg font-bold text-success">{(results.total_return * 100).toFixed(1)}%</p>
+                <p className="text-lg font-bold text-success">{Math.max(-100, Math.min(100, toNum(results.total_return * 100))).toFixed(1)}%</p>
                 <p className="text-xs text-muted-foreground">Total Return</p>
               </div>
               
               <div className="text-center p-3 bg-primary/10 rounded-lg border border-primary/20">
                 <Target className="w-5 h-5 mx-auto mb-1 text-primary" />
-                <p className="text-lg font-bold text-primary">{(results.win_rate * 100).toFixed(1)}%</p>
+                <p className="text-lg font-bold text-primary">{Math.max(0, Math.min(100, toNum(results.win_rate * 100))).toFixed(1)}%</p>
                 <p className="text-xs text-muted-foreground">Win Rate</p>
               </div>
               
               <div className="text-center p-3 bg-warning/10 rounded-lg border border-warning/20">
                 <BarChart3 className="w-5 h-5 mx-auto mb-1 text-warning" />
-                <p className="text-lg font-bold text-warning">{results.sharpe_ratio.toFixed(2)}</p>
+                <p className="text-lg font-bold text-warning">{toNum(results.sharpe_ratio).toFixed(2)}</p>
                 <p className="text-xs text-muted-foreground">Sharpe Ratio</p>
               </div>
               
               <div className="text-center p-3 bg-destructive/10 rounded-lg border border-destructive/20">
                 <Clock className="w-5 h-5 mx-auto mb-1 text-destructive" />
-                <p className="text-lg font-bold text-destructive">{(results.max_drawdown * 100).toFixed(1)}%</p>
+                <p className="text-lg font-bold text-destructive">{Math.max(-100, Math.min(0, toNum(results.max_drawdown * 100))).toFixed(1)}%</p>
                 <p className="text-xs text-muted-foreground">Max Drawdown</p>
               </div>
             </div>
