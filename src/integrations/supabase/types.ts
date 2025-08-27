@@ -1914,6 +1914,42 @@ export type Database = {
         }
         Relationships: []
       }
+      quantum_analysis: {
+        Row: {
+          analysis_data: Json | null
+          created_at: string
+          id: string
+          price_target: number | null
+          quantum_confidence: number
+          quantum_probability: number
+          risk_assessment: string | null
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          analysis_data?: Json | null
+          created_at?: string
+          id?: string
+          price_target?: number | null
+          quantum_confidence?: number
+          quantum_probability?: number
+          risk_assessment?: string | null
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          analysis_data?: Json | null
+          created_at?: string
+          id?: string
+          price_target?: number | null
+          quantum_confidence?: number
+          quantum_probability?: number
+          risk_assessment?: string | null
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rate_limits: {
         Row: {
           action_type: string
