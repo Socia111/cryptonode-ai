@@ -16,7 +16,7 @@ const COOLDOWN_PERIODS = {
   '1d': 720
 };
 
-// Symbol universe by volume tier (>$5-10M 24h volume)
+// Symbol universe by volume tier (>$5-10M 24h volume) - REAL TRADING SYMBOLS
 const SYMBOL_TIERS = {
   tier1: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'], // Top liquid
   tier2: ['ADAUSDT', 'DOGEUSDT', 'LINKUSDT', 'MATICUSDT', 'LTCUSDT'], // High volume
@@ -46,7 +46,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🔥 Production AItradeX1 Scanner started');
+    console.log('🚀 AItradeX1 REAL MARKET DATA Scanner started');
     
     const { exchange = 'bybit', timeframe = '1h', relaxed_filters = false, symbols = [] } = await req.json();
     
@@ -65,7 +65,7 @@ serve(async (req) => {
     }
 
     const config = configData.config;
-    console.log(`📊 Using ${relaxed_filters ? 'relaxed' : 'canonical'} config for ${timeframe}`);
+    console.log(`🔧 Using ${relaxed_filters ? 'RELAXED' : 'CANONICAL'} config: { adxThreshold: ${config.inputs.adxThreshold}, hvpUpper: ${config.inputs.hvpUpper} }`);
 
     // Start scan record
     const { data: scanData, error: scanError } = await supabase
@@ -84,8 +84,8 @@ serve(async (req) => {
     }
 
     // Get symbol universe
-    const symbolsToScan = symbols.length > 0 ? symbols : getSymbolUniverse(timeframe);
-    console.log(`🎯 Scanning ${symbolsToScan.length} symbols on ${exchange} ${timeframe}`);
+    const symbolsToScan = symbols.length > 0 ? symbols : getSymbolUniverse(timeframe, relaxed_filters);
+    console.log(`🎯 Scanning ${symbolsToScan.length} symbols on ${exchange} ${timeframe} with REAL MARKET DATA`);
 
     const results = await scanLiveMarkets(supabase, exchange, timeframe, symbolsToScan, config);
     
@@ -105,7 +105,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      algorithm: 'AItradeX1-Production',
+      algorithm: 'AItradeX1-Production-RealData',
       exchange,
       timeframe,
       relaxed_filters,
@@ -147,8 +147,13 @@ serve(async (req) => {
   }
 });
 
-// Get symbol universe based on timeframe and volume
-function getSymbolUniverse(timeframe: string): string[] {
+// Get symbol universe based on timeframe and volume - EXPANDED FOR RELAXED MODE
+function getSymbolUniverse(timeframe: string, relaxed_filters: boolean): string[] {
+  if (relaxed_filters) {
+    // Discovery mode: use more symbols for more opportunities
+    return [...SYMBOL_TIERS.tier1, ...SYMBOL_TIERS.tier2, ...SYMBOL_TIERS.tier3];
+  }
+  
   switch (timeframe) {
     case '1m':
     case '5m':
@@ -170,19 +175,19 @@ async function scanLiveMarkets(supabase: any, exchange: string, timeframe: strin
 
   for (const symbol of symbols) {
     try {
-      console.log(`📈 Analyzing ${symbol}...`);
+      console.log(`📊 Analyzing ${symbol}...`);
       
-      // Fetch REAL OHLCV data from Bybit API
+      // Fetch REAL OHLCV data from Bybit API - NO SIMULATION
       const ohlcvData = await fetchBybitData(symbol, timeframe);
       if (!ohlcvData || ohlcvData.length < 200) {
-        console.log(`⚠️ Insufficient data for ${symbol}: ${ohlcvData?.length || 0} bars`);
+        console.log(`⚠️ Insufficient REAL data for ${symbol}: ${ohlcvData?.length || 0} bars`);
         continue;
       }
 
-      // Compute REAL technical indicators
+      // Compute REAL technical indicators with ALIGNED SERIES
       const indicators = computeIndicators(ohlcvData, config.inputs);
       
-      // Evaluate AItradeX1 strategy with REAL data
+      // Evaluate AItradeX1 strategy with SCORE-BASED FILTERING (7 of 9 buckets)
       const evaluation = evaluateAItradeX1(ohlcvData, indicators, config);
       
       if (evaluation.signal !== 'NONE') {
@@ -225,14 +230,14 @@ async function scanLiveMarkets(supabase: any, exchange: string, timeframe: strin
           relaxed_mode: config.relaxedMode || false
         };
         
-        // Insert signal to database
-        const { data: insertedSignal, error: insertError } = await supabase.from('signals').insert({
+        // Insert signal to database with UPSERT for deduplication
+        const { data: insertedSignal, error: insertError } = await supabase.from('signals').upsert({
           algo: 'AItradeX1',
           exchange: signal.exchange,
           symbol: signal.symbol,
           timeframe: signal.timeframe,
           direction: signal.direction,
-          bar_time: new Date(ohlcvData[ohlcvData.length - 1].timestamp).toISOString(),
+          bar_time: new Date(ohlcvData[ohlcvData.length - 1].time).toISOString(),
           price: signal.price,
           score: signal.score,
           atr: signal.atr,
@@ -242,11 +247,13 @@ async function scanLiveMarkets(supabase: any, exchange: string, timeframe: strin
           filters: signal.filters,
           indicators: signal.indicators,
           relaxed_mode: signal.relaxed_mode
+        }, { 
+          onConflict: 'exchange,symbol,timeframe,direction,bar_time' 
         }).select().single();
 
         if (!insertError) {
           signalsProcessed++;
-          console.log(`✅ ${symbol} ${signal.direction} signal saved (score: ${signal.score}%)`);
+          console.log(`✅ ${symbol} ${signal.direction} signal saved (score: ${signal.score}%, filters: ${Object.values(signal.filters).filter(Boolean).length}/9)`);
           
           // Update signals state for cooldown tracking
           await supabase.from('signals_state').upsert({
@@ -288,6 +295,21 @@ async function scanLiveMarkets(supabase: any, exchange: string, timeframe: strin
         } else {
           console.error(`❌ Failed to insert signal for ${symbol}:`, insertError.message);
         }
+      } else {
+        // DEBUG LOGGING - Show why signal failed (this will help tune filters)
+        const passedFilters = Object.values(evaluation.filters).filter(Boolean).length;
+        console.log(`[DEBUG] ${symbol} no-signal (${passedFilters}/9 filters passed):`, {
+          trend: evaluation.filters.trend,
+          adx: evaluation.filters.adx,
+          dmi: evaluation.filters.dmi, 
+          stoch: evaluation.filters.stoch,
+          volume: evaluation.filters.volume,
+          obv: evaluation.filters.obv,
+          hvp: evaluation.filters.hvp,
+          spread: evaluation.filters.spread,
+          breakout: evaluation.filters.breakout,
+          score: evaluation.score
+        });
       }
     } catch (error) {
       console.error(`❌ Error processing ${symbol}:`, error.message);
@@ -343,66 +365,90 @@ function isBarClosed(ohlcvData: any[], timeframe: string): boolean {
                    timeframe === '4h' ? 240 :
                    timeframe === '1d' ? 1440 : 60;
   
-  const barEndTime = lastBar.timestamp + (tfMinutes * 60 * 1000);
+  const barEndTime = lastBar.time + (tfMinutes * 60 * 1000);
   
   // Allow 30 second buffer for bar close
   return now >= (barEndTime - 30000);
 }
 
-// Fetch REAL market data from Bybit API - NO MOCK DATA
-async function fetchBybitData(symbol: string, timeframe: string): Promise<any[]> {
-  const intervalMap: Record<string, string> = {
-    '1m': '1',
-    '5m': '5', 
-    '15m': '15',
-    '1h': '60',
-    '4h': '240',
-    '1d': 'D'
-  };
+// Fetch REAL market data from Bybit API - NO MOCK DATA, NO SIMULATION
+async function fetchBybitData(symbol: string, timeframe: string, limit: number = 200): Promise<any[]> {
+  const baseUrl = 'https://api.bybit.com/v5/market/kline';
+  const params = new URLSearchParams({
+    category: 'linear', // Use USDT perpetual contracts for real trading data
+    symbol: symbol,
+    interval: timeframe,
+    limit: limit.toString()
+  });
+
+  console.log(`🔄 Fetching REAL MARKET DATA for ${symbol} ${timeframe} (${limit} candles)`);
   
-  const interval = intervalMap[timeframe] || '60';
-  const limit = 200; // Get enough data for proper indicators
+  const response = await fetch(`${baseUrl}?${params}`);
+  const data = await response.json();
   
-  const url = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${interval}&limit=${limit}`;
-  
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (data.retCode !== 0) {
-      throw new Error(`Bybit API error: ${data.retMsg}`);
-    }
-    
-    // Convert Bybit format to our format
-    return data.result.list.map((item: any) => ({
-      timestamp: parseInt(item[0]),
-      open: parseFloat(item[1]),
-      high: parseFloat(item[2]),
-      low: parseFloat(item[3]),
-      close: parseFloat(item[4]),
-      volume: parseFloat(item[5])
-    })).reverse(); // Bybit returns newest first, we need oldest first
-    
-  } catch (error) {
-    console.error(`Failed to fetch data for ${symbol}:`, error);
-    throw error;
+  if (data.retCode !== 0) {
+    throw new Error(`Bybit API error: ${data.retMsg}`);
   }
+
+  // Convert Bybit format to standard OHLCV with REAL timestamps
+  const ohlcv = data.result.list.reverse().map((item: any) => ({
+    time: parseInt(item[0]), // Real timestamp from Bybit
+    open: parseFloat(item[1]), // Real open price
+    high: parseFloat(item[2]), // Real high price
+    low: parseFloat(item[3]),  // Real low price
+    close: parseFloat(item[4]), // Real close price
+    volume: parseFloat(item[5]) // Real volume data
+  }));
+
+  console.log(`✅ Retrieved ${ohlcv.length} REAL candles for ${symbol}, latest: ${new Date(ohlcv[ohlcv.length - 1].time)}, price: ${ohlcv[ohlcv.length - 1].close}`);
+  return ohlcv;
 }
 
-// REAL technical indicators computation - all calculations use actual market data
+// ALIGNED EMA/SMA series calculation - FIXES INDEXING BUG
+function emaSeries(values: number[], len: number): number[] {
+  const out = new Array(values.length).fill(NaN);
+  if (values.length === 0) return out;
+  
+  const k = 2 / (len + 1);
+  let ema = values[0];
+  out[0] = ema;
+  
+  for (let i = 1; i < values.length; i++) {
+    ema = (values[i] - ema) * k + ema;
+    out[i] = ema;
+  }
+  return out;
+}
+
+function smaSeries(values: number[], len: number): number[] {
+  const out = new Array(values.length).fill(NaN);
+  if (values.length < len) return out;
+  
+  for (let i = len - 1; i < values.length; i++) {
+    const sum = values.slice(i - len + 1, i + 1).reduce((a, b) => a + b, 0);
+    out[i] = sum / len;
+  }
+  return out;
+}
+
+// REAL technical indicators computation with ALIGNED SERIES
 function computeIndicators(data: any[], config: any) {
   const closes = data.map(d => d.close);
   const highs = data.map(d => d.high);
   const lows = data.map(d => d.low);
   const volumes = data.map(d => d.volume);
   
-  // Real EMA and SMA calculations
-  const ema21 = calculateEMA(closes, config.emaLen || 21);
-  const sma200 = calculateSMA(closes, config.smaLen || 200);
+  // ALIGNED EMA and SMA series - NO FILTERING
+  const ema21Series = emaSeries(closes, config.emaLen || 21);
+  const sma200Series = smaSeries(closes, config.smaLen || 200);
+  
+  const latest = closes.length - 1;
+  const ema21Current = ema21Series[latest];
+  const ema21Prev3 = ema21Series[Math.max(0, latest - 3)];
+  const sma200Current = sma200Series[latest];
   
   // Real ADX calculation
-  const adx = calculateADX(highs, lows, closes, 14);
-  const { diPlus, diMinus } = calculateDMI(highs, lows, closes, 14);
+  const { adx, diPlus, diMinus } = calculateADXDMI(highs, lows, closes, 14);
   
   // Real Stochastic calculation
   const { stochK, stochD } = calculateStochastic(highs, lows, closes, 14, 3);
@@ -428,8 +474,9 @@ function computeIndicators(data: any[], config: any) {
   const breakoutLow = Math.min(...lows.slice(-breakoutLen));
   
   return {
-    ema21,
-    sma200,
+    ema21Current,
+    ema21Prev3,
+    sma200Current,
     adx: Math.round(adx * 10) / 10,
     diPlus: Math.round(diPlus * 10) / 10,
     diMinus: Math.round(diMinus * 10) / 10,
@@ -448,13 +495,12 @@ function computeIndicators(data: any[], config: any) {
   };
 }
 
-// REAL AItradeX1 strategy evaluation with proper filter logic
+// SCORE-BASED AItradeX1 strategy - 7 OF 9 FILTERS REQUIRED
 function evaluateAItradeX1(data: any[], indicators: any, config: any) {
   const current = data[data.length - 1];
-  const prev = data[data.length - 2];
   
-  // Initialize filters
-  const filters = {
+  // Initialize filter buckets
+  const longFilters = {
     trend: false,
     adx: false,
     dmi: false,
@@ -466,74 +512,99 @@ function evaluateAItradeX1(data: any[], indicators: any, config: any) {
     breakout: false
   };
   
-  let score = 0;
+  const shortFilters = { ...longFilters };
   
-  // 1. Trend Filter: Price above/below EMA21 vs SMA200
-  const bullishTrend = current.close > indicators.ema21 && indicators.ema21 > indicators.sma200;
-  const bearishTrend = current.close < indicators.ema21 && indicators.ema21 < indicators.sma200;
-  filters.trend = bullishTrend || bearishTrend;
-  if (filters.trend) score += 15;
+  // 1. Trend Filter: EMA21 vs SMA200 AND EMA21 slope
+  const trendUp = indicators.ema21Current > indicators.sma200Current && 
+                  indicators.ema21Current > indicators.ema21Prev3;
+  const trendDown = indicators.ema21Current < indicators.sma200Current && 
+                    indicators.ema21Current < indicators.ema21Prev3;
+  
+  longFilters.trend = trendUp;
+  shortFilters.trend = trendDown;
   
   // 2. ADX Filter: Strong trend strength
   const adxThreshold = config.inputs?.adxThreshold || 28;
-  filters.adx = indicators.adx > adxThreshold;
-  if (filters.adx) score += 12;
+  const adxStrong = indicators.adx >= adxThreshold;
+  longFilters.adx = adxStrong;
+  shortFilters.adx = adxStrong;
   
   // 3. DMI Filter: Directional momentum
-  filters.dmi = Math.abs(indicators.diPlus - indicators.diMinus) > 5;
-  if (filters.dmi) score += 10;
+  longFilters.dmi = indicators.diPlus > indicators.diMinus;
+  shortFilters.dmi = indicators.diMinus > indicators.diPlus;
   
-  // 4. Stochastic Filter: Not overbought/oversold in wrong direction
-  const stochOversold = indicators.stochK < 30 && indicators.stochD < 30;
-  const stochOverbought = indicators.stochK > 70 && indicators.stochD > 70;
-  filters.stoch = (bullishTrend && stochOversold) || (bearishTrend && stochOverbought) || 
-                 (indicators.stochK > 25 && indicators.stochK < 75);
-  if (filters.stoch) score += 8;
+  // 4. Stochastic Filter: Not in wrong extreme
+  const stochOversold = indicators.stochK < 30;
+  const stochOverbought = indicators.stochK > 70;
+  longFilters.stoch = !stochOverbought; // OK for long if not overbought
+  shortFilters.stoch = !stochOversold;   // OK for short if not oversold
   
   // 5. Volume Filter: Above average volume
-  filters.volume = indicators.volSpike;
-  if (filters.volume) score += 10;
+  longFilters.volume = indicators.volSpike;
+  shortFilters.volume = indicators.volSpike;
   
   // 6. OBV Filter: Volume momentum confirmation
-  filters.obv = (bullishTrend && indicators.obv > indicators.obvEma) || 
-               (bearishTrend && indicators.obv < indicators.obvEma);
-  if (filters.obv) score += 8;
+  longFilters.obv = indicators.obv > indicators.obvEma;
+  shortFilters.obv = indicators.obv < indicators.obvEma;
   
-  // 7. HVP Filter: High Volume Profile threshold
+  // 7. HVP Filter: Volume profile positioning
   const hvpLower = config.inputs?.hvpLower || 55;
   const hvpUpper = config.inputs?.hvpUpper || 85;
-  filters.hvp = indicators.hvp >= hvpLower && indicators.hvp <= hvpUpper;
-  if (filters.hvp) score += 12;
+  const hvpOK = indicators.hvp >= hvpLower && indicators.hvp <= hvpUpper;
+  longFilters.hvp = hvpOK;
+  shortFilters.hvp = hvpOK;
   
   // 8. Spread Filter: Reasonable volatility
   const maxSpread = config.inputs?.maxSpread || 0.5;
-  filters.spread = indicators.spread <= maxSpread;
-  if (filters.spread) score += 5;
+  const spreadOK = indicators.spread <= maxSpread;
+  longFilters.spread = spreadOK;
+  shortFilters.spread = spreadOK;
   
   // 9. Breakout Filter: Price action confirmation
-  const breakoutBullish = current.close > indicators.breakoutHigh && current.close > prev.close;
-  const breakoutBearish = current.close < indicators.breakoutLow && current.close < prev.close;
-  filters.breakout = breakoutBullish || breakoutBearish;
-  if (filters.breakout) score += 15;
+  const breakoutUp = current.close > indicators.breakoutHigh;
+  const breakoutDown = current.close < indicators.breakoutLow;
+  longFilters.breakout = breakoutUp;
+  shortFilters.breakout = breakoutDown;
   
-  // Determine signal direction and final score
-  const isLong = bullishTrend && indicators.diPlus > indicators.diMinus && breakoutBullish;
-  const isShort = bearishTrend && indicators.diMinus > indicators.diPlus && breakoutBearish;
+  // SCORE-BASED EVALUATION: 7 OF 9 BUCKETS REQUIRED
+  const LONG_REQUIRED = 7;
+  const SHORT_REQUIRED = 7;
   
-  // Check minimum filter requirements
-  const passedFilters = Object.values(filters).filter(f => f).length;
-  const minFiltersRequired = config.relaxedMode ? 6 : 8;
-  const scoreThreshold = config.relaxedMode ? 60 : 75;
+  const longPasses = Object.values(longFilters).filter(Boolean).length;
+  const shortPasses = Object.values(shortFilters).filter(Boolean).length;
   
-  if ((isLong || isShort) && passedFilters >= minFiltersRequired && score >= scoreThreshold) {
+  // Strong momentum can bypass breakout requirement
+  const momentumOK = adxStrong && Math.abs(indicators.diPlus - indicators.diMinus) > 5;
+  
+  const longSignal = (longPasses >= LONG_REQUIRED) && 
+                     (longFilters.breakout || momentumOK);
+  const shortSignal = (shortPasses >= SHORT_REQUIRED) && 
+                      (shortFilters.breakout || momentumOK);
+  
+  const longScore = longPasses * 11.1;  // 0-100 scale
+  const shortScore = shortPasses * 11.1;
+  
+  if (longSignal) {
     return {
-      signal: isLong ? 'LONG' : 'SHORT' as const,
-      score: Math.min(100, score),
-      filters
+      signal: 'LONG' as const,
+      score: Math.min(100, Math.round(longScore)),
+      filters: longFilters
     };
   }
   
-  return { signal: 'NONE' as const, score: 0, filters };
+  if (shortSignal) {
+    return {
+      signal: 'SHORT' as const,
+      score: Math.min(100, Math.round(shortScore)),
+      filters: shortFilters
+    };
+  }
+  
+  return { 
+    signal: 'NONE' as const, 
+    score: 0, 
+    filters: longPasses > shortPasses ? longFilters : shortFilters
+  };
 }
 
 // Technical indicator calculations using REAL market data
@@ -567,17 +638,8 @@ function calculateATR(highs: number[], lows: number[], closes: number[], period:
   return calculateSMA(trueRanges, period);
 }
 
-function calculateADX(highs: number[], lows: number[], closes: number[], period: number): number {
-  if (highs.length < period + 1) return 0;
-  
-  const { diPlus, diMinus } = calculateDMI(highs, lows, closes, period);
-  const dx = Math.abs(diPlus - diMinus) / (diPlus + diMinus) * 100;
-  
-  return dx; // Simplified ADX
-}
-
-function calculateDMI(highs: number[], lows: number[], closes: number[], period: number): { diPlus: number, diMinus: number } {
-  if (highs.length < period + 1) return { diPlus: 0, diMinus: 0 };
+function calculateADXDMI(highs: number[], lows: number[], closes: number[], period: number): { adx: number, diPlus: number, diMinus: number } {
+  if (highs.length < period + 1) return { adx: 0, diPlus: 0, diMinus: 0 };
   
   let dmPlus = 0;
   let dmMinus = 0;
@@ -598,8 +660,9 @@ function calculateDMI(highs: number[], lows: number[], closes: number[], period:
   
   const diPlus = (dmPlus / tr) * 100;
   const diMinus = (dmMinus / tr) * 100;
+  const dx = Math.abs(diPlus - diMinus) / (diPlus + diMinus) * 100;
   
-  return { diPlus, diMinus };
+  return { adx: dx, diPlus, diMinus };
 }
 
 function calculateStochastic(highs: number[], lows: number[], closes: number[], kPeriod: number, dPeriod: number): { stochK: number, stochD: number } {
@@ -613,9 +676,7 @@ function calculateStochastic(highs: number[], lows: number[], closes: number[], 
   const lowestLow = Math.min(...recentLows);
   
   const stochK = ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
-  
-  // Simplified %D calculation
-  const stochD = stochK; // In real implementation, this would be SMA of %K
+  const stochD = stochK; // Simplified for now
   
   return { stochK, stochD };
 }
