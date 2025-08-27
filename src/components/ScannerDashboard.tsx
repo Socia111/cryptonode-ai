@@ -44,6 +44,22 @@ const ScannerDashboard = () => {
 
   const fetchSignals = async () => {
     try {
+      // Try new signals API first, fallback to direct DB query
+      try {
+        const response = await supabase.functions.invoke('signals-api', {
+          body: { path: '/signals/live' }
+        });
+        
+        if (response.data?.success) {
+          setSignals(response.data.live_signals || []);
+          setLastUpdate(new Date().toLocaleString());
+          return;
+        }
+      } catch (apiError) {
+        console.warn('API call failed, falling back to direct DB query:', apiError);
+      }
+      
+      // Fallback to direct database query
       const { data, error } = await supabase
         .from('scanner_signals')
         .select('*')
@@ -68,18 +84,19 @@ const ScannerDashboard = () => {
   const runScan = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('scanner-engine', {
+      const { data, error } = await supabase.functions.invoke('live-scanner', {
         body: { 
           exchange: selectedExchange, 
-          timeframe: selectedTimeframe 
+          timeframe: selectedTimeframe,
+          relaxed_filters: false
         }
       });
 
       if (error) throw error;
 
       toast({
-        title: "Scan Complete",
-        description: `Found ${data.signals_count} trading signals`,
+        title: "Live Scan Complete",
+        description: `Found ${data?.count || 0} AItradeX1 signals`,
       });
 
       await fetchSignals();

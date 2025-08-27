@@ -1,5 +1,6 @@
 // AItradeX1 Configuration Endpoint
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,17 +50,33 @@ serve(async (req) => {
     const url = new URL(req.url);
     const relaxed = url.searchParams.get("relaxed_filters") === "true";
 
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Try to get config from database first
+    const { data: dbConfig } = await supabase
+      .from('configs')
+      .select('payload')
+      .eq('name', 'AItradeX1')
+      .eq('is_active', true)
+      .single();
+
+    const baseConfig = dbConfig?.payload || AITRADEX1_CONFIG;
+    
     const inputs = relaxed
-      ? { ...AITRADEX1_CONFIG.inputs, ...AITRADEX1_CONFIG.relaxedMode }
-      : AITRADEX1_CONFIG.inputs;
+      ? { ...baseConfig.inputs, ...baseConfig.relaxedMode }
+      : baseConfig.inputs;
 
     console.log(`🔧 AItradeX1 Config requested — Relaxed: ${relaxed}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        config: { ...AITRADEX1_CONFIG, inputs },
+        config: { ...baseConfig, inputs },
         relaxed_mode: relaxed,
+        source: dbConfig ? 'database' : 'default',
         timestamp: new Date().toISOString(),
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
