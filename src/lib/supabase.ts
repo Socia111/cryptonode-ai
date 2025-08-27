@@ -1,35 +1,53 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-// Environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Environment variables with safe defaults
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+
+// Validate URL format
+const isValidUrl = (url: string): boolean => {
+  if (!url) return false
+  try {
+    new URL(url)
+    return url.includes('.supabase.co') || url.includes('localhost')
+  } catch {
+    return false
+  }
+}
 
 // Check if we have valid credentials
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey && 
-  supabaseUrl !== 'your_supabase_url_here' && 
-  supabaseAnonKey !== 'your_supabase_anon_key_here')
+export const isSupabaseConfigured = !!(
+  isValidUrl(supabaseUrl) && 
+  supabaseAnonKey && 
+  supabaseAnonKey.length > 20 &&
+  supabaseUrl !== 'your_supabase_project_url' && 
+  supabaseAnonKey !== 'your_supabase_anon_key'
+)
 
 // Create client only if we have valid credentials
 let supabaseClient: SupabaseClient | null = null
 
 if (isSupabaseConfigured) {
-  supabaseClient = createClient(supabaseUrl!, supabaseAnonKey!, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-    },
-    realtime: {
-      params: {
-        eventsPerSecond: 10,
+  try {
+    supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
       },
-    },
-  })
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
+    })
+    console.log('✅ Supabase client connected successfully')
+  } catch (error) {
+    console.error('❌ Failed to create Supabase client:', error)
+    supabaseClient = null
+  }
 } else {
-  console.warn('⚠️ Supabase credentials not configured.')
-  console.warn('📝 To connect to Supabase:')
-  console.warn('1. Create a .env file in your project root')
-  console.warn('2. Add: VITE_SUPABASE_URL=https://your-project.supabase.co')
-  console.warn('3. Add: VITE_SUPABASE_ANON_KEY=your-anon-key-here')
+  console.warn('⚠️ Supabase not configured - running in demo mode')
+  console.warn('📝 To connect to Supabase, click the green Supabase button in the top right')
 }
 
 // Mock client for development when Supabase is not configured
