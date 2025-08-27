@@ -169,7 +169,7 @@ export async function updateSpynxScores() {
 
 export const useSignals = () => {
   const [signals, setSignals] = useState<Signal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -254,7 +254,7 @@ export const useSignals = () => {
 
 export const useSpynxScores = () => {
   const [scores, setScores] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     fetchScores();

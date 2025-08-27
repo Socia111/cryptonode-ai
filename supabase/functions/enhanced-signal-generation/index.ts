@@ -4,6 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 }
 
 interface MarketData {
@@ -67,8 +68,9 @@ interface EnhancedSignal {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
@@ -97,19 +99,36 @@ serve(async (req) => {
     // Store signals with enhanced data
     if (signals.length > 0) {
       const { data: insertedSignals, error } = await supabase
-        .from('signals')
+        .from('strategy_signals')
         .insert(signals.map(s => ({
-          ...s,
-          stels_max_leverage: s.stels_analysis.maxLeverage,
-          stels_recommended_capital: s.stels_analysis.recommendedCapital,
-          stels_risk_score: s.stels_analysis.riskScore,
-          quantum_probability: s.quantum_probability,
-          risk_level: s.risk_level,
-          signal_strength: s.signal_strength
+          strategy: s.signal_type,
+          side: s.direction === 'BUY' ? 'LONG' : 'SHORT',
+          market_symbol: s.token,
+          confidence: s.confidence_score / 100,
+          score: s.pms_score,
+          entry_hint: s.entry_price,
+          tp_hint: s.exit_target,
+          sl_hint: s.stop_loss,
+          meta: {
+            timeframe: s.timeframe,
+            leverage: s.leverage,
+            volume_strength: s.volume_strength,
+            roi_projection: s.roi_projection,
+            signal_strength: s.signal_strength,
+            risk_level: s.risk_level,
+            quantum_probability: s.quantum_probability,
+            stels_analysis: s.stels_analysis
+          },
+          is_active: true
         })))
         .select()
 
-      if (error) throw error
+      if (error) {
+        console.error('[enhanced-signal-generation] Insert failed:', error)
+        throw error
+      }
+
+      console.info('[enhanced-signal-generation] Success:', insertedSignals.length, 'signals inserted')
 
       return new Response(
         JSON.stringify({ 

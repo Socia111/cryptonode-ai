@@ -13,7 +13,7 @@ const requiredTables = [
 const DatabaseSetup = () => {
   const [connected, setConnected] = useState<boolean>(false);
   const [tables, setTables] = useState<Record<string, boolean>>({});
-  const [isChecking, setIsChecking] = useState(false);
+  const [isChecking, setIsChecking] = useState<boolean>(false);
   const { toast } = useToast();
 
   useEffect(() => {
