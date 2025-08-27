@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Bot, Send, Settings, Users } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 
 const TelegramIntegration = () => {
@@ -13,7 +13,8 @@ const TelegramIntegration = () => {
   const { toast } = useToast();
 
   const setupTelegramBot = async () => {
-    if (!isSupabaseConfigured) {
+    const configured = await isSupabaseConfigured();
+    if (!configured) {
       toast({
         title: "Supabase Not Configured",
         description: "Please set up your Supabase credentials first to enable Telegram integration.",
@@ -49,9 +50,10 @@ const TelegramIntegration = () => {
   };
 
   const sendTestSignal = async (isPremium: boolean = false) => {
-    if (!isSupabaseConfigured) {
+    const configured = await isSupabaseConfigured();
+    if (!configured) {
       toast({
-        title: "Supabase Not Configured",
+        title: "Supabase Not Configured", 
         description: "Please configure Supabase credentials to send Telegram signals.",
         variant: "destructive",
       });

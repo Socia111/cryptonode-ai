@@ -1,162 +1,143 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Database, Check, X, AlertCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { Database, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 
+const requiredTables = [
+  'strategy_signals', 'portfolios', 'positions', 'orders', 'trades', 'markets', 'exchanges'
+];
+
 const DatabaseSetup = () => {
-  const [isCreating, setIsCreating] = useState(false);
-  const [tables, setTables] = useState<{[key: string]: boolean}>({});
+  const [connected, setConnected] = useState<boolean>(false);
+  const [tables, setTables] = useState<Record<string, boolean>>({});
+  const [isChecking, setIsChecking] = useState(false);
   const { toast } = useToast();
 
-  const requiredTables = [
-    'strategy_signals',
-    'portfolios', 
-    'positions',
-    'orders',
-    'trades',
-    'markets',
-    'exchanges'
-  ];
+  useEffect(() => {
+    (async () => {
+      const ok = await isSupabaseConfigured();
+      console.info('[DatabaseSetup] Supabase configured:', ok);
+      setConnected(ok);
+      if (ok) await checkTables();
+    })();
+  }, []);
 
-  const createTables = async () => {
-    setIsCreating(true);
+  const checkTables = async () => {
+    setIsChecking(true);
+    const status: Record<string, boolean> = {};
     
-    try {
-      // Check if tables exist by trying to query them
-      const { error: signalsError } = await supabase.from('strategy_signals').select('*').limit(1);
-      const { error: portfoliosError } = await supabase.from('portfolios').select('*').limit(1);
-      
-      if (!signalsError && !portfoliosError) {
-        toast({
-          title: "Database Already Setup",
-          description: "All required tables are already available",
-        });
-        checkTables();
-        return;
+    for (const tableName of requiredTables) {
+      try {
+        const { error } = await supabase.from(tableName).select('*').limit(1);
+        status[tableName] = !error;
+        if (error) {
+          console.warn(`[DatabaseSetup] Table ${tableName} check failed:`, error.message);
+        }
+      } catch (e) {
+        console.warn(`[DatabaseSetup] Table ${tableName} threw:`, e);
+        status[tableName] = false;
       }
+    }
+    
+    setTables(status);
+    setIsChecking(false);
+  };
 
+  const allTablesExist = Object.values(tables).every(exists => exists);
+  const someTablesExist = Object.values(tables).some(exists => exists);
+
+  const handleVerifySetup = async () => {
+    if (!connected) {
       toast({
-        title: "Database Setup Complete", 
-        description: "AItradeX database schema is ready with all trading tables",
+        title: "Supabase Not Connected",
+        description: "Please check your environment variables and connection.",
+        variant: "destructive"
       });
-
-      // Check tables after creation
-      checkTables();
-
-    } catch (error) {
-      console.error('Database setup error:', error);
+      return;
+    }
+    
+    await checkTables();
+    
+    if (allTablesExist) {
       toast({
-        title: "Setup Error",
-        description: "Failed to create database tables. Manual setup may be required.",
-        variant: "destructive",
+        title: "Database Ready",
+        description: "All required tables are accessible."
       });
-    } finally {
-      setIsCreating(false);
+    } else {
+      toast({
+        title: "Setup Required", 
+        description: "Some tables are missing or inaccessible.",
+        variant: "destructive"
+      });
     }
   };
 
-  const checkTables = async () => {
-    const tableStatus: {[key: string]: boolean} = {};
-    
-    // Check each table individually with proper typing
-    try {
-      const { error: strategySignalsError } = await supabase.from('strategy_signals').select('*').limit(1);
-      tableStatus['strategy_signals'] = !strategySignalsError;
-    } catch { tableStatus['strategy_signals'] = false; }
-
-    try {
-      const { error: portfoliosError } = await supabase.from('portfolios').select('*').limit(1);
-      tableStatus['portfolios'] = !portfoliosError;
-    } catch { tableStatus['portfolios'] = false; }
-
-    try {
-      const { error: positionsError } = await supabase.from('positions').select('*').limit(1);
-      tableStatus['positions'] = !positionsError;
-    } catch { tableStatus['positions'] = false; }
-
-    try {
-      const { error: ordersError } = await supabase.from('orders').select('*').limit(1);
-      tableStatus['orders'] = !ordersError;
-    } catch { tableStatus['orders'] = false; }
-
-    try {
-      const { error: tradesError } = await supabase.from('trades').select('*').limit(1);
-      tableStatus['trades'] = !tradesError;
-    } catch { tableStatus['trades'] = false; }
-
-    try {
-      const { error: marketsError } = await supabase.from('markets').select('*').limit(1);
-      tableStatus['markets'] = !marketsError;
-    } catch { tableStatus['markets'] = false; }
-
-    try {
-      const { error: exchangesError } = await supabase.from('exchanges').select('*').limit(1);
-      tableStatus['exchanges'] = !exchangesError;
-    } catch { tableStatus['exchanges'] = false; }
-    
-    setTables(tableStatus);
-  };
-
-  React.useEffect(() => {
-    checkTables();
-  }, []);
-
-  const allTablesExist = requiredTables.every(table => tables[table]);
-  const isConnected = true; // Supabase is always connected in Lovable
-
   return (
-    <Card className="glass-card mb-6">
+    <Card className="glass-card">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Database className="w-5 h-5 text-primary" />
             <span>Database Setup</span>
           </div>
-          <Badge variant={isConnected ? (allTablesExist ? "secondary" : "destructive") : "outline"}>
-            {!isConnected ? "Not Connected" : allTablesExist ? "Ready" : "Setup Required"}
+          <Badge variant={connected ? (allTablesExist ? "default" : "secondary") : "destructive"}>
+            {connected ? (allTablesExist ? 'Ready' : 'Setup Required') : 'Not Connected'}
           </Badge>
         </CardTitle>
       </CardHeader>
-      
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600">{connected ? 'Online' : 'Offline'}</div>
+            <div className="text-sm text-muted-foreground">Connection</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold">{Object.keys(tables).length}/{requiredTables.length}</div>
+            <div className="text-sm text-muted-foreground">Tables Ready</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {requiredTables.map((table) => (
-            <div key={table} className="flex items-center space-x-2 text-sm">
+            <div key={table} className="flex items-center space-x-2 p-2 rounded bg-muted/20">
               {tables[table] ? (
-                <Check className="w-4 h-4 text-success" />
+                <CheckCircle className="w-4 h-4 text-success" />
               ) : (
-                <X className="w-4 h-4 text-destructive" />
+                <XCircle className="w-4 h-4 text-destructive" />
               )}
-              <span className={tables[table] ? 'text-success' : 'text-muted-foreground'}>
+              <span className={`text-sm ${tables[table] ? 'text-success' : 'text-muted-foreground'}`}>
                 {table}
               </span>
             </div>
           ))}
         </div>
 
-        {!allTablesExist && (
-          <div className="flex items-start space-x-2 p-4 bg-info/10 rounded-lg border border-info/20">
-            <AlertCircle className="w-5 h-5 text-info mt-0.5" />
-            <div className="text-sm">
-              <p className="font-medium text-info">Database Schema Ready</p>
-              <p className="text-muted-foreground mt-1">
-                Your AItradeX database is connected and ready. All trading tables are available.
-              </p>
+        <Button 
+          onClick={handleVerifySetup} 
+          className="w-full mb-4"
+          disabled={isChecking}
+        >
+          <Database className="mr-2 h-4 w-4" />
+          {isChecking ? 'Checking...' : allTablesExist ? 'Database Ready ✓' : 'Verify Database Setup'}
+        </Button>
+
+        {!allTablesExist && connected && (
+          <div className="p-4 bg-warning/10 rounded-lg border border-warning/20">
+            <div className="flex items-start space-x-2">
+              <AlertCircle className="w-5 h-5 text-warning mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium text-warning">Setup Required</p>
+                <p className="text-muted-foreground mt-1">
+                  Some database tables are missing. Run the database migration to create required tables.
+                </p>
+              </div>
             </div>
           </div>
         )}
-
-        <Button 
-          onClick={createTables}
-          disabled={isCreating || allTablesExist}
-          className="w-full"
-        >
-          {isCreating ? 'Checking Database...' : 
-           allTablesExist ? 'Database Ready ✓' : 'Verify Database Setup'}
-        </Button>
       </CardContent>
     </Card>
   );

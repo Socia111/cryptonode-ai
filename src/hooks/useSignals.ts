@@ -1,190 +1,264 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '@/integrations/supabase/client'
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
 
-export interface Signal {
-  id: string
-  token: string
-  direction: 'BUY' | 'SELL'
-  signal_type: string
-  timeframe: string
-  entry_price: number
-  exit_target?: number
-  stop_loss?: number
-  leverage: number
-  confidence_score: number
-  pms_score: number
-  trend_projection: string
-  volume_strength: number
-  roi_projection: number
-  signal_strength: string
-  risk_level: string
-  quantum_probability: number
-  stels_max_leverage?: number
-  stels_recommended_capital?: number
-  stels_risk_score?: number
-  status: string
-  created_at: string
-  expires_at?: string
+type Signal = {
+  id: string;
+  token: string;
+  direction: 'BUY' | 'SELL';
+  signal_type: string;
+  timeframe: string;
+  entry_price: number;
+  exit_target?: number | null;
+  stop_loss?: number | null;
+  leverage: number;
+  confidence_score: number;
+  pms_score: number;
+  trend_projection: '⬆️' | '⬇️';
+  volume_strength: number;
+  roi_projection: number;
+  signal_strength: 'WEAK' | 'MEDIUM' | 'STRONG';
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
+  quantum_probability: number;
+  status: 'active' | 'inactive';
+  created_at: string;
+};
+
+function mapDbToSignal(row: any): Signal {
+  const side = (row.side ?? 'LONG').toUpperCase(); // LONG|SHORT
+  return {
+    id: row.id,
+    token: row.market_symbol ?? `${row.strategy ?? 'AI'}/USDT`,
+    direction: side === 'LONG' ? 'BUY' : 'SELL',
+    signal_type: row.strategy ?? 'Unknown',
+    timeframe: row.meta?.timeframe ?? '1h',
+    entry_price: Number(row.entry_hint ?? 0),
+    exit_target: row.tp_hint != null ? Number(row.tp_hint) : null,
+    stop_loss: row.sl_hint != null ? Number(row.sl_hint) : null,
+    leverage: Number(row.meta?.leverage ?? 1),
+    confidence_score: Number((row.confidence ?? 0) * 100),
+    pms_score: Number(row.score ?? 0),
+    trend_projection: side === 'LONG' ? '⬆️' : '⬇️',
+    volume_strength: Number(row.meta?.volume_strength ?? 1.0),
+    roi_projection: Number(row.meta?.roi_projection ?? 10),
+    signal_strength: (row.meta?.signal_strength ?? 'MEDIUM').toUpperCase() as 'WEAK' | 'MEDIUM' | 'STRONG',
+    risk_level: (row.meta?.risk_level ?? 'MEDIUM').toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH',
+    quantum_probability: Number(row.confidence ?? 0.5),
+    status: row.is_active ? 'active' : 'inactive',
+    created_at: row.generated_at ?? new Date().toISOString(),
+  };
+}
+
+async function fetchSignals(): Promise<Signal[]> {
+  try {
+    const { data, error } = await supabase
+      .from('strategy_signals')
+      .select('*')
+      .eq('is_active', true)
+      .order('generated_at', { ascending: false })
+      .limit(10);
+
+    if (error) {
+      console.warn('[Signals] Falling back to mock. Reason:', error.message);
+      return getMockSignals();
+    }
+
+    return (data ?? []).map(mapDbToSignal);
+  } catch (e) {
+    console.warn('[Signals] Query threw, using mock:', e);
+    return getMockSignals();
+  }
+}
+
+function getMockSignals(): Signal[] {
+  return [
+    {
+      id: 'mock-1',
+      token: 'BTC/USDT',
+      direction: 'BUY',
+      signal_type: 'Golden Cross + RSI Oversold',
+      timeframe: '15m',
+      entry_price: 96420,
+      exit_target: 110883,
+      stop_loss: 89710,
+      leverage: 25,
+      confidence_score: 94.2,
+      pms_score: 2.1,
+      trend_projection: '⬆️',
+      volume_strength: 2.3,
+      roi_projection: 15,
+      signal_strength: 'STRONG',
+      risk_level: 'MEDIUM',
+      quantum_probability: 0.84,
+      status: 'active',
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'mock-2',
+      token: 'ETH/USDT', 
+      direction: 'SELL',
+      signal_type: 'Death Cross + Volume Divergence',
+      timeframe: '1h',
+      entry_price: 3542,
+      exit_target: 3180,
+      stop_loss: 3680,
+      leverage: 20,
+      confidence_score: 87.5,
+      pms_score: 1.8,
+      trend_projection: '⬇️',
+      volume_strength: 1.7,
+      roi_projection: 10.2,
+      signal_strength: 'STRONG',
+      risk_level: 'HIGH',
+      quantum_probability: 0.78,
+      status: 'active',
+      created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    }
+  ];
+}
+
+function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) => void) {
+  return supabase
+    .channel('strategy_signals_channel')
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'strategy_signals' },
+      (payload) => onInsert(mapDbToSignal(payload.new)))
+    .on('postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'strategy_signals' },
+      (payload) => onUpdate(mapDbToSignal(payload.new)))
+    .subscribe();
+}
+
+export async function generateSignals() {
+  try {
+    console.info('[generateSignals] Invoking enhanced-signal-generation...');
+    const { data, error } = await supabase.functions.invoke('enhanced-signal-generation', {
+      body: { symbol: 'BTCUSDT', timeframe: '1h' }
+    });
+    
+    if (error) {
+      console.error('[generateSignals] enhanced-signal-generation failed:', error.message);
+      throw error;
+    }
+    
+    console.info('[generateSignals] Success:', data);
+    return data;
+  } catch (e: any) {
+    console.error('[generateSignals] Exception:', e);
+    throw e;
+  }
+}
+
+export async function updateSpynxScores() {
+  try {
+    console.info('[updateSpynxScores] Invoking calculate-spynx-scores...');
+    const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
+    
+    if (error) {
+      console.error('[updateSpynxScores] calculate-spynx-scores failed:', error.message);
+      throw error;
+    }
+    
+    console.info('[updateSpynxScores] Success:', data);
+    return data;
+  } catch (e: any) {
+    console.error('[updateSpynxScores] Exception:', e);
+    throw e;
+  }
 }
 
 export const useSignals = () => {
-  const [signals, setSignals] = useState<Signal[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const refreshSignals = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchSignals();
+      setSignals(data);
+    } catch (err: any) {
+      console.error('[useSignals] refreshSignals failed:', err);
+      setError(err.message || 'Failed to fetch signals');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateSignals = async () => {
+    try {
+      await generateSignals();
+      await refreshSignals();
+      toast({
+        title: "Signals Generated",
+        description: "New trading signals have been generated successfully."
+      });
+    } catch (e: any) {
+      console.error('[useSignals] Generate signals failed:', e);
+      toast({
+        title: "Generation Failed",
+        description: e?.message ?? 'Failed to generate signals',
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUpdateSpynx = async () => {
+    try {
+      await updateSpynxScores();
+      toast({
+        title: "Spynx Scores Updated",
+        description: "Spynx scores have been recalculated successfully."
+      });
+    } catch (e: any) {
+      console.error('[useSignals] Update Spynx failed:', e);
+      toast({
+        title: "Update Failed",
+        description: e?.message ?? 'Failed to update Spynx scores',
+        variant: "destructive"
+      });
+    }
+  };
 
   useEffect(() => {
-    fetchSignals()
+    refreshSignals();
     
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel('strategy_signals_channel')
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'strategy_signals' }, 
-        (payload) => {
-          const newSignal = payload.new as Signal
-          setSignals(prev => [newSignal, ...prev])
-        }
-      )
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'strategy_signals' },
-        (payload) => {
-          const updatedSignal = payload.new as Signal
-          setSignals(prev => prev.map(signal => 
-            signal.id === updatedSignal.id ? updatedSignal : signal
-          ))
-        }
-      )
-      .subscribe()
+    // Set up realtime subscription
+    const channel = subscribeSignals(
+      (newSignal) => {
+        console.info('[useSignals] New signal inserted:', newSignal);
+        setSignals(prev => [newSignal, ...prev]);
+      },
+      (updatedSignal) => {
+        console.info('[useSignals] Signal updated:', updatedSignal);
+        setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
+      }
+    );
 
     return () => {
-      subscription.unsubscribe()
-    }
-  }, [])
-
-  const fetchSignals = async () => {
-    try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('strategy_signals')
-        .select('*')
-        .eq('is_active', true)
-        .order('generated_at', { ascending: false })
-        .limit(10)
-
-      if (error) {
-        console.log('Database query error, using mock data:', error.message)
-        // Use mock data when database tables don't exist yet
-        const mockSignals: Signal[] = [
-          {
-            id: 'mock-1',
-            token: 'BTC/USDT',
-            direction: 'BUY',
-            signal_type: 'Golden Cross + RSI Oversold',
-            timeframe: '15m',
-            entry_price: 96420,
-            exit_target: 110883,
-            stop_loss: 89710,
-            leverage: 25,
-            confidence_score: 94.2,
-            pms_score: 2.1,
-            trend_projection: '⬆️',
-            volume_strength: 2.3,
-            roi_projection: 15,
-            signal_strength: 'STRONG',
-            risk_level: 'MEDIUM',
-            quantum_probability: 0.84,
-            status: 'active',
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 'mock-2',
-            token: 'ETH/USDT',
-            direction: 'SELL',
-            signal_type: 'Bearish Divergence',
-            timeframe: '1h',
-            entry_price: 3240,
-            exit_target: 2890,
-            stop_loss: 3420,
-            leverage: 15,
-            confidence_score: 87.5,
-            pms_score: 1.8,
-            trend_projection: '⬇️',
-            volume_strength: 1.9,
-            roi_projection: 10.8,
-            signal_strength: 'MEDIUM',
-            risk_level: 'LOW',
-            quantum_probability: 0.76,
-            status: 'active',
-            created_at: new Date(Date.now() - 300000).toISOString(),
-          }
-        ]
-        setSignals(mockSignals)
-        return
-      }
-
-      // Transform database data to Signal interface if we have real data
-      const transformedSignals: Signal[] = (data || []).map(signal => ({
-        id: signal.id,
-        token: `${signal.strategy}/USDT`, // Use strategy as token for now
-        direction: signal.side as 'BUY' | 'SELL',
-        signal_type: signal.strategy,
-        timeframe: '1h',
-        entry_price: signal.entry_hint || 0,
-        exit_target: signal.tp_hint,
-        stop_loss: signal.sl_hint,
-        leverage: 1,
-        confidence_score: (signal.confidence || 0) * 100,
-        pms_score: signal.score || 0,
-        trend_projection: signal.side === 'LONG' ? '⬆️' : '⬇️',
-        volume_strength: 2.0,
-        roi_projection: 12,
-        signal_strength: 'MEDIUM',
-        risk_level: 'MEDIUM',
-        quantum_probability: signal.confidence || 0.5,
-        status: signal.is_active ? 'active' : 'inactive',
-        created_at: signal.generated_at,
-      }))
-
-      setSignals(transformedSignals.length > 0 ? transformedSignals : [])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch signals')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const generateSignals = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('enhanced-signal-generation', {
-        body: { symbol: 'BTCUSDT', timeframe: '1h' }
-      })
-      if (error) throw error
-      
-      // Refresh the signals list after generation
-      fetchSignals()
-      return data
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate signals')
-      throw err
-    }
-  }
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   return {
     signals,
-    loading,
+    loading, 
     error,
-    generateSignals,
-    refetch: fetchSignals
-  }
-}
+    refreshSignals,
+    generateSignals: handleGenerateSignals,
+    updateSpynxScores: handleUpdateSpynx
+  };
+};
 
 export const useSpynxScores = () => {
-  const [scores, setScores] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [scores, setScores] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchScores()
-  }, [])
+    fetchScores();
+  }, []);
 
   const fetchScores = async () => {
     try {
@@ -195,30 +269,30 @@ export const useSpynxScores = () => {
         { token: 'SOL', score: 88, market_cap: 45000000000, price_change_24h: 5.2, roi_forecast: 22.1 },
         { token: 'ADA', score: 85, market_cap: 15000000000, price_change_24h: -1.2, roi_forecast: 12.5 },
         { token: 'DOT', score: 82, market_cap: 8000000000, price_change_24h: 1.8, roi_forecast: 14.3 }
-      ]
-      setScores(mockScores)
-      setLoading(false)
+      ];
+      setScores(mockScores);
+      setLoading(false);
     } catch (err) {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const updateSpynxScores = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('calculate-spynx-scores')
-      if (error) throw error
+      const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
+      if (error) throw error;
       
       // Refresh scores after calculation
-      fetchScores()
-      return data
+      fetchScores();
+      return data;
     } catch (err) {
-      throw err
+      throw err;
     }
-  }
+  };
 
   return {
     scores,
     loading,
     updateSpynxScores
-  }
-}
+  };
+};
