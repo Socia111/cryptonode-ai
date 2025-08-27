@@ -3633,6 +3633,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      log_security_event: {
+        Args: { p_action: string; p_session_data?: Json; p_severity?: string }
+        Returns: undefined
+      }
       log_security_event_batch: {
         Args: { events: Json[] }
         Returns: undefined
