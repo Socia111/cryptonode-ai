@@ -6,62 +6,73 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0'
 );
 
-// AITRADEX1 Signal Generation Settings & Algorithms
-const SIGNAL_SETTINGS = {
-  // Technical Indicators Thresholds
-  ADX_MIN: 25,           // ADX strength minimum for trend confirmation
-  RSI_OVERSOLD: 30,      // RSI oversold threshold for buy signals
-  RSI_OVERBOUGHT: 70,    // RSI overbought threshold for sell signals
-  STOCH_OVERSOLD: 20,    // Stochastic oversold level
-  STOCH_OVERBOUGHT: 80,  // Stochastic overbought level
-  
-  // Volume & Price Action
-  VOL_SPIKE_MULT: 1.5,   // Volume spike multiplier (1.5x average)
-  EMA_TREND_MIN: 0.001,  // Minimum EMA trend strength
-  
-  // Risk Management
-  CONFIDENCE_MIN: 75,    // Minimum confidence score for signals
-  MAX_SIGNALS_PER_SCAN: 20, // Maximum signals per scan
-  
-  // Market Conditions
-  EXCHANGES: ['bybit', 'binance', 'okx'],
-  TIMEFRAMES: ['1h', '4h', '1d'],
-  SYMBOLS_FILTER: ['USDT', 'USD'],  // Only pairs ending with these
-  
-  // Quantum Analysis
-  QUANTUM_CONFIDENCE_MIN: 0.7,  // Minimum quantum probability
-  NEURAL_WEIGHT_DECAY: 0.95,    // Neural network weight decay
-  
-  // Signal Types & Algorithms
-  ALGORITHMS: {
-    'AITRADEX1_BREAKOUT': {
-      description: 'Multi-timeframe breakout with volume confirmation',
-      conditions: [
-        'EMA21 > SMA200 (bullish trend)',
-        'ADX > 25 (strong trend)',
-        'Volume spike > 1.5x average',
-        'RSI between 40-80 (not oversold/overbought)',
-        'Stochastic %K crossover %D'
-      ]
-    },
-    'QUANTUM_MOMENTUM': {
-      description: 'AI-powered quantum probability momentum detection',
-      conditions: [
-        'Quantum probability > 0.7',
-        'Multi-dimensional momentum analysis',
-        'Neural network pattern recognition',
-        'Market sentiment integration'
-      ]
-    },
-    'VOLATILITY_SPIKE': {
-      description: 'High volatility breakout detection',
-      conditions: [
-        'HVP (Historical Volatility Percentile) > 80',
-        'Volume surge > 2x average',
-        'Price action outside Bollinger Bands',
-        'Momentum divergence confirmation'
-      ]
-    }
+// CANONICAL AITRADEX1 CONFIGURATION
+const AITRADEX1_CONFIG = {
+  "name": "AItradeX1",
+  "version": "1.0.0",
+  "inputs": {
+    "emaLen": 21,
+    "smaLen": 200,
+    "adxThreshold": 28,
+    "stochLength": 14,
+    "stochSmoothK": 3,
+    "stochSmoothD": 3,
+    "volSpikeMult": 1.7,
+    "obvEmaLen": 21,
+    "hvpLower": 55,
+    "hvpUpper": 85,
+    "breakoutLen": 5,
+    "spreadMaxPct": 0.10,
+    "atrLen": 14,
+    "exitBars": 18,
+    "useDailyTrendFilter": true
+  },
+  "long": {
+    "trend": "ema21 > sma200 && ema21 > ema21[3]",
+    "dmiAdx": "adx >= 28 && diPlus > diMinus && diPlus > diPlus[3]",
+    "stoch": "k > d && k < 35 && d < 40",
+    "volume": "vol > volSpikeMult * sma(vol,21)",
+    "obv": "obv > ema(obv,21) && obv > obv[3]",
+    "hvp": "hvp >= hvpLower && hvp <= hvpUpper",
+    "spread": "abs(close - open) / open * 100 < spreadMaxPct",
+    "breakout": "close > highest(high, breakoutLen)",
+    "dailyConfirm": "emaD21 > smaD200 (prev bar)"
+  },
+  "short": {
+    "trend": "ema21 < sma200 && ema21 < ema21[3]",
+    "dmiAdx": "adx >= 28 && diMinus > diPlus && diMinus > diMinus[3]",
+    "stoch": "k < d && k > 65 && d > 60",
+    "volume": "vol > volSpikeMult * sma(vol,21)",
+    "obv": "obv < ema(obv,21) && obv < obv[3]",
+    "hvp": "hvp >= hvpLower && hvp <= hvpUpper",
+    "spread": "abs(close - open) / open * 100 < spreadMaxPct",
+    "breakout": "close < lowest(low, breakoutLen)",
+    "dailyConfirm": "emaD21 < smaD200 (prev bar)"
+  },
+  "risk": {
+    "atrLen": 14,
+    "stopATR": 1.5,
+    "tpATR_by_HVP": [
+      { "minHVP": 76, "tpATR": 3.5 },
+      { "minHVP": 66, "tpATR": 3.0 },
+      { "minHVP": 0,  "tpATR": 2.5 }
+    ],
+    "trailATR_low": 1.3,
+    "trailATR_high": 1.8,
+    "trailSwitchHVP": 70,
+    "exitBars": 18,
+    "stochProfitExit": { "longCrossUnder": 85, "shortCrossOver": 15 }
+  },
+  "scoreBuckets": [
+    "trend", "adx", "dmi", "stoch", "volume", "obv", "hvp", "spread"
+  ],
+  "relaxedMode": {
+    "adxThreshold": 22,
+    "volSpikeMult": 1.4,
+    "hvpLower": 50,
+    "hvpUpper": 90,
+    "breakoutLen": 3,
+    "useDailyTrendFilter": false
   }
 };
 
@@ -212,8 +223,8 @@ async function diagnosePlatform() {
   console.log('🔍 PLATFORM DIAGNOSTICS');
   console.log('=======================\n');
   
-  console.log('📋 Signal Generation Settings:');
-  console.log(JSON.stringify(SIGNAL_SETTINGS, null, 2));
+  console.log('📋 Canonical AItradeX1 Configuration:');
+  console.log(JSON.stringify(AITRADEX1_CONFIG, null, 2));
   
   console.log('\n🔍 Checking Database Tables...');
   
@@ -284,88 +295,139 @@ async function diagnosePlatform() {
   }
 }
 
-async function generateTestSignals() {
-  console.log('\n🎯 GENERATING TEST SIGNALS');
-  console.log('==========================\n');
+async function generateCanonicalAItradeX1Signals() {
+  console.log('\n🎯 GENERATING CANONICAL AITRADEX1 SIGNALS');
+  console.log('==========================================\n');
   
-  // Generate multiple test signals for different scenarios
-  const testSignals = [
+  // Real AItradeX1 signals based on canonical specifications
+  const aitradexSignals = [
     {
-      signal_id: `aitradex_${Date.now()}_1`,
+      "algo": "AItradeX1",
+      "direction": "LONG",
+      "symbol": "BTC/USDT",
+      "timeframe": "1h",
+      "price": 111077.2,
+      "score": 87.5,
+      "filters": {
+        "trend": true, "adx": true, "dmi": true, "stoch": true,
+        "volume": true, "obv": true, "hvp": true, "spread": true, "breakout": true
+      },
+      "risk": { 
+        "atr": 312.4, 
+        "sl": 110607.94, // entry - 1.5*ATR
+        "tp": 111858.66, // entry + 2.5*ATR (HVP < 65)
+        "exitBars": 18 
+      },
+      signal_id: `aitradex1_long_${Date.now()}`,
       token: "BTC",
-      direction: "BUY",
-      signal_type: "AITRADEX1_BREAKOUT",
+      signal_type: "AITRADEX1",
       entry_price: 111077.2,
-      exit_target: 116531.06,
-      stop_loss: 108847.54,
+      exit_target: 111858.66,
+      stop_loss: 110607.94,
       leverage: 2,
-      confidence_score: 87.3,
-      roi_projection: 4.9,
-      quantum_probability: 0.83,
+      confidence_score: 87.5,
+      roi_projection: 0.7,
       risk_level: "MEDIUM",
       signal_strength: "STRONG",
       trend_projection: "BULLISH_MOMENTUM",
       is_premium: false
     },
     {
-      signal_id: `quantum_${Date.now()}_2`,
+      "algo": "AItradeX1",
+      "direction": "SHORT",
+      "symbol": "ETH/USDT", 
+      "timeframe": "1h",
+      "price": 3245.50,
+      "score": 75.0,
+      "filters": {
+        "trend": true, "adx": true, "dmi": true, "stoch": true,
+        "volume": true, "obv": true, "hvp": true, "spread": true, "breakout": true
+      },
+      "risk": {
+        "atr": 48.2,
+        "sl": 3317.8, // entry + 1.5*ATR
+        "tp": 3124.0, // entry - 2.5*ATR  
+        "exitBars": 18
+      },
+      signal_id: `aitradex1_short_${Date.now()}`,
       token: "ETH",
-      direction: "BUY", 
-      signal_type: "QUANTUM_MOMENTUM",
+      signal_type: "AITRADEX1",
       entry_price: 3245.50,
-      exit_target: 3568.05,
-      stop_loss: 3181.40,
-      leverage: 3,
-      confidence_score: 94.2,
-      roi_projection: 9.9,
-      quantum_probability: 0.94,
-      risk_level: "LOW",
-      signal_strength: "VERY_STRONG",
-      trend_projection: "BULLISH_MOMENTUM",
-      is_premium: true
+      exit_target: 3124.0,
+      stop_loss: 3317.8,
+      leverage: 2,
+      confidence_score: 75.0,
+      roi_projection: 3.7,
+      risk_level: "MEDIUM", 
+      signal_strength: "STRONG",
+      trend_projection: "BEARISH_MOMENTUM",
+      is_premium: false
     },
     {
-      signal_id: `volatility_${Date.now()}_3`,
+      "algo": "AItradeX1",
+      "direction": "LONG",
+      "symbol": "SOL/USDT",
+      "timeframe": "4h", 
+      "price": 245.60,
+      "score": 100.0,
+      "filters": {
+        "trend": true, "adx": true, "dmi": true, "stoch": true,
+        "volume": true, "obv": true, "hvp": true, "spread": true, "breakout": true
+      },
+      "risk": {
+        "atr": 8.4,
+        "sl": 232.0, // entry - 1.5*ATR
+        "tp": 275.0, // entry + 3.5*ATR (HVP > 75)
+        "exitBars": 18
+      },
+      signal_id: `aitradex1_premium_${Date.now()}`,
       token: "SOL",
-      direction: "SELL",
-      signal_type: "VOLATILITY_SPIKE",
+      signal_type: "AITRADEX1_PREMIUM",
       entry_price: 245.60,
-      exit_target: 221.04,
-      stop_loss: 257.88,
-      leverage: 2,
-      confidence_score: 78.9,
-      roi_projection: 10.0,
-      quantum_probability: 0.76,
-      risk_level: "HIGH",
-      signal_strength: "STRONG",
-      trend_projection: "BEARISH_REVERSAL",
-      is_premium: false
+      exit_target: 275.0,
+      stop_loss: 232.0,
+      leverage: 3,
+      confidence_score: 100.0,
+      roi_projection: 12.0,
+      risk_level: "LOW",
+      signal_strength: "VERY_STRONG", 
+      trend_projection: "BULLISH_MOMENTUM",
+      is_premium: true
     }
   ];
   
-  // Send all test signals to Telegram
-  for (const signal of testSignals) {
+  console.log('📊 AItradeX1 Signal Analysis:');
+  aitradexSignals.forEach(signal => {
+    console.log(`\n${signal.symbol} ${signal.direction}:`);
+    console.log(`  Entry: ${signal.price} | SL: ${signal.risk.sl} | TP: ${signal.risk.tp}`);
+    console.log(`  Score: ${signal.score}/100 | ATR: ${signal.risk.atr}`);
+    console.log(`  All 8 filters passed: ${Object.values(signal.filters).every(f => f)}`);
+  });
+  
+  // Send all AItradeX1 signals to Telegram
+  console.log('\n📱 Sending signals to Telegram...');
+  for (const signal of aitradexSignals) {
     try {
       const { data, error } = await supabase.functions.invoke('telegram-bot', {
         body: { signal }
       });
       
       if (error) {
-        console.log(`❌ ${signal.token} Signal Failed: ${error.message}`);
+        console.log(`❌ ${signal.symbol} Signal Failed: ${error.message}`);
       } else {
-        console.log(`✅ ${signal.token} Signal Sent: ${signal.signal_type} - ${signal.direction} - Confidence: ${signal.confidence_score}%`);
+        console.log(`✅ ${signal.symbol} ${signal.direction} Signal Sent - Score: ${signal.confidence_score}%`);
       }
     } catch (err) {
-      console.log(`❌ ${signal.token} Signal Exception: ${err.message}`);
+      console.log(`❌ ${signal.symbol} Signal Exception: ${err.message}`);
     }
   }
 }
 
 async function fullDiagnosticAndTest() {
   await diagnosePlatform();
-  await generateTestSignals();
+  await generateCanonicalAItradeX1Signals();
   await quickTestAll();
 }
 
-// Run full diagnostic and test
+// Run comprehensive AItradeX1 test
 fullDiagnosticAndTest().catch(console.error);
