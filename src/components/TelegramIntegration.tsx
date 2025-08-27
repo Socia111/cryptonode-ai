@@ -48,7 +48,7 @@ const TelegramIntegration = () => {
     }
   };
 
-  const sendTestSignal = async () => {
+  const sendTestSignal = async (isPremium: boolean = false) => {
     if (!isSupabaseConfigured) {
       toast({
         title: "Supabase Not Configured",
@@ -60,20 +60,21 @@ const TelegramIntegration = () => {
     
     try {
       const testSignal = {
-        signal_id: 'test_' + Date.now(),
-        token: 'BTC/USDT',
-        direction: 'BUY',
-        signal_type: 'Test Signal',
-        entry_price: 95000,
-        exit_target: 105000,
-        stop_loss: 90000,
-        leverage: 10,
-        confidence_score: 95,
-        roi_projection: 10.5,
-        quantum_probability: 0.85,
-        risk_level: 'MEDIUM',
-        signal_strength: 'STRONG',
-        trend_projection: '⬆️'
+        signal_id: `test_${Date.now()}`,
+        token: "BTC",
+        direction: "BUY" as const,
+        signal_type: isPremium ? "QUANTUM_BREAKOUT_PREMIUM" : "QUANTUM_BREAKOUT",
+        entry_price: 45000,
+        exit_target: 47500,
+        stop_loss: 44000,
+        leverage: isPremium ? 3 : 2,
+        confidence_score: isPremium ? 95.5 : 82.5,
+        roi_projection: isPremium ? 8.5 : 4.5,
+        quantum_probability: isPremium ? 0.92 : 0.78,
+        risk_level: isPremium ? "LOW" : "MEDIUM",
+        signal_strength: isPremium ? "VERY_STRONG" : "STRONG",
+        trend_projection: "BULLISH_MOMENTUM",
+        is_premium: isPremium
       };
 
       const { error } = await supabase.functions.invoke('telegram-bot', {
@@ -83,8 +84,8 @@ const TelegramIntegration = () => {
       if (error) throw error;
 
       toast({
-        title: "Test Signal Sent",
-        description: "Check your Telegram channel for the test signal",
+        title: `${isPremium ? 'Premium' : 'Free'} Test Signal Sent!`,
+        description: `Check your ${isPremium ? 'AItradeX Premium' : 'Aiatethecoin'} Telegram channel.`
       });
     } catch (error) {
       toast({
@@ -153,24 +154,44 @@ const TelegramIntegration = () => {
               </p>
             </div>
             
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={sendTestSignal} size="sm">
-                <Send className="w-3 h-3 mr-1" />
-                Test Signal
-              </Button>
-              <Button variant="outline" size="sm">
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" onClick={() => sendTestSignal(false)} size="sm">
+                  <Send className="w-3 h-3 mr-1" />
+                  Test Free
+                </Button>
+                <Button onClick={() => sendTestSignal(true)} size="sm">
+                  <Send className="w-3 h-3 mr-1" />
+                  Test Premium
+                </Button>
+              </div>
+              <Button variant="outline" size="sm" className="w-full">
                 <Settings className="w-3 h-3 mr-1" />
-                Settings
+                Bot Settings
               </Button>
             </div>
           </div>
         )}
 
-        <div className="text-xs text-muted-foreground space-y-1">
-          <p>• Real-time signal alerts</p>
-          <p>• Premium high-confidence signals</p>
-          <p>• Trade execution confirmations</p>
-          <p>• Sentiment analysis alerts</p>
+        <div className="space-y-3 text-xs">
+          <div className="p-3 bg-muted/10 rounded border">
+            <p className="font-medium text-sm mb-1">🆓 Free Bot (@Aiatethecoin_bot)</p>
+            <div className="text-muted-foreground space-y-1">
+              <p>• Basic trading signals</p>
+              <p>• Risk level indicators</p>
+              <p>• Entry/exit prices</p>
+            </div>
+          </div>
+          
+          <div className="p-3 bg-primary/10 rounded border border-primary/20">
+            <p className="font-medium text-sm mb-1">💎 Premium Bot (@AItradeX1_bot)</p>
+            <div className="text-muted-foreground space-y-1">
+              <p>• Advanced quantum analysis</p>
+              <p>• High-confidence signals (85%+)</p>
+              <p>• Priority alerts & execution</p>
+              <p>• Exclusive premium trades</p>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>

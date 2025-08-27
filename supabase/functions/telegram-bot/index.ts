@@ -21,6 +21,7 @@ interface TelegramMessage {
   risk_level: string
   signal_strength: string
   trend_projection: string
+  is_premium?: boolean
 }
 
 serve(async (req) => {
@@ -43,12 +44,12 @@ serve(async (req) => {
       )
     }
 
-    // Send to main channel
-    await sendToTelegramChannel(signal)
+    // Send to free channel (Aiatethecoin bot)
+    await sendToFreeChannel(signal)
     
-    // Send to premium channel if high confidence
-    if (signal.confidence_score > 90) {
-      await sendToPremiumChannel(signal)
+    // Send to paid channel if premium signal or high confidence
+    if (signal.is_premium || signal.confidence_score > 85) {
+      await sendToPaidChannel(signal)
     }
     
     // Log notification
@@ -74,9 +75,9 @@ serve(async (req) => {
   }
 })
 
-async function sendToTelegramChannel(signal: TelegramMessage) {
-  const telegramToken = Deno.env.get('TELEGRAM_BOT_TOKEN')
-  const chatId = Deno.env.get('TELEGRAM_CHAT_ID')
+async function sendToFreeChannel(signal: TelegramMessage) {
+  const telegramToken = Deno.env.get('TELEGRAM_FREE_BOT_TOKEN')
+  const chatId = Deno.env.get('TELEGRAM_FREE_CHAT_ID')
   
   if (!telegramToken || !chatId) return
 
@@ -85,18 +86,17 @@ async function sendToTelegramChannel(signal: TelegramMessage) {
   const riskEmoji = getRiskEmoji(signal.risk_level)
   
   const message = `
-${emoji} *AItradeX1 ${signal.direction} SIGNAL* ${emoji}
+${emoji} *Aiatethecoin ${signal.direction} SIGNAL* ${emoji}
 
 🎯 *Token:* \`${signal.token}\`
 📊 *Signal:* ${signal.signal_type}
 💰 *Entry:* $${signal.entry_price.toFixed(4)}
-🎯 *Target:* $${signal.exit_target?.toFixed(4)}
-🛡️ *Stop Loss:* $${signal.stop_loss?.toFixed(4)}
+🎯 *Target:* $${signal.exit_target?.toFixed(4) || 'TBD'}
+🛡️ *Stop Loss:* $${signal.stop_loss?.toFixed(4) || 'TBD'}
 ⚡ *Leverage:* ${signal.leverage}x
 📈 *ROI Target:* ${signal.roi_projection}%
 
 🔥 *Confidence:* ${signal.confidence_score.toFixed(1)}% ${strengthEmoji}
-🧠 *Quantum Prob:* ${(signal.quantum_probability * 100).toFixed(1)}%
 ⚠️ *Risk Level:* ${signal.risk_level} ${riskEmoji}
 📊 *Trend:* ${signal.trend_projection}
 
@@ -109,34 +109,59 @@ ${emoji} *AItradeX1 ${signal.direction} SIGNAL* ${emoji}
   minute: '2-digit'
 })} UTC
 
-🤖 *Powered by AItradeX1 Quantum Engine*
+🆓 *Free Signal* | 🤖 *@Aiatethecoin_bot*
+
+💎 *Upgrade to AItradeX Premium for:*
+• Advanced quantum analysis
+• Higher accuracy signals
+• Priority alerts & faster execution
+• Exclusive high-confidence trades
   `.trim()
 
   await sendTelegramMessage(telegramToken, chatId, message)
 }
 
-async function sendToPremiumChannel(signal: TelegramMessage) {
-  const telegramToken = Deno.env.get('TELEGRAM_BOT_TOKEN')
-  const premiumChatId = Deno.env.get('TELEGRAM_PREMIUM_CHAT_ID')
+async function sendToPaidChannel(signal: TelegramMessage) {
+  const telegramToken = Deno.env.get('TELEGRAM_PAID_BOT_TOKEN')
+  const paidChatId = Deno.env.get('TELEGRAM_PAID_CHAT_ID')
   
-  if (!telegramToken || !premiumChatId) return
+  if (!telegramToken || !paidChatId) return
+
+  const emoji = signal.direction === 'BUY' ? '🚀' : '📉'
+  const strengthEmoji = getStrengthEmoji(signal.signal_strength)
+  const riskEmoji = getRiskEmoji(signal.risk_level)
 
   const message = `
-🌟 *PREMIUM HIGH-CONFIDENCE SIGNAL* 🌟
+🌟 *AItradeX PREMIUM ${signal.direction} SIGNAL* 🌟
 
-${signal.direction === 'BUY' ? '🚀' : '📉'} *${signal.token}* ${signal.direction}
+${emoji} *${signal.token}* ${signal.direction}
 
-⭐ *Confidence:* ${signal.confidence_score.toFixed(1)}%
+⭐ *Confidence:* ${signal.confidence_score.toFixed(1)}% ${strengthEmoji}
 🧬 *Quantum Analysis:* ${(signal.quantum_probability * 100).toFixed(1)}%
 💎 *Signal Strength:* ${signal.signal_strength}
 🎯 *Entry:* $${signal.entry_price.toFixed(4)}
+🎯 *Target:* $${signal.exit_target?.toFixed(4)}
+🛡️ *Stop Loss:* $${signal.stop_loss?.toFixed(4)}
+⚡ *Leverage:* ${signal.leverage}x
 🏆 *ROI Target:* ${signal.roi_projection}%
-⚡ *Max Leverage:* ${signal.leverage}x
+⚠️ *Risk Level:* ${signal.risk_level} ${riskEmoji}
+📊 *Trend:* ${signal.trend_projection}
 
+⏰ *Time:* ${new Date().toLocaleString('en-US', { 
+  timeZone: 'UTC',
+  year: 'numeric',
+  month: 'short', 
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+})} UTC
+
+💎 *PREMIUM MEMBERS ONLY*
 🔥 *EXECUTE IMMEDIATELY FOR MAXIMUM ALPHA*
+🤖 *@AItradeX1_bot*
   `.trim()
 
-  await sendTelegramMessage(telegramToken, premiumChatId, message)
+  await sendTelegramMessage(telegramToken, paidChatId, message)
 }
 
 async function sendTelegramMessage(token: string, chatId: string, message: string) {
