@@ -126,20 +126,9 @@ async function fetchSignals(): Promise<Signal[]> {
       return mapSignalsToInterface(allSignals);
     }
 
-    // Final fallback: get any signals from the table
-    const { data: fallbackSignals, error: fallbackError } = await supabase
-      .from('signals')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    if (fallbackError) {
-      console.error('[Signals] Fallback query failed:', fallbackError.message);
-      return [];
-    }
-
-    console.log(`[Signals] Using fallback signals: ${fallbackSignals?.length || 0} found`);
-    return fallbackSignals ? mapSignalsToInterface(fallbackSignals) : [];
+    // No live signals available - return empty array
+    console.log('[Signals] No live signals found in database');
+    return [];
 
   } catch (e) {
     console.error('[Signals] Failed to fetch signals:', e);
