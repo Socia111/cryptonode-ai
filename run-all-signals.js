@@ -2,7 +2,8 @@
 const SUPABASE_URL = "https://codhlwjogfjywmjyjbbn.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0";
 
-const symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "DOTUSDT", "LINKUSDT", "LTCUSDT"];
+// Use ALL symbols from AItradeX1 database - no symbol limitation
+const symbols = []; // Empty array = scan ALL available USDT pairs in database
 
 async function runAllSignalGenerators() {
   console.log("🚀 STARTING COMPREHENSIVE SIGNAL GENERATION");
@@ -145,7 +146,7 @@ async function runAllSignalGenerators() {
         body: JSON.stringify({
           exchange: 'bybit',
           timeframe: '1h',
-          symbols: symbols.slice(0, 5) // Limit to prevent timeout
+          symbols: [] // Use all symbols from AItradeX1 database
         })
       });
 
