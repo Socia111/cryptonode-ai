@@ -310,16 +310,45 @@ function getMockSignals(): Signal[] {
 }
 
 function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) => void) {
-  const { ch } = openSignalsChannel('main');
+  console.log('[Signals] Setting up real-time subscription...');
   
-  return ch
-    .on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'strategy_signals' },
-      (payload) => onInsert(mapDbToSignal(payload.new)))
-    .on('postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'strategy_signals' },
-      (payload) => onUpdate(mapDbToSignal(payload.new)))
-    .subscribe();
+  const channel = supabase
+    .channel('signals-realtime')
+    .on(
+      'postgres_changes',
+      { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'signals' 
+      },
+      (payload) => {
+        console.log('[Signals] New signal received via realtime:', payload.new);
+        const newSignal = mapSignalsToInterface([payload.new])[0];
+        if (newSignal) {
+          onInsert(newSignal);
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'signals' 
+      },
+      (payload) => {
+        console.log('[Signals] Signal updated via realtime:', payload.new);
+        const updatedSignal = mapSignalsToInterface([payload.new])[0];
+        if (updatedSignal) {
+          onUpdate(updatedSignal);
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log('[Signals] Subscription status:', status);
+    });
+    
+  return channel;
 }
 
 export async function generateSignals() {
@@ -482,11 +511,18 @@ export const useSignals = () => {
   useEffect(() => {
     refreshSignals();
     
-    // Set up realtime subscription
+    // Set up realtime subscription for live signal updates
     const channel = subscribeSignals(
       (newSignal) => {
         console.info('[useSignals] New signal inserted:', newSignal);
-        setSignals(prev => [newSignal, ...prev]);
+        setSignals(prev => [newSignal, ...prev.slice(0, 49)]); // Keep max 50 signals
+        
+        // Show toast notification for new signal
+        toast({
+          title: "🚨 New Signal Generated",
+          description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
+          duration: 5000,
+        });
       },
       (updatedSignal) => {
         console.info('[useSignals] Signal updated:', updatedSignal);
@@ -494,9 +530,16 @@ export const useSignals = () => {
       }
     );
 
-    // Proper realtime cleanup
+    // Auto-refresh signals every 60 seconds to catch any missed updates
+    const refreshInterval = setInterval(() => {
+      console.log('[useSignals] Auto-refreshing signals...');
+      refreshSignals();
+    }, 60000);
+
+    // Cleanup
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(refreshInterval);
     };
   }, []);
 
