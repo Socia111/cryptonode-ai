@@ -374,6 +374,48 @@ export type Database = {
         }
         Relationships: []
       }
+      aira_rankings: {
+        Row: {
+          bybit_symbol: string | null
+          created_at: string
+          id: string
+          last_updated: string
+          market_cap: number | null
+          rank_position: number
+          score: number | null
+          token_name: string
+          token_symbol: string
+          updated_at: string
+          volume_24h: number | null
+        }
+        Insert: {
+          bybit_symbol?: string | null
+          created_at?: string
+          id?: string
+          last_updated?: string
+          market_cap?: number | null
+          rank_position: number
+          score?: number | null
+          token_name: string
+          token_symbol: string
+          updated_at?: string
+          volume_24h?: number | null
+        }
+        Update: {
+          bybit_symbol?: string | null
+          created_at?: string
+          id?: string
+          last_updated?: string
+          market_cap?: number | null
+          rank_position?: number
+          score?: number | null
+          token_name?: string
+          token_symbol?: string
+          updated_at?: string
+          volume_24h?: number | null
+        }
+        Relationships: []
+      }
       alert_subscriptions: {
         Row: {
           created_at: string | null
