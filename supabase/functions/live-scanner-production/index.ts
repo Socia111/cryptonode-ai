@@ -18,24 +18,24 @@ const cors = {
 };
 
 const AITRADEX1 = {
-  // canonical (tight)
+  // canonical (tight) - LOWERED EXPECTATIONS
   tight: {
-    adxThreshold: 28,
-    volSpikeMult: 1.7,
-    hvpLower: 55,
-    hvpUpper: 85,
-    breakoutLen: 5,
-    spreadMaxPct: 0.10,
-    useDailyTrendFilter: true,
-  },
-  // relaxed (for discovery/quiet markets)
-  relaxed: {
-    adxThreshold: 22,
-    volSpikeMult: 1.4,
-    hvpLower: 50,
-    hvpUpper: 90,
+    adxThreshold: 20,
+    volSpikeMult: 1.3,
+    hvpLower: 40,
+    hvpUpper: 95,
     breakoutLen: 3,
-    spreadMaxPct: 0.12,
+    spreadMaxPct: 0.15,
+    useDailyTrendFilter: false,
+  },
+  // relaxed (for discovery/quiet markets) - VERY RELAXED
+  relaxed: {
+    adxThreshold: 15,
+    volSpikeMult: 1.1,
+    hvpLower: 30,
+    hvpUpper: 98,
+    breakoutLen: 2,
+    spreadMaxPct: 0.20,
     useDailyTrendFilter: false,
   }
 };
