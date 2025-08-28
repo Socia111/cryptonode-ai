@@ -2314,6 +2314,8 @@ export type Database = {
       }
       signals: {
         Row: {
+          aira_boost_applied: number | null
+          aira_rank: number | null
           algo: string
           atr: number | null
           bar_time: string
@@ -2333,6 +2335,8 @@ export type Database = {
           tp: number | null
         }
         Insert: {
+          aira_boost_applied?: number | null
+          aira_rank?: number | null
           algo?: string
           atr?: number | null
           bar_time: string
@@ -2352,6 +2356,8 @@ export type Database = {
           tp?: number | null
         }
         Update: {
+          aira_boost_applied?: number | null
+          aira_rank?: number | null
           algo?: string
           atr?: number | null
           bar_time?: string
