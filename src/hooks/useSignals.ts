@@ -424,17 +424,25 @@ export const useSpynxScores = () => {
 
   const fetchScores = async () => {
     try {
-      // Mock Spynx scores for now since we don't have the data yet
-      const mockScores = [
-        { token: 'BTC', score: 95, market_cap: 580000000000, price_change_24h: 2.3, roi_forecast: 15.8 },
-        { token: 'ETH', score: 92, market_cap: 220000000000, price_change_24h: 3.1, roi_forecast: 18.2 },
-        { token: 'SOL', score: 88, market_cap: 45000000000, price_change_24h: 5.2, roi_forecast: 22.1 },
-        { token: 'ADA', score: 85, market_cap: 15000000000, price_change_24h: -1.2, roi_forecast: 12.5 },
-        { token: 'DOT', score: 82, market_cap: 8000000000, price_change_24h: 1.8, roi_forecast: 14.3 }
-      ];
-      setScores(mockScores);
+      // Fetch real SPYNX scores from database
+      const { data: scores, error } = await supabase
+        .from('spynx_portfolios')
+        .select('*')
+        .order('score', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('[SPYNX] Error fetching scores:', error);
+        setScores([]);
+        setLoading(false);
+        return;
+      }
+
+      setScores(scores || []);
       setLoading(false);
     } catch (err) {
+      console.error('[SPYNX] Fetch error:', err);
+      setScores([]);
       setLoading(false);
     }
   };

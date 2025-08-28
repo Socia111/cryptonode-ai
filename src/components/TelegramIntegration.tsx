@@ -7,9 +7,9 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 
 const TelegramIntegration = () => {
-  const [isConnected, setIsConnected] = React.useState(true); // Set to true since bot tokens are configured
-  const [botStatus, setBotStatus] = React.useState('active'); // Set to active
-  const [subscribers, setSubscribers] = React.useState(42); // Mock subscriber count
+  const [isConnected, setIsConnected] = React.useState(false);
+  const [botStatus, setBotStatus] = React.useState('inactive');
+  const [subscribers, setSubscribers] = React.useState(0);
   const { toast } = useToast();
 
   const setupTelegramBot = async () => {
