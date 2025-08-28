@@ -402,6 +402,11 @@ async function processAITRADEX1Signals(marketData: any, supabase: any) {
           await supabase.from('signals').insert(signal)
           await updateSignalCooldown(supabase, 'coinapi', marketData.symbol, timeframe, analysis.direction)
           
+          // Send Telegram alert for high-quality signals
+          if (analysis.score >= 85) {
+            await sendTelegramAlert(signal)
+          }
+          
           signals.push(signal)
         }
       }
@@ -617,6 +622,7 @@ function calculateAIRATETHECOINScore(marketData: any) {
   };
 }
 
+// Enhanced cooldown check with timeframe-specific windows
 async function checkSignalCooldown(supabase: any, exchange: string, symbol: string, timeframe: string, direction: string): Promise<boolean> {
   const { data } = await supabase
     .from('signals_state')
@@ -629,8 +635,19 @@ async function checkSignalCooldown(supabase: any, exchange: string, symbol: stri
 
   if (!data) return true
 
-  const cooldownMs = timeframe === '5m' ? 5 * 60 * 1000 : timeframe === '15m' ? 15 * 60 * 1000 : 60 * 60 * 1000
-  return Date.now() - new Date(data.last_emitted).getTime() > cooldownMs
+  // Timeframe-specific cooldowns
+  const cooldownWindows = {
+    '1m': 2 * 60 * 1000,    // 2 minutes
+    '5m': 3 * 60 * 1000,    // 3 minutes  
+    '15m': 10 * 60 * 1000,  // 10 minutes
+    '30m': 20 * 60 * 1000,  // 20 minutes
+    '1h': 30 * 60 * 1000,   // 30 minutes
+    '4h': 2 * 60 * 60 * 1000, // 2 hours
+    '1d': 6 * 60 * 60 * 1000  // 6 hours
+  };
+
+  const cooldownMs = cooldownWindows[timeframe as keyof typeof cooldownWindows] || 15 * 60 * 1000;
+  return Date.now() - new Date(data.last_emitted).getTime() > cooldownMs;
 }
 
 async function updateSignalCooldown(supabase: any, exchange: string, symbol: string, timeframe: string, direction: string) {
@@ -642,6 +659,39 @@ async function updateSignalCooldown(supabase: any, exchange: string, symbol: str
     last_emitted: new Date()
   })
 }
+
+// Telegram alert function
+async function sendTelegramAlert(signal: any) {
+  try {
+    const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+    const chatId = Deno.env.get('TELEGRAM_CHAT_ID');
+    
+    if (!botToken || !chatId) {
+      console.log('⚠️ Telegram credentials not configured');
+      return;
+    }
+
+    const message = `*AItradeX1* — *${signal.direction}* ${signal.exchange.toUpperCase()}:${signal.symbol} ${signal.timeframe}
+@ ${signal.price}  Score: *${signal.score.toFixed(1)}*
+ADX:${signal.indicators.adx.toFixed(1)}  HVP:${signal.hvp.toFixed(0)}
+SL: ${signal.sl.toFixed(4)}  TP: ${signal.tp.toFixed(4)}`;
+
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'Markdown'
+      })
+    });
+    
+    console.log(`📱 Telegram alert sent for ${signal.symbol} ${signal.direction}`);
+  } catch (error) {
+    console.error('Telegram alert failed:', error);
+  }
+}
+
 
 async function updateFinalAIRARankings(supabase: any) {
   const { data: rankings } = await supabase
