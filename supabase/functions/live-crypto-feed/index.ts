@@ -404,7 +404,7 @@ async function processAITRADEX1Signals(marketData: any, supabase: any) {
           
           // Send Telegram alert for high-quality signals
           if (analysis.score >= 85) {
-            await sendTelegramAlert(signal)
+            await sendTelegramAlert(signal, supabase)
           }
           
           signals.push(signal)
@@ -660,35 +660,69 @@ async function updateSignalCooldown(supabase: any, exchange: string, symbol: str
   })
 }
 
-// Telegram alert function
-async function sendTelegramAlert(signal: any) {
+// Markdown escaping for Telegram MarkdownV2
+function md(text: string) {
+  return text.replace(/([_*[\]()~`>#+\-=|{}.!])/g, '\\$1');
+}
+
+// Enhanced Telegram alert function with audit logging
+async function sendTelegramAlert(signal: any, supabase: any) {
+  const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  const chatId = Deno.env.get('TELEGRAM_CHAT_ID');
+  
+  if (!botToken || !chatId) {
+    console.log('⚠️ Telegram credentials not configured');
+    return;
+  }
+
   try {
-    const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
-    const chatId = Deno.env.get('TELEGRAM_CHAT_ID');
-    
-    if (!botToken || !chatId) {
-      console.log('⚠️ Telegram credentials not configured');
-      return;
-    }
+    const line1 = `*AItradeX1* — *${md(signal.direction)}* ${md(signal.exchange.toUpperCase())}:${md(signal.symbol)} ${md(signal.timeframe)}`;
+    const line2 = `@ ${signal.price.toFixed(4)}  Score: *${signal.score.toFixed(1)}*`;
+    const line3 = `ADX:${(signal.indicators?.adx ?? 0).toFixed(1)}  HVP:${(signal.hvp ?? 0).toFixed(0)}`;
+    const line4 = `SL:${(signal.sl ?? 0).toFixed(4)}  TP:${(signal.tp ?? 0).toFixed(4)}`;
+    const text = [line1, line2, line3, line4].join('\n');
 
-    const message = `*AItradeX1* — *${signal.direction}* ${signal.exchange.toUpperCase()}:${signal.symbol} ${signal.timeframe}
-@ ${signal.price}  Score: *${signal.score.toFixed(1)}*
-ADX:${signal.indicators.adx.toFixed(1)}  HVP:${signal.hvp.toFixed(0)}
-SL: ${signal.sl.toFixed(4)}  TP: ${signal.tp.toFixed(4)}`;
-
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: message,
-        parse_mode: 'Markdown'
+        text: text,
+        parse_mode: 'MarkdownV2'
       })
     });
+
+    const ok = res.ok;
     
-    console.log(`📱 Telegram alert sent for ${signal.symbol} ${signal.direction}`);
+    // Audit log the alert attempt
+    await supabase.from('alerts_log').insert({
+      channel: 'telegram',
+      symbol: signal.symbol,
+      timeframe: signal.timeframe,
+      direction: signal.direction,
+      status: ok ? 'sent' : 'fail',
+      payload: signal,
+      created_at: new Date()
+    });
+
+    console.log(ok ? `📱 Telegram sent: ${signal.symbol}` : `❌ Telegram failed: ${await res.text()}`);
   } catch (error) {
     console.error('Telegram alert failed:', error);
+    
+    // Log failed attempt
+    try {
+      await supabase.from('alerts_log').insert({
+        channel: 'telegram',
+        symbol: signal.symbol,
+        timeframe: signal.timeframe,
+        direction: signal.direction,
+        status: 'error',
+        payload: { ...signal, error: error.message },
+        created_at: new Date()
+      });
+    } catch (logError) {
+      console.error('Failed to log alert error:', logError);
+    }
   }
 }
 
