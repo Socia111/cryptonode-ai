@@ -2662,6 +2662,36 @@ export type Database = {
         }
         Relationships: []
       }
+      token_audit_log: {
+        Row: {
+          created_at: string | null
+          expires_in: string | null
+          id: string
+          ip_address: string | null
+          scope: string | null
+          service: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_in?: string | null
+          id?: string
+          ip_address?: string | null
+          scope?: string | null
+          service: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_in?: string | null
+          id?: string
+          ip_address?: string | null
+          scope?: string | null
+          service?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       token_rewards: {
         Row: {
           amount: number
