@@ -42,34 +42,58 @@ const ScannerDashboard = () => {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const { toast } = useToast();
 
-  const fetchSignals = async () => {
+  const fetchSignals = async (showPast24Hours: boolean = false) => {
     try {
-      // Try new signals API first, fallback to direct DB query
-      try {
-        const response = await supabase.functions.invoke('signals-api', {
-          body: { path: '/signals/live' }
-        });
-        
-        if (response.data?.success) {
-          setSignals(response.data.live_signals || []);
-          setLastUpdate(new Date().toLocaleString());
-          return;
+      if (!showPast24Hours) {
+        // Try new signals API first for recent data
+        try {
+          const response = await supabase.functions.invoke('signals-api', {
+            body: { path: '/signals/live' }
+          });
+          
+          if (response.data?.success) {
+            setSignals(response.data.live_signals || []);
+            setLastUpdate(new Date().toLocaleString());
+            return;
+          }
+        } catch (apiError) {
+          console.warn('API call failed, falling back to direct DB query:', apiError);
         }
-      } catch (apiError) {
-        console.warn('API call failed, falling back to direct DB query:', apiError);
       }
       
-      // Fallback to direct database query
-      const { data, error } = await supabase
-        .from('scanner_signals')
+      // Query database - show past 24h when scan is triggered, otherwise recent signals
+      let query = supabase
+        .from('signals')
         .select('*')
-        .eq('is_active', true)
-        .order('confidence_score', { ascending: false })
-        .limit(50);
+        .eq('status', 'active')
+        .order('generated_at', { ascending: false });
 
+      if (showPast24Hours) {
+        // Show all signals from past 24 hours when "Scan Now" is pressed
+        const past24Hours = new Date();
+        past24Hours.setHours(past24Hours.getHours() - 24);
+        query = query.gte('generated_at', past24Hours.toISOString());
+      } else {
+        query = query.limit(50);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
 
-      setSignals(data || []);
+      // Map database signals to scanner format
+      const mappedSignals = (data || []).map(signal => ({
+        id: signal.id,
+        symbol: signal.symbol,
+        exchange: signal.exchange || 'bybit',
+        direction: signal.direction,
+        confidence_score: signal.confidence_score || signal.score || 0,
+        price: signal.entry_price || 0,
+        timeframe: signal.timeframe,
+        generated_at: signal.generated_at || signal.created_at,
+        indicators: signal.metadata?.indicators || {}
+      }));
+
+      setSignals(mappedSignals);
       setLastUpdate(new Date().toLocaleString());
     } catch (error) {
       console.error('Error fetching signals:', error);
@@ -84,11 +108,13 @@ const ScannerDashboard = () => {
   const runScan = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('live-scanner', {
+      // Trigger live scanner production for comprehensive scan
+      const { data, error } = await supabase.functions.invoke('live-scanner-production', {
         body: { 
           exchange: selectedExchange, 
           timeframe: selectedTimeframe,
-          relaxed_filters: false
+          relaxed_filters: true,
+          symbols: [] // Scan all available symbols
         }
       });
 
@@ -96,14 +122,15 @@ const ScannerDashboard = () => {
 
       toast({
         title: "Live Scan Complete",
-        description: `Found ${data?.count || 0} AItradeX1 signals`,
+        description: `AItradeX1 scan finished - ${data?.signals_found || 0} signals found`,
       });
 
-      await fetchSignals();
+      // After scan, fetch signals from past 24 hours to show comprehensive results
+      await fetchSignals(true);
     } catch (error) {
       console.error('Error running scan:', error);
       toast({
-        title: "Scan Failed",
+        title: "Scan Failed", 
         description: "Failed to run market scan",
         variant: "destructive",
       });
@@ -113,10 +140,10 @@ const ScannerDashboard = () => {
   };
 
   useEffect(() => {
-    fetchSignals();
+    fetchSignals(false); // Load recent signals initially
     
-    // Auto-refresh every 5 minutes
-    const interval = setInterval(fetchSignals, 5 * 60 * 1000);
+    // Auto-refresh every 2 minutes to show new signals
+    const interval = setInterval(() => fetchSignals(false), 2 * 60 * 1000);
     
     return () => clearInterval(interval);
   }, []);

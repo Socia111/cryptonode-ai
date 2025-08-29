@@ -3755,6 +3755,17 @@ export type Database = {
         Args: { action_type: string; action_value?: number; p_user_id: string }
         Returns: number
       }
+      upsert_signal: {
+        Args: {
+          p_bar_time: string
+          p_direction: string
+          p_exchange: string
+          p_signal_data: Json
+          p_symbol: string
+          p_timeframe: string
+        }
+        Returns: string
+      }
       validate_user_input: {
         Args: { input_text: string; input_type?: string; max_length?: number }
         Returns: Json
