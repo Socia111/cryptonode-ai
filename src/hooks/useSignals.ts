@@ -174,19 +174,29 @@ function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) =
   console.log('[Signals] Setting up real-time subscription...');
   
   const channel = supabase
-    .channel('signals-realtime')
+    .channel('public:signals', {
+      config: {
+        broadcast: { self: true },
+        presence: { key: 'signals-presence' }
+      }
+    })
     .on(
       'postgres_changes',
       { 
         event: 'INSERT', 
         schema: 'public', 
-        table: 'signals' 
+        table: 'signals',
+        filter: 'score=gte.70' // Only subscribe to good signals
       },
       (payload) => {
         console.log('[Signals] New signal received via realtime:', payload.new);
-        const newSignal = mapSignalsToInterface([payload.new])[0];
-        if (newSignal) {
-          onInsert(newSignal);
+        try {
+          const newSignal = mapSignalsToInterface([payload.new])[0];
+          if (newSignal) {
+            onInsert(newSignal);
+          }
+        } catch (e) {
+          console.error('[Signals] Failed to map new signal:', e);
         }
       }
     )
@@ -195,18 +205,26 @@ function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) =
       { 
         event: 'UPDATE', 
         schema: 'public', 
-        table: 'signals' 
+        table: 'signals',
+        filter: 'score=gte.70'
       },
       (payload) => {
         console.log('[Signals] Signal updated via realtime:', payload.new);
-        const updatedSignal = mapSignalsToInterface([payload.new])[0];
-        if (updatedSignal) {
-          onUpdate(updatedSignal);
+        try {
+          const updatedSignal = mapSignalsToInterface([payload.new])[0];
+          if (updatedSignal) {
+            onUpdate(updatedSignal);
+          }
+        } catch (e) {
+          console.error('[Signals] Failed to map updated signal:', e);
         }
       }
     )
-    .subscribe((status) => {
+    .subscribe((status, err) => {
       console.log('[Signals] Subscription status:', status);
+      if (err) {
+        console.error('[Signals] Subscription error:', err);
+      }
     });
     
   return channel;
