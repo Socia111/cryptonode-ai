@@ -12,6 +12,7 @@ import TradingPanel from '../components/TradingPanel';
 import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
+import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
 
 const Index = () => {
   return (
@@ -20,7 +21,10 @@ const Index = () => {
         {/* Database Setup */}
         <DatabaseSetup />
         
-        {/* AItradeX1 Scanner */}
+        {/* AItradeX1 Scanner Chart */}
+        <AItradeX1ScannerChart />
+        
+        {/* AItradeX1 Scanner Dashboard */}
         <ScannerDashboard />
         
         {/* Market Overview */}
