@@ -2,6 +2,7 @@ import React from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import TopNavigation from '@/components/TopNavigation';
+import BottomSignalsBar from '@/components/BottomSignalsBar';
 interface MainLayoutProps {
   children: React.ReactNode;
 }
@@ -16,9 +17,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <div className="flex-1 flex flex-col">
           <TopNavigation />
           
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto pb-16">
             {children}
           </main>
+          
+          <BottomSignalsBar />
         </div>
       </div>
     </SidebarProvider>
