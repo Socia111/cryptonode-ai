@@ -107,14 +107,14 @@ async function fetchSignals(): Promise<Signal[]> {
       console.warn('[Signals] Auto-scanner failed:', scannerError);
     }
 
-    // Now fetch only high-quality signals (score >= 75%) from last 24 hours
+    // Now fetch high-quality signals from last 24 hours
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
-      .gte('score', 75) // Only high ROI signals
+      .gte('score', 70) // Score 70+ signals (actual score ranges)
       .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(50);
 
     if (signalsError) {
       console.error('[Signals] Signals query failed:', signalsError.message);
@@ -145,7 +145,7 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
       id: item.id.toString(),
       token: item.symbol.replace('USDT', '/USDT'),
       direction: item.direction === 'LONG' ? 'BUY' : 'SELL',
-      signal_type: `${item.algo} ${item.timeframe}`,
+      signal_type: `${item.algo || 'AItradeX1'} ${item.timeframe}`,
       timeframe: item.timeframe,
       entry_price: Number(item.price),
       exit_target: item.tp ? Number(item.tp) : null,
@@ -156,8 +156,8 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
       trend_projection: item.direction === 'LONG' ? '⬆️' : '⬇️',
       volume_strength: item.indicators?.volSma21 ? Number(item.indicators.volSma21) / 1000000 : 1.0,
       roi_projection: Math.abs((Number(item.tp || item.price * 1.1) - Number(item.price)) / Number(item.price) * 100),
-      signal_strength: item.score > 80 ? 'STRONG' : item.score > 60 ? 'MEDIUM' : 'WEAK',
-      risk_level: item.score > 80 ? 'LOW' : item.score > 60 ? 'MEDIUM' : 'HIGH',
+      signal_strength: item.score > 85 ? 'STRONG' : item.score > 75 ? 'MEDIUM' : 'WEAK',
+      risk_level: item.score > 85 ? 'LOW' : item.score > 75 ? 'MEDIUM' : 'HIGH',
       quantum_probability: Number(item.score) / 100,
       status: 'active',
       created_at: item.created_at || new Date().toISOString(),
@@ -424,7 +424,7 @@ export const useSpynxScores = () => {
 
   const fetchScores = async () => {
     try {
-      // Fetch real SPYNX scores from database
+      // Check if spynx_portfolios table exists, if not return empty array
       const { data: scores, error } = await supabase
         .from('spynx_portfolios')
         .select('*')
@@ -432,8 +432,14 @@ export const useSpynxScores = () => {
         .limit(10);
 
       if (error) {
-        console.error('[SPYNX] Error fetching scores:', error);
-        setScores([]);
+        // Table doesn't exist yet, this is normal
+        if (error.code === '42P01') {
+          console.log('[SPYNX] Table not created yet - this is normal');
+          setScores([]);
+        } else {
+          console.error('[SPYNX] Error fetching scores:', error);
+          setScores([]);
+        }
         setLoading(false);
         return;
       }
