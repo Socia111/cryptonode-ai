@@ -79,35 +79,21 @@ async function fetchSignals(): Promise<Signal[]> {
   try {
     console.log('[Signals] Fetching live signals from database...');
     
-    // Always trigger fresh signal generation first to ensure we have live data
-    console.log('[Signals] Auto-triggering fresh signal scan...');
-    
+    // First try to get signals from the signals-api endpoint
     try {
-      // Trigger multiple timeframes for comprehensive coverage
-      const promises = ['5m', '15m', '1h'].map(timeframe => 
-        supabase.functions.invoke('live-scanner-production', {
-          body: { 
-            exchange: 'bybit',
-            timeframe: timeframe,
-            relaxed_filters: true,
-            symbols: [] // Empty to scan all available USDT pairs
-          }
-        }).catch(error => {
-          console.warn(`[Signals] ${timeframe} scan failed:`, error);
-          return null;
-        })
-      );
-      
-      // Execute all scans in parallel
-      await Promise.allSettled(promises);
-      
-      // Wait for signals to be processed
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    } catch (scannerError) {
-      console.warn('[Signals] Auto-scanner failed:', scannerError);
+      const { data: apiResponse, error: apiError } = await supabase.functions.invoke('signals-api', {
+        body: { path: '/signals/live' }
+      });
+
+      if (!apiError && apiResponse?.success && apiResponse?.items?.length > 0) {
+        console.log(`[Signals] Found ${apiResponse.items.length} signals from API`);
+        return mapSignalsToInterface(apiResponse.items);
+      }
+    } catch (apiError) {
+      console.warn('[Signals] API call failed, falling back to direct query:', apiError);
     }
 
-    // Now fetch high-quality signals from last 24 hours
+    // Fallback to direct database query
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
@@ -126,7 +112,7 @@ async function fetchSignals(): Promise<Signal[]> {
       return mapSignalsToInterface(allSignals);
     }
 
-    // No live signals available - return empty array
+    // No signals available
     console.log('[Signals] No live signals found in database');
     return [];
 
@@ -161,7 +147,8 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
       quantum_probability: Number(item.score) / 100,
       status: 'active',
       created_at: item.created_at || new Date().toISOString(),
-    }));
+    }))
+    .slice(0, 20); // Limit to 20 most recent signals
 }
 
 function getMockSignals(): Signal[] {

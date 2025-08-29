@@ -44,9 +44,11 @@ serve(async (req) => {
       
       // Fetch real historical data from Bybit
       const interval = params.timeframe === '1h' ? '60' : params.timeframe === '5m' ? '5' : '15';
-      const url = `https://api.bybit.com/v5/market/kline?category=linear&symbol=${params.symbol}&interval=${interval}&limit=1000`;
+      // Convert symbol format: BTC/USDT -> BTCUSDT for Bybit API
+      const bybitSymbol = params.symbol.replace('/', '');
+      const url = `https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSymbol}&interval=${interval}&limit=1000`;
       
-      console.log(`📊 Fetching real data from Bybit: ${params.symbol} ${params.timeframe}`);
+      console.log(`📊 Fetching real data from Bybit: ${bybitSymbol} ${params.timeframe}`);
       
       try {
         const response = await fetch(url);
