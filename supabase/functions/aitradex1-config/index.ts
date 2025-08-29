@@ -14,26 +14,27 @@ const AITRADEX1_CONFIG = {
   inputs: {
     emaLen: 21,
     smaLen: 200,
-    adxThreshold: 20,
+    adxThreshold: 8,         // Extremely relaxed from 20
     stochLength: 14,
     stochSmoothK: 3,
     stochSmoothD: 3,
-    volSpikeMult: 1.3,
+    volSpikeMult: 1.02,      // Extremely relaxed from 1.3
     obvEmaLen: 21,
-    hvpLower: 40,
-    hvpUpper: 95,
-    breakoutLen: 3,
-    spreadMaxPct: 0.15,
+    hvpLower: 10,            // Extremely relaxed from 40
+    hvpUpper: 100,           // Maximum range from 95
+    breakoutLen: 1,          // Minimal from 3
+    spreadMaxPct: 0.5,       // Very relaxed from 0.15
     atrLen: 14,
     exitBars: 18,
     useDailyTrendFilter: false
   },
   relaxedMode: {
-    adxThreshold: 15,
-    volSpikeMult: 1.1,
-    hvpLower: 30,
-    hvpUpper: 98,
-    breakoutLen: 2,
+    adxThreshold: 5,         // Extremely relaxed
+    volSpikeMult: 1.01,      // Almost no volume requirement
+    hvpLower: 5,             // Extremely low
+    hvpUpper: 100,           // Maximum range
+    breakoutLen: 1,          // Minimal
+    spreadMaxPct: 1.0,       // Very relaxed
     useDailyTrendFilter: false
   },
   hvpFormula:

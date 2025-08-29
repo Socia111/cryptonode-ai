@@ -200,15 +200,15 @@ function evalAItradeX1(ohlc:K[], tfCfg:typeof AITRADEX1.tight){
   const bearishTrend = ema21[i] < sma200[i] && ema21[i] < ema21[i-3];
 
   const adxStrong = adx[i] >= tfCfg.adxThreshold;
-  const bullDMI = diP[i] > diM[i] && diP[i] > diP[i-3];
-  const bearDMI = diM[i] > diP[i] && diM[i] > diM[i-3];
+  const bullDMI = diP[i] > diM[i]; // Removed strict trend requirement
+  const bearDMI = diM[i] > diP[i]; // Removed strict trend requirement
 
-  const stochBull = k[i] > d[i] && k[i] < 35 && d[i] < 40;
-  const stochBear = k[i] < d[i] && k[i] > 65 && d[i] > 60;
+  const stochBull = k[i] > d[i] && k[i] < 50; // Relaxed from 35
+  const stochBear = k[i] < d[i] && k[i] > 50; // Relaxed from 65
 
   const volSpike = vol[i] > tfCfg.volSpikeMult * volSma21[i];
-  const obvBull  = obv[i] > obvEma21[i] && obv[i] > obv[i-3];
-  const obvBear  = obv[i] < obvEma21[i] && obv[i] < obv[i-3];
+  const obvBull  = obv[i] > obvEma21[i]; // Removed trend requirement
+  const obvBear  = obv[i] < obvEma21[i]; // Removed trend requirement
 
   const hvpOk    = hvp[i] >= tfCfg.hvpLower && hvp[i] <= tfCfg.hvpUpper;
 
@@ -221,8 +221,12 @@ function evalAItradeX1(ohlc:K[], tfCfg:typeof AITRADEX1.tight){
   const breakoutLong  = ohlc[i].close > hh;
   const breakoutShort = ohlc[i].close < ll;
 
-  const longOk = bullishTrend && adxStrong && bullDMI && stochBull && volSpike && obvBull && hvpOk && spreadOk && breakoutLong;
-  const shortOk= bearishTrend && adxStrong && bearDMI && stochBear && volSpike && obvBear && hvpOk && spreadOk && breakoutShort;
+  // Extremely relaxed signal requirements - only need 3 out of 9 conditions
+  const longConditions = [bullishTrend, adxStrong, bullDMI, stochBull, volSpike, obvBull, hvpOk, spreadOk, breakoutLong];
+  const shortConditions = [bearishTrend, adxStrong, bearDMI, stochBear, volSpike, obvBear, hvpOk, spreadOk, breakoutShort];
+  
+  const longOk = longConditions.filter(Boolean).length >= 3;
+  const shortOk = shortConditions.filter(Boolean).length >= 3;
 
   // Score: 9 buckets × 11.1 (rounded to 12.5 for cleaner numbers)
   const longBuckets  = [bullishTrend, adxStrong, bullDMI, stochBull, volSpike, obvBull, hvpOk, spreadOk, breakoutLong];
