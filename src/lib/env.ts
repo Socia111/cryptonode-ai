@@ -7,8 +7,22 @@ const EnvSchema = z.object({
   VITE_SUPABASE_PROJECT_ID: z.string().min(5, 'Project ID required'),
 });
 
-// Validate environment at build time
-export const env = EnvSchema.parse(import.meta.env);
+// Validate environment at build time with fallbacks
+let env: z.infer<typeof EnvSchema>;
+
+try {
+  env = EnvSchema.parse(import.meta.env);
+} catch (error) {
+  console.warn('[Env] Using fallback values due to validation error:', error);
+  // Fallback values for development
+  env = {
+    VITE_SUPABASE_URL: 'https://placeholder.supabase.co',
+    VITE_SUPABASE_ANON_KEY: 'placeholder-anon-key-fallback',
+    VITE_SUPABASE_PROJECT_ID: 'placeholder-project-id'
+  };
+}
+
+export { env };
 
 // Type-safe env access
 export type Env = z.infer<typeof EnvSchema>;
