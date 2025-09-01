@@ -837,6 +837,72 @@ export type Database = {
         }
         Relationships: []
       }
+      bookings: {
+        Row: {
+          adults: number
+          booking_date: string
+          booking_status: string
+          booking_time: string
+          children: number
+          created_at: string
+          currency: string
+          customer_email: string
+          customer_name: string | null
+          id: string
+          metadata: Json | null
+          payment_status: string
+          stripe_payment_intent_id: string | null
+          stripe_session_id: string | null
+          total_amount_cents: number
+          tour_id: string
+          tour_name: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          adults?: number
+          booking_date: string
+          booking_status?: string
+          booking_time: string
+          children?: number
+          created_at?: string
+          currency?: string
+          customer_email: string
+          customer_name?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_status?: string
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          total_amount_cents: number
+          tour_id: string
+          tour_name: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          adults?: number
+          booking_date?: string
+          booking_status?: string
+          booking_time?: string
+          children?: number
+          created_at?: string
+          currency?: string
+          customer_email?: string
+          customer_name?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_status?: string
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          total_amount_cents?: number
+          tour_id?: string
+          tour_name?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       candles_1m: {
         Row: {
           c: number
