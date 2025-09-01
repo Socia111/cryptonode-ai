@@ -41,9 +41,11 @@ const SignalsList = () => {
 
   const getPriorityIndicator = (signal: any) => {
     const roiValues = signals.map(s => s.roi_projection).sort((a, b) => b - a);
+    const top1PercentThreshold = roiValues[Math.floor(roiValues.length * 0.01)];
     const top5PercentThreshold = roiValues[Math.floor(roiValues.length * 0.05)];
     const top10PercentThreshold = roiValues[Math.floor(roiValues.length * 0.10)];
     
+    if (signal.roi_projection >= top1PercentThreshold) return '☄️';
     if (signal.roi_projection >= top5PercentThreshold) return '☢️';
     if (signal.roi_projection >= top10PercentThreshold) return '🦾';
     return '';
@@ -119,9 +121,12 @@ const SignalsList = () => {
                        <div className="flex items-center space-x-2">
                          <h4 className="font-semibold trading-mono">{signal.token}</h4>
                          {getPriorityIndicator(signal) && (
-                           <span className="text-lg" title={getPriorityIndicator(signal) === '☢️' ? 'Top 5% ROI' : 'Top 10% ROI'}>
-                             {getPriorityIndicator(signal)}
-                           </span>
+                            <span className="text-lg" title={
+                              getPriorityIndicator(signal) === '☄️' ? 'Top 1% ROI' :
+                              getPriorityIndicator(signal) === '☢️' ? 'Top 5% ROI' : 'Top 10% ROI'
+                            }>
+                              {getPriorityIndicator(signal)}
+                            </span>
                          )}
                        </div>
                        <p className="text-xs text-muted-foreground">{signal.signal_type}</p>
