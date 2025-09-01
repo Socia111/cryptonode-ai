@@ -11,13 +11,15 @@ const TradingHeader = () => {
           {/* Logo */}
           <div className="flex items-center space-x-3">
             <div className="relative">
-              <div className="w-10 h-10 gradient-primary rounded-lg flex items-center justify-center glow-primary">
-                <Zap className="w-6 h-6 text-white" />
-              </div>
+              <img 
+                src="/src/assets/unireli-icon.png" 
+                alt="Unireli Logo" 
+                className="w-10 h-10 rounded-lg glow-primary"
+              />
             </div>
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-chart-neutral bg-clip-text text-transparent">
-                AItradeX
+                Unireli
               </h1>
               <p className="text-xs text-muted-foreground">AI-Powered Trading</p>
             </div>
