@@ -39,6 +39,16 @@ const SignalsList = () => {
     return `${Math.floor(diffInHours / 24)}d ago`;
   };
 
+  const getPriorityIndicator = (signal: any) => {
+    const roiValues = signals.map(s => s.roi_projection).sort((a, b) => b - a);
+    const top5PercentThreshold = roiValues[Math.floor(roiValues.length * 0.05)];
+    const top10PercentThreshold = roiValues[Math.floor(roiValues.length * 0.10)];
+    
+    if (signal.roi_projection >= top5PercentThreshold) return '☢️';
+    if (signal.roi_projection >= top10PercentThreshold) return '🦾';
+    return '';
+  };
+
   return (
     <Card className="glass-card">
       <CardHeader>
@@ -105,10 +115,17 @@ const SignalsList = () => {
                     }`}>
                       <TrendIcon className="w-4 h-4" />
                     </div>
-                    <div>
-                      <h4 className="font-semibold trading-mono">{signal.token}</h4>
-                      <p className="text-xs text-muted-foreground">{signal.signal_type}</p>
-                    </div>
+                     <div>
+                       <div className="flex items-center space-x-2">
+                         <h4 className="font-semibold trading-mono">{signal.token}</h4>
+                         {getPriorityIndicator(signal) && (
+                           <span className="text-lg" title={getPriorityIndicator(signal) === '☢️' ? 'Top 5% ROI' : 'Top 10% ROI'}>
+                             {getPriorityIndicator(signal)}
+                           </span>
+                         )}
+                       </div>
+                       <p className="text-xs text-muted-foreground">{signal.signal_type}</p>
+                     </div>
                   </div>
                   
                   <Badge 
