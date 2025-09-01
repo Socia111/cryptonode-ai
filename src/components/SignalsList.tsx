@@ -57,6 +57,10 @@ const SignalsList = () => {
       const minutes = parseInt(timeframe.replace(/\D/g, ''));
       if (minutes >= 5 && minutes <= 30) return '🪤';
     }
+    if (timeframe?.includes('hour') || timeframe?.includes('h')) {
+      const hours = parseInt(timeframe.replace(/\D/g, ''));
+      if (hours >= 1 && hours <= 4) return '👍';
+    }
     return '';
   };
 
@@ -138,7 +142,9 @@ const SignalsList = () => {
                             </span>
                           )}
                           {getTimeframeIndicator(signal) && (
-                            <span className="text-lg" title="5-30 min signal">
+                            <span className="text-lg" title={
+                              getTimeframeIndicator(signal) === '🪤' ? '5-30 min signal' : '1-4 hour signal'
+                            }>
                               {getTimeframeIndicator(signal)}
                             </span>
                           )}
