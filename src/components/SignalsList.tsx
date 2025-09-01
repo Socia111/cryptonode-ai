@@ -51,6 +51,15 @@ const SignalsList = () => {
     return '';
   };
 
+  const getTimeframeIndicator = (signal: any) => {
+    const timeframe = signal.timeframe?.toLowerCase();
+    if (timeframe?.includes('min') || timeframe?.includes('m')) {
+      const minutes = parseInt(timeframe.replace(/\D/g, ''));
+      if (minutes >= 5 && minutes <= 30) return '🪤';
+    }
+    return '';
+  };
+
   return (
     <Card className="glass-card">
       <CardHeader>
@@ -117,20 +126,25 @@ const SignalsList = () => {
                     }`}>
                       <TrendIcon className="w-4 h-4" />
                     </div>
-                     <div>
-                       <div className="flex items-center space-x-2">
-                         <h4 className="font-semibold trading-mono">{signal.token}</h4>
-                         {getPriorityIndicator(signal) && (
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-semibold trading-mono">{signal.token}</h4>
+                          {getPriorityIndicator(signal) && (
                             <span className="text-lg" title={
                               getPriorityIndicator(signal) === '☄️' ? 'Top 1% ROI' :
                               getPriorityIndicator(signal) === '☢️' ? 'Top 5% ROI' : 'Top 10% ROI'
                             }>
                               {getPriorityIndicator(signal)}
                             </span>
-                         )}
-                       </div>
-                       <p className="text-xs text-muted-foreground">{signal.signal_type}</p>
-                     </div>
+                          )}
+                          {getTimeframeIndicator(signal) && (
+                            <span className="text-lg" title="5-30 min signal">
+                              {getTimeframeIndicator(signal)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{signal.signal_type}</p>
+                      </div>
                   </div>
                   
                   <Badge 
