@@ -1,0 +1,53 @@
+-- Insert sample SPYNX portfolio data for testing
+INSERT INTO public.spynx_portfolios (portfolio_name, score, risk_level, total_trades, win_rate, roi, max_drawdown, sharpe_ratio, metadata) VALUES
+('Alpha Momentum Pro', 95.7, 'MEDIUM', 847, 0.78, 245.6, -12.3, 2.4, '{"strategy": "momentum", "timeframes": ["15m", "1h"], "active": true}'),
+('Quantum Scalper Elite', 88.2, 'HIGH', 1234, 0.71, 189.3, -18.7, 1.9, '{"strategy": "scalping", "timeframes": ["5m", "15m"], "active": true}'),
+('Diamond Hands DCA', 92.4, 'LOW', 456, 0.82, 167.9, -8.1, 2.8, '{"strategy": "dca", "timeframes": ["1h", "4h"], "active": true}'),
+('Lightning Arbitrage', 87.6, 'MEDIUM', 2341, 0.69, 134.2, -15.4, 1.7, '{"strategy": "arbitrage", "timeframes": ["1m", "5m"], "active": true}'),
+('Zen Master Swing', 91.8, 'LOW', 234, 0.79, 198.7, -9.8, 2.6, '{"strategy": "swing", "timeframes": ["4h", "1d"], "active": true}')
+ON CONFLICT DO NOTHING;
+
+-- Insert sample signals for testing (with exchange column)
+INSERT INTO public.signals (exchange, symbol, timeframe, direction, bar_time, price, score, atr, sl, tp, filters, indicators) VALUES
+('bybit', 'BTCUSDT', '1h', 'LONG', NOW() - INTERVAL '1 hour', 43250.50, 89.5, 450.2, 42800.0, 44200.0, '{"volume": true, "trend": true}', '{"rsi": 65.2, "macd": 0.045, "bb_position": 0.7}'),
+('bybit', 'ETHUSDT', '15m', 'SHORT', NOW() - INTERVAL '30 minutes', 2345.75, 82.3, 28.9, 2380.0, 2310.0, '{"volume": true, "momentum": true}', '{"rsi": 72.1, "macd": -0.012, "bb_position": 0.9}'),
+('bybit', 'SOLUSDT', '1h', 'LONG', NOW() - INTERVAL '45 minutes', 98.45, 91.2, 3.2, 95.20, 102.50, '{"breakout": true, "volume": true}', '{"rsi": 58.9, "macd": 0.087, "bb_position": 0.6}'),
+('bybit', 'ADAUSDT', '30m', 'LONG', NOW() - INTERVAL '20 minutes', 0.4567, 85.7, 0.012, 0.4450, 0.4720, '{"support": true, "trend": true}', '{"rsi": 48.3, "macd": 0.003, "bb_position": 0.4}'),
+('bybit', 'DOTUSDT', '1h', 'SHORT', NOW() - INTERVAL '10 minutes', 6.789, 78.9, 0.234, 7.050, 6.450, '{"resistance": true, "volume": true}', '{"rsi": 69.8, "macd": -0.034, "bb_position": 0.8}')
+ON CONFLICT DO NOTHING;
+
+-- Create quantum analysis table if it doesn't exist
+CREATE TABLE IF NOT EXISTS public.quantum_analysis (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  symbol TEXT NOT NULL,
+  analysis_type TEXT NOT NULL,
+  quantum_score NUMERIC NOT NULL DEFAULT 0,
+  probability_matrix JSONB DEFAULT '{}',
+  wave_patterns JSONB DEFAULT '{}',
+  market_sentiment NUMERIC DEFAULT 50,
+  volatility_index NUMERIC DEFAULT 1.0,
+  momentum_indicators JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS on quantum analysis
+ALTER TABLE public.quantum_analysis ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for quantum analysis
+DROP POLICY IF EXISTS "quantum_analysis_read_authenticated" ON public.quantum_analysis;
+DROP POLICY IF EXISTS "quantum_analysis_insert_service_role" ON public.quantum_analysis;
+
+CREATE POLICY "quantum_analysis_read_authenticated" ON public.quantum_analysis
+FOR SELECT USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "quantum_analysis_insert_service_role" ON public.quantum_analysis
+FOR INSERT WITH CHECK (
+  (auth.jwt() ->> 'role')::text = 'service_role'::text
+);
+
+-- Insert sample quantum analysis data
+INSERT INTO public.quantum_analysis (symbol, analysis_type, quantum_score, probability_matrix, wave_patterns, market_sentiment, volatility_index, momentum_indicators) VALUES
+('BTCUSDT', 'wave_analysis', 94.2, '{"bull": 0.78, "bear": 0.22, "neutral": 0.15}', '{"elliott": "wave_3", "fibonacci": 0.618, "support": 42800}', 72.5, 1.8, '{"momentum": "strong", "divergence": false}'),
+('ETHUSDT', 'sentiment_analysis', 87.6, '{"bull": 0.65, "bear": 0.35, "neutral": 0.25}', '{"pattern": "ascending_triangle", "breakout": 0.75}', 68.3, 2.1, '{"momentum": "medium", "divergence": true}'),
+('SOLUSDT', 'momentum_analysis', 91.8, '{"bull": 0.82, "bear": 0.18, "neutral": 0.12}', '{"trend": "uptrend", "strength": 0.89}', 78.9, 1.9, '{"momentum": "very_strong", "divergence": false}')
+ON CONFLICT DO NOTHING;
