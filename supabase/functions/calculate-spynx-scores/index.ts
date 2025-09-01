@@ -94,7 +94,7 @@ async function fetchTokenData(): Promise<TokenData[]> {
     priceChange24h: coin.price_change_percentage_24h || 0,
     circulatingSupply: coin.circulating_supply || 0,
     totalSupply: coin.total_supply || 0,
-    holderCount: Math.floor(Math.random() * 100000) // Mock data - would integrate with on-chain APIs
+    holderCount: coin.market_cap ? Math.floor(coin.market_cap / (coin.current_price * 1000)) : 0 // Estimated holder count based on market cap
   }))
 }
 

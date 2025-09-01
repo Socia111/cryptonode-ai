@@ -124,15 +124,15 @@ async function executeBinanceTrade(trade: TradeExecution, creds: ExchangeCredent
     timestamp: Date.now()
   }
 
-  // Simulate successful trade for demo
-  const mockResult = {
+  // Real Binance API integration would go here
+  console.log('Real Binance trade execution disabled for security')
+  
+  return {
     order_id: `BIN_${Date.now()}`,
-    fill_price: trade.price || (50000 + Math.random() * 1000),
-    fees: trade.quantity * 0.0004, // 0.04% fee
-    status: 'filled'
+    fill_price: trade.price,
+    fees: trade.quantity * 0.0004,
+    status: 'pending_manual_execution'
   }
-
-  return mockResult
 }
 
 async function executeBybitTrade(trade: TradeExecution, creds: ExchangeCredentials) {
@@ -151,15 +151,15 @@ async function executeBybitTrade(trade: TradeExecution, creds: ExchangeCredentia
     leverage: trade.leverage.toString()
   }
 
-  // Simulate successful trade for demo
-  const mockResult = {
+  // Real Bybit API integration would go here
+  console.log('Real Bybit trade execution disabled for security')
+  
+  return {
     order_id: `BYB_${Date.now()}`,
-    fill_price: trade.price || (50000 + Math.random() * 1000),
-    fees: trade.quantity * 0.0006, // 0.06% fee
-    status: 'filled'
+    fill_price: trade.price,
+    fees: trade.quantity * 0.0006,
+    status: 'pending_manual_execution'
   }
-
-  return mockResult
 }
 
 async function sendTradeConfirmation(trade: any, result: any) {
