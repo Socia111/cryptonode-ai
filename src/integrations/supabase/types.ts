@@ -2543,6 +2543,51 @@ export type Database = {
         }
         Relationships: []
       }
+      spynx_portfolios: {
+        Row: {
+          created_at: string | null
+          id: string
+          max_drawdown: number
+          metadata: Json | null
+          portfolio_name: string
+          risk_level: string
+          roi: number
+          score: number
+          sharpe_ratio: number
+          total_trades: number
+          updated_at: string | null
+          win_rate: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          max_drawdown?: number
+          metadata?: Json | null
+          portfolio_name: string
+          risk_level?: string
+          roi?: number
+          score?: number
+          sharpe_ratio?: number
+          total_trades?: number
+          updated_at?: string | null
+          win_rate?: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          max_drawdown?: number
+          metadata?: Json | null
+          portfolio_name?: string
+          risk_level?: string
+          roi?: number
+          score?: number
+          sharpe_ratio?: number
+          total_trades?: number
+          updated_at?: string | null
+          win_rate?: number
+        }
+        Relationships: []
+      }
       strategy_signals: {
         Row: {
           confidence: number | null

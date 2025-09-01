@@ -14,7 +14,7 @@ const TradingHeader = () => {
               <img 
                 src="/src/assets/unireli-icon.png" 
                 alt="Unireli Logo" 
-                className="w-10 h-10 rounded-lg glow-primary"
+                className="w-10 h-10 rounded-lg glow-primary object-contain"
               />
             </div>
             <div>
