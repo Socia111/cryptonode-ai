@@ -40,6 +40,9 @@ const BYBIT_API_KEY = getEnvOrNull("BYBIT_API_KEY");
 const BYBIT_API_SECRET = getEnvOrNull("BYBIT_API_SECRET");
 const BYBIT_BASE_URL = 'https://api.bybit.com';
 
+// Bybit V5 Types
+type AccountType = "UNIFIED" | "CONTRACT" | "SPOT";
+
 // Debug credential loading
 console.log('🔧 Loading Bybit credentials...');
 console.log('  - API Key present:', !!BYBIT_API_KEY);
@@ -312,6 +315,47 @@ class BybitV5Client {
       orderId
     });
   }
+}
+
+// Bybit V5 REST API Helper Functions
+async function getWalletBalance(client: BybitV5Client, accountType: AccountType = "UNIFIED") {
+  return client.privateGet("/v5/account/wallet-balance", { accountType });
+}
+
+async function listPositions(client: BybitV5Client, symbol?: string) {
+  return client.privateGet("/v5/position/list", { 
+    category: "linear", 
+    ...(symbol ? { symbol } : {}) 
+  });
+}
+
+async function createOrder(
+  client: BybitV5Client,
+  params: {
+    symbol: string;              // "BTCUSDT"
+    side: "Buy" | "Sell";
+    orderType: "Market" | "Limit";
+    qty: string;                 // string per Bybit
+    timeInForce?: "GTC" | "IOC" | "FOK" | "PostOnly";
+    price?: string;              // for Limit
+    reduceOnly?: boolean;
+    takeProfit?: string;
+    stopLoss?: string;
+    tpSlMode?: "Partial" | "Full";
+  }
+) {
+  return client.privatePost("/v5/order/create", {
+    category: "linear",
+    ...params,
+  });
+}
+
+async function cancelOrder(client: BybitV5Client, symbol: string, orderId?: string) {
+  return client.privatePost("/v5/order/cancel", {
+    category: "linear",
+    symbol,
+    ...(orderId ? { orderId } : {}),
+  });
 }
 
 class AutomatedTradingEngine {
@@ -874,18 +918,19 @@ serve(async (req) => {
           message: 'Automated trading stopped'
         });
 
-      case 'status':
-        const balance = await trader.getAccountBalance();
-        const positions = await trader.getPositions();
+      case 'status': {
+        const bal = await getWalletBalance(trader, "UNIFIED");
+        const pos = await listPositions(trader);
         
         return json(200, {
           success: true,
           status: engine.getStatus(),
           account: {
-            balance: balance.result,
-            positions: positions
+            balance: bal.result,
+            positions: pos.result?.list || []
           }
         });
+      }
 
       case 'test_connection':
         const testBalance = await trader.getAccountBalance();
@@ -894,6 +939,35 @@ serve(async (req) => {
           message: 'Bybit connection successful',
           balance: testBalance.result
         });
+
+      case 'place': {
+        const { symbol, side = "Buy", qty, price } = body;
+        const res = await createOrder(trader, {
+          symbol,
+          side,
+          orderType: price ? "Limit" : "Market",
+          qty: String(qty),
+          ...(price ? { price: String(price), timeInForce: "GTC" } : {}),
+        });
+        return json(200, { success: true, order: res });
+      }
+
+      case 'cancel': {
+        const { symbol, orderId } = body;
+        const res = await cancelOrder(trader, symbol, orderId);
+        return json(200, { success: true, cancel: res });
+      }
+
+      case 'manual_trade': {
+        if (!signal || !quantity) {
+          return json(400, {
+            success: false,
+            error: 'Signal data and quantity are required for manual trade'
+          });
+        }
+        const result = await executeManualTrade(trader, signal, quantity);
+        return json(200, result);
+      }
 
       default:
         return json(400, {
