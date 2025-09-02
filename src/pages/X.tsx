@@ -20,10 +20,10 @@ const X = () => {
         {/* Page Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            AItradeX1 Enhanced Platform
+            AItradeX1 Advanced Platform
           </h1>
           <p className="text-muted-foreground">
-            Advanced momentum strategy with EMA/SMA cross, RSI, DMI/ADX, Stochastic, and Bollinger Bands
+            Real-time crypto trading system with trend, momentum, volatility, and adaptive AI weighting
           </p>
         </div>
         
