@@ -11,6 +11,7 @@ import { Play, Square, Activity, TrendingUp, TrendingDown, DollarSign, AlertTria
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import LiveSignalsPanel from './LiveSignalsPanel';
+import LiveScannerControl from './LiveScannerControl';
 
 interface TradingConfig {
   enabled: boolean;
@@ -482,6 +483,12 @@ const AutomatedTradingDashboard = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Live Scanner Control */}
+          <LiveScannerControl onSignalGenerated={(signal) => {
+            // Refresh status when new signals are generated
+            checkStatus();
+          }} />
         </TabsContent>
 
         <TabsContent value="positions" className="space-y-4">

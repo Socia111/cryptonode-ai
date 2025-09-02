@@ -3,6 +3,35 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Environment configuration - same as trading engine
+const ENV = {
+  BYBIT_API_KEY: "BYBIT_API_KEY",
+  BYBIT_API_SECRET: "BYBIT_API_SECRET",
+} as const;
+
+function getEnvOrNull(key: string): string | null {
+  try {
+    return Deno.env.get(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Bybit API configuration - using same credentials as trading engine
+const BYBIT_API_KEY = getEnvOrNull(ENV.BYBIT_API_KEY);
+const BYBIT_API_SECRET = getEnvOrNull(ENV.BYBIT_API_SECRET);
+
+// Debug credential loading
+console.log('🔧 Live Scanner - Loading Bybit credentials...');
+console.log('  - API Key present:', !!BYBIT_API_KEY);
+console.log('  - API Secret present:', !!BYBIT_API_SECRET);
+if (BYBIT_API_KEY) {
+  console.log('  - API Key preview:', BYBIT_API_KEY.substring(0, 8) + '...');
+}
+if (!BYBIT_API_KEY || !BYBIT_API_SECRET) {
+  console.error('❌ Missing Bybit credentials for live scanner');
+}
+
 type K = { time:number; open:number; high:number; low:number; close:number; volume:number };
 type ScanReq = {
   exchange?: "bybit";
