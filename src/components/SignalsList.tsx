@@ -109,19 +109,31 @@ const SignalsList = () => {
         }
       });
 
+      console.log('🔍 Bybit API Response:', { data, error });
+
       if (error) {
-        throw error;
+        console.error('❌ Supabase function error:', error);
+        throw new Error(error.message || 'Failed to call trading function');
       }
 
-      if (data.success) {
-        toast({
-          title: `🎯 LIVE ${signal.direction} Order Executed!`,
-          description: `${signal.token} on Bybit - ${useLeverage ? `${leverage}x Leverage` : 'Spot'} | Order ID: ${data.orderId} | Size: $${orderSize}`,
-        });
-        console.log('✅ Bybit v5 API order result:', data);
-      } else {
-        throw new Error(data.error || 'Failed to execute live order');
+      // Handle both successful and error responses from the function
+      if (data && data.success === false) {
+        // Function returned an error response
+        console.error('❌ Trading function returned error:', data);
+        throw new Error(data.error || data.technical_error || 'Trading execution failed');
       }
+
+      if (!data || !data.success) {
+        console.error('❌ Invalid response from trading function:', data);
+        throw new Error('Invalid response from trading service');
+      }
+
+      // Success case
+      toast({
+        title: `🎯 LIVE ${signal.direction} Order Executed!`,
+        description: `${signal.token} on Bybit - ${useLeverage ? `${leverage}x Leverage` : 'Spot'} | Order ID: ${data.orderId} | Size: $${orderSize}`,
+      });
+      console.log('✅ Bybit v5 API order result:', data);
 
     } catch (error: any) {
       console.error('❌ Bybit v5 API error:', error);
