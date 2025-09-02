@@ -3,8 +3,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-bapi-api-key, x-bapi-sign, x-bapi-timestamp, x-bapi-recv-window, x-bapi-sign-type',
+  'Access-Control-Max-Age': '86400',
+  'Vary': 'Origin'
 }
 
 // Bybit V5 API Configuration
@@ -99,20 +101,16 @@ async function bybitRequest(endpoint: string, method: string = 'GET', body?: any
 }
 
 serve(async (req) => {
-  // Enhanced CORS headers for comprehensive support
-  const enhancedCorsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-bapi-api-key, x-bapi-sign, x-bapi-timestamp, x-bapi-recv-window, x-bapi-sign-type',
-    'Access-Control-Max-Age': '86400',
-    'Vary': 'Origin'
-  }
-
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { 
+    const reqHeaders = req.headers.get('access-control-request-headers') ?? '';
+    const headers = {
+      ...corsHeaders,
+      'Access-Control-Allow-Headers': `${corsHeaders['Access-Control-Allow-Headers']}${reqHeaders ? `, ${reqHeaders}` : ''}`,
+    };
+    return new Response('ok', { 
       status: 204,
-      headers: enhancedCorsHeaders 
+      headers 
     })
   }
 
@@ -129,7 +127,7 @@ serve(async (req) => {
         timestamp: new Date().toISOString(),
         service: 'bybit-broker'
       }), {
-        headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
@@ -143,7 +141,7 @@ serve(async (req) => {
         apiKeyPreview: config.apiKey ? config.apiKey.slice(0, 8) + '...' : null,
         secretPreview: config.apiSecret ? config.apiSecret.slice(0, 8) + '...' : null
       }), {
-        headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
@@ -163,7 +161,7 @@ serve(async (req) => {
             baseUrl: config.baseUrl,
             message: 'Debug info (no actual API call)'
           }), {
-            headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
 
@@ -178,7 +176,7 @@ serve(async (req) => {
           hasBalance: !!balance.result,
           message: 'Bybit API connection successful'
         }), {
-          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       } catch (error) {
         return new Response(JSON.stringify({
@@ -187,7 +185,7 @@ serve(async (req) => {
           retMsg: error.retMsg || null
         }), {
           status: 500,
-          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
     }
@@ -209,7 +207,7 @@ serve(async (req) => {
           success: true,
           orders: result.result?.list || []
         }), {
-          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
 
@@ -226,7 +224,7 @@ serve(async (req) => {
           success: true,
           positions: result.result?.list || []
         }), {
-          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
 
@@ -243,7 +241,7 @@ serve(async (req) => {
           success: true,
           tickers: result.result?.list || []
         }), {
-          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
     }
@@ -270,7 +268,7 @@ serve(async (req) => {
               balances: balance.result?.list || [],
               positions: positions.result?.list || []
             }), {
-              headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             })
           }
         }
@@ -299,7 +297,7 @@ serve(async (req) => {
           orderId: result.result?.orderId,
           result: result.result
         }), {
-          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
 
@@ -315,7 +313,7 @@ serve(async (req) => {
           success: true,
           result: result.result
         }), {
-          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
 
@@ -329,7 +327,7 @@ serve(async (req) => {
           success: true,
           balance: balance.result
         }), {
-          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
     }
@@ -344,7 +342,7 @@ serve(async (req) => {
       }
     }), {
       status: 404,
-      headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
 
   } catch (error) {
@@ -357,7 +355,7 @@ serve(async (req) => {
       timestamp: new Date().toISOString()
     }), {
       status: 500,
-      headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
 })

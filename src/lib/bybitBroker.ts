@@ -1,5 +1,6 @@
 // Bybit Broker SDK for frontend usage
 const BASE = "https://codhlwjogfjywmjyjbbn.supabase.co/functions/v1/bybit-broker";
+const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0";
 
 interface BybitResponse<T = any> {
   success: boolean;
@@ -18,6 +19,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       headers: {
         'content-type': 'application/json',
+        'authorization': `Bearer ${ANON_KEY}`,
         ...(init?.headers || {})
       }
     });
