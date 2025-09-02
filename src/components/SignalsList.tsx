@@ -111,27 +111,42 @@ const SignalsList = () => {
 
       console.log('🔍 Bybit API Response:', { data, error });
 
+      // Check for Supabase function call errors first
       if (error) {
-        console.error('❌ Supabase function error:', error);
-        throw new Error(error.message || 'Failed to call trading function');
+        console.error('❌ Supabase function call failed:', error);
+        throw new Error(`Failed to call trading function: ${error.message}`);
       }
 
-      // Handle both successful and error responses from the function
+      // Check if the function returned an error response (this is the key issue)
       if (data && data.success === false) {
-        // Function returned an error response
+        // Function returned an error response with detailed error info
         console.error('❌ Trading function returned error:', data);
-        throw new Error(data.error || data.technical_error || 'Trading execution failed');
+        const errorMsg = data.error || data.technical_error || 'Trading execution failed';
+        
+        // Show specific help for IP restriction error
+        if (errorMsg.includes('IP Address not whitelisted') || errorMsg.includes('10010')) {
+          throw new Error(`${errorMsg}\n\n💡 Solution: Go to your Bybit API settings and either:\n1. Add your server IP address to the whitelist\n2. Or disable IP restriction completely`);
+        }
+        
+        throw new Error(errorMsg);
       }
 
-      if (!data || !data.success) {
-        console.error('❌ Invalid response from trading function:', data);
-        throw new Error('Invalid response from trading service');
+      // Check for invalid response
+      if (!data) {
+        console.error('❌ No response from trading function');
+        throw new Error('No response received from trading service');
       }
 
-      // Success case
+      // Check for missing success indicator (could be undefined)
+      if (data.success !== true) {
+        console.error('❌ Trading function did not return success:', data);
+        throw new Error('Trading execution failed - no success confirmation received');
+      }
+
+      // Success case - only show this if we have confirmed success
       toast({
         title: `🎯 LIVE ${signal.direction} Order Executed!`,
-        description: `${signal.token} on Bybit - ${useLeverage ? `${leverage}x Leverage` : 'Spot'} | Order ID: ${data.orderId} | Size: $${orderSize}`,
+        description: `${signal.token} on Bybit - ${useLeverage ? `${leverage}x Leverage` : 'Spot'} | Order ID: ${data.orderId || 'Unknown'} | Size: $${orderSize}`,
       });
       console.log('✅ Bybit v5 API order result:', data);
 
