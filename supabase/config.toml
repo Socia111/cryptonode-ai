@@ -1,1 +1,7 @@
 project_id = "codhlwjogfjywmjyjbbn"
+
+[functions.bybit-comprehensive-scanner]
+verify_jwt = false
+
+[functions.trigger-comprehensive-scan]
+verify_jwt = false

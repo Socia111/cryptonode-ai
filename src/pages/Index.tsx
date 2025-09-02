@@ -13,6 +13,7 @@ import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
+import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
 
 const Index = () => {
   return (
@@ -20,6 +21,9 @@ const Index = () => {
       <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Database Setup */}
         <DatabaseSetup />
+        
+        {/* Comprehensive Scanner Dashboard */}
+        <ComprehensiveScannerDashboard />
         
         {/* AItradeX1 Scanner Chart */}
         <AItradeX1ScannerChart />
