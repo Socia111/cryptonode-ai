@@ -106,19 +106,59 @@ class BybitTrader {
 
     const url = this.baseUrl + path + (queryString ? '?' + queryString : '');
     
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: method !== 'GET' ? body : undefined
-    });
+    try {
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: method !== 'GET' ? body : undefined
+      });
 
-    const data = await response.json();
-    
-    if (data.retCode !== 0) {
-      throw new Error(`Bybit API error: ${data.retMsg}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.retCode !== 0) {
+        // Enhanced error handling for common Bybit API errors
+        let errorMessage = data.retMsg || 'Unknown API error';
+        
+        switch (data.retCode) {
+          case 10010:
+            errorMessage = `Unmatched IP, please check your API key's bound IP addresses.`;
+            break;
+          case 10003:
+            errorMessage = 'Invalid API key. Please check your credentials.';
+            break;
+          case 10004:
+            errorMessage = 'Invalid API signature. Please check your API secret.';
+            break;
+          case 10005:
+            errorMessage = 'Permission denied. Please check your API key permissions.';
+            break;
+          case 170130:
+            errorMessage = 'Insufficient wallet balance.';
+            break;
+          case 170131:
+            errorMessage = 'Risk limit exceeded.';
+            break;
+        }
+        
+        throw new Error(`Bybit API error (${data.retCode}): ${errorMessage}`);
+      }
+      
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error('Bybit API request failed:', {
+          endpoint,
+          method,
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+      throw error;
     }
-    
-    return data;
   }
 
   async getAccountBalance(): Promise<any> {
@@ -473,13 +513,75 @@ class AutomatedTradingEngine {
   }
 }
 
+// Helper function to test Bybit connection
+async function testBybitConnection(trader: BybitTrader) {
+  try {
+    console.log('🔧 Testing Bybit API connection...');
+    const balance = await trader.getAccountBalance();
+    console.log('✅ Bybit connection successful');
+    return { success: true, balance };
+  } catch (error) {
+    console.error('❌ Bybit connection failed:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown connection error',
+      details: error
+    };
+  }
+}
+
+// Manual trade execution function
+async function executeManualTrade(trader: BybitTrader, signal: any, quantity: number) {
+  try {
+    console.log(`🎯 Executing manual trade for ${signal.symbol}:`, {
+      direction: signal.direction,
+      price: signal.entry_price,
+      quantity,
+      stopLoss: signal.sl,
+      takeProfit: signal.tp
+    });
+
+    const orderResult = await trader.placeOrder({
+      symbol: signal.symbol.replace('/', ''),
+      side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
+      orderType: 'Market',
+      qty: quantity.toFixed(8),
+      stopLoss: signal.sl?.toString(),
+      takeProfit: signal.tp?.toString()
+    });
+
+    return {
+      success: true,
+      orderId: orderResult.result?.orderId,
+      message: `Trade executed successfully for ${signal.symbol}`
+    };
+  } catch (error) {
+    console.error(`❌ Manual trade execution failed:`, error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown execution error'
+    };
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { action, config } = await req.json();
+    const { action, config, signal, quantity } = await req.json();
+
+    // Check if API credentials are configured
+    if (!BYBIT_API_KEY || !BYBIT_API_SECRET) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Bybit API credentials not configured. Please add BYBIT_API_KEY and BYBIT_API_SECRET secrets.' 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const trader = new BybitTrader(BYBIT_API_KEY, BYBIT_API_SECRET);
     

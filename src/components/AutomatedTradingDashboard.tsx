@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Play, Square, Activity, TrendingUp, TrendingDown, DollarSign, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import LiveSignalsPanel from './LiveSignalsPanel';
 
 interface TradingConfig {
   enabled: boolean;
@@ -162,14 +163,63 @@ const AutomatedTradingDashboard = () => {
           title: "Connection Successful",
           description: "Bybit API connection is working properly",
         });
-        setBalance(data.balance?.list?.[0]);
+        setBalance(data.balance?.result?.list?.[0]);
       } else {
-        throw new Error(data.error);
+        toast({
+          title: "Connection Failed",
+          description: data.error + (data.details ? ` ${data.details}` : ''),
+          variant: "destructive",
+        });
       }
     } catch (error: any) {
       toast({
         title: "Connection Failed",
-        description: error.message,
+        description: error.message || "Failed to test connection",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const executeManualTrade = async (signal: any) => {
+    setLoading(true);
+    try {
+      // Calculate quantity based on risk settings
+      const usdtBalance = parseFloat(getUSDTBalance().available);
+      const riskAmount = usdtBalance * (config.risk_per_trade / 100);
+      const quantity = riskAmount / signal.entry_price;
+
+      const { data, error } = await supabase.functions.invoke('manual-trade-execution', {
+        body: {
+          symbol: signal.symbol,
+          direction: signal.direction,
+          entry_price: signal.entry_price,
+          sl: signal.sl,
+          tp: signal.tp,
+          quantity: quantity
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: "Trade Executed",
+          description: `${signal.direction} order placed for ${signal.symbol}`,
+        });
+        checkStatus(); // Refresh status
+      } else {
+        toast({
+          title: "Trade Failed",
+          description: data.error + (data.help ? ` - ${data.help}` : ''),
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Trade Execution Failed",
+        description: error.message || "Failed to execute trade",
         variant: "destructive",
       });
     } finally {
@@ -257,7 +307,7 @@ const AutomatedTradingDashboard = () => {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="positions">Positions</TabsTrigger>
           <TabsTrigger value="config">Configuration</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
+          <TabsTrigger value="manual">Manual Trading</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -523,16 +573,14 @@ const AutomatedTradingDashboard = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="logs" className="space-y-4">
+        <TabsContent value="manual" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Trading Logs</CardTitle>
-              <CardDescription>Recent automated trading activity</CardDescription>
+              <CardTitle>Manual Trade Execution</CardTitle>
+              <CardDescription>Execute individual trades from live signals</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Trading logs will appear here when the system is active
-              </div>
+              <LiveSignalsPanel onExecuteTrade={executeManualTrade} />
             </CardContent>
           </Card>
         </TabsContent>
