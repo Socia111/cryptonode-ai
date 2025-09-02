@@ -11,6 +11,12 @@ const SignalsList = () => {
   const { signals, loading, generateSignals } = useSignals();
   const { toast } = useToast();
 
+  // Filter signals to only show high-priority ones
+  const prioritySignals = signals.filter(signal => {
+    const priorityIndicator = getPriorityIndicator(signal);
+    return priorityIndicator === '☄️' || priorityIndicator === '☢️' || priorityIndicator === '🦾';
+  });
+
   const handleGenerateSignals = async () => {
     try {
       await generateSignals();
@@ -84,7 +90,7 @@ const SignalsList = () => {
               Generate
             </Button>
             <Badge variant="secondary" className="pulse-glow bg-primary/20 text-primary">
-              {signals.length} Active (5m-4h)
+              {prioritySignals.length} Priority (☄️☢️🦾)
             </Badge>
           </div>
         </CardTitle>
@@ -96,10 +102,11 @@ const SignalsList = () => {
             <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
             <p className="text-sm text-muted-foreground">Loading signals...</p>
           </div>
-        ) : signals.length === 0 ? (
+        ) : prioritySignals.length === 0 ? (
           <div className="text-center py-8">
             <Target className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">No active signals</p>
+            <p className="text-sm text-muted-foreground">No priority signals (☄️☢️🦾)</p>
+            <p className="text-xs text-muted-foreground mt-1">Generate new signals to find high-priority opportunities</p>
             <Button 
               size="sm" 
               variant="outline" 
@@ -110,7 +117,12 @@ const SignalsList = () => {
             </Button>
           </div>
         ) : (
-          signals.map((signal) => {
+          signals
+            .filter(signal => {
+              const priorityIndicator = getPriorityIndicator(signal);
+              return priorityIndicator === '☄️' || priorityIndicator === '☢️' || priorityIndicator === '🦾';
+            })
+            .map((signal) => {
             const isBuy = signal.direction === 'BUY';
             const TrendIcon = isBuy ? TrendingUp : TrendingDown;
 
