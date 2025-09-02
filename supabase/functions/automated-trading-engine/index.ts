@@ -7,14 +7,42 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Environment configuration
+const ENV = {
+  BYBIT_API_KEY: "BYBIT_API_KEY",
+  BYBIT_API_SECRET: "BYBIT_API_SECRET",
+} as const;
+
+function getEnvOrNull(key: string): string | null {
+  try {
+    return Deno.env.get(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Error handling
+class ConfigError extends Error {
+  code = "CONFIG_ERROR";
+  constructor(msg: string, public details?: Record<string, unknown>) {
+    super(msg);
+  }
+}
+
+function mask(val: string | null, keep = 3): string {
+  if (!val) return "None";
+  if (val.length <= keep) return "*".repeat(val.length);
+  return val.slice(0, keep) + "*".repeat(Math.max(0, val.length - keep));
+}
+
 // Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Bybit API configuration - consistent naming
-const BYBIT_API_KEY = Deno.env.get('BYBIT_API_KEY');
-const BYBIT_API_SECRET = Deno.env.get('BYBIT_API_SECRET');
+// Bybit API configuration - using consistent naming
+const BYBIT_API_KEY = getEnvOrNull(ENV.BYBIT_API_KEY);
+const BYBIT_API_SECRET = getEnvOrNull(ENV.BYBIT_API_SECRET);
 const BYBIT_BASE_URL = 'https://api.bybit.com';
 
 interface TradingConfig {
@@ -576,6 +604,101 @@ class AutomatedTradingEngine {
   }
 }
 
+// Credential validation function
+async function validateBybitCreds(opts?: { live?: boolean }) {
+  const apiKey = getEnvOrNull(ENV.BYBIT_API_KEY);
+  const apiSecret = getEnvOrNull(ENV.BYBIT_API_SECRET);
+
+  const summary = {
+    envSeen: {
+      [ENV.BYBIT_API_KEY]: !!apiKey,
+      [ENV.BYBIT_API_SECRET]: !!apiSecret,
+    },
+    previews: {
+      [ENV.BYBIT_API_KEY]: mask(apiKey, 4),
+      [ENV.BYBIT_API_SECRET]: mask(apiSecret, 4),
+    },
+  };
+
+  // Fail fast if missing
+  const missing: string[] = [];
+  if (!apiKey) missing.push(ENV.BYBIT_API_KEY);
+  if (!apiSecret) missing.push(ENV.BYBIT_API_SECRET);
+
+  if (missing.length) {
+    console.error("❌ Missing env vars:", missing.join(", "));
+    throw new ConfigError("Missing required environment variables", {
+      missing,
+      summary,
+      hint: "Set BYBIT_API_KEY and BYBIT_API_SECRET in your function/env settings, remove any old names like BYBIT_SECRET_KEY, then redeploy.",
+    });
+  }
+
+  // Optional live validation
+  if (opts?.live) {
+    const baseUrl = "https://api.bybit.com";
+    const recvWindow = "5000";
+    const ts = Date.now().toString();
+
+    // Lightweight private GET: wallet-balance with minimal params
+    const params = { accountType: "UNIFIED" };
+    const keys = Object.keys(params).sort();
+    const usp = new URLSearchParams();
+    for (const k of keys) {
+      const v = params[k as keyof typeof params];
+      if (v !== undefined && v !== null) usp.append(k, String(v));
+    }
+    const qs = usp.toString();
+    
+    const presign = ts + apiKey + recvWindow + qs;
+    
+    // HMAC signature
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      enc.encode(apiSecret!),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, enc.encode(presign));
+    const sign = [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, "0")).join("");
+
+    const res = await fetch(`${baseUrl}/v5/account/wallet-balance?${qs}`, {
+      method: "GET",
+      headers: {
+        "X-BAPI-API-KEY": apiKey!,
+        "X-BAPI-TIMESTAMP": ts,
+        "X-BAPI-RECV-WINDOW": recvWindow,
+        "X-BAPI-SIGN": sign,
+        "X-BAPI-SIGN-TYPE": "2",
+      },
+    });
+
+    const text = await res.text();
+    let json: any = null;
+    try { json = JSON.parse(text); } catch { /* keep raw */ }
+
+    if (!res.ok || (json && json.retCode && json.retCode !== 0)) {
+      console.error("❌ Bybit live check failed", { status: res.status, body: text });
+      throw new ConfigError("Bybit live credential check failed", {
+        httpStatus: res.status,
+        response: json ?? text,
+        tips: [
+          "Ensure the key has the right permissions (Query/Trade for Unified account).",
+          "IP restriction must allow your function's egress IP.",
+          "System time drift: ensure timestamp is current (use /v5/market/time if needed).",
+        ],
+      });
+    }
+
+    console.log("✅ Bybit live credential check OK");
+  }
+
+  console.log("✅ Env validation OK", summary);
+  return summary;
+}
+
 // Helper function to test Bybit connection
 async function testBybitConnection(trader: BybitV5Client) {
   try {
@@ -627,65 +750,61 @@ async function executeManualTrade(trader: BybitV5Client, signal: any, quantity: 
   }
 }
 
+// JSON response helper
+function json(status: number, body: unknown) {
+  return new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
+  });
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const url = new URL(req.url);
+
+  // Health/diagnostics endpoint used by "Test Trading Engine" button
+  if (url.pathname === "/test-connection" || url.searchParams.get("test") === "true") {
+    try {
+      const summary = await validateBybitCreds({ live: true }); // live = true does an actual signed call
+      return json(200, {
+        ok: true,
+        stage: "credentials",
+        summary,
+        message: "Bybit credentials are present and accepted.",
+      });
+    } catch (err: any) {
+      return json(200, {
+        ok: false,
+        stage: "credentials",
+        error: err?.message ?? "Unknown error",
+        code: err?.code ?? "UNKNOWN",
+        details: err?.details ?? null,
+      });
+    }
+  }
+
+  // Validate credentials at startup for all other requests
+  try {
+    await validateBybitCreds({ live: false });
+  } catch (e) {
+    return json(500, {
+      ok: false,
+      stage: "startup",
+      error: (e as Error).message,
+      details: (e as any)?.details ?? null,
+    });
+  }
+
   try {
     const { action, config, signal, quantity } = await req.json();
 
-    // Enhanced credential validation with detailed logging
-    console.log('🔍 Checking Bybit API credentials...');
-    console.log('Environment variables available:', Object.keys(Deno.env.toObject()));
-    
-    // Check for all possible variable names and log them
-    const envCheck = {
-      BYBIT_API_KEY: Deno.env.get('BYBIT_API_KEY'),
-      BYBIT_API_SECRET: Deno.env.get('BYBIT_API_SECRET'),
-      BYBIT_SECRET_KEY: Deno.env.get('BYBIT_SECRET_KEY'), // Legacy name check
-    };
-    
-    console.log('Credential check results:', {
-      hasApiKey: !!envCheck.BYBIT_API_KEY,
-      apiKeyLength: envCheck.BYBIT_API_KEY?.length || 0,
-      apiKeyPreview: envCheck.BYBIT_API_KEY ? envCheck.BYBIT_API_KEY.substring(0, 8) + '...' : 'None',
-      hasApiSecret: !!envCheck.BYBIT_API_SECRET,
-      apiSecretLength: envCheck.BYBIT_API_SECRET?.length || 0,
-      hasLegacySecret: !!envCheck.BYBIT_SECRET_KEY,
-      timestamp: new Date().toISOString()
-    });
-
-    if (!BYBIT_API_KEY || !BYBIT_API_SECRET || BYBIT_API_KEY === '' || BYBIT_API_SECRET === '') {
-      const errorDetails = {
-        hasApiKey: !!BYBIT_API_KEY,
-        apiKeyLength: BYBIT_API_KEY?.length || 0,
-        hasApiSecret: !!BYBIT_API_SECRET,
-        apiSecretLength: BYBIT_API_SECRET?.length || 0,
-        allEnvKeys: Object.keys(Deno.env.toObject()),
-        requiredVars: ['BYBIT_API_KEY', 'BYBIT_API_SECRET']
-      };
-      
-      console.error('❌ API Credentials validation failed:', errorDetails);
-      
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Bybit API credentials not configured properly. Please ensure BYBIT_API_KEY and BYBIT_API_SECRET are set correctly.',
-          details: errorDetails,
-          help: 'Check your Supabase Edge Function secrets configuration'
-        }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
-
-    console.log('✅ API credentials found, creating Bybit client...');
+    console.log('✅ API credentials validated, creating Bybit client...');
     const trader = new BybitV5Client({
-      apiKey: BYBIT_API_KEY,
-      apiSecret: BYBIT_API_SECRET
+      apiKey: BYBIT_API_KEY!,
+      apiSecret: BYBIT_API_SECRET!
     });
     
     // Default trading configuration
@@ -706,66 +825,52 @@ serve(async (req) => {
     switch (action) {
       case 'start':
         await engine.start();
-        return new Response(JSON.stringify({
+        return json(200, {
           success: true,
           message: 'Automated trading started',
           status: engine.getStatus()
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
 
       case 'stop':
         await engine.stop();
-        return new Response(JSON.stringify({
+        return json(200, {
           success: true,
           message: 'Automated trading stopped'
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
 
       case 'status':
         const balance = await trader.getAccountBalance();
         const positions = await trader.getPositions();
         
-        return new Response(JSON.stringify({
+        return json(200, {
           success: true,
           status: engine.getStatus(),
           account: {
             balance: balance.result,
             positions: positions
           }
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
 
       case 'test_connection':
         const testBalance = await trader.getAccountBalance();
-        return new Response(JSON.stringify({
+        return json(200, {
           success: true,
           message: 'Bybit connection successful',
           balance: testBalance.result
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
 
       default:
-        return new Response(JSON.stringify({
+        return json(400, {
           success: false,
           error: 'Invalid action'
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
     }
 
   } catch (error) {
     console.error('Automated trading error:', error);
-    return new Response(JSON.stringify({
+    return json(500, {
       success: false,
-      error: error.message
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      error: (error as Error).message
     });
   }
 });
