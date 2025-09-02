@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,11 +14,16 @@ serve(async (req) => {
   }
 
   try {
-    // Get environment variables
+    // Get environment variables - these should be available as secrets in Supabase
     const bybitApiKey = Deno.env.get('BYBIT_API_KEY');
     const bybitApiSecret = Deno.env.get('BYBIT_API_SECRET');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    console.log('🔧 Environment Debug:');
+    console.log('  - All available env vars:', Object.keys(Deno.env.toObject()));
+    console.log('  - BYBIT_API_KEY exists:', !!bybitApiKey);
+    console.log('  - BYBIT_API_SECRET exists:', !!bybitApiSecret);
 
     // Check environment variables
     const envStatus = {
@@ -27,7 +33,8 @@ serve(async (req) => {
       hasApiSecret: !!bybitApiSecret,
       apiSecretLength: bybitApiSecret?.length || 0,
       hasSupabaseUrl: !!supabaseUrl,
-      hasSupabaseKey: !!supabaseServiceKey
+      hasSupabaseKey: !!supabaseServiceKey,
+      allEnvKeys: Object.keys(Deno.env.toObject())
     };
 
     // Test Bybit API connectivity (simple server time check)
