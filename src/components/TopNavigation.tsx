@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search, Bell, User, Wallet, ArrowUpRight, ArrowDownLeft, LogOut, Shield } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +17,7 @@ import LivePrice from '@/components/LivePrice';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 const TopNavigation = () => {
   const userInitials = 'U';
+  const { toast } = useToast();
 
   return (
     <header className="h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
@@ -49,18 +51,48 @@ const TopNavigation = () => {
 
         {/* Right section - Actions and profile */}
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2"
+            onClick={() => {
+              toast({
+                title: "Deposit",
+                description: "Deposit functionality will be available soon",
+              });
+            }}
+          >
             <ArrowDownLeft className="w-4 h-4" />
             Deposit
           </Button>
           
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2"
+            onClick={() => {
+              toast({
+                title: "Withdraw",
+                description: "Withdraw functionality will be available soon",
+              });
+            }}
+          >
             <ArrowUpRight className="w-4 h-4" />
             Withdraw
           </Button>
 
           <div className="relative">
-            <Button variant="ghost" size="icon" className="relative">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="relative"
+              onClick={() => {
+                toast({
+                  title: "Notifications",
+                  description: "You have 3 new trading signals",
+                });
+              }}
+            >
               <Bell className="w-5 h-5" />
               <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs bg-destructive">
                 3

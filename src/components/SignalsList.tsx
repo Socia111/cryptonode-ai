@@ -223,6 +223,12 @@ const SignalsList = () => {
                     size="sm" 
                     variant={isBuy ? "default" : "destructive"}
                     className="text-xs"
+                    onClick={() => {
+                      toast({
+                        title: "Trade Execution",
+                        description: `${signal.direction} order for ${signal.token} at $${signal.entry_price.toFixed(4)}`,
+                      });
+                    }}
                   >
                     Execute Trade
                   </Button>

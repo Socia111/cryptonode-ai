@@ -188,7 +188,14 @@ const SpynxScoreCard = () => {
         )}
 
         <div className="flex gap-2 mt-4">
-          <Button variant="outline" className="flex-1 text-xs">
+          <Button 
+            variant="outline" 
+            className="flex-1 text-xs"
+            onClick={() => {
+              // Future implementation for full rankings view
+              console.log('View Full Rankings clicked');
+            }}
+          >
             View Full Rankings
           </Button>
           <Button 

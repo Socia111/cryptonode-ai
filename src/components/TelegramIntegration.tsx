@@ -254,7 +254,17 @@ const TelegramIntegration = () => {
                 </Button>
               </div>
               
-              <Button variant="outline" size="sm" className="w-full">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full"
+                onClick={() => {
+                  toast({
+                    title: "Bot Settings",
+                    description: "Settings panel will be available soon",
+                  });
+                }}
+              >
                 <Settings className="w-3 h-3 mr-1" />
                 Bot Settings
               </Button>
