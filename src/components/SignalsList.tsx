@@ -11,12 +11,6 @@ const SignalsList = () => {
   const { signals, loading, generateSignals } = useSignals();
   const { toast } = useToast();
 
-  // Filter signals to only show high-priority ones
-  const prioritySignals = signals.filter(signal => {
-    const priorityIndicator = getPriorityIndicator(signal);
-    return priorityIndicator === '☄️' || priorityIndicator === '☢️' || priorityIndicator === '🦾';
-  });
-
   const handleGenerateSignals = async () => {
     try {
       await generateSignals();
@@ -70,6 +64,18 @@ const SignalsList = () => {
     return '';
   };
 
+  // Calculate priority signals inline to avoid initialization issues
+  const prioritySignals = signals.filter(signal => {
+    const roiValues = signals.map(s => s.roi_projection).sort((a, b) => b - a);
+    const top1PercentThreshold = roiValues[Math.floor(roiValues.length * 0.01)];
+    const top5PercentThreshold = roiValues[Math.floor(roiValues.length * 0.05)];
+    const top10PercentThreshold = roiValues[Math.floor(roiValues.length * 0.10)];
+    
+    return signal.roi_projection >= top1PercentThreshold || 
+           signal.roi_projection >= top5PercentThreshold || 
+           signal.roi_projection >= top10PercentThreshold;
+  });
+
   return (
     <Card className="glass-card">
       <CardHeader>
@@ -117,12 +123,7 @@ const SignalsList = () => {
             </Button>
           </div>
         ) : (
-          signals
-            .filter(signal => {
-              const priorityIndicator = getPriorityIndicator(signal);
-              return priorityIndicator === '☄️' || priorityIndicator === '☢️' || priorityIndicator === '🦾';
-            })
-            .map((signal) => {
+          prioritySignals.map((signal) => {
             const isBuy = signal.direction === 'BUY';
             const TrendIcon = isBuy ? TrendingUp : TrendingDown;
 
