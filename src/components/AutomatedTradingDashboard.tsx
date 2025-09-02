@@ -86,8 +86,17 @@ const AutomatedTradingDashboard = () => {
         setBalance(data.account?.balance?.result?.list?.[0]);
         setIsRunning(data.status?.isRunning || false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking status:', error);
+      
+      // Show specific error for IP restrictions
+      if (error.message?.includes('non-2xx status code')) {
+        toast({
+          title: "⚠️ Bybit API Error",
+          description: "IP restriction detected. Please remove IP restrictions from your Bybit API key or add Supabase IPs to whitelist.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
