@@ -296,13 +296,32 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('❌ Error executing Bybit order:', error);
     
+    let errorMessage = error.message || 'Failed to execute order';
+    let userFriendlyMessage = errorMessage;
+    
+    // Handle specific Bybit error codes with user-friendly messages
+    if (error.message?.includes('10010')) {
+      userFriendlyMessage = '🔒 IP Address not whitelisted. Please add your server IP to Bybit API settings or disable IP restriction.';
+    } else if (error.message?.includes('10003')) {
+      userFriendlyMessage = '🔑 Invalid API key. Please check your Bybit API credentials.';
+    } else if (error.message?.includes('10004')) {
+      userFriendlyMessage = '⏰ API signature expired. Please check your system time.';
+    } else if (error.message?.includes('10005')) {
+      userFriendlyMessage = '🚫 Invalid API permissions. Enable spot/futures trading in your Bybit API settings.';
+    } else if (error.message?.includes('insufficient balance')) {
+      userFriendlyMessage = '💰 Insufficient balance. Please add funds to your Bybit account.';
+    } else if (error.message?.includes('Missing Bybit API credentials')) {
+      userFriendlyMessage = '🔧 Bybit API credentials not configured. Please add BYBIT_API_KEY and BYBIT_API_SECRET.';
+    }
+    
     return new Response(JSON.stringify({
       success: false,
-      error: error.message || 'Failed to execute order',
+      error: userFriendlyMessage,
+      technical_error: errorMessage,
       timestamp: new Date().toISOString(),
-      details: error.stack ? error.stack.split('\n').slice(0, 3) : undefined
+      help: error.message?.includes('10010') ? 'Go to Bybit API settings and either add your IP address or disable IP restriction.' : undefined
     }), {
-      status: 500,
+      status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
