@@ -11,13 +11,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="h-screen flex w-full bg-background overflow-hidden">
         <AppSidebar />
         
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col h-full">
           <TopNavigation />
           
-          <main className="flex-1 overflow-auto pb-16">
+          <main className="flex-1 overflow-y-auto pb-16">
             {children}
           </main>
           
