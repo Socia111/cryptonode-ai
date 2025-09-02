@@ -43,12 +43,23 @@ interface TradingStatus {
 }
 
 interface AccountBalance {
-  totalWalletBalance: string;
-  totalAvailableBalance: string;
-  coin: Array<{
+  totalWalletBalance?: string;
+  totalAvailableBalance?: string;
+  coin?: Array<{
     coin: string;
     walletBalance: string;
     availableBalance: string;
+  }>;
+  // Real Bybit response structure
+  list?: Array<{
+    totalWalletBalance: string;
+    totalAvailableBalance: string;
+    accountType: string;
+    coin: Array<{
+      coin: string;
+      walletBalance: string;
+      availableBalance: string;
+    }>;
   }>;
 }
 
@@ -84,8 +95,12 @@ const AutomatedTradingDashboard = () => {
 
       if (data.success) {
         setStatus(data.status);
-        setBalance(data.account?.balance?.result?.list?.[0]);
+        // Extract real balance from Bybit account
+        if (data.account?.balance?.list) {
+          setBalance(data.account.balance);
+        }
         setIsRunning(data.status?.isRunning || false);
+        console.log('✅ Real Bybit account data loaded:', data.account);
       }
     } catch (error: any) {
       console.error('Error checking status:', error);
@@ -278,9 +293,10 @@ const AutomatedTradingDashboard = () => {
   };
 
   const getUSDTBalance = () => {
-    if (!balance?.coin) return { wallet: '0', available: '0' };
+    // Handle the real Bybit balance structure
+    if (!balance?.list?.[0]?.coin) return { wallet: '0', available: '0' };
     
-    const usdtCoin = balance.coin.find(coin => coin.coin === 'USDT');
+    const usdtCoin = balance.list[0].coin.find((coin: any) => coin.coin === 'USDT');
     return {
       wallet: usdtCoin?.walletBalance || '0',
       available: usdtCoin?.availableBalance || '0'

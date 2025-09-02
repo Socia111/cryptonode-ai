@@ -2,8 +2,10 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 // Environment configuration - read the actual values, not the names
@@ -892,7 +894,7 @@ function json(status: number, body: unknown) {
 
 // Main hardened handler - ensures diagnostic routes always work
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
 
   const url = new URL(req.url);
 
@@ -991,12 +993,37 @@ Deno.serve(async (req) => {
         });
 
       case 'status': {
+        console.log('📊 Fetching real Bybit account status...');
+        
+        // Get real account balance and positions from Bybit
         const bal = await getWalletBalance(trader, "UNIFIED");
-        const pos = await listPositions(trader);
+        const pos = await listPositions(trader, "linear");
+        
+        console.log('💰 Balance response:', bal);
+        console.log('📈 Positions response:', pos);
+        
+        // Calculate active positions count
+        const activePositions = pos.result?.list?.filter(p => 
+          parseFloat(p.size || '0') > 0
+        ).length || 0;
         
         return json(200, {
           success: true,
-          status: engine.getStatus(),
+          status: {
+            isRunning: engine.getStatus().isRunning,
+            activePositions,
+            config: engine.getStatus().config,
+            positions: pos.result?.list?.map(p => ({
+              symbol: p.symbol,
+              side: p.side,
+              size: parseFloat(p.size || '0'),
+              entry_price: parseFloat(p.avgPrice || '0'),
+              stop_loss: parseFloat(p.stopLoss || '0'),
+              take_profit: parseFloat(p.takeProfit || '0'),
+              pnl: parseFloat(p.unrealisedPnl || '0'),
+              created_at: p.createdTime
+            })) || []
+          },
           account: {
             balance: bal.result,
             positions: pos.result?.list || []
