@@ -368,8 +368,9 @@ export const useSignals = () => {
   };
 
   const handleGenerateSignals = async () => {
+    setLoading(true);
+    
     try {
-      setLoading(true);
       toast({
         title: "🔄 Generating Signals",
         description: "Scanning markets for new trading opportunities..."
@@ -378,7 +379,7 @@ export const useSignals = () => {
       const result = await generateSignals();
       
       // Force refresh signals after generation
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds for signals to save
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Wait 1.5 seconds for signals to save
       await refreshSignals();
       
       toast({
@@ -392,9 +393,10 @@ export const useSignals = () => {
         description: e?.message ?? 'Failed to generate signals',
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
+    
+    // Always clear loading state
+    setLoading(false);
   };
 
   const handleUpdateSpynx = async () => {
