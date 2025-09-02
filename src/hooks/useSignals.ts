@@ -172,7 +172,30 @@ function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) =
       (payload) => {
         console.log('[Signals] New signal received via realtime:', payload.new);
         try {
-          const newSignal = mapSignalsToInterface([payload.new])[0];
+          // Map the actual signals table structure to our Signal interface
+          const rawSignal = payload.new;
+          const newSignal: Signal = {
+            id: rawSignal.id.toString(),
+            token: rawSignal.symbol.replace('USDT', '/USDT'),
+            direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
+            signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
+            timeframe: rawSignal.timeframe,
+            entry_price: Number(rawSignal.price),
+            exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
+            stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
+            leverage: 1,
+            confidence_score: Number(rawSignal.score),
+            pms_score: Number(rawSignal.score),
+            trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
+            volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
+            roi_projection: Math.abs((Number(rawSignal.tp || rawSignal.price * 1.1) - Number(rawSignal.price)) / Number(rawSignal.price) * 100),
+            signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
+            risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
+            quantum_probability: Number(rawSignal.score) / 100,
+            status: 'active',
+            created_at: rawSignal.created_at || new Date().toISOString(),
+          };
+          
           if (newSignal) {
             onInsert(newSignal);
           }
@@ -191,7 +214,30 @@ function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) =
       (payload) => {
         console.log('[Signals] Signal updated via realtime:', payload.new);
         try {
-          const updatedSignal = mapSignalsToInterface([payload.new])[0];
+          // Map the actual signals table structure to our Signal interface
+          const rawSignal = payload.new;
+          const updatedSignal: Signal = {
+            id: rawSignal.id.toString(),
+            token: rawSignal.symbol.replace('USDT', '/USDT'),
+            direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
+            signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
+            timeframe: rawSignal.timeframe,
+            entry_price: Number(rawSignal.price),
+            exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
+            stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
+            leverage: 1,
+            confidence_score: Number(rawSignal.score),
+            pms_score: Number(rawSignal.score),
+            trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
+            volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
+            roi_projection: Math.abs((Number(rawSignal.tp || rawSignal.price * 1.1) - Number(rawSignal.price)) / Number(rawSignal.price) * 100),
+            signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
+            risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
+            quantum_probability: Number(rawSignal.score) / 100,
+            status: 'active',
+            created_at: rawSignal.created_at || new Date().toISOString(),
+          };
+          
           if (updatedSignal) {
             onUpdate(updatedSignal);
           }
