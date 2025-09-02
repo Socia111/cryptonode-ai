@@ -51,138 +51,188 @@ interface Position {
   created_at: string;
 }
 
-class BybitTrader {
+type HttpMethod = "GET" | "POST" | "DELETE";
+
+interface BybitV5ClientOptions {
+  apiKey: string;
+  apiSecret: string;
+  baseUrl?: string;
+  recvWindow?: number;
+  getTime?: () => Promise<number>;
+}
+
+class BybitV5Client {
   private apiKey: string;
   private apiSecret: string;
   private baseUrl: string;
+  private recvWindow: number;
+  private getTime?: () => Promise<number>;
 
-  constructor(apiKey: string, apiSecret: string, baseUrl: string = BYBIT_BASE_URL) {
-    this.apiKey = apiKey;
-    this.apiSecret = apiSecret;
-    this.baseUrl = baseUrl;
-  }
-
-  private async createSignature(timestamp: string, recvWindow: string, params: string): Promise<string> {
-    const message = timestamp + this.apiKey + recvWindow + params;
-    const key = await crypto.subtle.importKey(
-      'raw',
-      new TextEncoder().encode(this.apiSecret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-    
-    const signature = await crypto.subtle.sign(
-      'HMAC',
-      key,
-      new TextEncoder().encode(message)
-    );
-    
-    return Array.from(new Uint8Array(signature))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-  }
-
-  private async makeRequest(method: string, endpoint: string, params: any = {}): Promise<any> {
-    const timestamp = Date.now().toString();
-    const recvWindow = '5000';
-    const queryString = method === 'GET' ? new URLSearchParams(params).toString() : '';
-    const body = method !== 'GET' ? JSON.stringify(params) : '';
-    
-    const signature = await this.createSignature(
-      timestamp,
-      recvWindow,
-      method === 'GET' ? queryString : body
-    );
-
-    const headers = {
-      'X-BAPI-API-KEY': this.apiKey,
-      'X-BAPI-SIGN': signature,
-      'X-BAPI-TIMESTAMP': timestamp,
-      'X-BAPI-RECV-WINDOW': '5000',
-      'Content-Type': 'application/json'
-    };
-
-    const url = this.baseUrl + endpoint + (queryString ? '?' + queryString : '');
-    
-    try {
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: method !== 'GET' ? body : undefined
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.retCode !== 0) {
-        // Enhanced error handling for common Bybit API errors
-        let errorMessage = data.retMsg || 'Unknown API error';
-        
-        switch (data.retCode) {
-          case 10010:
-            errorMessage = `Unmatched IP, please check your API key's bound IP addresses.`;
-            break;
-          case 10003:
-            errorMessage = 'Invalid API key. Please check your credentials.';
-            break;
-          case 10004:
-            errorMessage = 'Invalid API signature. Please check your API secret.';
-            break;
-          case 10005:
-            errorMessage = 'Permission denied. Please check your API key permissions.';
-            break;
-          case 170130:
-            errorMessage = 'Insufficient wallet balance.';
-            break;
-          case 170131:
-            errorMessage = 'Risk limit exceeded.';
-            break;
-        }
-        
-        // Create enhanced error for better debugging
-        const apiError = new Error(`Bybit API error (${data.retCode}): ${errorMessage}`);
-        (apiError as any).retCode = data.retCode;
-        (apiError as any).isApiError = true;
-        (apiError as any).endpoint = endpoint;
-        
-        console.error('Bybit API returned error:', {
-          endpoint,
-          method,
-          retCode: data.retCode,
-          retMsg: data.retMsg,
-          timestamp: new Date().toISOString()
-        });
-        
-        throw apiError;
-      }
-      
-      return data;
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error('Bybit API request failed:', {
-          endpoint,
-          method,
-          error: error.message,
-          timestamp: new Date().toISOString()
-        });
-      }
-      throw error;
+  constructor(opts: BybitV5ClientOptions) {
+    this.apiKey = opts.apiKey;
+    this.apiSecret = opts.apiSecret;
+    this.baseUrl = opts.baseUrl ?? "https://api.bybit.com";
+    this.recvWindow = opts.recvWindow ?? 5000;
+    this.getTime = opts.getTime;
+    if (!this.apiKey || !this.apiSecret) {
+      throw new Error("Bybit credentials missing: apiKey/apiSecret are required.");
     }
   }
 
+  /** Public GET (no auth) */
+  public async publicGet<T = any>(endpoint: string, params: Record<string, any> = {}): Promise<T> {
+    const qs = this.buildQueryString(params);
+    const url = `${this.baseUrl}${endpoint}${qs ? `?${qs}` : ""}`;
+    const res = await fetch(url, { method: "GET" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    return res.json();
+  }
+
+  /** Private (auth) GET/POST/DELETE */
+  public async privateRequest<T = any>(
+    method: HttpMethod,
+    endpoint: string,
+    params: Record<string, any> = {}
+  ): Promise<T> {
+    // 1) Timestamp (server time optional for skew issues)
+    const timestamp = (this.getTime ? await this.getTime() : Date.now()).toString();
+    const recvWindowStr = String(this.recvWindow);
+
+    // 2) Build payloads
+    const isGet = method === "GET";
+    const query = isGet ? this.buildQueryString(params) : "";
+    const body = isGet ? "" : this.stableJSONStringify(params);
+
+    // 3) Pre-sign per Bybit v5:
+    // presign = timestamp + api_key + recv_window + (queryString || body)
+    const presign = timestamp + this.apiKey + recvWindowStr + (isGet ? query : body);
+    const sign = await this.hmacSha256Hex(presign, this.apiSecret);
+
+    // 4) Headers
+    const headers: Record<string, string> = {
+      "X-BAPI-API-KEY": this.apiKey,
+      "X-BAPI-SIGN": sign,
+      "X-BAPI-TIMESTAMP": timestamp,
+      "X-BAPI-RECV-WINDOW": recvWindowStr,
+      "X-BAPI-SIGN-TYPE": "2",
+    };
+    if (!isGet) headers["Content-Type"] = "application/json";
+
+    // 5) URL + fetch
+    const url = `${this.baseUrl}${endpoint}${query ? `?${query}` : ""}`;
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: isGet ? undefined : body,
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text}`);
+
+    // 6) Bybit returns JSON always
+    const data = JSON.parse(text) as T;
+    
+    // Enhanced error handling for Bybit API responses
+    if ((data as any).retCode !== 0) {
+      let errorMessage = (data as any).retMsg || 'Unknown API error';
+      
+      switch ((data as any).retCode) {
+        case 10010:
+          errorMessage = `Unmatched IP, please check your API key's bound IP addresses.`;
+          break;
+        case 10003:
+          errorMessage = 'Invalid API key. Please check your credentials.';
+          break;
+        case 10004:
+          errorMessage = 'Invalid API signature. Please check your API secret.';
+          break;
+        case 10005:
+          errorMessage = 'Permission denied. Please check your API key permissions.';
+          break;
+        case 170130:
+          errorMessage = 'Insufficient wallet balance.';
+          break;
+        case 170131:
+          errorMessage = 'Risk limit exceeded.';
+          break;
+      }
+      
+      console.error('Bybit API returned error:', {
+        endpoint,
+        method,
+        retCode: (data as any).retCode,
+        retMsg: (data as any).retMsg,
+        timestamp: new Date().toISOString()
+      });
+      
+      throw new Error(`Bybit API error (${(data as any).retCode}): ${errorMessage}`);
+    }
+    
+    return data;
+  }
+
+  // Convenience wrappers
+  public privateGet<T = any>(endpoint: string, params: Record<string, any> = {}) {
+    return this.privateRequest<T>("GET", endpoint, params);
+  }
+  public privatePost<T = any>(endpoint: string, params: Record<string, any> = {}) {
+    return this.privateRequest<T>("POST", endpoint, params);
+  }
+  public privateDelete<T = any>(endpoint: string, params: Record<string, any> = {}) {
+    return this.privateRequest<T>("DELETE", endpoint, params);
+  }
+
+  /** Stable querystring: sort keys asc, stringify values */
+  private buildQueryString(params: Record<string, any>): string {
+    const keys = Object.keys(params);
+    if (keys.length === 0) return "";
+    keys.sort();
+    const usp = new URLSearchParams();
+    for (const k of keys) {
+      let v = params[k];
+      if (typeof v === "bigint") v = v.toString();
+      if (v === undefined || v === null) continue;
+      usp.append(k, String(v));
+    }
+    return usp.toString();
+  }
+
+  /** Stable JSON stringify: sort keys, no spaces */
+  private stableJSONStringify(obj: Record<string, any>): string {
+    const keys = Object.keys(obj).sort();
+    const normalized: Record<string, any> = {};
+    for (const k of keys) {
+      const v = obj[k];
+      normalized[k] = typeof v === "bigint" ? v.toString() : v;
+    }
+    return JSON.stringify(normalized);
+  }
+
+  /** HMAC-SHA256 -> lowercase hex (Node or Browser) */
+  private async hmacSha256Hex(message: string, secret: string): Promise<string> {
+    // Browser/Deno
+    if (typeof crypto !== "undefined" && crypto.subtle) {
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        enc.encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+      return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+    throw new Error("Crypto.subtle not available");
+  }
   async getAccountBalance(): Promise<any> {
-    return this.makeRequest('GET', '/v5/account/wallet-balance', {
-      accountType: 'SPOT'
+    return this.privateGet('/v5/account/wallet-balance', {
+      accountType: 'UNIFIED'
     });
   }
 
   async getPositions(): Promise<Position[]> {
-    const response = await this.makeRequest('GET', '/v5/position/list', {
-      category: 'spot'
+    const response = await this.privateGet('/v5/position/list', {
+      category: 'linear'
     });
     
     return response.result.list.map((pos: any) => ({
@@ -207,7 +257,7 @@ class BybitTrader {
     takeProfit?: string;
   }): Promise<any> {
     const params = {
-      category: 'spot',
+      category: 'linear',
       symbol: orderParams.symbol,
       side: orderParams.side,
       orderType: orderParams.orderType,
@@ -218,12 +268,12 @@ class BybitTrader {
       timeInForce: 'GTC'
     };
 
-    return this.makeRequest('POST', '/v5/order/create', params);
+    return this.privatePost('/v5/order/create', params);
   }
 
   async cancelOrder(symbol: string, orderId: string): Promise<any> {
-    return this.makeRequest('POST', '/v5/order/cancel', {
-      category: 'spot',
+    return this.privatePost('/v5/order/cancel', {
+      category: 'linear',
       symbol,
       orderId
     });
@@ -231,12 +281,12 @@ class BybitTrader {
 }
 
 class AutomatedTradingEngine {
-  private trader: BybitTrader;
+  private trader: BybitV5Client;
   private config: TradingConfig;
   private isRunning: boolean = false;
   private activePositions: Map<string, Position> = new Map();
 
-  constructor(trader: BybitTrader, config: TradingConfig) {
+  constructor(trader: BybitV5Client, config: TradingConfig) {
     this.trader = trader;
     this.config = config;
   }
@@ -527,7 +577,7 @@ class AutomatedTradingEngine {
 }
 
 // Helper function to test Bybit connection
-async function testBybitConnection(trader: BybitTrader) {
+async function testBybitConnection(trader: BybitV5Client) {
   try {
     console.log('🔧 Testing Bybit API connection...');
     const balance = await trader.getAccountBalance();
@@ -544,7 +594,7 @@ async function testBybitConnection(trader: BybitTrader) {
 }
 
 // Manual trade execution function
-async function executeManualTrade(trader: BybitTrader, signal: any, quantity: number) {
+async function executeManualTrade(trader: BybitV5Client, signal: any, quantity: number) {
   try {
     console.log(`🎯 Executing manual trade for ${signal.symbol}:`, {
       direction: signal.direction,
@@ -607,7 +657,10 @@ serve(async (req) => {
       );
     }
 
-    const trader = new BybitTrader(BYBIT_API_KEY, BYBIT_API_SECRET);
+    const trader = new BybitV5Client({
+      apiKey: BYBIT_API_KEY,
+      apiSecret: BYBIT_API_SECRET
+    });
     
     // Default trading configuration
     const defaultConfig: TradingConfig = {
