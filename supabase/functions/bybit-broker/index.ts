@@ -263,6 +263,45 @@ serve(async (req) => {
         const r = await bybitRequest("/v5/market/tickers", "GET", query);
         return json(200, { success: true, tickers: r?.result?.list ?? [] });
       }
+
+      // Affiliate endpoints
+      if (pathname.endsWith("/affiliate/users")) {
+        const query: Record<string, unknown> = {};
+        ["cursor","size","needDeposit","need30","need365"].forEach(k => {
+          const v = sp.get(k); if (v !== null) query[k] = v;
+        });
+        const r = await bybitRequest("/v5/affiliate/aff-user-list", "GET", query);
+        return json(200, { success: true, ...r });
+      }
+
+      if (pathname.endsWith("/affiliate/user-info")) {
+        const uid = sp.get("uid");
+        if (!uid) return json(400, { success: false, error: "uid required" });
+        const r = await bybitRequest("/v5/user/aff-customer-info", "GET", { uid });
+        return json(200, { success: true, ...r });
+      }
+
+      // Spot Margin endpoints
+      if (pathname.endsWith("/spot-margin/data")) {
+        const query: Record<string, unknown> = {};
+        ["vipLevel","currency"].forEach(k => { const v = sp.get(k); if (v) query[k] = v; });
+        const r = await bybitRequest("/v5/spot-margin-trade/data", "GET", query);
+        return json(200, { success: true, ...r });
+      }
+
+      if (pathname.endsWith("/spot-margin/collateral")) {
+        const query: Record<string, unknown> = {};
+        const c = sp.get("currency"); if (c) query.currency = c;
+        const r = await bybitRequest("/v5/spot-margin-trade/collateral", "GET", query);
+        return json(200, { success: true, ...r });
+      }
+
+      if (pathname.endsWith("/spot-margin/interest-rate-history")) {
+        const query: Record<string, unknown> = {};
+        ["currency","vipLevel","startTime","endTime"].forEach(k => { const v = sp.get(k); if (v) query[k] = v; });
+        const r = await bybitRequest("/v5/spot-margin-trade/interest-rate-history", "GET", query);
+        return json(200, { success: true, ...r });
+      }
     }
 
     // ------- POST actions -------
@@ -313,6 +352,13 @@ serve(async (req) => {
         return json(200, { success: true, result: r?.result ?? null });
       }
 
+      // Spot margin mode switch
+      if (pathname.endsWith("/spot-margin/switch-mode")) {
+        if (!body?.spotMarginMode) return json(400, { success:false, error:"spotMarginMode required (\"1\" or \"0\")" });
+        const r = await bybitRequest("/v5/spot-margin-trade/switch-mode", "POST", {}, { spotMarginMode: String(body.spotMarginMode) });
+        return json(200, { success: true, ...r });
+      }
+
       return json(400, { success: false, error: "Unknown action or path" });
     }
 
@@ -322,8 +368,8 @@ serve(async (req) => {
       path: pathname,
       method: req.method,
       availableEndpoints: {
-        GET: ["/ping", "/env", "/test-connection", "/orders", "/positions", "/tickers"],
-        POST: ["/order", "/cancel", "/ (with action: status)"],
+        GET: ["/ping", "/env", "/test-connection", "/orders", "/positions", "/tickers", "/affiliate/users", "/affiliate/user-info", "/spot-margin/data", "/spot-margin/collateral", "/spot-margin/interest-rate-history"],
+        POST: ["/order", "/cancel", "/spot-margin/switch-mode", "/ (with action: status)"],
       },
     });
   } catch (e) {
