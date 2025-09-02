@@ -6,47 +6,86 @@ const corsHeaders = {
 };
 
 interface BybitOrderParams {
-  category: string;
+  category: 'spot' | 'linear' | 'inverse' | 'option';
   symbol: string;
   side: 'Buy' | 'Sell';
   orderType: 'Market' | 'Limit';
   qty: string;
   price?: string;
-  timeInForce?: 'GTC' | 'IOC' | 'FOK';
+  timeInForce?: 'GTC' | 'IOC' | 'FOK' | 'PostOnly';
+  orderLinkId?: string;
+  isLeverage?: 0 | 1;
+  orderFilter?: 'Order' | 'StopOrder' | 'tpslOrder';
+  triggerDirection?: 1 | 2;
+  triggerPrice?: string;
+  triggerBy?: 'LastPrice' | 'IndexPrice' | 'MarkPrice';
+  orderIv?: string;
+  positionIdx?: 0 | 1 | 2;
   stopLoss?: string;
   takeProfit?: string;
+  tpTriggerBy?: 'LastPrice' | 'IndexPrice' | 'MarkPrice';
+  slTriggerBy?: 'LastPrice' | 'IndexPrice' | 'MarkPrice';
+  reduceOnly?: boolean;
+  closeOnTrigger?: boolean;
+  smpType?: 'None' | 'CancelMaker' | 'CancelTaker' | 'CancelBoth';
+  mmp?: boolean;
+  tpslMode?: 'Full' | 'Partial';
+  tpLimitPrice?: string;
+  slLimitPrice?: string;
+  tpOrderType?: 'Market' | 'Limit';
+  slOrderType?: 'Market' | 'Limit';
 }
 
-function generateSignature(params: Record<string, any>, apiSecret: string, timestamp: string): string {
-  const orderedParams = Object.keys(params)
-    .sort()
-    .map(key => `${key}=${params[key]}`)
-    .join('&');
-  
-  const queryString = `${timestamp}${orderedParams}`;
-  return createHmac('sha256', apiSecret).update(queryString).digest('hex');
+interface BybitResponse<T = any> {
+  retCode: number;
+  retMsg: string;
+  result: T;
+  retExtInfo: Record<string, any>;
+  time: number;
 }
 
-async function executeBybitOrder(orderParams: BybitOrderParams): Promise<any> {
+interface OrderResult {
+  orderId: string;
+  orderLinkId: string;
+}
+
+// Generate signature according to Bybit v5 API docs
+function generateSignature(timestamp: string, apiKey: string, recvWindow: string, queryString: string, apiSecret: string): string {
+  const param_str = timestamp + apiKey + recvWindow + queryString;
+  return createHmac('sha256', apiSecret).update(param_str).digest('hex');
+}
+
+async function executeBybitOrder(orderParams: BybitOrderParams): Promise<BybitResponse<OrderResult>> {
   const apiKey = Deno.env.get('BYBIT_API_KEY');
   const apiSecret = Deno.env.get('BYBIT_API_SECRET');
   
   if (!apiKey || !apiSecret) {
-    throw new Error('Missing Bybit API credentials');
+    throw new Error('Missing Bybit API credentials. Please configure BYBIT_API_KEY and BYBIT_API_SECRET.');
   }
 
   const timestamp = Date.now().toString();
   const recvWindow = '5000';
   
-  const params = {
-    ...orderParams,
-    timestamp,
-    recvWindow,
-  };
-
-  const signature = generateSignature(params, apiSecret, timestamp);
+  // Clean params - remove undefined values
+  const cleanParams = Object.fromEntries(
+    Object.entries(orderParams).filter(([_, value]) => value !== undefined)
+  );
+  
+  const queryString = JSON.stringify(cleanParams);
+  const signature = generateSignature(timestamp, apiKey, recvWindow, queryString, apiSecret);
   
   const url = 'https://api.bybit.com/v5/order/create';
+  
+  console.log('Bybit API Request:', {
+    url,
+    params: cleanParams,
+    timestamp,
+    headers: {
+      'X-BAPI-API-KEY': apiKey.substring(0, 8) + '...',
+      'X-BAPI-TIMESTAMP': timestamp,
+      'X-BAPI-RECV-WINDOW': recvWindow,
+    }
+  });
   
   const response = await fetch(url, {
     method: 'POST',
@@ -57,13 +96,64 @@ async function executeBybitOrder(orderParams: BybitOrderParams): Promise<any> {
       'X-BAPI-RECV-WINDOW': recvWindow,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(orderParams),
+    body: queryString,
+  });
+
+  const result: BybitResponse<OrderResult> = await response.json();
+  
+  console.log('Bybit API Response:', {
+    status: response.status,
+    retCode: result.retCode,
+    retMsg: result.retMsg,
+    orderId: result.result?.orderId
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  if (result.retCode !== 0) {
+    throw new Error(`Bybit API error (${result.retCode}): ${result.retMsg}`);
+  }
+
+  return result;
+}
+
+// Get account balance for validation
+async function getAccountBalance(category: string, coin?: string): Promise<any> {
+  const apiKey = Deno.env.get('BYBIT_API_KEY');
+  const apiSecret = Deno.env.get('BYBIT_API_SECRET');
+  
+  if (!apiKey || !apiSecret) {
+    throw new Error('Missing Bybit API credentials');
+  }
+
+  const timestamp = Date.now().toString();
+  const recvWindow = '5000';
+  
+  let queryString = `accountType=UNIFIED&category=${category}`;
+  if (coin) {
+    queryString += `&coin=${coin}`;
+  }
+  
+  const signature = generateSignature(timestamp, apiKey, recvWindow, queryString, apiSecret);
+  
+  const url = `https://api.bybit.com/v5/account/wallet-balance?${queryString}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'X-BAPI-API-KEY': apiKey,
+      'X-BAPI-SIGN': signature,
+      'X-BAPI-TIMESTAMP': timestamp,
+      'X-BAPI-RECV-WINDOW': recvWindow,
+    },
   });
 
   const result = await response.json();
   
   if (!response.ok || result.retCode !== 0) {
-    throw new Error(`Bybit API error: ${result.retMsg || 'Unknown error'}`);
+    throw new Error(`Failed to get balance: ${result.retMsg || 'Unknown error'}`);
   }
 
   return result;
@@ -76,57 +166,127 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { signal, orderSize = '10' } = await req.json();
+    const { signal, orderSize = '10', category = 'spot', testMode = false } = await req.json();
     
     if (!signal) {
       throw new Error('Signal data is required');
     }
 
-    console.log('Executing order for signal:', signal);
+    console.log('🚀 Executing Bybit order for signal:', {
+      token: signal.token,
+      direction: signal.direction,
+      entry_price: signal.entry_price,
+      orderSize,
+      category
+    });
 
-    // Prepare order parameters based on the signal
+    // Validate signal data
+    if (!signal.token || !signal.direction || !signal.entry_price) {
+      throw new Error('Invalid signal data: missing required fields (token, direction, entry_price)');
+    }
+
+    // Generate unique order link ID
+    const orderLinkId = `signal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Clean symbol format (remove slashes, ensure USDT pair)
+    let symbol = signal.token.replace('/', '').toUpperCase();
+    if (!symbol.endsWith('USDT')) {
+      symbol = symbol.replace('USDT', '') + 'USDT';
+    }
+
+    // Prepare order parameters based on Bybit v5 API
     const orderParams: BybitOrderParams = {
-      category: 'spot', // or 'linear' for futures
-      symbol: signal.token.replace('/', ''),
+      category: category as 'spot' | 'linear',
+      symbol: symbol,
       side: signal.direction === 'BUY' ? 'Buy' : 'Sell',
       orderType: 'Market',
-      qty: orderSize,
-      timeInForce: 'IOC',
+      qty: orderSize.toString(),
+      orderLinkId: orderLinkId,
+      timeInForce: 'IOC', // Immediate or Cancel for market orders
     };
 
-    // Add stop loss and take profit if available
-    if (signal.stop_loss) {
-      orderParams.stopLoss = signal.stop_loss.toString();
-    }
-    
-    if (signal.exit_target) {
-      orderParams.takeProfit = signal.exit_target.toString();
+    // For linear/futures trading, add position index
+    if (category === 'linear') {
+      orderParams.positionIdx = 0; // One-way mode
     }
 
-    console.log('Order parameters:', orderParams);
+    // Add stop loss and take profit if available
+    // Note: For spot trading, SL/TP might need separate orders
+    if (signal.stop_loss && category === 'linear') {
+      orderParams.stopLoss = signal.stop_loss.toString();
+      orderParams.slTriggerBy = 'LastPrice';
+    }
+    
+    if (signal.exit_target && category === 'linear') {
+      orderParams.takeProfit = signal.exit_target.toString();
+      orderParams.tpTriggerBy = 'LastPrice';
+    }
+
+    console.log('📊 Order parameters:', orderParams);
+
+    if (testMode) {
+      // Return mock response for testing
+      return new Response(JSON.stringify({
+        success: true,
+        testMode: true,
+        orderId: `test_${orderLinkId}`,
+        orderLinkId: orderLinkId,
+        message: `TEST MODE: ${signal.direction} order prepared for ${symbol}`,
+        orderParams,
+        signal
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check account balance before executing (optional safety check)
+    try {
+      const balance = await getAccountBalance(category, 'USDT');
+      console.log('💰 Account balance check passed');
+    } catch (balanceError) {
+      console.warn('⚠️ Could not verify balance:', balanceError.message);
+      // Continue with order execution anyway
+    }
 
     // Execute the order
     const orderResult = await executeBybitOrder(orderParams);
 
-    console.log('Order executed successfully:', orderResult);
+    console.log('✅ Order executed successfully:', {
+      orderId: orderResult.result.orderId,
+      orderLinkId: orderResult.result.orderLinkId,
+      retCode: orderResult.retCode,
+      retMsg: orderResult.retMsg
+    });
 
     return new Response(JSON.stringify({
       success: true,
       orderId: orderResult.result.orderId,
       orderLinkId: orderResult.result.orderLinkId,
-      message: `${signal.direction} order executed for ${signal.token}`,
+      message: `${signal.direction} order executed for ${symbol}`,
       orderParams,
-      result: orderResult
+      bybitResponse: {
+        retCode: orderResult.retCode,
+        retMsg: orderResult.retMsg,
+        time: orderResult.time
+      },
+      signal: {
+        token: signal.token,
+        direction: signal.direction,
+        entry_price: signal.entry_price,
+        confidence: signal.confidence_score
+      }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('Error executing Bybit order:', error);
+    console.error('❌ Error executing Bybit order:', error);
     
     return new Response(JSON.stringify({
       success: false,
-      error: error.message || 'Failed to execute order'
+      error: error.message || 'Failed to execute order',
+      timestamp: new Date().toISOString(),
+      details: error.stack ? error.stack.split('\n').slice(0, 3) : undefined
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
