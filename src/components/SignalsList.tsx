@@ -3,14 +3,19 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw, Activity } from 'lucide-react';
 import { useSignals } from '@/hooks/useSignals';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const SignalsList = () => {
   const { signals, loading, generateSignals } = useSignals();
   const { toast } = useToast();
   const [showAllSignals, setShowAllSignals] = useState(false);
+  const [orderSize, setOrderSize] = useState('10');
+  const [isExecutingOrder, setIsExecutingOrder] = useState(false);
 
   // Calculate priority signals immediately after hooks
   const prioritySignals = signals.filter(signal => {
@@ -40,6 +45,42 @@ const SignalsList = () => {
         description: "Failed to generate signals",
         variant: "destructive",
       });
+    }
+  };
+
+  const executeOrder = async (signal: any) => {
+    try {
+      setIsExecutingOrder(true);
+      
+      const { data, error } = await supabase.functions.invoke('bybit-order-execution', {
+        body: { 
+          signal,
+          orderSize 
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.success) {
+        toast({
+          title: "Order Executed Successfully! 🚀",
+          description: `${signal.direction} order for ${signal.token} - Order ID: ${data.orderId}`,
+        });
+      } else {
+        throw new Error(data.error || 'Failed to execute order');
+      }
+
+    } catch (error: any) {
+      console.error('Error executing order:', error);
+      toast({
+        title: "Order Execution Failed",
+        description: error.message || 'Failed to execute order on Bybit',
+        variant: "destructive",
+      });
+    } finally {
+      setIsExecutingOrder(false);
     }
   };
 
@@ -223,19 +264,57 @@ const SignalsList = () => {
                     size="sm" 
                     variant={isBuy ? "default" : "destructive"}
                     className="text-xs"
-                    onClick={() => {
-                      toast({
-                        title: "Trade Execution",
-                        description: `${signal.direction} order for ${signal.token} at $${signal.entry_price.toFixed(4)}`,
-                      });
-                    }}
+                    onClick={() => executeOrder(signal)}
+                    disabled={isExecutingOrder}
                   >
-                    Execute Trade
+                    {isExecutingOrder ? 'Executing...' : 'Execute Trade'}
                   </Button>
                 </div>
               </div>
             );
           })
+        )}
+
+        {/* Order Execution Controls */}
+        {signals.length > 0 && (
+          <div className="mt-6 p-4 bg-muted/50 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="orderSize" className="text-xs font-medium">
+                    Order Size (USDT)
+                  </Label>
+                  <Input
+                    id="orderSize"
+                    type="number"
+                    value={orderSize}
+                    onChange={(e) => setOrderSize(e.target.value)}
+                    className="w-24 h-8 text-xs"
+                    min="1"
+                    step="1"
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  <p>Execute trades directly on Bybit</p>
+                  <p className="text-warning">⚠️ Real money trading - use carefully!</p>
+                </div>
+              </div>
+              
+              <Button
+                onClick={() => {
+                  if (signals.length > 0) {
+                    executeOrder(signals[0]);
+                  }
+                }}
+                disabled={isExecutingOrder || signals.length === 0}
+                className="gap-2"
+                variant="outline"
+              >
+                <Activity className="w-4 h-4" />
+                {isExecutingOrder ? 'Executing...' : 'Execute Top Signal'}
+              </Button>
+            </div>
+          </div>
         )}
 
         <Button 
