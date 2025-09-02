@@ -7,12 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Environment configuration
-const ENV = {
-  BYBIT_API_KEY: "BYBIT_API_KEY",
-  BYBIT_API_SECRET: "BYBIT_API_SECRET",
-} as const;
-
+// Environment configuration - read the actual values, not the names
 function getEnvOrNull(key: string): string | null {
   try {
     return Deno.env.get(key) ?? null;
@@ -40,9 +35,9 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Bybit API configuration - using consistent naming
-const BYBIT_API_KEY = getEnvOrNull(ENV.BYBIT_API_KEY);
-const BYBIT_API_SECRET = getEnvOrNull(ENV.BYBIT_API_SECRET);
+// Bybit API configuration - read actual environment variables
+const BYBIT_API_KEY = getEnvOrNull("BYBIT_API_KEY");
+const BYBIT_API_SECRET = getEnvOrNull("BYBIT_API_SECRET");
 const BYBIT_BASE_URL = 'https://api.bybit.com';
 
 // Debug credential loading
@@ -617,24 +612,24 @@ class AutomatedTradingEngine {
 
 // Credential validation function
 async function validateBybitCreds(opts?: { live?: boolean }) {
-  const apiKey = getEnvOrNull(ENV.BYBIT_API_KEY);
-  const apiSecret = getEnvOrNull(ENV.BYBIT_API_SECRET);
+  const apiKey = getEnvOrNull("BYBIT_API_KEY");
+  const apiSecret = getEnvOrNull("BYBIT_API_SECRET");
 
   const summary = {
     envSeen: {
-      [ENV.BYBIT_API_KEY]: !!apiKey,
-      [ENV.BYBIT_API_SECRET]: !!apiSecret,
+      "BYBIT_API_KEY": !!apiKey,
+      "BYBIT_API_SECRET": !!apiSecret,
     },
     previews: {
-      [ENV.BYBIT_API_KEY]: mask(apiKey, 4),
-      [ENV.BYBIT_API_SECRET]: mask(apiSecret, 4),
+      "BYBIT_API_KEY": mask(apiKey, 4),
+      "BYBIT_API_SECRET": mask(apiSecret, 4),
     },
   };
 
   // Fail fast if missing
   const missing: string[] = [];
-  if (!apiKey) missing.push(ENV.BYBIT_API_KEY);
-  if (!apiSecret) missing.push(ENV.BYBIT_API_SECRET);
+  if (!apiKey) missing.push("BYBIT_API_KEY");
+  if (!apiSecret) missing.push("BYBIT_API_SECRET");
 
   if (missing.length) {
     console.error("❌ Missing env vars:", missing.join(", "));
@@ -809,14 +804,29 @@ serve(async (req) => {
     });
   }
 
-  // Validate credentials at startup for all other requests
+  // Safe JSON parsing for POST requests only
+  let body: any = {};
+  if (req.method === "POST" && req.headers.get("content-type")?.includes("application/json")) {
+    try {
+      body = await req.json();
+    } catch (jsonError) {
+      console.error('JSON parsing error:', jsonError);
+      return json(400, {
+        ok: false,
+        error: "Invalid JSON in request body",
+        details: (jsonError as Error).message
+      });
+    }
+  }
+
+  // Only validate credentials for trading actions (POST requests)
   try {
     console.log('🔧 Validating credentials for request:', url.pathname);
     await validateBybitCreds({ live: false });
     console.log('✅ Credential validation passed');
   } catch (e) {
     console.error('❌ Credential validation failed:', e);
-    return json(500, {
+    return json(401, {
       ok: false,
       stage: "startup",
       error: (e as Error).message,
@@ -825,7 +835,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, config, signal, quantity } = await req.json();
+    const { action, config, signal, quantity } = body;
 
     console.log('✅ API credentials validated, creating Bybit client...');
     const trader = new BybitV5Client({
