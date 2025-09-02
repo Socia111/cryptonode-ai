@@ -797,6 +797,18 @@ serve(async (req) => {
     }
   }
 
+  // Optional diagnostics endpoint
+  if (url.pathname === "/env" || url.searchParams.get("env") === "true") {
+    return json(200, {
+      keys: ["BYBIT_API_KEY", "BYBIT_API_SECRET"],
+      previews: {
+        BYBIT_API_KEY: mask(BYBIT_API_KEY ?? "", 4),
+        BYBIT_API_SECRET: mask(BYBIT_API_SECRET ?? "", 4),
+      },
+      timestamp: Date.now()
+    });
+  }
+
   // Validate credentials at startup for all other requests
   try {
     await validateBybitCreds({ live: false });
