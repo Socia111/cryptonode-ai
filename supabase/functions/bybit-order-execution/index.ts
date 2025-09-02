@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
       symbol = symbol.replace('USDT', '') + 'USDT';
     }
 
-    // Prepare order parameters based on Bybit v5 API
+    // Prepare order parameters based on Bybit v5 API with ALL signal data
     const orderParams: BybitOrderParams = {
       category: category as 'spot' | 'linear',
       symbol: symbol,
@@ -210,16 +210,30 @@ Deno.serve(async (req) => {
       orderParams.positionIdx = 0; // One-way mode
     }
 
-    // Add stop loss and take profit if available
-    // Note: For spot trading, SL/TP might need separate orders
-    if (signal.stop_loss && category === 'linear') {
+    // ALWAYS add stop loss and take profit from signals (all signal parameters)
+    if (signal.stop_loss) {
       orderParams.stopLoss = signal.stop_loss.toString();
       orderParams.slTriggerBy = 'LastPrice';
+      orderParams.slOrderType = 'Market';
     }
     
-    if (signal.exit_target && category === 'linear') {
-      orderParams.takeProfit = signal.exit_target.toString();
+    if (signal.exit_target || signal.take_profit) {
+      const targetPrice = signal.exit_target || signal.take_profit;
+      orderParams.takeProfit = targetPrice.toString();
       orderParams.tpTriggerBy = 'LastPrice';
+      orderParams.tpOrderType = 'Market';
+    }
+
+    // Add additional signal parameters for risk management
+    if (signal.confidence_score && signal.confidence_score < 70) {
+      // Reduce quantity for low confidence signals
+      const adjustedQty = parseFloat(orderSize) * 0.5;
+      orderParams.qty = adjustedQty.toString();
+    }
+
+    // For spot trading with SL/TP, we'll need conditional orders (OCO)
+    if (category === 'spot' && (signal.stop_loss || signal.exit_target)) {
+      console.log('🔄 Spot trading with SL/TP - will create conditional orders after main order');
     }
 
     console.log('📊 Order parameters:', orderParams);
