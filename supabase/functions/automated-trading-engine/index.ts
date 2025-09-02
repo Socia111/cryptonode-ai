@@ -45,6 +45,17 @@ const BYBIT_API_KEY = getEnvOrNull(ENV.BYBIT_API_KEY);
 const BYBIT_API_SECRET = getEnvOrNull(ENV.BYBIT_API_SECRET);
 const BYBIT_BASE_URL = 'https://api.bybit.com';
 
+// Debug credential loading
+console.log('🔧 Loading Bybit credentials...');
+console.log('  - API Key present:', !!BYBIT_API_KEY);
+console.log('  - API Secret present:', !!BYBIT_API_SECRET);
+if (BYBIT_API_KEY) {
+  console.log('  - API Key preview:', BYBIT_API_KEY.substring(0, 8) + '...');
+}
+if (!BYBIT_API_KEY || !BYBIT_API_SECRET) {
+  console.error('❌ Missing Bybit credentials - check your edge function secrets');
+}
+
 interface TradingConfig {
   enabled: boolean;
   max_position_size: number;
