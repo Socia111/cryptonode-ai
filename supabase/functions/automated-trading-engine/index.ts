@@ -62,8 +62,8 @@ class BybitTrader {
     this.baseUrl = baseUrl;
   }
 
-  private async createSignature(timestamp: string, method: string, path: string, params: string): Promise<string> {
-    const message = timestamp + this.apiKey + method + path + params;
+  private async createSignature(timestamp: string, recvWindow: string, params: string): Promise<string> {
+    const message = timestamp + this.apiKey + recvWindow + params;
     const key = await crypto.subtle.importKey(
       'raw',
       new TextEncoder().encode(this.apiSecret),
@@ -85,14 +85,13 @@ class BybitTrader {
 
   private async makeRequest(method: string, endpoint: string, params: any = {}): Promise<any> {
     const timestamp = Date.now().toString();
-    const path = endpoint;
+    const recvWindow = '5000';
     const queryString = method === 'GET' ? new URLSearchParams(params).toString() : '';
     const body = method !== 'GET' ? JSON.stringify(params) : '';
     
     const signature = await this.createSignature(
       timestamp,
-      method,
-      path,
+      recvWindow,
       method === 'GET' ? queryString : body
     );
 
@@ -104,7 +103,7 @@ class BybitTrader {
       'Content-Type': 'application/json'
     };
 
-    const url = this.baseUrl + path + (queryString ? '?' + queryString : '');
+    const url = this.baseUrl + endpoint + (queryString ? '?' + queryString : '');
     
     try {
       const response = await fetch(url, {
