@@ -1,5 +1,4 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
 
 const corsHeaders = {
@@ -30,28 +29,111 @@ function mask(val: string | null, keep = 3): string {
   return val.slice(0, keep) + "*".repeat(Math.max(0, val.length - keep));
 }
 
-// Initialize Supabase client
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-// Bybit API configuration - read actual environment variables
-const BYBIT_API_KEY = getEnvOrNull("BYBIT_API_KEY");
-const BYBIT_API_SECRET = getEnvOrNull("BYBIT_API_SECRET");
-const BYBIT_BASE_URL = 'https://api.bybit.com';
+// Initialize Supabase client safely
+let supabase: any = null;
+try {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  supabase = createClient(supabaseUrl, supabaseServiceKey);
+} catch (error) {
+  console.error('Failed to initialize Supabase client:', error);
+}
 
 // Bybit V5 Types
 type AccountType = "UNIFIED" | "CONTRACT" | "SPOT";
 
-// Debug credential loading
-console.log('🔧 Loading Bybit credentials...');
-console.log('  - API Key present:', !!BYBIT_API_KEY);
-console.log('  - API Secret present:', !!BYBIT_API_SECRET);
-if (BYBIT_API_KEY) {
-  console.log('  - API Key preview:', BYBIT_API_KEY.substring(0, 8) + '...');
+// Helper functions for hardened handler
+function readSecrets() {
+  try {
+    const apiKey = Deno.env.get("BYBIT_API_KEY") ?? "";
+    const apiSecret = Deno.env.get("BYBIT_API_SECRET") ?? "";
+    return { apiKey, apiSecret };
+  } catch {
+    return { apiKey: "", apiSecret: "" };
+  }
 }
-if (!BYBIT_API_KEY || !BYBIT_API_SECRET) {
-  console.error('❌ Missing Bybit credentials - check your edge function secrets');
+
+async function hmacSha256Hex(message: string, secret: string) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
+  return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function buildQueryString(params: Record<string, any>) {
+  const usp = new URLSearchParams();
+  Object.keys(params).sort().forEach(k => {
+    const v = params[k];
+    if (v !== undefined && v !== null) usp.append(k, String(v));
+  });
+  return usp.toString();
+}
+
+// JSON response helper
+function json(status: number, body: unknown) {
+  return new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
+  });
+}
+
+async function validateBybitCredsSimple(opts: { live: boolean }) {
+  const { apiKey, apiSecret } = readSecrets();
+  const summary = {
+    envSeen: { BYBIT_API_KEY: !!apiKey, BYBIT_API_SECRET: !!apiSecret },
+    previews: { BYBIT_API_KEY: mask(apiKey), BYBIT_API_SECRET: mask(apiSecret) },
+  };
+
+  const missing: string[] = [];
+  if (!apiKey) missing.push("BYBIT_API_KEY");
+  if (!apiSecret) missing.push("BYBIT_API_SECRET");
+  if (missing.length) {
+    throw new ConfigError("Missing required environment variables", { missing, summary });
+  }
+
+  if (opts.live) {
+    const baseUrl = "https://api.bybit.com";
+    const recvWindow = "5000";
+    const ts = Date.now().toString();
+    const params = { accountType: "UNIFIED" };
+    const qs = buildQueryString(params);
+    const presign = ts + apiKey + recvWindow + qs;
+    const sign = await hmacSha256Hex(presign, apiSecret);
+
+    const res = await fetch(`${baseUrl}/v5/account/wallet-balance?${qs}`, {
+      method: "GET",
+      headers: {
+        "X-BAPI-API-KEY": apiKey,
+        "X-BAPI-TIMESTAMP": ts,
+        "X-BAPI-RECV-WINDOW": recvWindow,
+        "X-BAPI-SIGN": sign,
+        "X-BAPI-SIGN-TYPE": "2",
+      },
+    });
+
+    const text = await res.text();
+    let jsonBody: any = null;
+    try { jsonBody = JSON.parse(text); } catch { /* keep raw */ }
+
+    if (!res.ok || (jsonBody && jsonBody.retCode && jsonBody.retCode !== 0)) {
+      throw new ConfigError("Bybit live credential check failed", {
+        httpStatus: res.status,
+        response: jsonBody ?? text,
+        tips: [
+          "Verify key permissions (Read-Write, Unified Trading).",
+          "If IP-restricted, allow your function's egress IP.",
+          "Use server time if you see retCode 10002.",
+        ],
+      });
+    }
+  }
+
+  return summary;
 }
 
 interface TradingConfig {
@@ -808,17 +890,28 @@ function json(status: number, body: unknown) {
   });
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+// Main hardened handler - ensures diagnostic routes always work
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const url = new URL(req.url);
 
-  // Health/diagnostics endpoint used by "Test Trading Engine" button
+  // 0) Simple ping (optional)
+  if (url.pathname === "/ping") return json(200, { ok: true });
+
+  // 1) /env must never crash - uses lazy secret reading
+  if (url.pathname === "/env") {
+    const { apiKey, apiSecret } = readSecrets();
+    return json(200, {
+      BYBIT_API_KEY: mask(apiKey),
+      BYBIT_API_SECRET: mask(apiSecret),
+    });
+  }
+
+  // 2) /test-connection must not depend on other initialization
   if (url.pathname === "/test-connection" || url.searchParams.get("test") === "true") {
     try {
-      const summary = await validateBybitCreds({ live: true }); // live = true does an actual signed call
+      const summary = await validateBybitCredsSimple({ live: true });
       return json(200, {
         ok: true,
         stage: "credentials",
@@ -836,55 +929,34 @@ serve(async (req) => {
     }
   }
 
-  // Optional diagnostics endpoint
-  if (url.pathname === "/env" || url.searchParams.get("env") === "true") {
-    return json(200, {
-      keys: ["BYBIT_API_KEY", "BYBIT_API_SECRET"],
-      previews: {
-        BYBIT_API_KEY: mask(BYBIT_API_KEY ?? "", 4),
-        BYBIT_API_SECRET: mask(BYBIT_API_SECRET ?? "", 4),
-      },
-      timestamp: Date.now()
-    });
-  }
-
-  // Safe JSON parsing for POST requests only
+  // 3) Safe body parsing for POST/JSON only
   let body: any = {};
-  if (req.method === "POST" && req.headers.get("content-type")?.includes("application/json")) {
-    try {
-      body = await req.json();
-    } catch (jsonError) {
-      console.error('JSON parsing error:', jsonError);
-      return json(400, {
-        ok: false,
-        error: "Invalid JSON in request body",
-        details: (jsonError as Error).message
-      });
-    }
+  if (req.method !== "GET" && req.headers.get("content-type")?.includes("application/json")) {
+    try { body = await req.json(); } catch { body = {}; }
   }
+  const { action, config, signal, quantity } = body;
 
-  // Only validate credentials for trading actions (POST requests)
+  // 4) Validate creds (no live call) for trading actions
   try {
     console.log('🔧 Validating credentials for request:', url.pathname);
-    await validateBybitCreds({ live: false });
+    await validateBybitCredsSimple({ live: false });
     console.log('✅ Credential validation passed');
-  } catch (e) {
-    console.error('❌ Credential validation failed:', e);
-    return json(401, {
-      ok: false,
-      stage: "startup",
-      error: (e as Error).message,
-      details: (e as any)?.details ?? null,
+  } catch (e: any) {
+    return json(401, { 
+      ok: false, 
+      stage: "startup", 
+      error: e?.message, 
+      details: e?.details ?? null 
     });
   }
 
+  // 5) Handle actions
   try {
-    const { action, config, signal, quantity } = body;
-
     console.log('✅ API credentials validated, creating Bybit client...');
+    const { apiKey, apiSecret } = readSecrets();
     const trader = new BybitV5Client({
-      apiKey: BYBIT_API_KEY!,
-      apiSecret: BYBIT_API_SECRET!
+      apiKey: apiKey!,
+      apiSecret: apiSecret!
     });
     
     // Default trading configuration
@@ -970,17 +1042,11 @@ serve(async (req) => {
       }
 
       default:
-        return json(400, {
-          success: false,
-          error: 'Invalid action'
-        });
+        return json(400, { success: false, error: "Invalid action" });
     }
 
-  } catch (error) {
-    console.error('Automated trading error:', error);
-    return json(500, {
-      success: false,
-      error: (error as Error).message
-    });
+  } catch (err: any) {
+    console.error('Automated trading error:', err);
+    return json(500, { success: false, error: err?.message ?? "Unhandled error" });
   }
 });
