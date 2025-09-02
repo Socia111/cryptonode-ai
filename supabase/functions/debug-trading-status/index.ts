@@ -21,20 +21,22 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     console.log('🔧 Environment Debug:');
-    console.log('  - All available env vars:', Object.keys(Deno.env.toObject()));
-    console.log('  - BYBIT_API_KEY exists:', !!bybitApiKey);
-    console.log('  - BYBIT_API_SECRET exists:', !!bybitApiSecret);
+    console.log('  - BYBIT_API_KEY value:', bybitApiKey);
+    console.log('  - BYBIT_API_SECRET value:', bybitApiSecret);
+    console.log('  - BYBIT_API_KEY length:', bybitApiKey?.length);
+    console.log('  - BYBIT_API_SECRET length:', bybitApiSecret?.length);
 
     // Check environment variables
     const envStatus = {
-      hasApiKey: !!bybitApiKey,
+      hasApiKey: !!bybitApiKey && bybitApiKey.length > 0,
       apiKeyLength: bybitApiKey?.length || 0,
-      apiKeyPreview: bybitApiKey ? `${bybitApiKey.substring(0, 6)}...${bybitApiKey.substring(bybitApiKey.length - 4)}` : 'None',
-      hasApiSecret: !!bybitApiSecret,
+      apiKeyPreview: bybitApiKey && bybitApiKey.length > 0 ? `${bybitApiKey.substring(0, 6)}...${bybitApiKey.substring(bybitApiKey.length - 4)}` : 'None',
+      hasApiSecret: !!bybitApiSecret && bybitApiSecret.length > 0,
       apiSecretLength: bybitApiSecret?.length || 0,
       hasSupabaseUrl: !!supabaseUrl,
       hasSupabaseKey: !!supabaseServiceKey,
-      allEnvKeys: Object.keys(Deno.env.toObject())
+      rawApiKey: bybitApiKey, // Show actual value for debugging
+      rawApiSecret: bybitApiSecret ? `${bybitApiSecret.substring(0, 6)}...` : 'None'
     };
 
     // Test Bybit API connectivity (simple server time check)
