@@ -161,19 +161,13 @@ function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) =
   console.log('[Signals] Setting up real-time subscription...');
   
   const channel = supabase
-    .channel('public:signals', {
-      config: {
-        broadcast: { self: true },
-        presence: { key: 'signals-presence' }
-      }
-    })
+    .channel('signals-subscription')
     .on(
       'postgres_changes',
       { 
         event: 'INSERT', 
         schema: 'public', 
-        table: 'signals',
-        filter: 'score=gte.70' // Only subscribe to good signals
+        table: 'signals'
       },
       (payload) => {
         console.log('[Signals] New signal received via realtime:', payload.new);
@@ -192,8 +186,7 @@ function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) =
       { 
         event: 'UPDATE', 
         schema: 'public', 
-        table: 'signals',
-        filter: 'score=gte.70'
+        table: 'signals'
       },
       (payload) => {
         console.log('[Signals] Signal updated via realtime:', payload.new);
@@ -341,19 +334,31 @@ export const useSignals = () => {
 
   const handleGenerateSignals = async () => {
     try {
-      await generateSignals();
-      await refreshSignals();
+      setLoading(true);
       toast({
-        title: "Signals Generated",
-        description: "New trading signals have been generated successfully."
+        title: "🔄 Generating Signals",
+        description: "Scanning markets for new trading opportunities..."
+      });
+      
+      const result = await generateSignals();
+      
+      // Force refresh signals after generation
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds for signals to save
+      await refreshSignals();
+      
+      toast({
+        title: "✅ Signals Generated",
+        description: `Successfully generated ${result.signals_created || 'new'} trading signals`
       });
     } catch (e: any) {
       console.error('[useSignals] Generate signals failed:', e);
       toast({
-        title: "Generation Failed",
+        title: "❌ Generation Failed",
         description: e?.message ?? 'Failed to generate signals',
         variant: "destructive"
       });
+    } finally {
+      setLoading(false);
     }
   };
 
