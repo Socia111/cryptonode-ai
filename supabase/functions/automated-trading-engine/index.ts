@@ -811,8 +811,11 @@ serve(async (req) => {
 
   // Validate credentials at startup for all other requests
   try {
+    console.log('🔧 Validating credentials for request:', url.pathname);
     await validateBybitCreds({ live: false });
+    console.log('✅ Credential validation passed');
   } catch (e) {
+    console.error('❌ Credential validation failed:', e);
     return json(500, {
       ok: false,
       stage: "startup",
