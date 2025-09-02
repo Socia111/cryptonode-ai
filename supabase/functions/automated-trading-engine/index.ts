@@ -457,13 +457,6 @@ class BybitV5Client {
 
 // Bybit V5 REST API Helper Functions
 
-async function listPositions(client: BybitV5Client, symbol?: string) {
-  return client.privateGet("/v5/position/list", { 
-    category: "linear", 
-    ...(symbol ? { symbol } : {}) 
-  });
-}
-
 async function createOrder(
   client: BybitV5Client,
   params: {
