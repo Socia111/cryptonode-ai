@@ -52,11 +52,11 @@ const BottomSignalsBar: React.FC = () => {
           </div>
           
           <Button 
-            variant="outline" 
-            size="sm" 
+            variant="destructive" 
+            size="lg" 
             onClick={generateSignals}
             disabled={loading}
-            className="shrink-0"
+            className="shrink-0 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3"
           >
             {loading ? (
               <Loader2 className="h-3 w-3 animate-spin mr-1" />
