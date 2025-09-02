@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 const SignalsList = () => {
   const { signals, loading, generateSignals } = useSignals();
   const { toast } = useToast();
+  const [showAllSignals, setShowAllSignals] = useState(false);
 
   // Calculate priority signals immediately after hooks
   const prioritySignals = signals.filter(signal => {
@@ -22,6 +23,9 @@ const SignalsList = () => {
            signal.roi_projection >= top5PercentThreshold || 
            signal.roi_projection >= top10PercentThreshold;
   });
+
+  // Determine which signals to display
+  const displayedSignals = showAllSignals ? signals : prioritySignals;
 
   const handleGenerateSignals = async () => {
     try {
@@ -96,7 +100,7 @@ const SignalsList = () => {
               Generate
             </Button>
             <Badge variant="secondary" className="pulse-glow bg-primary/20 text-primary">
-              {prioritySignals.length} Priority (☄️☢️🦾)
+              {showAllSignals ? `${signals.length} Total` : `${prioritySignals.length} Priority (☄️☢️🦾)`}
             </Badge>
           </div>
         </CardTitle>
@@ -108,11 +112,15 @@ const SignalsList = () => {
             <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
             <p className="text-sm text-muted-foreground">Loading signals...</p>
           </div>
-        ) : prioritySignals.length === 0 ? (
+        ) : displayedSignals.length === 0 ? (
           <div className="text-center py-8">
             <Target className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">No priority signals (☄️☢️🦾)</p>
-            <p className="text-xs text-muted-foreground mt-1">Generate new signals to find high-priority opportunities</p>
+            <p className="text-sm text-muted-foreground">
+              {showAllSignals ? 'No signals available' : 'No priority signals (☄️☢️🦾)'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {showAllSignals ? 'Generate new signals' : 'Generate new signals to find high-priority opportunities'}
+            </p>
             <Button 
               size="sm" 
               variant="outline" 
@@ -123,7 +131,7 @@ const SignalsList = () => {
             </Button>
           </div>
         ) : (
-          prioritySignals.map((signal) => {
+          displayedSignals.map((signal) => {
             const isBuy = signal.direction === 'BUY';
             const TrendIcon = isBuy ? TrendingUp : TrendingDown;
 
@@ -224,8 +232,12 @@ const SignalsList = () => {
           })
         )}
 
-        <Button variant="outline" className="w-full mt-4">
-          View All Signals
+        <Button 
+          variant="outline" 
+          className="w-full mt-4"
+          onClick={() => setShowAllSignals(!showAllSignals)}
+        >
+          {showAllSignals ? 'Show Priority Only (☄️☢️🦾)' : 'View All Signals'}
         </Button>
       </CardContent>
     </Card>
