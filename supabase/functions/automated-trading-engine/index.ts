@@ -10,6 +10,9 @@ const baseCors: Record<string, string> = {
   "Vary": "Origin", // cache-safe if you decide to reflect origin
 };
 
+// Alias for safety - ensures all existing code works
+const corsHeaders = baseCors;
+
 // Environment configuration - read the actual values, not the names
 function getEnvOrNull(key: string): string | null {
   try {
