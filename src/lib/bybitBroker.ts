@@ -1,5 +1,7 @@
 // Bybit Broker SDK for frontend usage
 const BASE = "https://codhlwjogfjywmjyjbbn.supabase.co/functions/v1/bybit-broker";
+// NOTE: In production, use environment variables instead of hardcoded keys
+// const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0";
 
 interface BybitResponse<T = any> {
