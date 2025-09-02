@@ -12,9 +12,9 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Bybit API configuration
-const BYBIT_API_KEY = Deno.env.get('BYBIT_API_KEY')!;
-const BYBIT_API_SECRET = Deno.env.get('BYBIT_API_SECRET')!;
+// Bybit API configuration - consistent naming
+const BYBIT_API_KEY = Deno.env.get('BYBIT_API_KEY');
+const BYBIT_API_SECRET = Deno.env.get('BYBIT_API_SECRET');
 const BYBIT_BASE_URL = 'https://api.bybit.com';
 
 interface TradingConfig {
@@ -635,20 +635,45 @@ serve(async (req) => {
   try {
     const { action, config, signal, quantity } = await req.json();
 
-    // Check if API credentials are configured
+    // Enhanced credential validation with detailed logging
+    console.log('🔍 Checking Bybit API credentials...');
+    console.log('Environment variables available:', Object.keys(Deno.env.toObject()));
+    
+    // Check for all possible variable names and log them
+    const envCheck = {
+      BYBIT_API_KEY: Deno.env.get('BYBIT_API_KEY'),
+      BYBIT_API_SECRET: Deno.env.get('BYBIT_API_SECRET'),
+      BYBIT_SECRET_KEY: Deno.env.get('BYBIT_SECRET_KEY'), // Legacy name check
+    };
+    
+    console.log('Credential check results:', {
+      hasApiKey: !!envCheck.BYBIT_API_KEY,
+      apiKeyLength: envCheck.BYBIT_API_KEY?.length || 0,
+      apiKeyPreview: envCheck.BYBIT_API_KEY ? envCheck.BYBIT_API_KEY.substring(0, 8) + '...' : 'None',
+      hasApiSecret: !!envCheck.BYBIT_API_SECRET,
+      apiSecretLength: envCheck.BYBIT_API_SECRET?.length || 0,
+      hasLegacySecret: !!envCheck.BYBIT_SECRET_KEY,
+      timestamp: new Date().toISOString()
+    });
+
     if (!BYBIT_API_KEY || !BYBIT_API_SECRET || BYBIT_API_KEY === '' || BYBIT_API_SECRET === '') {
-      console.error('API Credentials check failed:', {
+      const errorDetails = {
         hasApiKey: !!BYBIT_API_KEY,
         apiKeyLength: BYBIT_API_KEY?.length || 0,
         hasApiSecret: !!BYBIT_API_SECRET,
-        apiSecretLength: BYBIT_API_SECRET?.length || 0
-      });
+        apiSecretLength: BYBIT_API_SECRET?.length || 0,
+        allEnvKeys: Object.keys(Deno.env.toObject()),
+        requiredVars: ['BYBIT_API_KEY', 'BYBIT_API_SECRET']
+      };
+      
+      console.error('❌ API Credentials validation failed:', errorDetails);
       
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Bybit API credentials not configured. Please add BYBIT_API_KEY and BYBIT_API_SECRET secrets.',
-          details: 'API credentials missing or empty'
+          error: 'Bybit API credentials not configured properly. Please ensure BYBIT_API_KEY and BYBIT_API_SECRET are set correctly.',
+          details: errorDetails,
+          help: 'Check your Supabase Edge Function secrets configuration'
         }),
         { 
           status: 400,
@@ -657,6 +682,7 @@ serve(async (req) => {
       );
     }
 
+    console.log('✅ API credentials found, creating Bybit client...');
     const trader = new BybitV5Client({
       apiKey: BYBIT_API_KEY,
       apiSecret: BYBIT_API_SECRET
