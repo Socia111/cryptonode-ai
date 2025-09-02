@@ -121,3 +121,6 @@ verify_jwt = false
 
 [functions.production-monitor]
 verify_jwt = false
+
+[functions.bybit-broker]
+verify_jwt = false
