@@ -281,12 +281,14 @@ Deno.serve(async (req) => {
       retMsg: orderResult.retMsg
     });
 
+    // Always return success: true for successful orders
     return new Response(JSON.stringify({
       success: true,
       orderId: orderResult.result.orderId,
       orderLinkId: orderResult.result.orderLinkId,
-      message: `${signal.direction} order executed for ${symbol}`,
+      message: `✅ LIVE ${signal.direction} order executed successfully for ${symbol}`,
       orderParams,
+      executionTime: new Date().toISOString(),
       bybitResponse: {
         retCode: orderResult.retCode,
         retMsg: orderResult.retMsg,
@@ -296,7 +298,17 @@ Deno.serve(async (req) => {
         token: signal.token,
         direction: signal.direction,
         entry_price: signal.entry_price,
+        stop_loss: signal.stop_loss,
+        take_profit: signal.exit_target || signal.take_profit,
         confidence: signal.confidence_score
+      },
+      // Market execution details
+      executionDetails: {
+        market: 'bybit',
+        category: orderParams.category,
+        leverage: leverage,
+        quantity: orderParams.qty,
+        apiStatus: 'LIVE_PRODUCTION'
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -317,6 +329,8 @@ Deno.serve(async (req) => {
       userFriendlyMessage = '⏰ API signature expired. Please check your system time.';
     } else if (error.message?.includes('10005')) {
       userFriendlyMessage = '🚫 Invalid API permissions. Enable spot/futures trading in your Bybit API settings.';
+    } else if (error.message?.includes('10001')) {
+      userFriendlyMessage = '📏 Order size below minimum. Increase order quantity (try $50+ for futures).';
     } else if (error.message?.includes('insufficient balance')) {
       userFriendlyMessage = '💰 Insufficient balance. Please add funds to your Bybit account.';
     } else if (error.message?.includes('Missing Bybit API credentials')) {

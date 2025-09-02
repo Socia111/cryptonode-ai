@@ -88,15 +88,33 @@ const SignalsList = () => {
 
   // Auto-execute when order size changes or new signals arrive
   useEffect(() => {
-    if (autoExecute && signals.length > 0 && !isExecutingOrder) {
-      const topSignal = signals[0];
-      if (!executedSignals.has(topSignal.id)) {
-        console.log('🤖 Auto-executing new signal:', topSignal.token);
-        executeOrder(topSignal);
-        setExecutedSignals(prev => new Set([...prev, topSignal.id]));
+    if (autoExecute && prioritySignals.length > 0 && !isExecutingOrder) {
+      // Execute all priority signals that haven't been executed yet
+      const newSignals = prioritySignals.filter(signal => !executedSignals.has(signal.id));
+      
+      if (newSignals.length > 0) {
+        console.log('🤖 Auto-executing new priority signals:', newSignals.length);
+        
+        // Execute signals one by one with small delay
+        const executeSequentially = async () => {
+          for (const signal of newSignals) {
+            try {
+              console.log('🚀 Auto-executing signal:', signal.token, signal.direction);
+              await executeOrder(signal);
+              setExecutedSignals(prev => new Set([...prev, signal.id]));
+              
+              // Small delay between orders
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            } catch (error) {
+              console.error('❌ Auto-execution failed for:', signal.token, error);
+            }
+          }
+        };
+        
+        executeSequentially();
       }
     }
-  }, [signals, autoExecute, orderSize]);
+  }, [prioritySignals, autoExecute, orderSize]);
 
   // Bulk execute all signals when in bulk mode
   const executeAllSignals = async () => {
@@ -181,7 +199,16 @@ const SignalsList = () => {
       // Check for missing success indicator (could be undefined)
       if (data.success !== true) {
         console.error('❌ Trading function did not return success:', data);
-        throw new Error('Trading execution failed - no success confirmation received');
+        console.error('❌ Full response data:', JSON.stringify(data, null, 2));
+        
+        // Check if this is a test mode response or missing success flag
+        if (data.testMode && data.orderId) {
+          console.log('⚠️ Test mode response detected, treating as success');
+        } else if (data.orderId && data.orderLinkId) {
+          console.log('⚠️ Real order response detected without success flag, treating as success');
+        } else {
+          throw new Error(`Trading execution failed - Invalid response: ${JSON.stringify(data)}`);
+        }
       }
 
       // Success case - only show this if we have confirmed success
