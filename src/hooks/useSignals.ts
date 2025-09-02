@@ -79,19 +79,8 @@ async function fetchSignals(): Promise<Signal[]> {
   try {
     console.log('[Signals] Fetching live signals from database...');
     
-    // First try to get signals from the signals-api endpoint
-    try {
-      const { data: apiResponse, error: apiError } = await supabase.functions.invoke('signals-api', {
-        body: { path: '/signals/live' }
-      });
-
-      if (!apiError && apiResponse?.success && apiResponse?.items?.length > 0) {
-        console.log(`[Signals] Found ${apiResponse.items.length} signals from API`);
-        return mapSignalsToInterface(apiResponse.items);
-      }
-    } catch (apiError) {
-      console.warn('[Signals] API call failed, falling back to direct query:', apiError);
-    }
+    // Direct database query (since functions are now public, no need for complex API)
+    console.log('[Signals] Using direct database query for best performance...');
 
     // Fallback to direct database query
     const { data: allSignals, error: signalsError } = await supabase
