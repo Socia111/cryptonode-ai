@@ -14,6 +14,7 @@ import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
 import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
+import AutomatedTradingDashboard from '../components/AutomatedTradingDashboard';
 
 const Index = () => {
   return (
@@ -24,6 +25,9 @@ const Index = () => {
         
         {/* Comprehensive Scanner Dashboard */}
         <ComprehensiveScannerDashboard />
+        
+        {/* Automated Trading Dashboard */}
+        <AutomatedTradingDashboard />
         
         {/* AItradeX1 Scanner Chart */}
         <AItradeX1ScannerChart />
