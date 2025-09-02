@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw, Activity, Zap, AlertTriangle, DollarSign } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw, Activity, Zap, AlertTriangle, Coins } from 'lucide-react';
 import { useSignals } from '@/hooks/useSignals';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -411,7 +411,7 @@ const SignalsList = () => {
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
                 <p className="flex items-center gap-1">
-                  <DollarSign className="w-3 h-3" />
+                  <Coins className="w-3 h-3" />
                   Execute trades directly on Bybit v5 API
                 </p>
                 <p className="text-warning flex items-center gap-1">
