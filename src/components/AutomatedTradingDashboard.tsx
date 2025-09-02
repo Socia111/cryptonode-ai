@@ -199,20 +199,30 @@ const AutomatedTradingDashboard = () => {
 
       if (data.success) {
         toast({
-          title: "Connection Successful",
+          title: "✅ Connection Successful",
           description: "Bybit API connection is working properly",
         });
+        // Update balance from test connection
         setBalance(data.balance?.result?.list?.[0]);
+        
+        // Show balance notification
+        const usdtBalance = data.balance?.result?.list?.[0]?.coin?.find((c: any) => c.coin === 'USDT');
+        if (usdtBalance) {
+          toast({
+            title: "💰 Bybit Balance Loaded",
+            description: `USDT: $${parseFloat(usdtBalance.walletBalance).toLocaleString()} (Available: $${parseFloat(usdtBalance.availableBalance).toLocaleString()})`,
+          });
+        }
       } else {
         toast({
-          title: "Connection Failed",
+          title: "❌ Connection Failed",
           description: data.error + (data.details ? ` ${data.details}` : ''),
           variant: "destructive",
         });
       }
     } catch (error: any) {
       toast({
-        title: "Connection Failed",
+        title: "❌ Connection Failed",
         description: error.message || "Failed to test connection",
         variant: "destructive",
       });
