@@ -41,8 +41,98 @@ try {
   console.error('Failed to initialize Supabase client:', error);
 }
 
-// Bybit V5 Types
-type AccountType = "UNIFIED" | "CONTRACT" | "SPOT";
+// Bybit V5 API Configuration
+const BYBIT_KEY = Deno.env.get("BYBIT_API_KEY")!;
+const BYBIT_SEC = Deno.env.get("BYBIT_API_SECRET")!;
+const BASE = "https://api.bybit.com";        // mainnet
+const RECV = "5000"; // ms
+
+// V5 HMAC signing
+function hmacHex(secret: string, text: string): Promise<string> {
+  const enc = new TextEncoder().encode(text);
+  return crypto.subtle.importKey("raw", new TextEncoder().encode(secret), {name:"HMAC", hash:"SHA-256"}, false, ["sign"])
+    .then(k => crypto.subtle.sign("HMAC", k, enc))
+    .then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join(""));
+}
+
+// V5 Request handler
+async function v5Request(
+  method: "GET" | "POST",
+  path: string,                 // e.g. "/v5/market/tickers"
+  query: Record<string,string|number|undefined> = {},
+  body: Record<string,unknown> | null = null
+) {
+  const ts = Date.now().toString();
+
+  // Build query/body strings
+  const qs = Object.entries(query)
+    .filter(([,v]) => v !== undefined && v !== null && v !== "")
+    .map(([k,v]) => `${k}=${encodeURIComponent(String(v))}`)
+    .join("&");
+  const url = `${BASE}${path}${qs ? `?${qs}` : ""}`;
+
+  const jsonBody = body ? JSON.stringify(body) : "";
+  // V5 string-to-sign
+  const toSign = method === "GET"
+    ? `${ts}${BYBIT_KEY}${RECV}${qs}`
+    : `${ts}${BYBIT_KEY}${RECV}${jsonBody}`;
+
+  const sign = await hmacHex(BYBIT_SEC, toSign);
+
+  const res = await fetch(url, {
+    method,
+    headers: {
+      "X-BAPI-API-KEY": BYBIT_KEY,
+      "X-BAPI-TIMESTAMP": ts,
+      "X-BAPI-RECV-WINDOW": RECV,
+      "X-BAPI-SIGN": sign,
+      "Content-Type": "application/json",
+    },
+    body: body ? jsonBody : undefined,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data?.retCode !== 0) {
+    console.error(`Bybit API Error:`, {
+      status: res.status,
+      retCode: data?.retCode,
+      retMsg: data?.retMsg,
+      path,
+      method
+    });
+    throw new Error(`Bybit error (${res.status}) retCode=${data?.retCode} retMsg=${data?.retMsg}`);
+  }
+  return data;
+}
+
+// Public API endpoints (no auth needed)
+export const getOrderbook = (symbol: string, category="linear", limit=25) =>
+  fetch(`${BASE}/v5/market/orderbook?category=${category}&symbol=${symbol}&limit=${limit}`).then(r=>r.json());
+
+export const getTickers = (symbol: string, category="linear") =>
+  fetch(`${BASE}/v5/market/tickers?category=${category}&symbol=${symbol}`).then(r=>r.json());
+
+export const getRecentTrades = (symbol: string, category="linear", limit=50) =>
+  fetch(`${BASE}/v5/market/recent-trade?category=${category}&symbol=${symbol}&limit=${limit}`).then(r=>r.json());
+
+// Private API endpoints (signed)
+export const getWalletBalance = (accountType="UNIFIED") =>
+  v5Request("GET", "/v5/account/wallet-balance", { accountType });
+
+export const listPositions = (symbol?: string) =>
+  v5Request("GET", "/v5/position/list", { category: "linear", symbol });
+
+export const placeOrder = (p: {
+  symbol: string; side: "Buy"|"Sell"; orderType: "Limit"|"Market";
+  qty: string; price?: string; timeInForce?: "GTC"|"IOC"|"FOK"|"PostOnly";
+  positionIdx?: 0|1|2; reduceOnly?: boolean;
+}) => v5Request("POST", "/v5/order/create", {}, { category:"linear", timeInForce:"GTC", ...p });
+
+export const cancelOrder = (symbol: string, idOrLink: {orderId?:string; orderLinkId?:string}) =>
+  v5Request("POST", "/v5/order/cancel", {}, { category:"linear", symbol, ...idOrLink });
+
+export const getOpenOrders = (q: {symbol?:string;baseCoin?:string; settleCoin?:string; openOnly?:0|1|2}={}) =>
+  v5Request("GET", "/v5/order/realtime", { category:"linear", ...q });
 
 // Helper functions for hardened handler
 function readSecrets() {
@@ -55,28 +145,6 @@ function readSecrets() {
   }
 }
 
-async function hmacSha256Hex(message: string, secret: string) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
-  return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-function buildQueryString(params: Record<string, any>) {
-  const usp = new URLSearchParams();
-  Object.keys(params).sort().forEach(k => {
-    const v = params[k];
-    if (v !== undefined && v !== null) usp.append(k, String(v));
-  });
-  return usp.toString();
-}
-
-// JSON response helper
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body, null, 2), {
     status,
@@ -99,33 +167,14 @@ async function validateBybitCredsSimple(opts: { live: boolean }) {
   }
 
   if (opts.live) {
-    const baseUrl = "https://api.bybit.com";
-    const recvWindow = "5000";
-    const ts = Date.now().toString();
-    const params = { accountType: "UNIFIED" };
-    const qs = buildQueryString(params);
-    const presign = ts + apiKey + recvWindow + qs;
-    const sign = await hmacSha256Hex(presign, apiSecret);
-
-    const res = await fetch(`${baseUrl}/v5/account/wallet-balance?${qs}`, {
-      method: "GET",
-      headers: {
-        "X-BAPI-API-KEY": apiKey,
-        "X-BAPI-TIMESTAMP": ts,
-        "X-BAPI-RECV-WINDOW": recvWindow,
-        "X-BAPI-SIGN": sign,
-        "X-BAPI-SIGN-TYPE": "2",
-      },
-    });
-
-    const text = await res.text();
-    let jsonBody: any = null;
-    try { jsonBody = JSON.parse(text); } catch { /* keep raw */ }
-
-    if (!res.ok || (jsonBody && jsonBody.retCode && jsonBody.retCode !== 0)) {
+    try {
+      // Test with a simple balance check
+      const balanceResult = await getWalletBalance("UNIFIED");
+      console.log('✅ Live credential test passed:', balanceResult.retCode === 0);
+    } catch (error: any) {
       throw new ConfigError("Bybit live credential check failed", {
-        httpStatus: res.status,
-        response: jsonBody ?? text,
+        error: error.message,
+        summary,
         tips: [
           "Verify key permissions (Read-Write, Unified Trading).",
           "If IP-restricted, allow your function's egress IP.",
@@ -995,25 +1044,25 @@ Deno.serve(async (req) => {
       case 'status': {
         console.log('📊 Fetching real Bybit account status...');
         
-        // Get real account balance and positions from Bybit
-        const bal = await getWalletBalance(trader, "UNIFIED");
-        const pos = await listPositions(trader, "linear");
+        // Get real account balance and positions from Bybit V5
+        const bal = await getWalletBalance("UNIFIED");
+        const pos = await listPositions();
         
-        console.log('💰 Balance response:', bal);
-        console.log('📈 Positions response:', pos);
+        console.log('💰 Balance response:', JSON.stringify(bal, null, 2));
+        console.log('📈 Positions response:', JSON.stringify(pos, null, 2));
         
         // Calculate active positions count
-        const activePositions = pos.result?.list?.filter(p => 
+        const activePositions = pos.result?.list?.filter((p: any) => 
           parseFloat(p.size || '0') > 0
         ).length || 0;
         
         return json(200, {
           success: true,
           status: {
-            isRunning: engine.getStatus().isRunning,
+            isRunning: false, // Will be managed by automation engine
             activePositions,
-            config: engine.getStatus().config,
-            positions: pos.result?.list?.map(p => ({
+            config: { symbol: "BTCUSDT", timeframe: "5m" },
+            positions: pos.result?.list?.map((p: any) => ({
               symbol: p.symbol,
               side: p.side,
               size: parseFloat(p.size || '0'),
@@ -1031,29 +1080,41 @@ Deno.serve(async (req) => {
         });
       }
 
-      case 'test_connection':
-        const testBalance = await trader.getAccountBalance();
+      case 'test_connection': {
+        console.log('🔗 Testing Bybit V5 connection...');
+        const testBalance = await getWalletBalance("UNIFIED");
+        console.log('✅ Connection test result:', testBalance);
         return json(200, {
           success: true,
-          message: 'Bybit connection successful',
+          message: 'Bybit V5 connection successful',
           balance: testBalance.result
         });
+      }
 
       case 'place': {
         const { symbol, side = "Buy", qty, price } = body;
-        const res = await createOrder(trader, {
+        console.log(`📝 Placing ${side} order:`, { symbol, qty, price });
+        
+        const orderParams = {
           symbol,
-          side,
-          orderType: price ? "Limit" : "Market",
+          side: side as "Buy" | "Sell",
+          orderType: price ? "Limit" : "Market" as "Limit" | "Market",
           qty: String(qty),
-          ...(price ? { price: String(price), timeInForce: "GTC" } : {}),
-        });
+          ...(price ? { price: String(price), timeInForce: "GTC" as const } : {}),
+        };
+        
+        const res = await placeOrder(orderParams);
+        console.log('✅ Order placed:', res);
         return json(200, { success: true, order: res });
       }
 
       case 'cancel': {
-        const { symbol, orderId } = body;
-        const res = await cancelOrder(trader, symbol, orderId);
+        const { symbol, orderId, orderLinkId } = body;
+        console.log(`❌ Cancelling order:`, { symbol, orderId, orderLinkId });
+        
+        const idOrLink = orderId ? { orderId } : { orderLinkId };
+        const res = await cancelOrder(symbol, idOrLink);
+        console.log('✅ Order cancelled:', res);
         return json(200, { success: true, cancel: res });
       }
 
