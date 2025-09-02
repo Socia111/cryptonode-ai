@@ -10,6 +10,7 @@ import Health from "./pages/Health";
 import AItradeX1Original from "./pages/AItradeX1Original";
 import X from "./pages/X";
 import X1 from "./pages/X1";
+import X2 from "./pages/X2";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ function App() {
             <Route path="/AITRADEX1ORIGINAL" element={<AItradeX1Original />} />
             <Route path="/X" element={<X />} />
             <Route path="/X1" element={<X1 />} />
+            <Route path="/X2" element={<X2 />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
