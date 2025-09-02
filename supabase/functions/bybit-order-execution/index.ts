@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { signal, orderSize = '10', category = 'spot', testMode = false } = await req.json();
+    const { signal, orderSize = '10', leverage = 1, category = 'spot', testMode = false } = await req.json();
     
     if (!signal) {
       throw new Error('Signal data is required');

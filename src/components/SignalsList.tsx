@@ -1,11 +1,13 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw, Activity } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw, Activity, Zap, AlertTriangle, DollarSign } from 'lucide-react';
 import { useSignals } from '@/hooks/useSignals';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,7 +17,12 @@ const SignalsList = () => {
   const { toast } = useToast();
   const [showAllSignals, setShowAllSignals] = useState(false);
   const [orderSize, setOrderSize] = useState('10');
+  const [leverage, setLeverage] = useState(1);
+  const [useLeverage, setUseLeverage] = useState(false);
+  const [autoExecute, setAutoExecute] = useState(false);
+  const [bulkExecuteMode, setBulkExecuteMode] = useState(false);
   const [isExecutingOrder, setIsExecutingOrder] = useState(false);
+  const [executedSignals, setExecutedSignals] = useState(new Set());
 
   // Calculate priority signals immediately after hooks
   const prioritySignals = signals.filter(signal => {
@@ -48,6 +55,36 @@ const SignalsList = () => {
     }
   };
 
+  // Auto-execute when order size changes or new signals arrive
+  useEffect(() => {
+    if (autoExecute && signals.length > 0 && !isExecutingOrder) {
+      const topSignal = signals[0];
+      if (!executedSignals.has(topSignal.id)) {
+        console.log('🤖 Auto-executing new signal:', topSignal.token);
+        executeOrder(topSignal);
+        setExecutedSignals(prev => new Set([...prev, topSignal.id]));
+      }
+    }
+  }, [signals, autoExecute, orderSize]);
+
+  // Bulk execute all signals when in bulk mode
+  const executeAllSignals = async () => {
+    if (bulkExecuteMode && displayedSignals.length > 0) {
+      setIsExecutingOrder(true);
+      console.log('🚀 Bulk executing all signals:', displayedSignals.length);
+      
+      for (const signal of displayedSignals) {
+        try {
+          await executeOrder(signal);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1s delay between orders
+        } catch (error) {
+          console.error('❌ Bulk execution error for:', signal.token, error);
+        }
+      }
+      setIsExecutingOrder(false);
+    }
+  };
+
   const executeOrder = async (signal: any) => {
     try {
       setIsExecutingOrder(true);
@@ -58,15 +95,17 @@ const SignalsList = () => {
         entry_price: signal.entry_price,
         stop_loss: signal.stop_loss,
         exit_target: signal.exit_target,
-        confidence: signal.confidence_score
+        confidence: signal.confidence_score,
+        leverage: useLeverage ? leverage : 1
       });
       
       const { data, error } = await supabase.functions.invoke('bybit-order-execution', {
         body: { 
           signal,
           orderSize,
-          category: 'spot', // 'spot' for spot trading, 'linear' for futures
-          testMode: false // Set to true for testing without real orders
+          leverage: useLeverage ? leverage : 1,
+          category: useLeverage ? 'linear' : 'spot', // Use linear for leverage trading
+          testMode: false
         }
       });
 
@@ -77,7 +116,7 @@ const SignalsList = () => {
       if (data.success) {
         toast({
           title: `🎯 LIVE ${signal.direction} Order Executed!`,
-          description: `${signal.token} on Bybit - Order ID: ${data.orderId} | Size: $${orderSize}`,
+          description: `${signal.token} on Bybit - ${useLeverage ? `${leverage}x Leverage` : 'Spot'} | Order ID: ${data.orderId} | Size: $${orderSize}`,
         });
         console.log('✅ Bybit v5 API order result:', data);
       } else {
@@ -92,7 +131,9 @@ const SignalsList = () => {
         variant: "destructive",
       });
     } finally {
-      setIsExecutingOrder(false);
+      if (!bulkExecuteMode) {
+        setIsExecutingOrder(false);
+      }
     }
   };
 
@@ -287,44 +328,134 @@ const SignalsList = () => {
           })
         )}
 
-        {/* Order Execution Controls */}
+        {/* Advanced Trading Controls */}
         {signals.length > 0 && (
-          <div className="mt-6 p-4 bg-muted/50 rounded-lg border">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex flex-col gap-1">
-                  <Label htmlFor="orderSize" className="text-xs font-medium">
-                    Order Size (USDT)
-                  </Label>
-                  <Input
-                    id="orderSize"
-                    type="number"
-                    value={orderSize}
-                    onChange={(e) => setOrderSize(e.target.value)}
-                    className="w-24 h-8 text-xs"
-                    min="1"
-                    step="1"
-                  />
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  <p>Execute trades directly on Bybit</p>
-                  <p className="text-warning">⚠️ Real money trading - use carefully!</p>
-                </div>
+          <div className="mt-6 p-4 bg-muted/50 rounded-lg border space-y-4">
+            {/* Trading Mode Controls */}
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="auto-execute"
+                  checked={autoExecute}
+                  onCheckedChange={setAutoExecute}
+                />
+                <Label htmlFor="auto-execute" className="text-xs font-medium">
+                  🤖 Auto-Execute New Signals
+                </Label>
               </div>
               
-              <Button
-                onClick={() => {
-                  if (signals.length > 0) {
-                    executeOrder(signals[0]);
-                  }
-                }}
-                disabled={isExecutingOrder || signals.length === 0}
-                className="gap-2"
-                variant="outline"
-              >
-                <Activity className="w-4 h-4" />
-                {isExecutingOrder ? 'Executing...' : 'Execute Top Signal'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="bulk-mode"
+                  checked={bulkExecuteMode}
+                  onCheckedChange={setBulkExecuteMode}
+                />
+                <Label htmlFor="bulk-mode" className="text-xs font-medium">
+                  🚀 Bulk Execute All Signals
+                </Label>
+              </div>
+            </div>
+
+            {/* Order Configuration */}
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="orderSize" className="text-xs font-medium">
+                  Order Size (USDT)
+                </Label>
+                <Input
+                  id="orderSize"
+                  type="number"
+                  value={orderSize}
+                  onChange={(e) => setOrderSize(e.target.value)}
+                  className="w-24 h-8 text-xs"
+                  min="1"
+                  step="1"
+                />
+              </div>
+
+              {/* Leverage Controls */}
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="use-leverage"
+                  checked={useLeverage}
+                  onCheckedChange={setUseLeverage}
+                />
+                <Label htmlFor="use-leverage" className="text-xs font-medium">
+                  <Zap className="w-3 h-3 inline mr-1" />
+                  Use Leverage
+                </Label>
+              </div>
+
+              {useLeverage && (
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="leverage" className="text-xs font-medium">
+                    Leverage
+                  </Label>
+                  <Select value={leverage.toString()} onValueChange={(value) => setLeverage(parseInt(value))}>
+                    <SelectTrigger className="w-20 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 5, 10, 20, 25, 50, 100].map(lev => (
+                        <SelectItem key={lev} value={lev.toString()}>
+                          {lev}x
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {/* Status and Warnings */}
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                <p className="flex items-center gap-1">
+                  <DollarSign className="w-3 h-3" />
+                  Execute trades directly on Bybit v5 API
+                </p>
+                <p className="text-warning flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Real money trading - use carefully!
+                </p>
+                {useLeverage && (
+                  <p className="text-destructive flex items-center gap-1">
+                    <Zap className="w-3 h-3" />
+                    {leverage}x Leverage - High Risk!
+                  </p>
+                )}
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                {bulkExecuteMode && (
+                  <Button
+                    onClick={executeAllSignals}
+                    disabled={isExecutingOrder || displayedSignals.length === 0}
+                    className="gap-2"
+                    variant="destructive"
+                    size="sm"
+                  >
+                    <Zap className="w-4 h-4" />
+                    Execute All ({displayedSignals.length})
+                  </Button>
+                )}
+                
+                <Button
+                  onClick={() => {
+                    if (signals.length > 0) {
+                      executeOrder(signals[0]);
+                    }
+                  }}
+                  disabled={isExecutingOrder || signals.length === 0}
+                  className="gap-2"
+                  variant="outline"
+                  size="sm"
+                >
+                  <Activity className="w-4 h-4" />
+                  {isExecutingOrder ? 'Executing...' : 'Execute Top Signal'}
+                </Button>
+              </div>
             </div>
           </div>
         )}
