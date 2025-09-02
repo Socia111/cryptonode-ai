@@ -1,12 +1,13 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
 
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
+const baseCors: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*", // or reflect origin below
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-bapi-api-key, x-bapi-sign, x-bapi-timestamp, x-bapi-recv-window, x-bapi-sign-type",
   "Access-Control-Max-Age": "86400",
+  "Vary": "Origin", // cache-safe if you decide to reflect origin
 };
 
 // Environment configuration - read the actual values, not the names
@@ -149,7 +150,7 @@ function readSecrets() {
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body, null, 2), {
     status,
-    headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
+    headers: { ...baseCors, "content-type": "application/json; charset=utf-8" },
   });
 }
 
@@ -945,18 +946,16 @@ function json(status: number, body: unknown) {
 // Main hardened handler - ensures diagnostic routes always work
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    // Reflect requested headers too (covers any future header your UI sends)
+    // reflect extra headers the browser asks for (future-proof)
     const reqHdrs = req.headers.get("access-control-request-headers") ?? "";
-    const hdrs = {
-      ...corsHeaders,
-      "Access-Control-Allow-Headers": `${corsHeaders["Access-Control-Allow-Headers"]}${reqHdrs ? `, ${reqHdrs}` : ""}`,
+    const origin = req.headers.get("origin") ?? "*"; // switch to origin if you prefer not to use "*"
+    const headers = {
+      ...baseCors,
+      "Access-Control-Allow-Origin": "*", // or origin
+      "Access-Control-Allow-Headers": `${baseCors["Access-Control-Allow-Headers"]}${reqHdrs ? `, ${reqHdrs}` : ""}`,
     };
-    console.log("🔎 Preflight:", { 
-      method: req.method,
-      requestHeaders: reqHdrs,
-      respondingWith: hdrs
-    });
-    return new Response("ok", { status: 204, headers: hdrs });
+    console.log("🔎 Preflight", { reqHdrs, origin, headers });
+    return new Response("ok", { status: 204, headers });
   }
 
   const url = new URL(req.url);
