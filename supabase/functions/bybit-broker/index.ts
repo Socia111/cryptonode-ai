@@ -36,14 +36,16 @@ async function bybitRequest(endpoint: string, method: string = 'GET', body?: any
   const config = getBybitConfig()
   
   if (!config.apiKey || !config.apiSecret) {
-    throw new Error('Bybit API credentials not configured')
+    const error = new Error('Bybit API credentials not configured')
+    error.retCode = 'MISSING_CREDENTIALS'
+    throw error
   }
 
   const timestamp = Date.now().toString()
   const bodyStr = body ? JSON.stringify(body) : ''
   const queryStr = method === 'GET' && body ? new URLSearchParams(body).toString() : ''
   
-  // Create signature payload
+  // Create signature payload according to Bybit V5 specs
   const payload = timestamp + config.apiKey + config.recvWindow + 
     (method === 'GET' ? queryStr : bodyStr)
   
@@ -54,6 +56,7 @@ async function bybitRequest(endpoint: string, method: string = 'GET', body?: any
     'X-BAPI-SIGN': signature,
     'X-BAPI-TIMESTAMP': timestamp,
     'X-BAPI-RECV-WINDOW': config.recvWindow,
+    'X-BAPI-SIGN-TYPE': '2',
     'Content-Type': 'application/json'
   }
 
@@ -61,160 +64,287 @@ async function bybitRequest(endpoint: string, method: string = 'GET', body?: any
     ? `${config.baseUrl}${endpoint}?${queryStr}`
     : `${config.baseUrl}${endpoint}`
 
+  console.log(`[Bybit API] ${method} ${endpoint}`, { 
+    hasBody: !!bodyStr, 
+    queryParams: queryStr || 'none',
+    timestamp,
+    recvWindow: config.recvWindow
+  })
+
   const response = await fetch(url, {
     method,
     headers,
     body: method === 'GET' ? undefined : bodyStr
   })
 
+  const responseData = await response.json()
+
   if (!response.ok) {
-    throw new Error(`Bybit API error: ${response.status} ${response.statusText}`)
+    const error = new Error(`Bybit API error: ${response.status} ${response.statusText}`)
+    error.retCode = responseData.retCode
+    error.retMsg = responseData.retMsg
+    error.httpStatus = response.status
+    throw error
   }
 
-  return await response.json()
+  // Check for Bybit-specific errors in successful HTTP responses
+  if (responseData.retCode && responseData.retCode !== 0) {
+    const error = new Error(responseData.retMsg || 'Bybit API error')
+    error.retCode = responseData.retCode
+    error.retMsg = responseData.retMsg
+    throw error
+  }
+
+  return responseData
 }
 
 serve(async (req) => {
+  // Enhanced CORS headers for comprehensive support
+  const enhancedCorsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-bapi-api-key, x-bapi-sign, x-bapi-timestamp, x-bapi-recv-window, x-bapi-sign-type',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin'
+  }
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { 
+      status: 204,
+      headers: enhancedCorsHeaders 
+    })
   }
 
   try {
     const url = new URL(req.url)
-    const path = url.pathname.split('/').pop()
+    const pathname = url.pathname
+    const searchParams = url.searchParams
+    const isDebug = searchParams.has('debug')
 
-    // Health check
-    if (path === 'ping') {
+    // Route handling - match specific paths
+    if (pathname.endsWith('/ping')) {
       return new Response(JSON.stringify({ 
-        status: 'ok', 
+        ok: true,
         timestamp: new Date().toISOString(),
         service: 'bybit-broker'
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Environment check (masked for security)
-    if (path === 'env') {
+    if (pathname.endsWith('/env')) {
       const config = getBybitConfig()
       return new Response(JSON.stringify({
         hasApiKey: !!config.apiKey,
         hasApiSecret: !!config.apiSecret,
         baseUrl: config.baseUrl,
         recvWindow: config.recvWindow,
-        apiKeyPreview: config.apiKey ? config.apiKey.slice(0, 8) + '...' : null
+        apiKeyPreview: config.apiKey ? config.apiKey.slice(0, 8) + '...' : null,
+        secretPreview: config.apiSecret ? config.apiSecret.slice(0, 8) + '...' : null
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Test connection
-    if (path === 'test-connection') {
-      const serverTime = await bybitRequest('/v5/market/time')
-      return new Response(JSON.stringify({
-        success: true,
-        serverTime: serverTime.result?.timeSecond,
-        message: 'Bybit API connection successful'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+    if (pathname.endsWith('/test-connection')) {
+      try {
+        const config = getBybitConfig()
+        
+        if (isDebug) {
+          const timestamp = Date.now().toString()
+          const payload = timestamp + config.apiKey + config.recvWindow
+          return new Response(JSON.stringify({
+            debug: true,
+            timestamp,
+            apiKey: config.apiKey?.slice(0, 8) + '...',
+            recvWindow: config.recvWindow,
+            signaturePayload: payload,
+            baseUrl: config.baseUrl,
+            message: 'Debug info (no actual API call)'
+          }), {
+            headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+
+        const serverTime = await bybitRequest('/v5/market/time')
+        const balance = await bybitRequest('/v5/account/wallet-balance', 'GET', {
+          accountType: 'UNIFIED'
+        })
+        
+        return new Response(JSON.stringify({
+          success: true,
+          serverTime: serverTime.result?.timeSecond,
+          hasBalance: !!balance.result,
+          message: 'Bybit API connection successful'
+        }), {
+          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+        })
+      } catch (error) {
+        return new Response(JSON.stringify({
+          error: error.message,
+          retCode: error.retCode || null,
+          retMsg: error.retMsg || null
+        }), {
+          status: 500,
+          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
     }
 
-    // Main trading operations
+    // GET endpoints with query parameters
+    if (req.method === 'GET') {
+      if (pathname.endsWith('/orders')) {
+        const category = searchParams.get('category') || 'linear'
+        const symbol = searchParams.get('symbol')
+        const openOnly = searchParams.get('openOnly') === '1'
+        
+        const params: any = { category }
+        if (symbol) params.symbol = symbol
+        if (openOnly) params.openOnly = 1
+        
+        const result = await bybitRequest('/v5/order/realtime', 'GET', params)
+        
+        return new Response(JSON.stringify({
+          success: true,
+          orders: result.result?.list || []
+        }), {
+          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      if (pathname.endsWith('/positions')) {
+        const category = searchParams.get('category') || 'linear'
+        const symbol = searchParams.get('symbol')
+        
+        const params: any = { category }
+        if (symbol) params.symbol = symbol
+        
+        const result = await bybitRequest('/v5/position/list', 'GET', params)
+        
+        return new Response(JSON.stringify({
+          success: true,
+          positions: result.result?.list || []
+        }), {
+          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      if (pathname.endsWith('/tickers')) {
+        const category = searchParams.get('category') || 'linear'
+        const symbol = searchParams.get('symbol')
+        
+        const params: any = { category }
+        if (symbol) params.symbol = symbol
+        
+        const result = await bybitRequest('/v5/market/tickers', 'GET', params)
+        
+        return new Response(JSON.stringify({
+          success: true,
+          tickers: result.result?.list || []
+        }), {
+          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+    }
+
+    // POST endpoints
     if (req.method === 'POST') {
       const body = await req.json()
-      const { action, ...params } = body
 
-      switch (action) {
-        case 'status': {
-          // Get account balance and wallet info
-          const balance = await bybitRequest('/v5/account/wallet-balance', 'GET', {
-            accountType: 'UNIFIED'
-          })
-          return new Response(JSON.stringify({
-            success: true,
-            balance: balance.result
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
-        }
+      // Handle action-based routing (legacy support)
+      if (body.action) {
+        const { action, ...params } = body
 
-        case 'place-order': {
-          const { symbol, side, orderType, qty, price, category = 'spot' } = params
-          
-          const orderData: any = {
-            category,
-            symbol,
-            side,
-            orderType,
-            qty: qty.toString()
+        switch (action) {
+          case 'status': {
+            const balance = await bybitRequest('/v5/account/wallet-balance', 'GET', {
+              accountType: 'UNIFIED'
+            })
+            const positions = await bybitRequest('/v5/position/list', 'GET', {
+              category: 'linear'
+            })
+            
+            return new Response(JSON.stringify({
+              success: true,
+              balances: balance.result?.list || [],
+              positions: positions.result?.list || []
+            }), {
+              headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+            })
           }
+        }
+      }
 
-          if (price) {
-            orderData.price = price.toString()
-          }
-
-          const result = await bybitRequest('/v5/order/create', 'POST', orderData)
-          
-          return new Response(JSON.stringify({
-            success: true,
-            orderId: result.result?.orderId,
-            result: result.result
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
+      // Direct order placement
+      if (pathname.endsWith('/order')) {
+        const orderData: any = {
+          category: body.category || 'linear',
+          symbol: body.symbol,
+          side: body.side,
+          orderType: body.orderType || 'Market',
+          qty: body.qty.toString()
         }
 
-        case 'get-orders': {
-          const { symbol, category = 'spot' } = params
-          const result = await bybitRequest('/v5/order/realtime', 'GET', {
-            category,
-            symbol
-          })
-          
-          return new Response(JSON.stringify({
-            success: true,
-            orders: result.result?.list || []
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
-        }
+        if (body.price) orderData.price = body.price.toString()
+        if (body.positionIdx !== undefined) orderData.positionIdx = body.positionIdx
+        if (body.timeInForce) orderData.timeInForce = body.timeInForce
+        if (body.stopLoss) orderData.stopLoss = body.stopLoss.toString()
+        if (body.takeProfit) orderData.takeProfit = body.takeProfit.toString()
 
-        case 'cancel-order': {
-          const { orderId, symbol, category = 'spot' } = params
-          const result = await bybitRequest('/v5/order/cancel', 'POST', {
-            category,
-            symbol,
-            orderId
-          })
-          
-          return new Response(JSON.stringify({
-            success: true,
-            result: result.result
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
-        }
+        const result = await bybitRequest('/v5/order/create', 'POST', orderData)
+        
+        return new Response(JSON.stringify({
+          success: true,
+          orderId: result.result?.orderId,
+          result: result.result
+        }), {
+          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
 
-        default:
-          return new Response(JSON.stringify({
-            error: 'Unknown action',
-            supportedActions: ['status', 'place-order', 'get-orders', 'cancel-order']
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
+      // Cancel order
+      if (pathname.endsWith('/cancel')) {
+        const result = await bybitRequest('/v5/order/cancel', 'POST', {
+          category: body.category || 'linear',
+          symbol: body.symbol,
+          orderId: body.orderId
+        })
+        
+        return new Response(JSON.stringify({
+          success: true,
+          result: result.result
+        }), {
+          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Root POST with action (fallback)
+      if (pathname.endsWith('/bybit-broker') && body.action === 'status') {
+        const balance = await bybitRequest('/v5/account/wallet-balance', 'GET', {
+          accountType: 'UNIFIED'
+        })
+        
+        return new Response(JSON.stringify({
+          success: true,
+          balance: balance.result
+        }), {
+          headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
+        })
       }
     }
 
     return new Response(JSON.stringify({
-      error: 'Method not allowed',
-      supportedMethods: ['GET', 'POST'],
-      endpoints: ['/ping', '/env', '/test-connection']
+      error: 'Endpoint not found',
+      path: pathname,
+      method: req.method,
+      availableEndpoints: {
+        GET: ['/ping', '/env', '/test-connection', '/orders', '/positions', '/tickers'],
+        POST: ['/order', '/cancel', '/ (with action: status)']
+      }
     }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 404,
+      headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
     })
 
   } catch (error) {
@@ -222,10 +352,12 @@ serve(async (req) => {
     
     return new Response(JSON.stringify({
       error: error.message,
+      retCode: error.retCode || null,
+      retMsg: error.retMsg || null,
       timestamp: new Date().toISOString()
     }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...enhancedCorsHeaders, 'Content-Type': 'application/json' }
     })
   }
 })
