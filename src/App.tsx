@@ -8,6 +8,7 @@ import { isSupabaseConfigured } from '@/lib/supabaseClient';
 import Index from "./pages/Index";
 import Health from "./pages/Health";
 import AItradeX1Original from "./pages/AItradeX1Original";
+import X from "./pages/X";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ function App() {
             <Route path="/" element={<Index />} />
             <Route path="/health" element={<Health />} />
             <Route path="/AITRADEX1ORIGINAL" element={<AItradeX1Original />} />
+            <Route path="/X" element={<X />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
