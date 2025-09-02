@@ -26,16 +26,12 @@ function json(status: number, body: JsonLike) {
 }
 const mask = (s?: string, n = 4) => (s ? s.slice(0, n) + "****" : "");
 
-// Sorted query builder (Bybit expects sorted keys for signing on GET)
-function buildQueryString(params: Record<string, unknown>) {
-  const usp = new URLSearchParams();
-  Object.keys(params)
-    .sort()
-    .forEach((k) => {
-      const v = params[k];
-      if (v !== undefined && v !== null && v !== "") usp.append(k, String(v));
-    });
-  return usp.toString();
+// Build qs from a plain object (sorted & no empty values)
+function buildQS(query: Record<string, unknown> = {}) {
+  return Object.entries(query)
+    .filter(([,v]) => v !== undefined && v !== null && v !== "")
+    .map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join("&");
 }
 
 // Secrets reader (no crash if not present)
@@ -71,45 +67,35 @@ async function hmacSha256Hex(message: string, secret: string): Promise<string> {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// ---------- V5 request (signed when needed) ----------
+// Core V5 request (supports GET query + POST body). Signs per spec:
+// toSign = ts + apiKey + recv + (GET ? qs : jsonBody)
 async function bybitRequest(
   endpoint: string,
-  method: "GET" | "POST" = "GET",
+  method: "GET" | "POST" | "DELETE" = "GET",
   query: Record<string, unknown> = {},
-  body: Record<string, unknown> | null = null,
+  body?: Record<string, unknown>,
 ) {
   const { apiKey, apiSecret, baseUrl, recv } = readSecrets();
 
+  // Public endpoints work unsigned, but if creds exist we still sign.
+  const isAuth = !!apiKey && !!apiSecret;
+
   const ts = Date.now().toString();
-  const qs = buildQueryString(query);
+  const qs = buildQS(query);
   const url = `${baseUrl}${endpoint}${qs ? `?${qs}` : ""}`;
   const jsonBody = body ? JSON.stringify(body) : "";
 
-  // detect if endpoint requires auth — we'll sign for all private endpoints
-  const needsAuth = endpoint.startsWith("/v5/account") ||
-                    endpoint.startsWith("/v5/order") ||
-                    endpoint.startsWith("/v5/position");
+  let headers: Record<string,string> = { "Content-Type": "application/json" };
 
-  let headers: Record<string, string> = { "content-type": "application/json" };
-
-  if (needsAuth) {
-    if (!apiKey || !apiSecret) {
-      const e = new Error("Bybit API credentials not configured") as AnyError;
-      e.retCode = "MISSING_CREDENTIALS";
-      throw e;
-    }
-    // V5 sign string:
-    // GET:    ts + api_key + recv_window + queryString
-    // POST:   ts + api_key + recv_window + jsonBody
-    const signBase = method === "GET" ? qs : jsonBody;
-    const payload = ts + apiKey + recv + signBase;
-    const sign = await hmacSha256Hex(payload, apiSecret);
+  if (isAuth) {
+    const toSign = method === "GET" ? `${ts}${apiKey}${recv}${qs}` : `${ts}${apiKey}${recv}${jsonBody}`;
+    const sign = await hmacSha256Hex(toSign, apiSecret);
     headers = {
       ...headers,
       "X-BAPI-API-KEY": apiKey,
-      "X-BAPI-SIGN": sign,
       "X-BAPI-TIMESTAMP": ts,
       "X-BAPI-RECV-WINDOW": recv,
+      "X-BAPI-SIGN": sign,
       "X-BAPI-SIGN-TYPE": "2",
     };
   }
@@ -117,36 +103,22 @@ async function bybitRequest(
   console.log(`[Bybit API] ${method} ${endpoint}`, {
     query: qs || "(none)",
     hasBody: !!jsonBody,
-    needsAuth,
+    isAuth,
   });
 
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: method === "GET" ? undefined : jsonBody,
-  });
-
-  let data: any = null;
-  try {
-    data = await res.json();
-  } catch {
-    // keep raw
-  }
+  const res = await fetch(url, { method, headers, body: method === "GET" ? undefined : jsonBody });
+  const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const e = new Error(`HTTP ${res.status}`) as AnyError;
-    e.httpStatus = res.status;
-    e.response = data;
-    throw e;
+    const err: any = new Error(`Bybit HTTP ${res.status}`);
+    err.retCode = data?.retCode; err.retMsg = data?.retMsg; err.httpStatus = res.status;
+    throw err;
   }
-  if (data?.retCode !== undefined && data.retCode !== 0) {
-    const e = new Error(data?.retMsg || "Bybit error") as AnyError;
-    e.retCode = data.retCode;
-    e.retMsg = data.retMsg;
-    e.response = data;
-    throw e;
+  if (data?.retCode !== 0) {
+    const err: any = new Error(data?.retMsg || "Bybit error");
+    err.retCode = data?.retCode; err.retMsg = data?.retMsg;
+    throw err;
   }
-
   return data;
 }
 
@@ -302,6 +274,66 @@ serve(async (req) => {
         const r = await bybitRequest("/v5/spot-margin-trade/interest-rate-history", "GET", query);
         return json(200, { success: true, ...r });
       }
+
+      if (pathname.endsWith("/spot-margin/state")) {
+        const r = await bybitRequest("/v5/spot-margin-trade/state", "GET");
+        return json(200, { success: true, state: r.result });
+      }
+
+      // Crypto Loan - Common endpoints
+      if (pathname.endsWith("/crypto-loan/common/loanable-data")) {
+        const r = await bybitRequest("/v5/crypto-loan-common/loanable-data", "GET", Object.fromEntries(sp.entries()));
+        return json(200, { success: true, ...r.result });
+      }
+
+      if (pathname.endsWith("/crypto-loan/common/collateral-data")) {
+        const r = await bybitRequest("/v5/crypto-loan-common/collateral-data", "GET", Object.fromEntries(sp.entries()));
+        return json(200, { success: true, ...r.result });
+      }
+
+      if (pathname.endsWith("/crypto-loan/common/max-collateral-amount")) {
+        const currency = sp.get("currency");
+        if (!currency) return json(400, { success:false, error:"currency required" });
+        const r = await bybitRequest("/v5/crypto-loan-common/max-collateral-amount", "GET", { currency });
+        return json(200, { success: true, ...r.result });
+      }
+
+      if (pathname.endsWith("/crypto-loan/common/adjustment-history")) {
+        const r = await bybitRequest("/v5/crypto-loan-common/adjustment-history", "GET", Object.fromEntries(sp.entries()));
+        return json(200, { success: true, ...r.result });
+      }
+
+      if (pathname.endsWith("/crypto-loan/common/position")) {
+        const r = await bybitRequest("/v5/crypto-loan-common/position", "GET");
+        return json(200, { success: true, ...r.result });
+      }
+
+      // Crypto Loan - Flexible endpoints
+      if (pathname.endsWith("/crypto-loan/flexible/ongoing-coin")) {
+        const r = await bybitRequest("/v5/crypto-loan-flexible/ongoing-coin", "GET", Object.fromEntries(sp.entries()));
+        return json(200, { success: true, ...r.result });
+      }
+
+      if (pathname.endsWith("/crypto-loan/flexible/borrow-history")) {
+        const r = await bybitRequest("/v5/crypto-loan-flexible/borrow-history", "GET", Object.fromEntries(sp.entries()));
+        return json(200, { success: true, ...r.result });
+      }
+
+      if (pathname.endsWith("/crypto-loan/flexible/repayment-history")) {
+        const r = await bybitRequest("/v5/crypto-loan-flexible/repayment-history", "GET", Object.fromEntries(sp.entries()));
+        return json(200, { success: true, ...r.result });
+      }
+
+      // Crypto Loan - Fixed endpoints
+      if (pathname.endsWith("/crypto-loan/fixed/supply-order-quote")) {
+        const r = await bybitRequest("/v5/crypto-loan-fixed/supply-order-quote", "GET", Object.fromEntries(sp.entries()));
+        return json(200, { success: true, ...r.result });
+      }
+
+      if (pathname.endsWith("/crypto-loan/fixed/borrow-order-quote")) {
+        const r = await bybitRequest("/v5/crypto-loan-fixed/borrow-order-quote", "GET", Object.fromEntries(sp.entries()));
+        return json(200, { success: true, ...r.result });
+      }
     }
 
     // ------- POST actions -------
@@ -354,9 +386,81 @@ serve(async (req) => {
 
       // Spot margin mode switch
       if (pathname.endsWith("/spot-margin/switch-mode")) {
-        if (!body?.spotMarginMode) return json(400, { success:false, error:"spotMarginMode required (\"1\" or \"0\")" });
+        if (!body?.spotMarginMode) return json(400, { success:false, error:"spotMarginMode required ('1' or '0')" });
         const r = await bybitRequest("/v5/spot-margin-trade/switch-mode", "POST", {}, { spotMarginMode: String(body.spotMarginMode) });
-        return json(200, { success: true, ...r });
+        return json(200, { success: true, ...r.result });
+      }
+
+      // Spot margin set leverage
+      if (pathname.endsWith("/spot-margin/set-leverage")) {
+        if (!body?.leverage) return json(400, { success:false, error:"leverage required (2..10)" });
+        const r = await bybitRequest("/v5/spot-margin-trade/set-leverage", "POST", {}, { leverage: String(body.leverage) });
+        return json(200, { success: true });
+      }
+
+      // Crypto Loan - Common endpoints
+      if (pathname.endsWith("/crypto-loan/common/adjust-ltv")) {
+        for (const k of ["currency","amount","direction"]) if (!body?.[k]) return json(400, { success:false, error:`${k} required` });
+        const r = await bybitRequest("/v5/crypto-loan-common/adjust-ltv", "POST", {}, {
+          currency: String(body.currency), amount: String(body.amount), direction: String(body.direction)
+        });
+        return json(200, { success: true, ...r.result });
+      }
+
+      // Crypto Loan - Flexible endpoints
+      if (pathname.endsWith("/crypto-loan/flexible/borrow")) {
+        for (const k of ["loanCurrency","loanAmount"]) if (!body?.[k]) return json(400, { success:false, error:`${k} required` });
+        const r = await bybitRequest("/v5/crypto-loan-flexible/borrow", "POST", {}, {
+          loanCurrency: String(body.loanCurrency),
+          loanAmount: String(body.loanAmount),
+          ...(body.collateralList ? { collateralList: body.collateralList } : {})
+        });
+        return json(200, { success: true, ...r.result });
+      }
+
+      if (pathname.endsWith("/crypto-loan/flexible/repay")) {
+        for (const k of ["loanCurrency","amount"]) if (!body?.[k]) return json(400, { success:false, error:`${k} required` });
+        const r = await bybitRequest("/v5/crypto-loan-flexible/repay", "POST", {}, {
+          loanCurrency: String(body.loanCurrency), amount: String(body.amount)
+        });
+        return json(200, { success: true, ...r.result });
+      }
+
+      // Crypto Loan - Fixed endpoints
+      if (pathname.endsWith("/crypto-loan/fixed/borrow")) {
+        for (const k of ["orderCurrency","orderAmount","annualRate","term"]) if (!body?.[k]) return json(400, { success:false, error:`${k} required` });
+        const r = await bybitRequest("/v5/crypto-loan-fixed/borrow", "POST", {}, {
+          orderCurrency: String(body.orderCurrency),
+          orderAmount: String(body.orderAmount),
+          annualRate: String(body.annualRate),
+          term: String(body.term),
+          ...(body.autoRepay ? { autoRepay: String(body.autoRepay) } : {}),
+          ...(body.collateralList ? { collateralList: body.collateralList } : {})
+        });
+        return json(200, { success: true, ...r.result });
+      }
+
+      if (pathname.endsWith("/crypto-loan/fixed/supply")) {
+        for (const k of ["orderCurrency","orderAmount","annualRate","term"]) if (!body?.[k]) return json(400, { success:false, error:`${k} required` });
+        const r = await bybitRequest("/v5/crypto-loan-fixed/supply", "POST", {}, {
+          orderCurrency: String(body.orderCurrency),
+          orderAmount: String(body.orderAmount),
+          annualRate: String(body.annualRate),
+          term: String(body.term)
+        });
+        return json(200, { success: true, ...r.result });
+      }
+
+      if (pathname.endsWith("/crypto-loan/fixed/borrow-order-cancel")) {
+        if (!body?.orderId) return json(400, { success:false, error:"orderId required" });
+        const r = await bybitRequest("/v5/crypto-loan-fixed/borrow-order-cancel", "POST", {}, { orderId: String(body.orderId) });
+        return json(200, { success: true });
+      }
+
+      if (pathname.endsWith("/crypto-loan/fixed/supply-order-cancel")) {
+        if (!body?.orderId) return json(400, { success:false, error:"orderId required" });
+        const r = await bybitRequest("/v5/crypto-loan-fixed/supply-order-cancel", "POST", {}, { orderId: String(body.orderId) });
+        return json(200, { success: true });
       }
 
       return json(400, { success: false, error: "Unknown action or path" });
@@ -368,8 +472,8 @@ serve(async (req) => {
       path: pathname,
       method: req.method,
       availableEndpoints: {
-        GET: ["/ping", "/env", "/test-connection", "/orders", "/positions", "/tickers", "/affiliate/users", "/affiliate/user-info", "/spot-margin/data", "/spot-margin/collateral", "/spot-margin/interest-rate-history"],
-        POST: ["/order", "/cancel", "/spot-margin/switch-mode", "/ (with action: status)"],
+        GET: ["/ping", "/env", "/test-connection", "/orders", "/positions", "/tickers", "/affiliate/users", "/affiliate/user-info", "/spot-margin/data", "/spot-margin/collateral", "/spot-margin/interest-rate-history", "/spot-margin/state", "/crypto-loan/common/loanable-data", "/crypto-loan/common/collateral-data", "/crypto-loan/common/max-collateral-amount", "/crypto-loan/common/adjustment-history", "/crypto-loan/common/position", "/crypto-loan/flexible/ongoing-coin", "/crypto-loan/flexible/borrow-history", "/crypto-loan/flexible/repayment-history", "/crypto-loan/fixed/supply-order-quote", "/crypto-loan/fixed/borrow-order-quote"],
+        POST: ["/order", "/cancel", "/spot-margin/switch-mode", "/spot-margin/set-leverage", "/crypto-loan/common/adjust-ltv", "/crypto-loan/flexible/borrow", "/crypto-loan/flexible/repay", "/crypto-loan/fixed/borrow", "/crypto-loan/fixed/supply", "/crypto-loan/fixed/borrow-order-cancel", "/crypto-loan/fixed/supply-order-cancel", "/ (with action: status)"],
       },
     });
   } catch (e) {

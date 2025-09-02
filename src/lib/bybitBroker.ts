@@ -115,6 +115,60 @@ export const BybitBroker = {
   cancel: (params: CancelParams) => BybitBroker.cancelOrder(params)
 };
 
+export const SpotMargin = {
+  state: () => call('/spot-margin/state'),
+  switch: (spotMarginMode: "0"|"1") => call('/spot-margin/switch-mode', { 
+    method: 'POST', 
+    body: JSON.stringify({ spotMarginMode })
+  }),
+  setLeverage: (leverage: number) => call('/spot-margin/set-leverage', { 
+    method: 'POST', 
+    body: JSON.stringify({ leverage })
+  }),
+};
+
+export const LoanCommon = {
+  loanable: (q: {vipLevel?:string; currency?:string}={}) => 
+    call(`/crypto-loan/common/loanable-data?${new URLSearchParams(q as any)}`),
+  collateral: (q: {currency?:string}={}) => 
+    call(`/crypto-loan/common/collateral-data?${new URLSearchParams(q as any)}`),
+  maxReduce: (currency: string) => 
+    call(`/crypto-loan/common/max-collateral-amount?currency=${encodeURIComponent(currency)}`),
+  adjustLTV: (payload: {currency:string; amount:string|number; direction:"0"|"1"}) => 
+    call('/crypto-loan/common/adjust-ltv', { method: 'POST', body: JSON.stringify(payload)}),
+  history: (q: Record<string,string> = {}) => 
+    call(`/crypto-loan/common/adjustment-history?${new URLSearchParams(q)}`),
+  position: () => call('/crypto-loan/common/position'),
+};
+
+export const LoanFlexible = {
+  borrow: (payload: {loanCurrency:string; loanAmount:string|number; collateralList?: any[]}) => 
+    call('/crypto-loan/flexible/borrow', { method: 'POST', body: JSON.stringify(payload)}),
+  repay: (payload: {loanCurrency:string; amount:string|number}) => 
+    call('/crypto-loan/flexible/repay', { method: 'POST', body: JSON.stringify(payload)}),
+  ongoing: (q: {loanCurrency?:string}={}) => 
+    call(`/crypto-loan/flexible/ongoing-coin?${new URLSearchParams(q as any)}`),
+  borrowHistory: (q: Record<string,string> = {}) => 
+    call(`/crypto-loan/flexible/borrow-history?${new URLSearchParams(q)}`),
+  repayHistory: (q: Record<string,string> = {}) => 
+    call(`/crypto-loan/flexible/repayment-history?${new URLSearchParams(q)}`),
+};
+
+export const LoanFixed = {
+  supplyQuote: (q: Record<string,string>) => 
+    call(`/crypto-loan/fixed/supply-order-quote?${new URLSearchParams(q)}`),
+  borrowQuote: (q: Record<string,string>) => 
+    call(`/crypto-loan/fixed/borrow-order-quote?${new URLSearchParams(q)}`),
+  borrow: (payload: {orderCurrency:string; orderAmount:string|number; annualRate:string|number; term:string|number; autoRepay?: "true"|"false"; collateralList?: any }) => 
+    call('/crypto-loan/fixed/borrow', { method: 'POST', body: JSON.stringify(payload)}),
+  supply: (payload: {orderCurrency:string; orderAmount:string|number; annualRate:string|number; term:string|number}) => 
+    call('/crypto-loan/fixed/supply', { method: 'POST', body: JSON.stringify(payload)}),
+  cancelBorrow: (orderId: string) => 
+    call('/crypto-loan/fixed/borrow-order-cancel', { method: 'POST', body: JSON.stringify({ orderId })}),
+  cancelSupply: (orderId: string) => 
+    call('/crypto-loan/fixed/supply-order-cancel', { method: 'POST', body: JSON.stringify({ orderId })}),
+};
+
 // Export types for use in components
 export type { BybitResponse };
 export type { OrderParams, CancelParams };
