@@ -74,6 +74,7 @@ async function executeBybitOrder(orderParams: BybitOrderParams): Promise<BybitRe
   const queryString = JSON.stringify(cleanParams);
   const signature = generateSignature(timestamp, apiKey, recvWindow, queryString, apiSecret);
   
+  // PRODUCTION ENDPOINT - Using mainnet
   const url = 'https://api.bybit.com/v5/order/create';
   
   console.log('Bybit API Request:', {
@@ -138,6 +139,7 @@ async function getAccountBalance(category: string, coin?: string): Promise<any> 
   
   const signature = generateSignature(timestamp, apiKey, recvWindow, queryString, apiSecret);
   
+  // PRODUCTION ENDPOINT - Using mainnet
   const url = `https://api.bybit.com/v5/account/wallet-balance?${queryString}`;
   
   const response = await fetch(url, {
