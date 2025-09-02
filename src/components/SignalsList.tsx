@@ -52,10 +52,21 @@ const SignalsList = () => {
     try {
       setIsExecutingOrder(true);
       
+      console.log('🚀 Executing LIVE Bybit v5 order:', {
+        token: signal.token,
+        direction: signal.direction,
+        entry_price: signal.entry_price,
+        stop_loss: signal.stop_loss,
+        exit_target: signal.exit_target,
+        confidence: signal.confidence_score
+      });
+      
       const { data, error } = await supabase.functions.invoke('bybit-order-execution', {
         body: { 
           signal,
-          orderSize 
+          orderSize,
+          category: 'spot', // 'spot' for spot trading, 'linear' for futures
+          testMode: false // Set to true for testing without real orders
         }
       });
 
@@ -65,18 +76,19 @@ const SignalsList = () => {
 
       if (data.success) {
         toast({
-          title: "Order Executed Successfully! 🚀",
-          description: `${signal.direction} order for ${signal.token} - Order ID: ${data.orderId}`,
+          title: `🎯 LIVE ${signal.direction} Order Executed!`,
+          description: `${signal.token} on Bybit - Order ID: ${data.orderId} | Size: $${orderSize}`,
         });
+        console.log('✅ Bybit v5 API order result:', data);
       } else {
-        throw new Error(data.error || 'Failed to execute order');
+        throw new Error(data.error || 'Failed to execute live order');
       }
 
     } catch (error: any) {
-      console.error('Error executing order:', error);
+      console.error('❌ Bybit v5 API error:', error);
       toast({
-        title: "Order Execution Failed",
-        description: error.message || 'Failed to execute order on Bybit',
+        title: "Live Trading Error",
+        description: error.message || 'Failed to execute live order on Bybit v5',
         variant: "destructive",
       });
     } finally {
