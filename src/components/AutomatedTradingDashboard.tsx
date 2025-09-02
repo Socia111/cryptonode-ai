@@ -89,11 +89,41 @@ const AutomatedTradingDashboard = () => {
     } catch (error: any) {
       console.error('Error checking status:', error);
       
-      // Show specific error for IP restrictions
-      if (error.message?.includes('non-2xx status code')) {
+      // Check for different error types and show appropriate messages
+      const errorMessage = error.message || 'Unknown error';
+      
+      if (errorMessage.includes('non-2xx status code')) {
         toast({
-          title: "⚠️ Bybit API Error",
-          description: "IP restriction detected. Please remove IP restrictions from your Bybit API key or add Supabase IPs to whitelist.",
+          title: "🔧 Trading Engine Error",
+          description: "Please check your API credentials and try the 'Test Connection' button below.",
+          variant: "destructive",
+        });
+      } else if (errorMessage.includes('IP restriction') || errorMessage.includes('Unmatched IP')) {
+        toast({
+          title: "🌐 IP Restriction Error",
+          description: "Your Bybit API key has IP restrictions. Please disable IP restrictions in your Bybit API settings.",
+          variant: "destructive",
+          action: (
+            <a 
+              href="https://www.bybit.com/app/user/api-management" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-400 underline"
+            >
+              Fix in Bybit
+            </a>
+          ),
+        });
+      } else if (errorMessage.includes('credentials not configured')) {
+        toast({
+          title: "🔑 API Keys Missing",
+          description: "Please add your Bybit API keys using the secrets manager.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "❌ Connection Error",
+          description: errorMessage,
           variant: "destructive",
         });
       }
@@ -287,6 +317,33 @@ const AutomatedTradingDashboard = () => {
                 size="sm"
               >
                 Test Connection
+              </Button>
+              <Button 
+                onClick={async () => {
+                  try {
+                    setLoading(true);
+                    const { data, error } = await supabase.functions.invoke('debug-trading-status');
+                    if (error) throw error;
+                    console.log('🔍 Debug Info:', data);
+                    toast({
+                      title: "🔍 Debug Complete",
+                      description: `API Key: ${data.environment.hasApiKey ? '✅' : '❌'} | Bybit: ${data.bybit.connected ? '✅' : '❌'}`,
+                    });
+                  } catch (error: any) {
+                    toast({
+                      title: "Debug Failed",
+                      description: error.message,
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                variant="ghost"
+                disabled={loading}
+                size="sm"
+              >
+                Debug
               </Button>
               {isRunning ? (
                 <Button 

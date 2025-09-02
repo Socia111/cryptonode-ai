@@ -86,6 +86,9 @@ verify_jwt = false
 [functions.manual-trade-execution]
 verify_jwt = false
 
+[functions.debug-trading-status]
+verify_jwt = false
+
 [functions.bybit-order-execution]
 verify_jwt = false
 

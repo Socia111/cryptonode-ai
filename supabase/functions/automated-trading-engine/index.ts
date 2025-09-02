@@ -144,7 +144,21 @@ class BybitTrader {
             break;
         }
         
-        throw new Error(`Bybit API error (${data.retCode}): ${errorMessage}`);
+        // Create enhanced error for better debugging
+        const apiError = new Error(`Bybit API error (${data.retCode}): ${errorMessage}`);
+        (apiError as any).retCode = data.retCode;
+        (apiError as any).isApiError = true;
+        (apiError as any).endpoint = endpoint;
+        
+        console.error('Bybit API returned error:', {
+          endpoint,
+          method,
+          retCode: data.retCode,
+          retMsg: data.retMsg,
+          timestamp: new Date().toISOString()
+        });
+        
+        throw apiError;
       }
       
       return data;
@@ -573,13 +587,24 @@ serve(async (req) => {
     const { action, config, signal, quantity } = await req.json();
 
     // Check if API credentials are configured
-    if (!BYBIT_API_KEY || !BYBIT_API_SECRET) {
+    if (!BYBIT_API_KEY || !BYBIT_API_SECRET || BYBIT_API_KEY === '' || BYBIT_API_SECRET === '') {
+      console.error('API Credentials check failed:', {
+        hasApiKey: !!BYBIT_API_KEY,
+        apiKeyLength: BYBIT_API_KEY?.length || 0,
+        hasApiSecret: !!BYBIT_API_SECRET,
+        apiSecretLength: BYBIT_API_SECRET?.length || 0
+      });
+      
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Bybit API credentials not configured. Please add BYBIT_API_KEY and BYBIT_API_SECRET secrets.' 
+          error: 'Bybit API credentials not configured. Please add BYBIT_API_KEY and BYBIT_API_SECRET secrets.',
+          details: 'API credentials missing or empty'
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       );
     }
 
