@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { isSupabaseConfigured } from '@/lib/supabaseClient';
 import Index from "./pages/Index";
 import Health from "./pages/Health";
+import AItradeX1Original from "./pages/AItradeX1Original";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/health" element={<Health />} />
+            <Route path="/AITRADEX1ORIGINAL" element={<AItradeX1Original />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
