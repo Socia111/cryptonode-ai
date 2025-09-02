@@ -456,9 +456,6 @@ class BybitV5Client {
 }
 
 // Bybit V5 REST API Helper Functions
-async function getWalletBalance(client: BybitV5Client, accountType: AccountType = "UNIFIED") {
-  return client.privateGet("/v5/account/wallet-balance", { accountType });
-}
 
 async function listPositions(client: BybitV5Client, symbol?: string) {
   return client.privateGet("/v5/position/list", { 
