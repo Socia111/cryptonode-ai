@@ -2588,6 +2588,63 @@ export type Database = {
         }
         Relationships: []
       }
+      spynx_scores: {
+        Row: {
+          created_at: string
+          holder_count: number | null
+          id: string
+          liquidity: number | null
+          market_cap: number | null
+          metadata: Json | null
+          price: number | null
+          price_change_24h: number | null
+          roi_forecast: number | null
+          score: number
+          sentiment: number | null
+          token_name: string | null
+          token_symbol: string
+          updated_at: string
+          volume_24h: number | null
+          whale_activity: number | null
+        }
+        Insert: {
+          created_at?: string
+          holder_count?: number | null
+          id?: string
+          liquidity?: number | null
+          market_cap?: number | null
+          metadata?: Json | null
+          price?: number | null
+          price_change_24h?: number | null
+          roi_forecast?: number | null
+          score?: number
+          sentiment?: number | null
+          token_name?: string | null
+          token_symbol: string
+          updated_at?: string
+          volume_24h?: number | null
+          whale_activity?: number | null
+        }
+        Update: {
+          created_at?: string
+          holder_count?: number | null
+          id?: string
+          liquidity?: number | null
+          market_cap?: number | null
+          metadata?: Json | null
+          price?: number | null
+          price_change_24h?: number | null
+          roi_forecast?: number | null
+          score?: number
+          sentiment?: number | null
+          token_name?: string | null
+          token_symbol?: string
+          updated_at?: string
+          volume_24h?: number | null
+          whale_activity?: number | null
+        }
+        Relationships: []
+      }
       strategy_signals: {
         Row: {
           confidence: number | null

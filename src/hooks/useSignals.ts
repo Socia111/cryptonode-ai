@@ -427,6 +427,7 @@ export const useSignals = () => {
 export const useSpynxScores = () => {
   const [scores, setScores] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchScores();
@@ -434,30 +435,31 @@ export const useSpynxScores = () => {
 
   const fetchScores = async () => {
     try {
-      // Check if spynx_portfolios table exists, if not return empty array
+      setLoading(true);
+      setError(null);
+      console.log('[SPYNX] Fetching scores from spynx_scores table...');
+      
+      // Fetch from the correct spynx_scores table
       const { data: scores, error } = await supabase
-        .from('spynx_portfolios')
+        .from('spynx_scores')
         .select('*')
         .order('score', { ascending: false })
         .limit(10);
 
       if (error) {
-        // Table doesn't exist yet, this is normal
-        if (error.code === '42P01') {
-          console.log('[SPYNX] Table not created yet - this is normal');
-          setScores([]);
-        } else {
-          console.error('[SPYNX] Error fetching scores:', error);
-          setScores([]);
-        }
+        console.error('[SPYNX] Error fetching scores:', error);
+        setError(error.message);
+        setScores([]);
         setLoading(false);
         return;
       }
 
+      console.log('[SPYNX] Fetched scores:', scores);
       setScores(scores || []);
       setLoading(false);
     } catch (err) {
       console.error('[SPYNX] Fetch error:', err);
+      setError('Failed to fetch Spynx scores');
       setScores([]);
       setLoading(false);
     }
@@ -465,13 +467,17 @@ export const useSpynxScores = () => {
 
   const updateSpynxScores = async () => {
     try {
+      console.log('[SPYNX] Calling calculate-spynx-scores function...');
       const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
       if (error) throw error;
       
+      console.log('[SPYNX] Scores updated successfully:', data);
+      
       // Refresh scores after calculation
-      fetchScores();
+      await fetchScores();
       return data;
     } catch (err) {
+      console.error('[SPYNX] Update error:', err);
       throw err;
     }
   };
@@ -479,6 +485,7 @@ export const useSpynxScores = () => {
   return {
     scores,
     loading,
+    error,
     updateSpynxScores
   };
 };
