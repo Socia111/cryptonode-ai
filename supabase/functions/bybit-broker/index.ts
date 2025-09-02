@@ -1,26 +1,44 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+// supabase/functions/bybit-broker/index.ts
+// Deno edge function: Bybit broker (V5)
 
-// ---- CORS (one place, used everywhere)
-const baseCors = {
-  "Access-Control-Allow-Origin": "*",
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+
+// ---------- CORS (always on) ----------
+const baseCors: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",                  // or reflect Origin if you prefer
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-bapi-api-key, x-bapi-sign, x-bapi-timestamp, x-bapi-recv-window, x-bapi-sign-type",
   "Access-Control-Max-Age": "86400",
-  "Vary": "Origin",
+  Vary: "Origin",
 };
-const corsHeaders = baseCors; // alias for safety
+const corsHeaders = baseCors;
 
-// Small helpers
-const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body, null, 2), {
+// ---------- tiny utils ----------
+type JsonLike = Record<string, unknown> | unknown[];
+type AnyError = Error & Record<string, unknown>;
+
+function json(status: number, body: JsonLike) {
+  return new Response(JSON.stringify(body, null, 2), {
     status,
     headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
   });
-
+}
 const mask = (s?: string, n = 4) => (s ? s.slice(0, n) + "****" : "");
 
-// (Optional) central secrets reader (no crash if env unset)
+// Sorted query builder (Bybit expects sorted keys for signing on GET)
+function buildQueryString(params: Record<string, unknown>) {
+  const usp = new URLSearchParams();
+  Object.keys(params)
+    .sort()
+    .forEach((k) => {
+      const v = params[k];
+      if (v !== undefined && v !== null && v !== "") usp.append(k, String(v));
+    });
+  return usp.toString();
+}
+
+// Secrets reader (no crash if not present)
 function readSecrets() {
   try {
     return {
@@ -30,102 +48,116 @@ function readSecrets() {
       recv: Deno.env.get("BYBIT_RECV_WINDOW") ?? "5000",
     };
   } catch {
-    return { apiKey: "", apiSecret: "", baseUrl: "https://api.bybit.com", recv: "5000" };
+    return {
+      apiKey: "",
+      apiSecret: "",
+      baseUrl: "https://api.bybit.com",
+      recv: "5000",
+    };
   }
 }
 
-// HMAC SHA256 signature for Bybit V5
-async function createSignature(params: string, secret: string): Promise<string> {
-  const encoder = new TextEncoder()
+// ---------- V5 HMAC ----------
+async function hmacSha256Hex(message: string, secret: string): Promise<string> {
+  const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
     false,
-    ['sign']
-  )
-  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(params))
-  return Array.from(new Uint8Array(signature))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// Make authenticated request to Bybit V5 API
-async function bybitRequest(endpoint: string, method: string = 'GET', body?: any) {
-  const config = readSecrets()
-  
-  if (!config.apiKey || !config.apiSecret) {
-    const error = new Error('Bybit API credentials not configured')
-    error.retCode = 'MISSING_CREDENTIALS'
-    throw error
+// ---------- V5 request (signed when needed) ----------
+async function bybitRequest(
+  endpoint: string,
+  method: "GET" | "POST" = "GET",
+  query: Record<string, unknown> = {},
+  body: Record<string, unknown> | null = null,
+) {
+  const { apiKey, apiSecret, baseUrl, recv } = readSecrets();
+
+  const ts = Date.now().toString();
+  const qs = buildQueryString(query);
+  const url = `${baseUrl}${endpoint}${qs ? `?${qs}` : ""}`;
+  const jsonBody = body ? JSON.stringify(body) : "";
+
+  // detect if endpoint requires auth — we'll sign for all private endpoints
+  const needsAuth = endpoint.startsWith("/v5/account") ||
+                    endpoint.startsWith("/v5/order") ||
+                    endpoint.startsWith("/v5/position");
+
+  let headers: Record<string, string> = { "content-type": "application/json" };
+
+  if (needsAuth) {
+    if (!apiKey || !apiSecret) {
+      const e = new Error("Bybit API credentials not configured") as AnyError;
+      e.retCode = "MISSING_CREDENTIALS";
+      throw e;
+    }
+    // V5 sign string:
+    // GET:    ts + api_key + recv_window + queryString
+    // POST:   ts + api_key + recv_window + jsonBody
+    const signBase = method === "GET" ? qs : jsonBody;
+    const payload = ts + apiKey + recv + signBase;
+    const sign = await hmacSha256Hex(payload, apiSecret);
+    headers = {
+      ...headers,
+      "X-BAPI-API-KEY": apiKey,
+      "X-BAPI-SIGN": sign,
+      "X-BAPI-TIMESTAMP": ts,
+      "X-BAPI-RECV-WINDOW": recv,
+      "X-BAPI-SIGN-TYPE": "2",
+    };
   }
 
-  const timestamp = Date.now().toString()
-  const bodyStr = body ? JSON.stringify(body) : ''
-  const queryStr = method === 'GET' && body ? new URLSearchParams(body).toString() : ''
-  
-  // Create signature payload according to Bybit V5 specs
-  const payload = timestamp + config.apiKey + config.recv + 
-    (method === 'GET' ? queryStr : bodyStr)
-  
-  const signature = await createSignature(payload, config.apiSecret)
-  
-  const headers = {
-    'X-BAPI-API-KEY': config.apiKey,
-    'X-BAPI-SIGN': signature,
-    'X-BAPI-TIMESTAMP': timestamp,
-    'X-BAPI-RECV-WINDOW': config.recv,
-    'X-BAPI-SIGN-TYPE': '2',
-    'Content-Type': 'application/json'
-  }
+  console.log(`[Bybit API] ${method} ${endpoint}`, {
+    query: qs || "(none)",
+    hasBody: !!jsonBody,
+    needsAuth,
+  });
 
-  const url = method === 'GET' && queryStr 
-    ? `${config.baseUrl}${endpoint}?${queryStr}`
-    : `${config.baseUrl}${endpoint}`
-
-  console.log(`[Bybit API] ${method} ${endpoint}`, { 
-    hasBody: !!bodyStr, 
-    queryParams: queryStr || 'none',
-    timestamp,
-    recvWindow: config.recv
-  })
-
-  const response = await fetch(url, {
+  const res = await fetch(url, {
     method,
     headers,
-    body: method === 'GET' ? undefined : bodyStr
-  })
+    body: method === "GET" ? undefined : jsonBody,
+  });
 
-  const responseData = await response.json()
-
-  if (!response.ok) {
-    const error = new Error(`Bybit API error: ${response.status} ${response.statusText}`)
-    error.retCode = responseData.retCode
-    error.retMsg = responseData.retMsg
-    error.httpStatus = response.status
-    throw error
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    // keep raw
   }
 
-  // Check for Bybit-specific errors in successful HTTP responses
-  if (responseData.retCode && responseData.retCode !== 0) {
-    const error = new Error(responseData.retMsg || 'Bybit API error')
-    error.retCode = responseData.retCode
-    error.retMsg = responseData.retMsg
-    throw error
+  if (!res.ok) {
+    const e = new Error(`HTTP ${res.status}`) as AnyError;
+    e.httpStatus = res.status;
+    e.response = data;
+    throw e;
+  }
+  if (data?.retCode !== undefined && data.retCode !== 0) {
+    const e = new Error(data?.retMsg || "Bybit error") as AnyError;
+    e.retCode = data.retCode;
+    e.retMsg = data.retMsg;
+    e.response = data;
+    throw e;
   }
 
-  return responseData
+  return data;
 }
 
-// ---- serve
+// ---------- HTTP entry ----------
 serve(async (req) => {
-  // Preflight must never fail and must reflect requested headers
+  // Preflight: never fail, reflect additional requested headers
   if (req.method === "OPTIONS") {
     const reqHdrs = req.headers.get("access-control-request-headers") ?? "";
     const headers = {
       ...baseCors,
-      "Access-Control-Allow-Headers":
-        `${baseCors["Access-Control-Allow-Headers"]}${reqHdrs ? `, ${reqHdrs}` : ""}`,
+      "Access-Control-Allow-Headers": `${baseCors["Access-Control-Allow-Headers"]}${reqHdrs ? `, ${reqHdrs}` : ""}`,
     };
     return new Response("ok", { status: 204, headers });
   }
@@ -133,218 +165,176 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const pathname = url.pathname;
-    const searchParams = url.searchParams;
+    const sp = url.searchParams;
 
-    // 0) /ping: fastest health check (no secrets required)
+    // 0) ping
     if (pathname.endsWith("/ping")) {
-      return json(200, { 
-        ok: true,
-        timestamp: new Date().toISOString(),
-        service: 'bybit-broker'
-      });
+      return json(200, { ok: true, service: "bybit-broker", ts: Date.now() });
     }
 
-    // 1) /env: safe, masked preview (must never throw)
+    // 1) env (masked)
     if (pathname.endsWith("/env")) {
       const { apiKey, apiSecret, baseUrl, recv } = readSecrets();
       return json(200, {
         hasApiKey: !!apiKey,
         hasApiSecret: !!apiSecret,
-        baseUrl: baseUrl,
-        recvWindow: recv,
         apiKeyPreview: mask(apiKey),
-        secretPreview: mask(apiSecret)
+        secretPreview: mask(apiSecret),
+        baseUrl,
+        recvWindow: recv,
       });
     }
 
-    // 2) /test-connection: live signed call to prove V5 signer works
+    // 2) test-connection (supports ?debug=1)
     if (pathname.endsWith("/test-connection")) {
       try {
-        const { apiKey, apiSecret, baseUrl, recv } = readSecrets();
+        const { apiKey, apiSecret, recv } = readSecrets();
         if (!apiKey || !apiSecret) {
           return json(200, { ok: false, stage: "credentials", error: "Missing Bybit secrets" });
         }
-
-        const isDebug = searchParams.has('debug');
-        
-        if (isDebug) {
-          const timestamp = Date.now().toString()
-          const payload = timestamp + apiKey + recv
+        if (sp.has("debug")) {
+          const ts = Date.now().toString();
           return json(200, {
             debug: true,
-            timestamp,
-            apiKey: mask(apiKey),
+            timestamp: ts,
             recvWindow: recv,
-            signaturePayload: payload,
-            baseUrl: baseUrl,
-            message: 'Debug info (no actual API call)'
+            signaturePayloadGET: `${ts}${apiKey}${recv}`, // + <sortedQuery>
+            signaturePayloadPOST: `${ts}${apiKey}${recv}`, // + <jsonBody>
+            tips: [
+              "For GET: append sorted query string (e.g., accountType=UNIFIED).",
+              "For POST: append exact JSON body string.",
+            ],
           });
         }
 
-        const serverTime = await bybitRequest('/v5/market/time')
-        const balance = await bybitRequest('/v5/account/wallet-balance', 'GET', {
-          accountType: 'UNIFIED'
-        })
-        
+        // public time (no auth)
+        const time = await bybitRequest("/v5/market/time", "GET");
+        // private balance (auth)
+        const bal = await bybitRequest("/v5/account/wallet-balance", "GET", { accountType: "UNIFIED" });
+
         return json(200, {
           ok: true,
           stage: "credentials",
-          serverTime: serverTime.result?.timeSecond,
-          hasBalance: !!balance.result,
-          message: 'Bybit API connection successful'
+          serverTime: time?.result?.timeSecond ?? null,
+          hasBalance: !!bal?.result,
+          message: "Bybit API connection successful",
         });
-      } catch (error) {
+      } catch (e) {
+        const err = e as AnyError;
         return json(200, {
           ok: false,
-          stage: "credentials", 
-          error: error.message,
-          retCode: error.retCode || null,
-          retMsg: error.retMsg || null
+          stage: "credentials",
+          error: err.message,
+          retCode: err.retCode ?? null,
+          retMsg: err.retMsg ?? null,
+          httpStatus: err.httpStatus ?? null,
+          response: err.response ?? null,
         });
       }
     }
 
-    // GET endpoints with query parameters
-    if (req.method === 'GET') {
-      if (pathname.endsWith('/orders')) {
-        const category = searchParams.get('category') || 'linear'
-        const symbol = searchParams.get('symbol')
-        const openOnly = searchParams.get('openOnly') === '1'
-        
-        const params: any = { category }
-        if (symbol) params.symbol = symbol
-        if (openOnly) params.openOnly = 1
-        
-        const result = await bybitRequest('/v5/order/realtime', 'GET', params)
-        
-        return json(200, {
-          success: true,
-          orders: result.result?.list || []
-        });
+    // ------- GET helpers -------
+    if (req.method === "GET") {
+      if (pathname.endsWith("/orders")) {
+        const query: Record<string, unknown> = {
+          category: sp.get("category") ?? "linear",
+        };
+        if (sp.get("symbol")) query.symbol = sp.get("symbol")!;
+        if (sp.get("openOnly") === "1") query.openOnly = 1;
+
+        const r = await bybitRequest("/v5/order/realtime", "GET", query);
+        return json(200, { success: true, orders: r?.result?.list ?? [] });
       }
 
-      if (pathname.endsWith('/positions')) {
-        const category = searchParams.get('category') || 'linear'
-        const symbol = searchParams.get('symbol')
-        
-        const params: any = { category }
-        if (symbol) params.symbol = symbol
-        
-        const result = await bybitRequest('/v5/position/list', 'GET', params)
-        
-        return json(200, {
-          success: true,
-          positions: result.result?.list || []
-        });
+      if (pathname.endsWith("/positions")) {
+        const query: Record<string, unknown> = {
+          category: sp.get("category") ?? "linear",
+        };
+        if (sp.get("symbol")) query.symbol = sp.get("symbol")!;
+        const r = await bybitRequest("/v5/position/list", "GET", query);
+        return json(200, { success: true, positions: r?.result?.list ?? [] });
       }
 
-      if (pathname.endsWith('/tickers')) {
-        const category = searchParams.get('category') || 'linear'
-        const symbol = searchParams.get('symbol')
-        
-        const params: any = { category }
-        if (symbol) params.symbol = symbol
-        
-        const result = await bybitRequest('/v5/market/tickers', 'GET', params)
-        
-        return json(200, {
-          success: true,
-          tickers: result.result?.list || []
-        });
+      if (pathname.endsWith("/tickers")) {
+        const query: Record<string, unknown> = {
+          category: sp.get("category") ?? "linear",
+        };
+        if (sp.get("symbol")) query.symbol = sp.get("symbol")!;
+        const r = await bybitRequest("/v5/market/tickers", "GET", query);
+        return json(200, { success: true, tickers: r?.result?.list ?? [] });
       }
     }
 
-    // 3) POST actions
+    // ------- POST actions -------
     if (req.method === "POST") {
       let body: any = {};
-      try { 
-        if (req.headers.get("content-type")?.includes("application/json")) {
-          body = await req.json(); 
-        }
-      } catch {}
-
-      // Handle action-based routing (legacy support)
-      if (body.action) {
-        const { action, ...params } = body
-
-        switch (action) {
-          case 'status': {
-            const balance = await bybitRequest('/v5/account/wallet-balance', 'GET', {
-              accountType: 'UNIFIED'
-            })
-            const positions = await bybitRequest('/v5/position/list', 'GET', {
-              category: 'linear'
-            })
-            
-            return json(200, {
-              success: true,
-              balances: balance.result?.list || [],
-              positions: positions.result?.list || []
-            });
-          }
-        }
+      if (req.headers.get("content-type")?.includes("application/json")) {
+        try { body = await req.json(); } catch { body = {}; }
       }
 
-      // Direct order placement
-      if (pathname.endsWith('/order')) {
-        const orderData: any = {
-          category: body.category || 'linear',
+      // legacy: action=status
+      if (body?.action === "status") {
+        const bal = await bybitRequest("/v5/account/wallet-balance", "GET", { accountType: "UNIFIED" });
+        const pos = await bybitRequest("/v5/position/list", "GET", { category: "linear" });
+        return json(200, {
+          success: true,
+          balances: bal?.result ?? null,
+          positions: pos?.result?.list ?? [],
+        });
+      }
+
+      // place order
+      if (pathname.endsWith("/order")) {
+        const payload: Record<string, unknown> = {
+          category: body.category ?? "linear",
           symbol: body.symbol,
           side: body.side,
-          orderType: body.orderType || 'Market',
-          qty: body.qty.toString()
-        }
+          orderType: body.orderType ?? "Market",
+          qty: String(body.qty),
+        };
+        if (body.price) payload.price = String(body.price);
+        if (body.positionIdx !== undefined) payload.positionIdx = body.positionIdx;
+        if (body.timeInForce) payload.timeInForce = body.timeInForce;
+        if (body.stopLoss) payload.stopLoss = String(body.stopLoss);
+        if (body.takeProfit) payload.takeProfit = String(body.takeProfit);
 
-        if (body.price) orderData.price = body.price.toString()
-        if (body.positionIdx !== undefined) orderData.positionIdx = body.positionIdx
-        if (body.timeInForce) orderData.timeInForce = body.timeInForce
-        if (body.stopLoss) orderData.stopLoss = body.stopLoss.toString()
-        if (body.takeProfit) orderData.takeProfit = body.takeProfit.toString()
-
-        const result = await bybitRequest('/v5/order/create', 'POST', orderData)
-        
-        return json(200, {
-          success: true,
-          orderId: result.result?.orderId,
-          result: result.result
-        });
+        const r = await bybitRequest("/v5/order/create", "POST", {}, payload);
+        return json(200, { success: true, orderId: r?.result?.orderId ?? null, result: r?.result ?? null });
       }
 
-      // Cancel order
-      if (pathname.endsWith('/cancel')) {
-        const result = await bybitRequest('/v5/order/cancel', 'POST', {
-          category: body.category || 'linear',
+      // cancel order
+      if (pathname.endsWith("/cancel")) {
+        const payload: Record<string, unknown> = {
+          category: body.category ?? "linear",
           symbol: body.symbol,
-          orderId: body.orderId
-        })
-        
-        return json(200, {
-          success: true,
-          result: result.result
-        });
+          orderId: body.orderId,
+        };
+        const r = await bybitRequest("/v5/order/cancel", "POST", {}, payload);
+        return json(200, { success: true, result: r?.result ?? null });
       }
 
-      return json(400, { success: false, error: "Unknown action" });
+      return json(400, { success: false, error: "Unknown action or path" });
     }
 
+    // Fallback 404
     return json(404, {
-      error: 'Endpoint not found',
+      error: "Endpoint not found",
       path: pathname,
       method: req.method,
       availableEndpoints: {
-        GET: ['/ping', '/env', '/test-connection', '/orders', '/positions', '/tickers'],
-        POST: ['/order', '/cancel', '/ (with action: status)']
-      }
+        GET: ["/ping", "/env", "/test-connection", "/orders", "/positions", "/tickers"],
+        POST: ["/order", "/cancel", "/ (with action: status)"],
+      },
     });
-
-  } catch (error) {
-    console.error('Bybit broker error:', error)
-    
+  } catch (e) {
+    const err = e as AnyError;
+    console.error("Bybit broker error:", err);
     return json(500, {
-      error: error.message,
-      retCode: error.retCode || null,
-      retMsg: error.retMsg || null,
-      timestamp: new Date().toISOString()
+      error: err.message,
+      retCode: err.retCode ?? null,
+      retMsg: err.retMsg ?? null,
+      httpStatus: err.httpStatus ?? null,
+      timestamp: new Date().toISOString(),
     });
   }
-})
+});
