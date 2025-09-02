@@ -19,6 +19,37 @@ const SignalsList = () => {
   const [orderSize, setOrderSize] = useState('10');
   const [leverage, setLeverage] = useState(1);
   const [useLeverage, setUseLeverage] = useState(false);
+  const [debugInfo, setDebugInfo] = useState(null);
+
+  const testBybitConnection = async () => {
+    try {
+      console.log('🧪 Testing Bybit API connection...');
+      const { data, error } = await supabase.functions.invoke('debug-bybit-api');
+      
+      if (error) {
+        console.error('❌ Debug API call failed:', error);
+        setDebugInfo({ error: error.message });
+        return;
+      }
+      
+      console.log('✅ Debug API response:', data);
+      setDebugInfo(data);
+      
+      toast({
+        title: "🔍 API Debug Complete",
+        description: `Credentials: ${data.credentials_available?.api_key ? '✅' : '❌'} | Connection: ${data.bybit_connectivity ? '✅' : '❌'}`,
+      });
+      
+    } catch (error) {
+      console.error('❌ Debug test failed:', error);
+      setDebugInfo({ error: error.message });
+      toast({
+        title: "❌ Debug Test Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
   const [autoExecute, setAutoExecute] = useState(false);
   const [bulkExecuteMode, setBulkExecuteMode] = useState(false);
   const [isExecutingOrder, setIsExecutingOrder] = useState(false);
@@ -111,10 +142,20 @@ const SignalsList = () => {
 
       console.log('🔍 Bybit API Response:', { data, error });
 
-      // Check for Supabase function call errors first
+      // Check for Supabase function call errors first (network, auth, etc.)
       if (error) {
         console.error('❌ Supabase function call failed:', error);
-        throw new Error(`Failed to call trading function: ${error.message}`);
+        
+        // Check for specific Supabase error types
+        if (error.message?.includes('FunctionsHttpError')) {
+          throw new Error(`Trading function error: ${error.context?.body || error.message}`);
+        } else if (error.message?.includes('FunctionsRelayError')) {
+          throw new Error(`Network error calling trading function: ${error.message}`);
+        } else if (error.message?.includes('FunctionsFetchError')) {
+          throw new Error(`Failed to connect to trading service: ${error.message}`);
+        } else {
+          throw new Error(`Failed to call trading function: ${error.message}`);
+        }
       }
 
       // Check if the function returned an error response (this is the key issue)
@@ -210,6 +251,14 @@ const SignalsList = () => {
             <span>Live Signals</span>
           </div>
           <div className="flex items-center space-x-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={testBybitConnection}
+              className="text-xs bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20"
+            >
+              🔧 Debug API
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -483,6 +532,27 @@ const SignalsList = () => {
                   {isExecutingOrder ? 'Executing...' : 'Execute Top Signal'}
                 </Button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Debug Info Display */}
+        {debugInfo && (
+          <div className="mt-4 p-3 bg-muted/30 rounded-lg border border-blue-500/20">
+            <h4 className="text-xs font-semibold text-blue-400 mb-2">🔧 API Debug Information</h4>
+            <div className="text-xs space-y-1">
+              {debugInfo.error ? (
+                <p className="text-destructive">❌ Error: {debugInfo.error}</p>
+              ) : (
+                <>
+                  <p>🔑 API Key: {debugInfo.credentials_available?.api_key ? '✅ Present' : '❌ Missing'}</p>
+                  <p>🔐 API Secret: {debugInfo.credentials_available?.api_secret ? '✅ Present' : '❌ Missing'}</p>
+                  <p>🌐 Bybit Connection: {debugInfo.bybit_connectivity?.retCode === 0 ? '✅ Working' : '❌ Failed'}</p>
+                  {debugInfo.credentials_available?.api_key_preview && (
+                    <p>🔍 Key Preview: {debugInfo.credentials_available.api_key_preview}</p>
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}

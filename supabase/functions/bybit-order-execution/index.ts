@@ -168,6 +168,13 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Add detailed logging for debugging
+    console.log('🔧 Checking API credentials availability...');
+    const apiKey = Deno.env.get('BYBIT_API_KEY');
+    const apiSecret = Deno.env.get('BYBIT_API_SECRET');
+    console.log('🔑 API Key present:', !!apiKey);
+    console.log('🔐 API Secret present:', !!apiSecret);
+    
     const { signal, orderSize = '10', leverage = 1, category = 'spot', testMode = false } = await req.json();
     
     if (!signal) {
