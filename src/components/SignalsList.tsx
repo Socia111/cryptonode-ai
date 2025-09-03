@@ -55,13 +55,14 @@ const SignalsList = () => {
   const [isExecutingOrder, setIsExecutingOrder] = useState(false);
   const [executedSignals, setExecutedSignals] = useState(new Set());
 
-  // Calculate priority signals immediately after hooks
+  // Calculate priority thresholds once to avoid re-computation
+  const roiValues = signals.map(s => s.roi_projection).sort((a, b) => b - a);
+  const top1PercentThreshold = roiValues[Math.floor(roiValues.length * 0.01)] || 0;
+  const top5PercentThreshold = roiValues[Math.floor(roiValues.length * 0.05)] || 0;
+  const top10PercentThreshold = roiValues[Math.floor(roiValues.length * 0.10)] || 0;
+
+  // Calculate priority signals using pre-computed thresholds
   const prioritySignals = signals.filter(signal => {
-    const roiValues = signals.map(s => s.roi_projection).sort((a, b) => b - a);
-    const top1PercentThreshold = roiValues[Math.floor(roiValues.length * 0.01)];
-    const top5PercentThreshold = roiValues[Math.floor(roiValues.length * 0.05)];
-    const top10PercentThreshold = roiValues[Math.floor(roiValues.length * 0.10)];
-    
     return signal.roi_projection >= top1PercentThreshold || 
            signal.roi_projection >= top5PercentThreshold || 
            signal.roi_projection >= top10PercentThreshold;
@@ -245,11 +246,7 @@ const SignalsList = () => {
   };
 
   const getPriorityIndicator = (signal: any) => {
-    const roiValues = signals.map(s => s.roi_projection).sort((a, b) => b - a);
-    const top1PercentThreshold = roiValues[Math.floor(roiValues.length * 0.01)];
-    const top5PercentThreshold = roiValues[Math.floor(roiValues.length * 0.05)];
-    const top10PercentThreshold = roiValues[Math.floor(roiValues.length * 0.10)];
-    
+    // Use pre-computed thresholds to avoid re-calculation
     if (signal.roi_projection >= top1PercentThreshold) return '☄️';
     if (signal.roi_projection >= top5PercentThreshold) return '☢️';
     if (signal.roi_projection >= top10PercentThreshold) return '🦾';
