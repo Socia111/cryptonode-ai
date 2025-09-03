@@ -76,6 +76,14 @@ const AItradeX1StrategyPanel = () => {
   const [isActive, setIsActive] = useState(false);
   const [emergencyStop, setEmergencyStop] = useState(false);
 
+  // Define helper functions before using them in filter operations
+  const calculateRiskReward = (signal: any) => {
+    if (!signal.stop_loss || !signal.exit_target) return 0;
+    const risk = Math.abs(signal.entry_price - signal.stop_loss);
+    const reward = Math.abs(signal.exit_target - signal.entry_price);
+    return reward / risk;
+  };
+
   // Filter signals based on strategy settings
   const filteredSignals = signals.filter(signal => {
     return (
@@ -84,13 +92,6 @@ const AItradeX1StrategyPanel = () => {
       calculateRiskReward(signal) >= 2.0 // Minimum 2:1 R:R
     );
   });
-
-  const calculateRiskReward = (signal: any) => {
-    if (!signal.stop_loss || !signal.exit_target) return 0;
-    const risk = Math.abs(signal.entry_price - signal.stop_loss);
-    const reward = Math.abs(signal.exit_target - signal.entry_price);
-    return reward / risk;
-  };
 
   const calculatePositionSize = (signal: any) => {
     const riskAmount = (accountBalance * strategy.riskPerTrade) / 100;
