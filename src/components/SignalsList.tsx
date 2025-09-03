@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -55,18 +55,37 @@ const SignalsList = () => {
   const [isExecutingOrder, setIsExecutingOrder] = useState(false);
   const [executedSignals, setExecutedSignals] = useState(new Set());
 
-  // Calculate priority thresholds once to avoid re-computation
-  const roiValues = signals.map(s => s.roi_projection).sort((a, b) => b - a);
-  const top1PercentThreshold = roiValues[Math.floor(roiValues.length * 0.01)] || 0;
-  const top5PercentThreshold = roiValues[Math.floor(roiValues.length * 0.05)] || 0;
-  const top10PercentThreshold = roiValues[Math.floor(roiValues.length * 0.10)] || 0;
+  // Memoize priority calculations to prevent re-computation cycles
+  const { prioritySignals, thresholds } = useMemo(() => {
+    console.log('🔄 Recalculating priority signals for', signals.length, 'signals');
+    
+    if (signals.length === 0) {
+      return { 
+        prioritySignals: [], 
+        thresholds: { top1: 0, top5: 0, top10: 0 } 
+      };
+    }
 
-  // Calculate priority signals using pre-computed thresholds
-  const prioritySignals = signals.filter(signal => {
-    return signal.roi_projection >= top1PercentThreshold || 
-           signal.roi_projection >= top5PercentThreshold || 
-           signal.roi_projection >= top10PercentThreshold;
-  });
+    const roiValues = signals.map(s => s.roi_projection).sort((a, b) => b - a);
+    const top1PercentThreshold = roiValues[Math.floor(roiValues.length * 0.01)] || 0;
+    const top5PercentThreshold = roiValues[Math.floor(roiValues.length * 0.05)] || 0;
+    const top10PercentThreshold = roiValues[Math.floor(roiValues.length * 0.10)] || 0;
+
+    const prioritySignals = signals.filter(signal => {
+      return signal.roi_projection >= top1PercentThreshold || 
+             signal.roi_projection >= top5PercentThreshold || 
+             signal.roi_projection >= top10PercentThreshold;
+    });
+
+    return { 
+      prioritySignals, 
+      thresholds: { 
+        top1: top1PercentThreshold, 
+        top5: top5PercentThreshold, 
+        top10: top10PercentThreshold 
+      } 
+    };
+  }, [signals]);
 
   // Determine which signals to display
   const displayedSignals = showAllSignals ? signals : prioritySignals;
@@ -246,10 +265,10 @@ const SignalsList = () => {
   };
 
   const getPriorityIndicator = (signal: any) => {
-    // Use pre-computed thresholds to avoid re-calculation
-    if (signal.roi_projection >= top1PercentThreshold) return '☄️';
-    if (signal.roi_projection >= top5PercentThreshold) return '☢️';
-    if (signal.roi_projection >= top10PercentThreshold) return '🦾';
+    // Use memoized thresholds to avoid re-calculation
+    if (signal.roi_projection >= thresholds.top1) return '☄️';
+    if (signal.roi_projection >= thresholds.top5) return '☢️';
+    if (signal.roi_projection >= thresholds.top10) return '🦾';
     return '';
   };
 
