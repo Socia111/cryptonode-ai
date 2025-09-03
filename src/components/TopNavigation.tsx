@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Bell, User, Wallet, ArrowUpRight, ArrowDownLeft, LogOut, Shield } from 'lucide-react';
+import { Search, Bell, User, Wallet, ArrowUpRight, ArrowDownLeft, LogOut, Shield, Menu } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,16 +15,32 @@ import {
 } from '@/components/ui/dropdown-menu';
 import LivePrice from '@/components/LivePrice';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-const TopNavigation = () => {
+
+interface TopNavigationProps {
+  onMobileMenuToggle?: () => void;
+}
+
+const TopNavigation: React.FC<TopNavigationProps> = ({ onMobileMenuToggle }) => {
   const userInitials = 'U';
   const { toast } = useToast();
 
   return (
     <header className="h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
       <div className="flex items-center justify-between h-full px-4">
-        {/* Left section - Sidebar trigger and search */}
+        {/* Left section - Mobile menu toggle and search */}
         <div className="flex items-center gap-2 md:gap-4">
-          <SidebarTrigger className="p-2 hover:bg-accent rounded-md touch-manipulation active:bg-accent/80 lg:hidden" />
+          {/* Mobile Menu Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden p-2 hover:bg-accent rounded-md touch-manipulation active:bg-accent/80"
+            onClick={onMobileMenuToggle}
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+          
+          {/* Desktop Sidebar Toggle */}
+          <SidebarTrigger className="hidden lg:flex p-2 hover:bg-accent rounded-md" />
           
           <div className="relative hidden sm:block">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
