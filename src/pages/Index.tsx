@@ -15,6 +15,8 @@ import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
 import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
 import AutomatedTradingDashboard from '../components/AutomatedTradingDashboard';
+import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
+import TradePlanGenerator from '../components/TradePlanGenerator';
 
 const Index = () => {
   return (
@@ -22,6 +24,12 @@ const Index = () => {
       <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Database Setup */}
         <DatabaseSetup />
+        
+        {/* AItradeX1 Strategy Panel */}
+        <AItradeX1StrategyPanel />
+        
+        {/* Trade Plan Generator */}
+        <TradePlanGenerator />
         
         {/* Comprehensive Scanner Dashboard */}
         <ComprehensiveScannerDashboard />
