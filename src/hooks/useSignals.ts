@@ -249,35 +249,48 @@ export async function generateSignals() {
   try {
     console.info('[generateSignals] Triggering comprehensive live signal generation...');
     
-    const symbols: string[] = []; // Empty to scan all available USDT pairs
+    const symbols: string[] = []; // Empty array means scan ALL available USDT pairs on Bybit
     
     // Run multiple timeframes in parallel for faster execution
     const scanPromises = [
-      // 5-minute scan for quick opportunities  
+      // 5-minute comprehensive scan - all coins
       supabase.functions.invoke('live-scanner-production', {
         body: {
           exchange: 'bybit',
           timeframe: '5m',
           relaxed_filters: true,
-          symbols: symbols
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
         }
       }),
-      // 15-minute scan for balanced signals
+      // 15-minute comprehensive scan - all coins
       supabase.functions.invoke('live-scanner-production', {
         body: {
           exchange: 'bybit', 
           timeframe: '15m',
           relaxed_filters: true,
-          symbols: symbols
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
         }
       }),
-      // 1-hour scan for higher confidence signals
+      // 1-hour comprehensive scan - all coins
       supabase.functions.invoke('live-scanner-production', {
         body: {
           exchange: 'bybit',
           timeframe: '1h', 
           relaxed_filters: false, // Use canonical settings for higher timeframe
-          symbols: symbols
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      }),
+      // 4-hour comprehensive scan - all coins for swing trades
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '4h', 
+          relaxed_filters: false,
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
         }
       })
     ];
@@ -286,7 +299,7 @@ export async function generateSignals() {
     const results = await Promise.allSettled(scanPromises);
     
     let totalSignals = 0;
-    const timeframes = ['5m', '15m', '1h'];
+    const timeframes = ['5m', '15m', '1h', '4h'];
     
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && result.value.data) {
@@ -310,7 +323,8 @@ export async function generateSignals() {
           exchange: 'bybit',
           timeframe: '1h',
           relaxed_filters: true,
-          symbols: [...symbols, 'LINKUSDT', 'LTCUSDT', 'DOGEUSDT', 'NEARUSDT']
+          symbols: [], // Empty = scan ALL USDT pairs as fallback
+          scan_all_coins: true
         }
       });
 

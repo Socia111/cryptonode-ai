@@ -256,6 +256,12 @@ const SignalsList = () => {
     return '';
   };
 
+  const getConfidenceIndicator = (signal: any) => {
+    if (signal.confidence_score >= 90) return '🔮';
+    if (signal.confidence_score >= 80) return '♥️';
+    return '';
+  };
+
   const getTimeframeIndicator = (signal: any) => {
     const timeframe = signal.timeframe?.toLowerCase();
     if (timeframe?.includes('min') || timeframe?.includes('m')) {
@@ -351,6 +357,13 @@ const SignalsList = () => {
                       <div>
                         <div className="flex items-center space-x-2">
                           <h4 className="font-semibold trading-mono">{signal.token}</h4>
+                          {getConfidenceIndicator(signal) && (
+                            <span className="text-lg" title={
+                              getConfidenceIndicator(signal) === '🔮' ? 'Ultra High Confidence (90%+)' : 'High Confidence (80-90%)'
+                            }>
+                              {getConfidenceIndicator(signal)}
+                            </span>
+                          )}
                           {getPriorityIndicator(signal) && (
                             <span className="text-lg" title={
                               getPriorityIndicator(signal) === '☄️' ? 'Top 1% ROI' :
