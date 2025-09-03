@@ -15,26 +15,37 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="h-screen flex w-full bg-background overflow-hidden">
+        {/* Mobile Sidebar Overlay */}
+        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <SheetContent side="left" className="p-0 w-80 border-r border-border lg:hidden">
+            <div className="h-full bg-background">
+              <AppSidebar />
+            </div>
+          </SheetContent>
+        </Sheet>
+
         {/* Desktop Sidebar */}
-        <div className="hidden lg:block">
+        <div className="hidden lg:flex">
           <AppSidebar />
         </div>
         
-        {/* Mobile Sidebar */}
-        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetContent side="left" className="p-0 w-64 lg:hidden">
-            <AppSidebar />
-          </SheetContent>
-        </Sheet>
-        
-        <div className="flex-1 flex flex-col h-full min-w-0">
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col h-full min-w-0 w-full">
           <TopNavigation onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)} />
           
-          <main className="flex-1 overflow-y-auto pb-16 overscroll-behavior-y-contain">
-            {children}
+          {/* Scrollable Content */}
+          <main className="flex-1 overflow-y-auto overscroll-behavior-y-contain bg-background">
+            <div className="min-h-full pb-20 lg:pb-4">
+              <div className="container mx-auto px-4 py-4 max-w-7xl">
+                {children}
+              </div>
+            </div>
           </main>
           
-          <BottomSignalsBar />
+          {/* Bottom Navigation - Mobile Only */}
+          <div className="lg:hidden">
+            <BottomSignalsBar />
+          </div>
         </div>
       </div>
     </SidebarProvider>

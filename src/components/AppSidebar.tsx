@@ -71,38 +71,40 @@ export function AppSidebar() {
       side="left"
     >
       <SidebarContent className="border-r border-border">
-        <div className="p-4">
+        {/* Header */}
+        <div className="p-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center shrink-0">
               <Zap className="w-5 h-5 text-white" />
             </div>
             {!collapsed && (
-              <div>
-                <h1 className="text-lg font-bold brand-display bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold brand-display bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent truncate">
                   AItradeX
                 </h1>
-                <p className="text-xs text-muted-foreground">AI-Powered Trading</p>
+                <p className="text-xs text-muted-foreground truncate">AI-Powered Trading</p>
               </div>
             )}
           </div>
         </div>
 
-        <SidebarGroup>
+        {/* Navigation Menu */}
+        <SidebarGroup className="flex-1">
           <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
             Navigation
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1">
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink 
                       to={item.url} 
                       end={item.url === "/"}
-                      className={getNavCls({ isActive: isActive(item.url) })}
+                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors`}
                     >
-                      <item.icon className="w-5 h-5" />
-                      {!collapsed && <span>{item.title}</span>}
+                      <item.icon className="w-5 h-5 shrink-0" />
+                      {!collapsed && <span className="truncate">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -111,7 +113,8 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="mt-auto">
+        {/* Settings Section */}
+        <SidebarGroup className="mt-auto border-t border-border pt-4">
           <SidebarGroupContent>
             <SidebarMenu>
               {settingsItems.map((item) => (
@@ -119,10 +122,10 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <NavLink 
                       to={item.url}
-                      className={getNavCls({ isActive: isActive(item.url) })}
+                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors`}
                     >
-                      <item.icon className="w-5 h-5" />
-                      {!collapsed && <span>{item.title}</span>}
+                      <item.icon className="w-5 h-5 shrink-0" />
+                      {!collapsed && <span className="truncate">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
