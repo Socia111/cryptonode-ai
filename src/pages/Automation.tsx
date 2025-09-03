@@ -1,6 +1,6 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
-import AutomatedTradingDashboard from '../components/AutomatedTradingDashboard';
+import BybitTradingAutomation from '../components/BybitTradingAutomation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bot, Zap, Target, Settings } from 'lucide-react';
 
@@ -73,8 +73,8 @@ const Automation = () => {
           </Card>
         </div>
 
-        {/* Automated Trading Dashboard */}
-        <AutomatedTradingDashboard />
+        {/* Bybit Trading Automation */}
+        <BybitTradingAutomation />
       </div>
     </MainLayout>
   );
