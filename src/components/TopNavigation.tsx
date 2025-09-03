@@ -23,14 +23,14 @@ const TopNavigation = () => {
     <header className="h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
       <div className="flex items-center justify-between h-full px-4">
         {/* Left section - Sidebar trigger and search */}
-        <div className="flex items-center gap-4">
-          <SidebarTrigger className="ml-2" />
+        <div className="flex items-center gap-2 md:gap-4">
+          <SidebarTrigger className="p-2 hover:bg-accent rounded-md lg:hidden" />
           
-          <div className="relative">
+          <div className="relative hidden sm:block">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search markets, symbols... ⌘K"
-              className="pl-10 w-80 bg-muted/50 border-border"
+              className="pl-10 w-64 lg:w-80 bg-muted/50 border-border"
             />
           </div>
         </div>

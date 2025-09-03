@@ -68,6 +68,7 @@ export function AppSidebar() {
     <Sidebar
       className={collapsed ? "w-16" : "w-64"}
       collapsible="icon"
+      side="left"
     >
       <SidebarContent className="border-r border-border">
         <div className="p-4">
