@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { createHmac } from 'https://deno.land/std@0.211.0/crypto/mod.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -53,12 +52,25 @@ serve(async (req) => {
       }
       
       const signString = timestamp + apiKey + '5000' + (method === 'POST' ? JSON.stringify(params) : queryString);
-      const signature = createHmac('sha256', apiSecret).update(signString).digest('hex');
+      
+      // Create HMAC signature using Web Crypto API
+      const key = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(apiSecret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      
+      const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(signString));
+      const signatureHex = Array.from(new Uint8Array(signature))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
       
       const headers = {
         'X-BAPI-API-KEY': apiKey,
         'X-BAPI-TIMESTAMP': timestamp,
-        'X-BAPI-SIGN': signature,
+        'X-BAPI-SIGN': signatureHex,
         'X-BAPI-RECV-WINDOW': '5000',
         'Content-Type': 'application/json'
       };
