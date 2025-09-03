@@ -124,6 +124,35 @@ serve(async (req) => {
           );
         }
 
+      case 'test_connection':
+        // Test Bybit API connection
+        try {
+          const accountInfo = await makeBybitRequest('/v5/account/info');
+          const walletBalance = await makeBybitRequest('/v5/account/wallet-balance', { accountType: 'UNIFIED' });
+          
+          if (accountInfo.retCode === 0) {
+            return new Response(
+              JSON.stringify({
+                success: true,
+                connected: true,
+                balance: walletBalance,
+                message: 'Successfully connected to Bybit API'
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          } else {
+            throw new Error(accountInfo.retMsg || 'Failed to connect to Bybit');
+          }
+        } catch (error) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: `Connection test failed: ${error.message}`
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
       case 'disconnect':
         return new Response(
           JSON.stringify({
@@ -195,12 +224,13 @@ serve(async (req) => {
       case 'execute_all':
         console.log('[Bybit Trading] Executing all signals with config:', config);
         
-        // Fetch active signals from database
+        // Fetch recent high-confidence signals from database
         const { data: signals, error: signalsError } = await supabase
           .from('signals')
           .select('*')
-          .eq('status', 'active')
-          .gte('confidence_score', config?.min_confidence_score || 77)
+          .gte('score', config?.min_confidence_score || 77)
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
+          .order('created_at', { ascending: false })
           .limit(config?.max_open_positions || 5);
 
         if (signalsError) {
@@ -213,17 +243,17 @@ serve(async (req) => {
         for (const signal of signals || []) {
           try {
             // Calculate order size based on position size and leverage
-            const orderSize = (config.max_position_size / signal.entry_price);
+            const orderSize = (config.max_position_size / signal.price);
             
             // Place order via Bybit API
             const orderParams = {
               category: 'linear',
               symbol: signal.symbol,
-              side: signal.direction === 'long' ? 'Buy' : 'Sell',
+              side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
               orderType: 'Market',
               qty: orderSize.toFixed(4),
-              stopLoss: signal.stop_loss?.toString(),
-              takeProfit: signal.take_profit?.toString()
+              stopLoss: signal.sl?.toString(),
+              takeProfit: signal.tp?.toString()
             };
 
             if (config.use_leverage) {

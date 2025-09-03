@@ -478,7 +478,7 @@ async function createOrder(
   });
 }
 
-async function cancelOrder(client: BybitV5Client, symbol: string, orderId?: string) {
+async function cancelOrderV5(client: BybitV5Client, symbol: string, orderId?: string) {
   return client.privatePost("/v5/order/cancel", {
     category: "linear",
     symbol,
