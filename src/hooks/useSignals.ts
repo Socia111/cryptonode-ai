@@ -86,7 +86,7 @@ async function fetchSignals(): Promise<Signal[]> {
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
-      .gte('score', 70) // Score 70+ signals (actual score ranges)
+      .gte('score', 80) // Score 80+ signals only (high confidence)
       .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
       .order('created_at', { ascending: false })
       .limit(50);
@@ -115,7 +115,7 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
   const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
   
   return signals
-    .filter(item => validTimeframes.includes(item.timeframe))
+    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 80)
     .map((item: any): Signal => ({
       id: item.id.toString(),
       token: item.symbol.replace('USDT', '/USDT'),
@@ -185,7 +185,7 @@ function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) =
             created_at: rawSignal.created_at || new Date().toISOString(),
           };
           
-          if (newSignal) {
+          if (newSignal && newSignal.confidence_score >= 80) {
             onInsert(newSignal);
           }
         } catch (e) {
@@ -227,7 +227,7 @@ function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) =
             created_at: rawSignal.created_at || new Date().toISOString(),
           };
           
-          if (updatedSignal) {
+          if (updatedSignal && updatedSignal.confidence_score >= 80) {
             onUpdate(updatedSignal);
           }
         } catch (e) {
