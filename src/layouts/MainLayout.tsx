@@ -12,7 +12,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="h-screen flex w-full bg-background overflow-hidden touch-manipulation">
-        <AppSidebar />
+        {/* Desktop Sidebar */}
+        <div className="hidden lg:block">
+          <AppSidebar />
+        </div>
         
         <div className="flex-1 flex flex-col h-full min-w-0">
           <TopNavigation />

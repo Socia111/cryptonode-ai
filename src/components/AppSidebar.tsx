@@ -66,7 +66,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar
-      className={collapsed ? "w-16" : "w-64"}
+      className={`${collapsed ? "w-16" : "w-64"} hidden lg:flex`}
       collapsible="icon"
       side="left"
     >
