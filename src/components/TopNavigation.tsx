@@ -24,7 +24,7 @@ const TopNavigation = () => {
       <div className="flex items-center justify-between h-full px-4">
         {/* Left section - Sidebar trigger and search */}
         <div className="flex items-center gap-2 md:gap-4">
-          <SidebarTrigger className="p-2 hover:bg-accent rounded-md lg:hidden" />
+          <SidebarTrigger className="p-2 hover:bg-accent rounded-md touch-manipulation active:bg-accent/80" />
           
           <div className="relative hidden sm:block">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />

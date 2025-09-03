@@ -10,14 +10,14 @@ interface MainLayoutProps {
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   return (
-    <SidebarProvider defaultOpen={true}>
-      <div className="h-screen flex w-full bg-background overflow-hidden">
+    <SidebarProvider defaultOpen={false}>
+      <div className="h-screen flex w-full bg-background overflow-hidden touch-manipulation">
         <AppSidebar />
         
-        <div className="flex-1 flex flex-col h-full">
+        <div className="flex-1 flex flex-col h-full min-w-0">
           <TopNavigation />
           
-          <main className="flex-1 overflow-y-auto pb-16">
+          <main className="flex-1 overflow-y-auto pb-16 overscroll-behavior-y-contain">
             {children}
           </main>
           
