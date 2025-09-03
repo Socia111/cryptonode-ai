@@ -61,7 +61,7 @@ const BybitTradingAutomation: React.FC = () => {
 
   const checkTradingStatus = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('automated-trading-engine', {
+      const { data, error } = await supabase.functions.invoke('bybit-automated-trading', {
         body: { action: 'status', config }
       });
 
@@ -85,7 +85,7 @@ const BybitTradingAutomation: React.FC = () => {
     setIsLoading(true);
     try {
       const action = config.enabled ? 'stop' : 'start';
-      const { data, error } = await supabase.functions.invoke('automated-trading-engine', {
+      const { data, error } = await supabase.functions.invoke('bybit-automated-trading', {
         body: { 
           action, 
           config: { ...config, enabled: !config.enabled }
@@ -107,7 +107,7 @@ const BybitTradingAutomation: React.FC = () => {
   const executeAllSignals = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('automated-trading-engine', {
+      const { data, error } = await supabase.functions.invoke('bybit-automated-trading', {
         body: { action: 'execute_all', config }
       });
 
