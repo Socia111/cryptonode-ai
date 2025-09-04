@@ -68,6 +68,14 @@ serve(async (req: Request) => {
       supabase.functions.invoke('live-scanner-production', {
         body: {
           exchange: 'bybit',
+          timeframe: '30m',
+          relaxed_filters: true,
+          symbols: []
+        }
+      }),
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
           timeframe: '1h',
           relaxed_filters: false,
           symbols: []
@@ -77,7 +85,7 @@ serve(async (req: Request) => {
       supabase.functions.invoke('enhanced-signal-generation', {
         body: {
           symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT'],
-          timeframes: ['5m', '15m', '1h'],
+          timeframes: ['5m', '15m', '30m', '1h'],
           algorithms: ['AITRADEX1']
         }
       })
@@ -87,7 +95,7 @@ serve(async (req: Request) => {
     let totalSignalsGenerated = 0;
 
     feedResults.forEach((result, index) => {
-      const timeframes = ['5m', '15m', '1h', 'enhanced'];
+      const timeframes = ['5m', '15m', '30m', '1h', 'enhanced'];
       if (result.status === 'fulfilled' && result.value.data) {
         const signalsFound = result.value.data.signals_found || 0;
         totalSignalsGenerated += signalsFound;
@@ -178,7 +186,7 @@ serve(async (req: Request) => {
       high_confidence_signals: highConfidenceSignals?.length || 0,
       trades_executed: executedTrades,
       trade_errors: tradeErrors,
-      timeframes_scanned: ['5m', '15m', '1h'],
+      timeframes_scanned: ['5m', '15m', '30m', '1h'],
       min_confidence_threshold: 80
     });
 
