@@ -20,47 +20,6 @@ const Signals = () => {
           </p>
         </div>
 
-        {/* Signal Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="glass-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center space-x-2 text-sm font-medium">
-                <Zap className="w-4 h-4 text-primary" />
-                <span>Active Signals</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">24</div>
-              <p className="text-xs text-muted-foreground">80%+ confidence</p>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center space-x-2 text-sm font-medium">
-                <Target className="w-4 h-4 text-success" />
-                <span>Success Rate</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-success">84.7%</div>
-              <p className="text-xs text-muted-foreground">Last 30 days</p>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center space-x-2 text-sm font-medium">
-                <Activity className="w-4 h-4 text-warning" />
-                <span>Avg ROI</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">+12.3%</div>
-              <p className="text-xs text-muted-foreground">Per signal</p>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Strategy Panel */}
         <AItradeX1StrategyPanel />
