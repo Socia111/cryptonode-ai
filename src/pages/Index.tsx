@@ -15,6 +15,7 @@ import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
 import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
 import AutomatedTradingDashboard from '../components/AutomatedTradingDashboard';
 import StatusChecker from '../components/StatusChecker';
+import { AutoTradingMonitor } from '../components/AutoTradingMonitor';
 
 const Index = () => {
   return (
@@ -32,6 +33,9 @@ const Index = () => {
         
         {/* System Health Status */}
         <StatusChecker />
+        
+        {/* Auto-Trading Monitor */}
+        <AutoTradingMonitor />
         
         {/* Database Setup */}
         <DatabaseSetup />

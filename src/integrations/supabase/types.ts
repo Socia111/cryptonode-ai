@@ -2934,6 +2934,45 @@ export type Database = {
           },
         ]
       }
+      trading_configs: {
+        Row: {
+          auto_trade_enabled: boolean | null
+          created_at: string | null
+          default_leverage: number | null
+          default_quantity: number | null
+          id: string
+          is_active: boolean | null
+          max_daily_trades: number | null
+          min_confidence_score: number | null
+          risk_percentage: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          auto_trade_enabled?: boolean | null
+          created_at?: string | null
+          default_leverage?: number | null
+          default_quantity?: number | null
+          id?: string
+          is_active?: boolean | null
+          max_daily_trades?: number | null
+          min_confidence_score?: number | null
+          risk_percentage?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          auto_trade_enabled?: boolean | null
+          created_at?: string | null
+          default_leverage?: number | null
+          default_quantity?: number | null
+          id?: string
+          is_active?: boolean | null
+          max_daily_trades?: number | null
+          min_confidence_score?: number | null
+          risk_percentage?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       trait_snapshots: {
         Row: {
           agent_id: string | null
