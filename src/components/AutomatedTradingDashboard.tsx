@@ -87,7 +87,7 @@ const AutomatedTradingDashboard = () => {
 
   const checkStatus = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('bybit-automated-trading', {
+      const { data, error } = await supabase.functions.invoke('automated-trading-engine', {
         body: { action: 'status', config }
       });
 
@@ -149,7 +149,7 @@ const AutomatedTradingDashboard = () => {
   const startTrading = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('bybit-automated-trading', {
+      const { data, error } = await supabase.functions.invoke('automated-trading-engine', {
         body: { action: 'start', config }
       });
 
@@ -178,7 +178,7 @@ const AutomatedTradingDashboard = () => {
   const stopTrading = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('bybit-automated-trading', {
+      const { data, error } = await supabase.functions.invoke('automated-trading-engine', {
         body: { action: 'stop' }
       });
 
@@ -207,7 +207,7 @@ const AutomatedTradingDashboard = () => {
   const testConnection = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('bybit-automated-trading', {
+      const { data, error } = await supabase.functions.invoke('automated-trading-engine', {
         body: { action: 'test_connection' }
       });
 
@@ -349,18 +349,16 @@ const AutomatedTradingDashboard = () => {
                 onClick={async () => {
                   try {
                     setLoading(true);
-                    const { data, error } = await supabase.functions.invoke('bybit-automated-trading', {
-                      body: { action: 'execute_all', config }
-                    });
+                    const { data, error } = await supabase.functions.invoke('debug-trading-status');
                     if (error) throw error;
-                    console.log('🔍 Execute All Result:', data);
+                    console.log('🔍 Debug Info:', data);
                     toast({
-                      title: "🚀 Execute All Signals",
-                      description: `${data.success ? '✅' : '❌'} ${data.message || 'Check console for details'}`,
+                      title: "🔍 Debug Complete",
+                      description: `API Key: ${data.environment.hasApiKey ? '✅' : '❌'} | Bybit: ${data.bybit.connected ? '✅' : '❌'}`,
                     });
                   } catch (error: any) {
                     toast({
-                      title: "Execute Failed",
+                      title: "Debug Failed",
                       description: error.message,
                       variant: "destructive",
                     });
@@ -372,7 +370,7 @@ const AutomatedTradingDashboard = () => {
                 disabled={loading}
                 size="sm"
               >
-                Execute All
+                Debug
               </Button>
               {isRunning ? (
                 <Button 

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -55,37 +55,17 @@ const SignalsList = () => {
   const [isExecutingOrder, setIsExecutingOrder] = useState(false);
   const [executedSignals, setExecutedSignals] = useState(new Set());
 
-  // Memoize priority calculations to prevent re-computation cycles
-  const { prioritySignals, thresholds } = useMemo(() => {
-    console.log('🔄 Recalculating priority signals for', signals.length, 'signals');
-    
-    if (signals.length === 0) {
-      return { 
-        prioritySignals: [], 
-        thresholds: { top1: 0, top5: 0, top10: 0 } 
-      };
-    }
-
+  // Calculate priority signals immediately after hooks
+  const prioritySignals = signals.filter(signal => {
     const roiValues = signals.map(s => s.roi_projection).sort((a, b) => b - a);
-    const top1PercentThreshold = roiValues[Math.floor(roiValues.length * 0.01)] || 0;
-    const top5PercentThreshold = roiValues[Math.floor(roiValues.length * 0.05)] || 0;
-    const top10PercentThreshold = roiValues[Math.floor(roiValues.length * 0.10)] || 0;
-
-    const prioritySignals = signals.filter(signal => {
-      return signal.roi_projection >= top1PercentThreshold || 
-             signal.roi_projection >= top5PercentThreshold || 
-             signal.roi_projection >= top10PercentThreshold;
-    });
-
-    return { 
-      prioritySignals, 
-      thresholds: { 
-        top1: top1PercentThreshold, 
-        top5: top5PercentThreshold, 
-        top10: top10PercentThreshold 
-      } 
-    };
-  }, [signals]);
+    const top1PercentThreshold = roiValues[Math.floor(roiValues.length * 0.01)];
+    const top5PercentThreshold = roiValues[Math.floor(roiValues.length * 0.05)];
+    const top10PercentThreshold = roiValues[Math.floor(roiValues.length * 0.10)];
+    
+    return signal.roi_projection >= top1PercentThreshold || 
+           signal.roi_projection >= top5PercentThreshold || 
+           signal.roi_projection >= top10PercentThreshold;
+  });
 
   // Determine which signals to display
   const displayedSignals = showAllSignals ? signals : prioritySignals;
@@ -265,16 +245,14 @@ const SignalsList = () => {
   };
 
   const getPriorityIndicator = (signal: any) => {
-    // Use memoized thresholds to avoid re-calculation
-    if (signal.roi_projection >= thresholds.top1) return '☄️';
-    if (signal.roi_projection >= thresholds.top5) return '☢️';
-    if (signal.roi_projection >= thresholds.top10) return '🦾';
-    return '';
-  };
-
-  const getConfidenceIndicator = (signal: any) => {
-    if (signal.confidence_score >= 90) return '🔮';
-    if (signal.confidence_score >= 80) return '♥️';
+    const roiValues = signals.map(s => s.roi_projection).sort((a, b) => b - a);
+    const top1PercentThreshold = roiValues[Math.floor(roiValues.length * 0.01)];
+    const top5PercentThreshold = roiValues[Math.floor(roiValues.length * 0.05)];
+    const top10PercentThreshold = roiValues[Math.floor(roiValues.length * 0.10)];
+    
+    if (signal.roi_projection >= top1PercentThreshold) return '☄️';
+    if (signal.roi_projection >= top5PercentThreshold) return '☢️';
+    if (signal.roi_projection >= top10PercentThreshold) return '🦾';
     return '';
   };
 
@@ -373,13 +351,6 @@ const SignalsList = () => {
                       <div>
                         <div className="flex items-center space-x-2">
                           <h4 className="font-semibold trading-mono">{signal.token}</h4>
-                          {getConfidenceIndicator(signal) && (
-                            <span className="text-lg" title={
-                              getConfidenceIndicator(signal) === '🔮' ? 'Ultra High Confidence (90%+)' : 'High Confidence (80-90%)'
-                            }>
-                              {getConfidenceIndicator(signal)}
-                            </span>
-                          )}
                           {getPriorityIndicator(signal) && (
                             <span className="text-lg" title={
                               getPriorityIndicator(signal) === '☄️' ? 'Top 1% ROI' :

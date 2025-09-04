@@ -1,17 +1,5 @@
 project_id = "codhlwjogfjywmjyjbbn"
 
-[functions.bybit-broker]
-verify_jwt = false
-
-[functions.automated-trading-engine]
-verify_jwt = false
-
-[functions.test-signal-generation]
-verify_jwt = false
-
-[functions.generate-test-signals]
-verify_jwt = false
-
 [api]
 enabled = true
 port = 54321

@@ -9,8 +9,7 @@ import {
   Bot, 
   Bell, 
   Settings,
-  Home,
-  Building2
+  Home
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -28,10 +27,6 @@ import {
 
 const mainItems = [
   { title: "Dashboard", url: "/", icon: Home },
-  { title: "X Platform", url: "/x", icon: TrendingUp },
-  { title: "X1 System", url: "/x1", icon: BarChart3 },
-  { title: "X2 Advanced", url: "/x2", icon: PieChart },
-  { title: "Original AI", url: "/AITRADEX1ORIGINAL", icon: Zap },
   { title: "Trade", url: "/trade", icon: TrendingUp },
   { title: "Portfolio", url: "/portfolio", icon: Wallet },
   { title: "Signals", url: "/signals", icon: Zap },
@@ -39,7 +34,6 @@ const mainItems = [
   { title: "Backtests", url: "/backtests", icon: TestTube },
   { title: "Automation", url: "/automation", icon: Bot },
   { title: "Alerts", url: "/alerts", icon: Bell },
-  { title: "Bybit Login", url: "/bybit-auth", icon: Building2 },
 ];
 
 const settingsItems = [
@@ -68,7 +62,6 @@ export function AppSidebar() {
     <Sidebar
       className={collapsed ? "w-16" : "w-64"}
       collapsible="icon"
-      side="left"
     >
       <SidebarContent className="border-r border-border">
         <div className="p-4">

@@ -11,15 +11,6 @@ import AItradeX1Original from "./pages/AItradeX1Original";
 import X from "./pages/X";
 import X1 from "./pages/X1";
 import X2 from "./pages/X2";
-import Trade from "./pages/Trade";
-import Portfolio from "./pages/Portfolio";
-import Signals from "./pages/Signals";
-import Markets from "./pages/Markets";
-import Backtests from "./pages/Backtests";
-import Automation from "./pages/Automation";
-import Alerts from "./pages/Alerts";
-import SettingsPage from "./pages/Settings";
-import BybitAuth from "./pages/BybitAuth";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,15 +36,6 @@ function App() {
             <Route path="/X" element={<X />} />
             <Route path="/X1" element={<X1 />} />
             <Route path="/X2" element={<X2 />} />
-            <Route path="/trade" element={<Trade />} />
-            <Route path="/portfolio" element={<Portfolio />} />
-            <Route path="/signals" element={<Signals />} />
-            <Route path="/markets" element={<Markets />} />
-            <Route path="/backtests" element={<Backtests />} />
-            <Route path="/automation" element={<Automation />} />
-            <Route path="/alerts" element={<Alerts />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/bybit-auth" element={<BybitAuth />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
