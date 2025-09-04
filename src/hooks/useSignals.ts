@@ -149,100 +149,116 @@ function getMockSignals(): Signal[] {
 function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) => void) {
   console.log('[Signals] Setting up real-time subscription...');
   
-  const channel = supabase
-    .channel('signals-subscription')
-    .on(
-      'postgres_changes',
-      { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'signals'
-      },
-      (payload) => {
-        console.log('[Signals] New signal received via realtime:', payload.new);
-        try {
-          // Map the actual signals table structure to our Signal interface
-          const rawSignal = payload.new;
-          const newSignal: Signal = {
-            id: rawSignal.id.toString(),
-            token: rawSignal.symbol.replace('USDT', '/USDT'),
-            direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
-            signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
-            timeframe: rawSignal.timeframe,
-            entry_price: Number(rawSignal.price),
-            exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
-            stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
-            leverage: 1,
-            confidence_score: Number(rawSignal.score),
-            pms_score: Number(rawSignal.score),
-            trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
-            volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
-            roi_projection: Math.abs((Number(rawSignal.tp || rawSignal.price * 1.1) - Number(rawSignal.price)) / Number(rawSignal.price) * 100),
-            signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
-            risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
-            quantum_probability: Number(rawSignal.score) / 100,
-            status: 'active',
-            created_at: rawSignal.created_at || new Date().toISOString(),
-          };
-          
-          if (newSignal && newSignal.confidence_score >= 80) {
-            onInsert(newSignal);
+  try {
+    const channel = supabase
+      .channel('signals-subscription')
+      .on(
+        'postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'signals'
+        },
+        (payload) => {
+          console.log('[Signals] New signal received via realtime:', payload.new);
+          try {
+            // Safely map the actual signals table structure to our Signal interface
+            const rawSignal = payload.new;
+            if (!rawSignal || !rawSignal.id) {
+              console.warn('[Signals] Invalid signal data received');
+              return;
+            }
+
+            const newSignal: Signal = {
+              id: rawSignal.id.toString(),
+              token: (rawSignal.symbol || 'BTCUSDT').replace('USDT', '/USDT'),
+              direction: (rawSignal.direction === 'LONG' || rawSignal.direction === 'BUY') ? 'BUY' : 'SELL',
+              signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe || '1h'}`,
+              timeframe: rawSignal.timeframe || '1h',
+              entry_price: Number(rawSignal.price) || 0,
+              exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
+              stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
+              leverage: 1,
+              confidence_score: Number(rawSignal.score) || 0,
+              pms_score: Number(rawSignal.score) || 0,
+              trend_projection: (rawSignal.direction === 'LONG' || rawSignal.direction === 'BUY') ? '⬆️' : '⬇️',
+              volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
+              roi_projection: Math.abs(((rawSignal.tp || rawSignal.price * 1.1) - rawSignal.price) / rawSignal.price * 100) || 10,
+              signal_strength: (rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK') as 'WEAK' | 'MEDIUM' | 'STRONG',
+              risk_level: (rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH') as 'LOW' | 'MEDIUM' | 'HIGH',
+              quantum_probability: Number(rawSignal.score) / 100 || 0.5,
+              status: 'active',
+              created_at: rawSignal.created_at || new Date().toISOString(),
+            };
+            
+            if (newSignal && newSignal.confidence_score >= 80) {
+              onInsert(newSignal);
+            }
+          } catch (e) {
+            console.error('[Signals] Failed to map new signal:', e);
           }
-        } catch (e) {
-          console.error('[Signals] Failed to map new signal:', e);
         }
-      }
-    )
-    .on(
-      'postgres_changes',
-      { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'signals'
-      },
-      (payload) => {
-        console.log('[Signals] Signal updated via realtime:', payload.new);
-        try {
-          // Map the actual signals table structure to our Signal interface
-          const rawSignal = payload.new;
-          const updatedSignal: Signal = {
-            id: rawSignal.id.toString(),
-            token: rawSignal.symbol.replace('USDT', '/USDT'),
-            direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
-            signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
-            timeframe: rawSignal.timeframe,
-            entry_price: Number(rawSignal.price),
-            exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
-            stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
-            leverage: 1,
-            confidence_score: Number(rawSignal.score),
-            pms_score: Number(rawSignal.score),
-            trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
-            volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
-            roi_projection: Math.abs((Number(rawSignal.tp || rawSignal.price * 1.1) - Number(rawSignal.price)) / Number(rawSignal.price) * 100),
-            signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
-            risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
-            quantum_probability: Number(rawSignal.score) / 100,
-            status: 'active',
-            created_at: rawSignal.created_at || new Date().toISOString(),
-          };
-          
-          if (updatedSignal && updatedSignal.confidence_score >= 80) {
-            onUpdate(updatedSignal);
+      )
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'signals'
+        },
+        (payload) => {
+          console.log('[Signals] Signal updated via realtime:', payload.new);
+          try {
+            // Safely map the actual signals table structure to our Signal interface
+            const rawSignal = payload.new;
+            if (!rawSignal || !rawSignal.id) {
+              console.warn('[Signals] Invalid signal data received in update');
+              return;
+            }
+
+            const updatedSignal: Signal = {
+              id: rawSignal.id.toString(),
+              token: (rawSignal.symbol || 'BTCUSDT').replace('USDT', '/USDT'),
+              direction: (rawSignal.direction === 'LONG' || rawSignal.direction === 'BUY') ? 'BUY' : 'SELL',
+              signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe || '1h'}`,
+              timeframe: rawSignal.timeframe || '1h',
+              entry_price: Number(rawSignal.price) || 0,
+              exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
+              stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
+              leverage: 1,
+              confidence_score: Number(rawSignal.score) || 0,
+              pms_score: Number(rawSignal.score) || 0,
+              trend_projection: (rawSignal.direction === 'LONG' || rawSignal.direction === 'BUY') ? '⬆️' : '⬇️',
+              volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
+              roi_projection: Math.abs(((rawSignal.tp || rawSignal.price * 1.1) - rawSignal.price) / rawSignal.price * 100) || 10,
+              signal_strength: (rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK') as 'WEAK' | 'MEDIUM' | 'STRONG',
+              risk_level: (rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH') as 'LOW' | 'MEDIUM' | 'HIGH',
+              quantum_probability: Number(rawSignal.score) / 100 || 0.5,
+              status: 'active',
+              created_at: rawSignal.created_at || new Date().toISOString(),
+            };
+            
+            if (updatedSignal && updatedSignal.confidence_score >= 80) {
+              onUpdate(updatedSignal);
+            }
+          } catch (e) {
+            console.error('[Signals] Failed to map updated signal:', e);
           }
-        } catch (e) {
-          console.error('[Signals] Failed to map updated signal:', e);
         }
-      }
-    )
-    .subscribe((status, err) => {
-      console.log('[Signals] Subscription status:', status);
-      if (err) {
-        console.error('[Signals] Subscription error:', err);
-      }
-    });
-    
-  return channel;
+      )
+      .subscribe((status, err) => {
+        console.log('[Signals] Subscription status:', status);
+        if (err) {
+          console.error('[Signals] Subscription error:', err);
+        }
+      });
+      
+    return channel;
+  } catch (e) {
+    console.error('[Signals] Failed to set up subscription:', e);
+    // Return a dummy channel to prevent crashes
+    return supabase.channel('dummy-channel');
+  }
 }
 
 export async function generateSignals() {
