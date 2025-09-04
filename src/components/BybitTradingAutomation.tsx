@@ -42,11 +42,11 @@ const BybitTradingAutomation: React.FC = () => {
   });
 
   const [config, setConfig] = useState<TradingConfig>({
-    enabled: false,
+    enabled: true,
     max_position_size: 10,
     risk_per_trade: 2,
     max_open_positions: 5,
-    min_confidence_score: 77,
+    min_confidence_score: 80,
     timeframes: ['5m', '15m'],
     symbols_blacklist: ['USDCUSDT'],
     use_leverage: true,

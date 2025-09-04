@@ -228,7 +228,7 @@ serve(async (req) => {
         const { data: signals, error: signalsError } = await supabase
           .from('signals')
           .select('*')
-          .gte('score', config?.min_confidence_score || 77)
+          .gte('score', config?.min_confidence_score || 80)
           .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
           .order('created_at', { ascending: false })
           .limit(config?.max_open_positions || 5);
