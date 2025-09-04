@@ -6,50 +6,50 @@
 
 @layer base {
   :root {
-    /* Unireli Color Palette - Accessibility Optimized */
-    --background: 212 47% 5%;         /* #0B0F14 */
-    --foreground: 210 17% 95%;        /* Increased from 90% to 95% for better contrast */
-    --card: 213 35% 11%;              /* #111820 */
-    --card-foreground: 210 17% 95%;   /* Increased from 90% to 95% for better contrast */
-    --popover: 213 35% 11%;           /* #111820 */
-    --popover-foreground: 210 17% 95%; /* Increased from 90% to 95% for better contrast */
+    /* Light Grey Color Palette - Clean & Modern */
+    --background: 0 0% 98%;              /* #FAFAFA - Very light grey background */
+    --foreground: 0 0% 15%;              /* #262626 - Dark grey text */
+    --card: 0 0% 96%;                    /* #F5F5F5 - Light grey cards */
+    --card-foreground: 0 0% 15%;         /* #262626 - Dark grey text on cards */
+    --popover: 0 0% 96%;                 /* #F5F5F5 - Light grey popover */
+    --popover-foreground: 0 0% 15%;      /* #262626 - Dark grey text */
     
-    /* Primary: Unireli Blue #4F83FF */
-    --primary: 225 100% 65%;
-    --primary-foreground: 212 47% 5%;
+    /* Primary: Subtle Blue accent */
+    --primary: 210 50% 55%;              /* #5B8EC2 - Muted blue */
+    --primary-foreground: 0 0% 98%;      /* #FAFAFA - Light text on primary */
     
-    /* Secondary: Improved contrast - lightened */
-    --secondary: 248 62% 70%;         /* Increased from 63% to 70% for better contrast */
-    --secondary-foreground: 210 17% 95%;
+    /* Secondary: Light grey tones */
+    --secondary: 0 0% 92%;               /* #EBEBEB - Light grey secondary */
+    --secondary-foreground: 0 0% 25%;    /* #404040 - Dark grey text */
     
-    /* Surface variations - improved contrast */
-    --muted: 213 28% 18%;             /* Increased from 15% to 18% for better contrast */
-    --muted-foreground: 214 15% 70%;  /* Increased from 58% to 70% for better contrast */
-    --accent: 213 28% 18%;            /* Increased from 15% to 18% for better contrast */
-    --accent-foreground: 210 17% 95%;
+    /* Surface variations */
+    --muted: 0 0% 94%;                   /* #F0F0F0 - Muted background */
+    --muted-foreground: 0 0% 45%;        /* #737373 - Muted text */
+    --accent: 0 0% 94%;                  /* #F0F0F0 - Accent background */
+    --accent-foreground: 0 0% 15%;       /* #262626 - Dark text on accent */
     
-    /* Status colors - improved contrast */
-    --success: 142 76% 45%;           /* Increased from 36% to 45% for better contrast */
-    --success-foreground: 138 76% 97%;
-    --warning: 32 95% 50%;            /* Increased from 44% to 50% for better contrast */
-    --warning-foreground: 48 96% 12%;
-    --destructive: 0 84% 65%;         /* Increased from 60% to 65% for better contrast */
-    --destructive-foreground: 210 17% 95%; /* Improved contrast */
+    /* Status colors - Subtle but clear */
+    --success: 142 40% 45%;              /* #4D9B6B - Muted green */
+    --success-foreground: 0 0% 98%;      /* #FAFAFA - Light text */
+    --warning: 32 80% 55%;               /* #E8A94B - Muted orange */
+    --warning-foreground: 0 0% 15%;      /* #262626 - Dark text */
+    --destructive: 0 65% 60%;            /* #D87878 - Muted red */
+    --destructive-foreground: 0 0% 98%;  /* #FAFAFA - Light text */
     
     /* Info */
-    --info: 199 89% 55%;              /* Increased from 48% to 55% for better contrast */
-    --info-foreground: 210 17% 95%;
+    --info: 210 50% 55%;                 /* #5B8EC2 - Muted blue */
+    --info-foreground: 0 0% 98%;         /* #FAFAFA - Light text */
     
-    /* Borders - improved contrast */
-    --border: 215 28% 22%;            /* Increased from 17% to 22% for better contrast */
-    --input: 215 28% 22%;             /* Increased from 17% to 22% for better contrast */
-    --ring: 168 100% 44%;             /* Electric Teal */
+    /* Borders - Light grey borders */
+    --border: 0 0% 88%;                  /* #E0E0E0 - Light grey border */
+    --input: 0 0% 88%;                   /* #E0E0E0 - Input border */
+    --ring: 210 50% 55%;                 /* #5B8EC2 - Focus ring */
     
-    /* Trading specific - improved contrast */
-    --chart-bull: 168 100% 50%;       /* Increased from 44% to 50% for better contrast */
-    --chart-bear: 0 84% 65%;          /* Increased from 60% to 65% for better contrast */
-    --chart-neutral: 214 15% 70%;     /* Increased from 58% to 70% for better contrast */
-    --chart-volume: 213 28% 18%;      /* Increased from 15% to 18% for better contrast */
+    /* Trading specific - Muted colors */
+    --chart-bull: 142 45% 50%;           /* #52A670 - Muted bull green */
+    --chart-bear: 0 60% 55%;             /* #CC7A7A - Muted bear red */
+    --chart-neutral: 0 0% 50%;           /* #808080 - Neutral grey */
+    --chart-volume: 0 0% 92%;            /* #EBEBEB - Volume background */
     
     --radius: 1rem;
   }
