@@ -179,21 +179,21 @@ const AItradeX1ScannerChart: React.FC = () => {
         {(currentSignal.stop_loss || currentSignal.exit_target) && (
           <div className="grid grid-cols-2 gap-4">
             {currentSignal.stop_loss && (
-              <div className="flex items-center space-x-2 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
+              <div className="flex items-center space-x-2 p-3 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
                 <Shield className="h-4 w-4 text-red-500" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Stop Loss</p>
-                  <p className="font-medium">${formatPrice(currentSignal.stop_loss)}</p>
+                  <p className="text-xs font-medium text-red-700 dark:text-red-300">Stop Loss</p>
+                  <p className="font-semibold text-red-900 dark:text-red-100">${formatPrice(currentSignal.stop_loss)}</p>
                 </div>
               </div>
             )}
             
             {currentSignal.exit_target && (
-              <div className="flex items-center space-x-2 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+              <div className="flex items-center space-x-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
                 <Target className="h-4 w-4 text-green-500" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Target</p>
-                  <p className="font-medium">${formatPrice(currentSignal.exit_target)}</p>
+                  <p className="text-xs font-medium text-green-700 dark:text-green-300">Target</p>
+                  <p className="font-semibold text-green-900 dark:text-green-100">${formatPrice(currentSignal.exit_target)}</p>
                 </div>
               </div>
             )}

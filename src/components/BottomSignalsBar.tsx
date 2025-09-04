@@ -38,13 +38,13 @@ const BottomSignalsBar: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t">
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 shadow-lg">
       <div className="container mx-auto px-4 py-2">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-2">
               <Zap className="h-4 w-4 text-primary" />
-              <span className="font-medium text-sm">Live Signals</span>
+              <span className="font-medium text-sm text-gray-900 dark:text-gray-100">Live Signals</span>
             </div>
             <Badge variant="outline" className="text-xs">
               {activeSignals.length} Active (5m-4h)
@@ -89,14 +89,14 @@ const BottomSignalsBar: React.FC = () => {
             </div>
           ) : (
             activeSignals.map((signal, index) => (
-              <Card key={`${signal.id}-${index}`} className="flex items-center space-x-3 px-3 py-2 bg-card/50 border-border/50 shrink-0 min-w-[280px] animate-in slide-in-from-right-5 duration-300">
+              <Card key={`${signal.id}-${index}`} className="flex items-center space-x-3 px-3 py-2 bg-white/80 dark:bg-gray-800/80 border-gray-200 dark:border-gray-600 shrink-0 min-w-[280px] animate-in slide-in-from-right-5 duration-300 shadow-sm">
                 <div className="flex items-center space-x-2">
                   {signal.direction === 'BUY' ? (
                     <TrendingUp className="h-4 w-4 text-green-500" />
                   ) : (
                     <TrendingDown className="h-4 w-4 text-red-500" />
                   )}
-                  <span className="font-medium text-sm">{signal.token}</span>
+                  <span className="font-medium text-sm text-gray-900 dark:text-gray-100">{signal.token}</span>
                 </div>
                 
                 <Badge 
@@ -106,7 +106,7 @@ const BottomSignalsBar: React.FC = () => {
                   {signal.direction}
                 </Badge>
                 
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-gray-700 dark:text-gray-300">
                   ${formatPrice(signal.entry_price)}
                 </div>
                 
@@ -118,7 +118,7 @@ const BottomSignalsBar: React.FC = () => {
                   <span className="text-primary font-medium">{signal.confidence_score}%</span>
                 </div>
                 
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-gray-700 dark:text-gray-300">
                   {formatTimeAgo(signal.created_at)}
                 </div>
               </Card>
