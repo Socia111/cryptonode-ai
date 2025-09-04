@@ -21,7 +21,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             {children}
           </main>
           
-          <BottomSignalsBar />
+          {/* <BottomSignalsBar /> */}
         </div>
       </div>
     </SidebarProvider>
