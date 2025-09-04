@@ -1,4 +1,18 @@
-import { createHmac } from "node:crypto";
+// Updated HMAC implementation for Deno edge functions (no node:crypto)
+async function createHmac(algorithm: string, secret: string, data: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+  return Array.from(new Uint8Array(signature))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -50,9 +64,9 @@ interface OrderResult {
 }
 
 // Generate signature according to Bybit v5 API docs
-function generateSignature(timestamp: string, apiKey: string, recvWindow: string, queryString: string, apiSecret: string): string {
+async function generateSignature(timestamp: string, apiKey: string, recvWindow: string, queryString: string, apiSecret: string): Promise<string> {
   const param_str = timestamp + apiKey + recvWindow + queryString;
-  return createHmac('sha256', apiSecret).update(param_str).digest('hex');
+  return await createHmac('sha256', apiSecret, param_str);
 }
 
 async function executeBybitOrder(orderParams: BybitOrderParams): Promise<BybitResponse<OrderResult>> {
@@ -72,7 +86,7 @@ async function executeBybitOrder(orderParams: BybitOrderParams): Promise<BybitRe
   );
   
   const queryString = JSON.stringify(cleanParams);
-  const signature = generateSignature(timestamp, apiKey, recvWindow, queryString, apiSecret);
+  const signature = await generateSignature(timestamp, apiKey, recvWindow, queryString, apiSecret);
   
   // PRODUCTION ENDPOINT - Using mainnet
   const url = 'https://api.bybit.com/v5/order/create';
@@ -137,7 +151,7 @@ async function getAccountBalance(category: string, coin?: string): Promise<any> 
     queryString += `&coin=${coin}`;
   }
   
-  const signature = generateSignature(timestamp, apiKey, recvWindow, queryString, apiSecret);
+  const signature = await generateSignature(timestamp, apiKey, recvWindow, queryString, apiSecret);
   
   // PRODUCTION ENDPOINT - Using mainnet
   const url = `https://api.bybit.com/v5/account/wallet-balance?${queryString}`;
@@ -175,7 +189,7 @@ Deno.serve(async (req) => {
     console.log('🔑 API Key present:', !!apiKey);
     console.log('🔐 API Secret present:', !!apiSecret);
     
-    const { signal, orderSize = '50', leverage = 1, category = 'spot', testMode = false } = await req.json();
+    const { signal, orderSize = '10', leverage = 1, category = 'spot', testMode = false } = await req.json();
     
     if (!signal) {
       throw new Error('Signal data is required');
@@ -189,21 +203,6 @@ Deno.serve(async (req) => {
       category
     });
 
-    // Ensure minimum order value for Bybit (typically $5-10 USDT minimum)
-    const minOrderValue = category === 'spot' ? 5 : 10; // $5 for spot, $10 for futures
-    const orderValue = parseFloat(orderSize) * (signal.entry_price || 1);
-    
-    if (orderValue < minOrderValue) {
-      // Automatically adjust order size to meet minimum
-      const adjustedSize = Math.ceil(minOrderValue / (signal.entry_price || 1));
-      console.log(`📏 Adjusting order size from $${orderValue.toFixed(2)} to $${adjustedSize * (signal.entry_price || 1)} to meet minimum requirements`);
-      
-      // Update orderSize to meet minimum requirements
-      var finalOrderSize = adjustedSize.toString();
-    } else {
-      var finalOrderSize = orderSize;
-    }
-
     // Validate signal data
     if (!signal.token || !signal.direction || !signal.entry_price) {
       throw new Error('Invalid signal data: missing required fields (token, direction, entry_price)');
@@ -212,28 +211,43 @@ Deno.serve(async (req) => {
     // Generate unique order link ID
     const orderLinkId = `signal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Clean symbol format (remove slashes, ensure USDT pair)
+    // Clean symbol format and validate it exists on Bybit
     let symbol = signal.token.replace('/', '').toUpperCase();
     if (!symbol.endsWith('USDT')) {
       symbol = symbol.replace('USDT', '') + 'USDT';
     }
+    
+    // Skip symbols that are known to be problematic
+    const problematicSymbols = ['PIPPINUSDT', 'BABYUSDT']; // Add more as needed
+    if (problematicSymbols.includes(symbol)) {
+      throw new Error(`Symbol ${symbol} is not supported on Bybit or has trading restrictions`);
+    }
 
-    // Helper function to format price with correct precision for Bybit
-    const formatPrice = (price: number, symbol: string): string => {
-      // Most USDT pairs use 4-6 decimal places, adjust based on price level
-      if (price >= 1000) return price.toFixed(2);      // High value coins: 2 decimals
-      if (price >= 10) return price.toFixed(4);        // Mid value coins: 4 decimals
-      if (price >= 0.1) return price.toFixed(5);       // Low value coins: 5 decimals
-      return price.toFixed(6);                         // Very low value coins: 6 decimals
-    };
-
+    // Calculate proper order size based on minimum requirements
+    let calculatedQty = parseFloat(orderSize.toString());
+    
+    // Set minimum order values based on category
+    const minOrderValue = category === 'linear' ? 5 : 10; // $5 for futures, $10 for spot
+    const estimatedPrice = signal.entry_price || 1;
+    const minQty = minOrderValue / estimatedPrice;
+    
+    // Ensure order size meets minimum requirements
+    if (calculatedQty < minQty) {
+      calculatedQty = minQty * 1.1; // Add 10% buffer
+      console.log(`🔧 Adjusted order size from ${orderSize} to ${calculatedQty} to meet minimum requirements`);
+    }
+    
+    // Round quantity to appropriate precision
+    const qtyPrecision = category === 'linear' ? 3 : 4;
+    const formattedQty = calculatedQty.toFixed(qtyPrecision);
+    
     // Prepare order parameters based on Bybit v5 API with ALL signal data
     const orderParams: BybitOrderParams = {
       category: category as 'spot' | 'linear',
       symbol: symbol,
       side: signal.direction === 'BUY' ? 'Buy' : 'Sell',
       orderType: 'Market',
-      qty: finalOrderSize,
+      qty: formattedQty,
       orderLinkId: orderLinkId,
       timeInForce: 'IOC', // Immediate or Cancel for market orders
     };
@@ -243,24 +257,32 @@ Deno.serve(async (req) => {
       orderParams.positionIdx = 0; // One-way mode
     }
 
-    // ALWAYS add stop loss and take profit from signals (with proper formatting)
-    if (signal.stop_loss) {
-      orderParams.stopLoss = formatPrice(signal.stop_loss, symbol);
-      orderParams.slTriggerBy = 'LastPrice';
-      orderParams.slOrderType = 'Market';
-    }
-    
-    if (signal.exit_target || signal.take_profit) {
-      const targetPrice = signal.exit_target || signal.take_profit;
-      orderParams.takeProfit = formatPrice(targetPrice, symbol);
-      orderParams.tpTriggerBy = 'LastPrice';
-      orderParams.tpOrderType = 'Market';
+    // Add stop loss and take profit with proper TPSL mode for linear futures
+    if (category === 'linear' && (signal.stop_loss || signal.exit_target || signal.take_profit)) {
+      orderParams.tpslMode = 'Full'; // Required for linear trading with SL/TP
+      
+      if (signal.stop_loss) {
+        const slPrice = parseFloat(signal.stop_loss.toString());
+        const formattedSL = slPrice.toFixed(4); // Format to 4 decimal places
+        orderParams.stopLoss = formattedSL;
+        orderParams.slTriggerBy = 'LastPrice';
+        orderParams.slOrderType = 'Market';
+      }
+      
+      if (signal.exit_target || signal.take_profit) {
+        const targetPrice = signal.exit_target || signal.take_profit;
+        const tpPrice = parseFloat(targetPrice.toString());
+        const formattedTP = tpPrice.toFixed(4); // Format to 4 decimal places
+        orderParams.takeProfit = formattedTP;
+        orderParams.tpTriggerBy = 'LastPrice';
+        orderParams.tpOrderType = 'Market';
+      }
     }
 
     // Add additional signal parameters for risk management
     if (signal.confidence_score && signal.confidence_score < 70) {
-      // Reduce quantity for low confidence signals but ensure minimum value
-      const adjustedQty = Math.max(parseFloat(finalOrderSize) * 0.5, minOrderValue / (signal.entry_price || 1));
+      // Reduce quantity for low confidence signals
+      const adjustedQty = parseFloat(orderSize) * 0.5;
       orderParams.qty = adjustedQty.toString();
     }
 
@@ -353,10 +375,8 @@ Deno.serve(async (req) => {
       userFriendlyMessage = '⏰ API signature expired. Please check your system time.';
     } else if (error.message?.includes('10005')) {
       userFriendlyMessage = '🚫 Invalid API permissions. Enable spot/futures trading in your Bybit API settings.';
-    } else if (error.message?.includes('10001') || error.message?.includes('170140')) {
-      userFriendlyMessage = '📏 Order value below minimum. Increase order size to at least $5-10 USDT.';
-    } else if (error.message?.includes('170134')) {
-      userFriendlyMessage = '🔢 Order price has too many decimals. The system will adjust precision automatically.';
+    } else if (error.message?.includes('10001')) {
+      userFriendlyMessage = '📏 Order size below minimum. Increase order quantity (try $50+ for futures).';
     } else if (error.message?.includes('insufficient balance')) {
       userFriendlyMessage = '💰 Insufficient balance. Please add funds to your Bybit account.';
     } else if (error.message?.includes('Missing Bybit API credentials')) {

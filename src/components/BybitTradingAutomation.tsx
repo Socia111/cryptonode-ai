@@ -42,11 +42,11 @@ const BybitTradingAutomation: React.FC = () => {
   });
 
   const [config, setConfig] = useState<TradingConfig>({
-    enabled: true,
+    enabled: false,
     max_position_size: 10,
     risk_per_trade: 2,
     max_open_positions: 5,
-    min_confidence_score: 80,
+    min_confidence_score: 77,
     timeframes: ['5m', '15m'],
     symbols_blacklist: ['USDCUSDT'],
     use_leverage: true,
@@ -111,12 +111,28 @@ const BybitTradingAutomation: React.FC = () => {
         body: { action: 'execute_all', config }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Bybit execution error:', error);
+        toast.error(`Trading Error: ${error.message || 'Failed to execute signals'}`);
+        return;
+      }
 
-      toast.success(`Executed ${data?.executed_count || 0} signals`);
+      if (data?.success) {
+        const successMsg = `✅ Executed ${data.executed_count} of ${data.total_signals} signals`;
+        toast.success(successMsg);
+        
+        // Show detailed results if there are failures
+        if (data.results && data.executed_count < data.total_signals) {
+          const failures = data.results.filter((r: any) => !r.success);
+          console.log('Failed executions:', failures);
+          toast.error(`${failures.length} signals failed - check console for details`);
+        }
+      } else {
+        toast.error(data?.error || 'Unknown error occurred');
+      }
     } catch (error) {
       console.error('Bulk execution failed:', error);
-      toast.error('Failed to execute signals');
+      toast.error(`Live Trading Error: ${error.message || 'Failed to call trading function'}`);
     } finally {
       setIsLoading(false);
     }
