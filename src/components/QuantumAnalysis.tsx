@@ -76,11 +76,11 @@ const QuantumAnalysis = () => {
 
       if (error) throw error;
 
-      setAnalysis(data?.analysis || []);
+      setAnalysis(data.analysis);
       
       toast({
         title: "Quantum Analysis Complete",
-        description: `Processed ${data?.analysis?.length || 0} tokens with 10,000 Monte Carlo simulations each`,
+        description: `Processed ${data.analysis.length} tokens with 10,000 Monte Carlo simulations each`,
       });
 
       setTimeout(() => setSimulationProgress(0), 2000);
