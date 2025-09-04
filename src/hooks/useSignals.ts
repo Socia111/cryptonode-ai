@@ -349,36 +349,18 @@ export const useSignals = () => {
   useEffect(() => {
     refreshSignals();
     
-    // Set up periodic refresh instead of real-time subscription to avoid schema mismatch
-    const channel = subscribeSignals(
-      (newSignal) => {
-        console.info('[useSignals] New signal inserted:', newSignal);
-        setSignals(prev => [newSignal, ...prev.slice(0, 49)]); // Keep max 50 signals
-        
-        // Show toast notification for new signal
-        toast({
-          title: "🚨 New Signal Generated",
-          description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
-          duration: 5000,
-        });
-      },
-      (updatedSignal) => {
-        console.info('[useSignals] Signal updated:', updatedSignal);
-        setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
-      }
-    );
-
-    // Auto-refresh signals every 60 seconds to catch any missed updates
+    // Disable real-time subscription temporarily to avoid schema mismatch
+    // Will re-enable once database schema is stable
+    console.log('[Signals] Real-time subscription disabled to prevent schema errors');
+    
+    // Set up periodic refresh instead
     const refreshInterval = setInterval(() => {
       console.log('[useSignals] Auto-refreshing signals...');
       refreshSignals();
-    }, 60000);
+    }, 60000); // Refresh every 60 seconds
 
     // Cleanup
     return () => {
-      if (channel && typeof channel.unsubscribe === 'function') {
-        channel.unsubscribe();
-      }
       clearInterval(refreshInterval);
     };
   }, []);
