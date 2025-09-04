@@ -1963,6 +1963,42 @@ export type Database = {
         }
         Relationships: []
       }
+      pipeline_logs: {
+        Row: {
+          created_at: string
+          high_confidence_signals: number | null
+          id: string
+          min_confidence_threshold: number | null
+          pipeline_run_at: string
+          signals_generated: number | null
+          timeframes_scanned: string[] | null
+          trade_errors: number | null
+          trades_executed: number | null
+        }
+        Insert: {
+          created_at?: string
+          high_confidence_signals?: number | null
+          id?: string
+          min_confidence_threshold?: number | null
+          pipeline_run_at?: string
+          signals_generated?: number | null
+          timeframes_scanned?: string[] | null
+          trade_errors?: number | null
+          trades_executed?: number | null
+        }
+        Update: {
+          created_at?: string
+          high_confidence_signals?: number | null
+          id?: string
+          min_confidence_threshold?: number | null
+          pipeline_run_at?: string
+          signals_generated?: number | null
+          timeframes_scanned?: string[] | null
+          trade_errors?: number | null
+          trades_executed?: number | null
+        }
+        Relationships: []
+      }
       portfolios: {
         Row: {
           base_ccy: string
