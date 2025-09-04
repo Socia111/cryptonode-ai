@@ -89,38 +89,41 @@ const BottomSignalsBar: React.FC = () => {
             </div>
           ) : (
             activeSignals.map((signal, index) => (
-              <Card key={`${signal.id}-${index}`} className="flex items-center space-x-3 px-3 py-2 bg-grey-100/80 border-grey-300 shrink-0 min-w-[280px] animate-in slide-in-from-right-5 duration-300 shadow-grey">
+              <Card key={`${signal.id}-${index}`} className={`flex items-center space-x-3 px-3 py-2 border shrink-0 min-w-[300px] animate-in slide-in-from-right-5 duration-300 shadow-grey ${
+                signal.direction === 'BUY' 
+                  ? 'bg-grey-200/80 border-grey-400' 
+                  : 'bg-grey-300/80 border-grey-500'
+              }`}>
                 <div className="flex items-center space-x-2">
                   {signal.direction === 'BUY' ? (
-                    <TrendingUp className="h-4 w-4 text-green-500" />
+                    <div className="flex items-center space-x-1 bg-grey-600 text-white px-2 py-1 rounded-md">
+                      <TrendingUp className="h-4 w-4" />
+                      <span className="text-xs font-bold">LONG</span>
+                    </div>
                   ) : (
-                    <TrendingDown className="h-4 w-4 text-red-500" />
+                    <div className="flex items-center space-x-1 bg-grey-700 text-white px-2 py-1 rounded-md">
+                      <TrendingDown className="h-4 w-4" />
+                      <span className="text-xs font-bold">SHORT</span>
+                    </div>
                   )}
-                  <span className="font-medium text-sm text-grey-primary">{signal.token}</span>
+                  <span className="font-semibold text-sm text-grey-primary">{signal.token}</span>
                 </div>
                 
-                <Badge 
-                  variant={signal.direction === 'BUY' ? 'default' : 'destructive'}
-                  className="text-xs"
-                >
-                  {signal.direction}
-                </Badge>
+                <div className="text-xs text-grey-700 font-medium">
+                  ${formatPrice(signal.entry_price)}
+                </div>
                 
-                 <div className="text-xs text-grey-700">
-                   ${formatPrice(signal.entry_price)}
-                 </div>
-                
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs bg-grey-400 text-grey-800">
                   {signal.timeframe}
                 </Badge>
                 
                 <div className="text-xs">
-                  <span className="text-primary font-medium">{signal.confidence_score}%</span>
+                  <span className="text-grey-800 font-bold">{signal.confidence_score}%</span>
                 </div>
                 
-                 <div className="text-xs text-grey-700">
-                   {formatTimeAgo(signal.created_at)}
-                 </div>
+                <div className="text-xs text-grey-600">
+                  {formatTimeAgo(signal.created_at)}
+                </div>
               </Card>
             ))
           )}
