@@ -30,7 +30,11 @@ export function AutoTradingMonitor() {
   const checkTradingStatus = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('automated-trading-engine', {
-        body: { action: 'status' }
+        body: { 
+          action: 'status',
+          symbol: 'BTCUSDT',
+          settleCoin: 'USDT'
+        }
       });
 
       if (error) throw error;
@@ -55,10 +59,19 @@ export function AutoTradingMonitor() {
     try {
       setIsLoading(true);
       
+      // First try to get existing config, then update/insert with proper UUID
+      const { data: existingConfig } = await supabase
+        .from('trading_configs')
+        .select('id')
+        .eq('id', 'f47ac10b-58cc-4372-a567-0e02b2c3d479')
+        .single();
+
+      const configId = existingConfig?.id || 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+      
       const { error } = await supabase
         .from('trading_configs')
         .upsert({
-          id: 'default',
+          id: configId,
           auto_trade_enabled: enabled,
           updated_at: new Date().toISOString()
         });
