@@ -167,8 +167,7 @@ serve(async (req) => {
         try {
           const accountInfo = await makeBybitRequest('/v5/account/info');
           const walletBalance = await makeBybitRequest('/v5/account/wallet-balance', { accountType: 'UNIFIED' });
-          // Get positions with proper settlement coin parameter
-          const positions = await makeBybitRequest('/v5/position/list', { category: 'linear', settleCoin: 'USDT' });
+          const positions = await makeBybitRequest('/v5/position/list', { category: 'linear' });
           
           const balance = walletBalance.result?.list?.[0]?.totalWalletBalance || '0';
           const activePositions = positions.result?.list?.filter((pos: any) => parseFloat(pos.size) > 0).length || 0;
@@ -229,8 +228,8 @@ serve(async (req) => {
         const { data: signals, error: signalsError } = await supabase
           .from('signals')
           .select('*')
-          .gte('score', config?.min_confidence_score || 80)
-          .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours for fresher signals
+          .gte('score', config?.min_confidence_score || 77)
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
           .order('created_at', { ascending: false })
           .limit(config?.max_open_positions || 5);
 
@@ -238,74 +237,48 @@ serve(async (req) => {
           throw new Error(`Failed to fetch signals: ${signalsError.message}`);
         }
 
-        console.log(`[Bybit Trading] Found ${signals?.length || 0} signals to execute`);
-
-        if (!signals || signals.length === 0) {
-          return new Response(
-            JSON.stringify({
-              success: true,
-              executed_count: 0,
-              total_signals: 0,
-              message: 'No signals found meeting criteria',
-              criteria: {
-                min_score: config?.min_confidence_score || 80,
-                timeframe: '2 hours',
-                max_positions: config?.max_open_positions || 5
-              }
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
         let executedCount = 0;
         const results = [];
         
-        for (const signal of signals) {
+        for (const signal of signals || []) {
           try {
-            console.log(`[Bybit Trading] Processing signal for ${signal.symbol}: ${signal.direction} at ${signal.price}`);
+            // Calculate order size based on position size and leverage
+            const orderSize = (config.max_position_size / signal.price);
             
-            // Convert signal to proper format for execution
+            // Place order via Bybit API
             const orderParams = {
               category: 'linear',
               symbol: signal.symbol,
               side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
               orderType: 'Market',
-              qty: (config.max_position_size / parseFloat(signal.price || signal.entry_price || '1')).toFixed(6),
-              positionIdx: 0,
-              timeInForce: 'IOC',
-              stopLoss: signal.sl ? signal.sl.toString() : undefined,
-              takeProfit: signal.tp ? signal.tp.toString() : undefined
+              qty: orderSize.toFixed(4),
+              stopLoss: signal.sl?.toString(),
+              takeProfit: signal.tp?.toString()
             };
 
-            console.log(`[Bybit Trading] Order params for ${signal.symbol}:`, orderParams);
+            if (config.use_leverage) {
+              // Set leverage first
+              await makeBybitRequest('/v5/position/set-leverage', {
+                category: 'linear',
+                symbol: signal.symbol,
+                buyLeverage: config.leverage_amount.toString(),
+                sellLeverage: config.leverage_amount.toString()
+              }, 'POST');
+            }
 
-            // Place order directly through Bybit API
             const orderResult = await makeBybitRequest('/v5/order/create', orderParams, 'POST');
-
+            
             if (orderResult.retCode === 0) {
               executedCount++;
-              results.push({ 
-                symbol: signal.symbol, 
-                success: true, 
-                orderId: orderResult.result?.orderId,
-                message: `${signal.direction} order placed successfully`
-              });
-              console.log(`[Bybit Trading] ✅ Successfully placed order for ${signal.symbol}`);
+              results.push({ symbol: signal.symbol, success: true, orderId: orderResult.result?.orderId });
+              console.log(`[Bybit Trading] Successfully placed order for ${signal.symbol}`);
             } else {
-              results.push({ 
-                symbol: signal.symbol, 
-                success: false, 
-                error: orderResult.retMsg || 'Order placement failed'
-              });
-              console.error(`[Bybit Trading] ❌ Failed to place order for ${signal.symbol}:`, orderResult.retMsg);
+              results.push({ symbol: signal.symbol, success: false, error: orderResult.retMsg });
+              console.error(`[Bybit Trading] Failed to place order for ${signal.symbol}:`, orderResult.retMsg);
             }
           } catch (orderError) {
-            results.push({ 
-              symbol: signal.symbol, 
-              success: false, 
-              error: orderError.message || 'Unknown error'
-            });
-            console.error(`[Bybit Trading] ❌ Error placing order for ${signal.symbol}:`, orderError);
+            results.push({ symbol: signal.symbol, success: false, error: orderError.message });
+            console.error(`[Bybit Trading] Error placing order for ${signal.symbol}:`, orderError);
           }
         }
         
@@ -328,25 +301,9 @@ serve(async (req) => {
     }
   } catch (error) {
     console.error('[Bybit Trading] Error:', error);
-    
-    // Provide more specific error information
-    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-    const isConnectionError = errorMessage.includes('API credentials') || 
-                              errorMessage.includes('IP restriction') || 
-                              errorMessage.includes('Unmatched IP') ||
-                              errorMessage.includes('connection');
-    
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: errorMessage,
-        isConnectionError,
-        details: isConnectionError ? 'Please check your Bybit API credentials and IP restrictions' : null
-      }),
-      {
-        status: isConnectionError ? 401 : 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ success: false, error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

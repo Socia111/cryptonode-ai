@@ -3505,54 +3505,6 @@ export type Database = {
         }
         Relationships: []
       }
-      user_trading_configs: {
-        Row: {
-          auto_execute_enabled: boolean | null
-          created_at: string | null
-          id: string
-          leverage_amount: number | null
-          max_open_positions: number | null
-          max_position_size: number | null
-          min_confidence_score: number | null
-          risk_per_trade: number | null
-          symbols_blacklist: string[] | null
-          timeframes: string[] | null
-          updated_at: string | null
-          use_leverage: boolean | null
-          user_id: string
-        }
-        Insert: {
-          auto_execute_enabled?: boolean | null
-          created_at?: string | null
-          id?: string
-          leverage_amount?: number | null
-          max_open_positions?: number | null
-          max_position_size?: number | null
-          min_confidence_score?: number | null
-          risk_per_trade?: number | null
-          symbols_blacklist?: string[] | null
-          timeframes?: string[] | null
-          updated_at?: string | null
-          use_leverage?: boolean | null
-          user_id: string
-        }
-        Update: {
-          auto_execute_enabled?: boolean | null
-          created_at?: string | null
-          id?: string
-          leverage_amount?: number | null
-          max_open_positions?: number | null
-          max_position_size?: number | null
-          min_confidence_score?: number | null
-          risk_per_trade?: number | null
-          symbols_blacklist?: string[] | null
-          timeframes?: string[] | null
-          updated_at?: string | null
-          use_leverage?: boolean | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       watchlist_items: {
         Row: {
           created_at: string | null

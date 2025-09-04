@@ -12,8 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import LiveSignalsPanel from './LiveSignalsPanel';
 import LiveScannerControl from './LiveScannerControl';
-import SignalGenerationPanel from './SignalGenerationPanel';
-import AutomationTestPanel from './AutomationTestPanel';
 
 interface TradingConfig {
   enabled: boolean;
@@ -75,7 +73,7 @@ const AutomatedTradingDashboard = () => {
     max_position_size: 10,
     risk_per_trade: 2,
     max_open_positions: 5,
-    min_confidence_score: 80,
+    min_confidence_score: 77,
     timeframes: ['5m', '15m'],
     symbols_blacklist: ['USDCUSDT']
   });
@@ -677,17 +675,15 @@ const AutomatedTradingDashboard = () => {
         </TabsContent>
 
         <TabsContent value="manual" className="space-y-4">
-          <div className="grid gap-6">
-            <AutomationTestPanel />
-            <SignalGenerationPanel onSignalsGenerated={(count) => {
-              toast({
-                title: `🎯 ${count} New Signals`,
-                description: "Fresh trading opportunities detected"
-              });
-            }} />
-            <LiveSignalsPanel onExecuteTrade={executeManualTrade} />
-            <LiveScannerControl />
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Manual Trade Execution</CardTitle>
+              <CardDescription>Execute individual trades from live signals</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <LiveSignalsPanel onExecuteTrade={executeManualTrade} />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

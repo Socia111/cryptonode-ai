@@ -19,6 +19,60 @@ const Markets = () => {
           </p>
         </div>
 
+        {/* Market Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center space-x-2 text-sm font-medium">
+                <BarChart3 className="w-4 h-4 text-primary" />
+                <span>Market Cap</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">$2.34T</div>
+              <p className="text-xs text-success">+2.4% (24h)</p>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center space-x-2 text-sm font-medium">
+                <Activity className="w-4 h-4 text-warning" />
+                <span>24h Volume</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">$89.2B</div>
+              <p className="text-xs text-muted-foreground">Across all pairs</p>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center space-x-2 text-sm font-medium">
+                <TrendingUp className="w-4 h-4 text-success" />
+                <span>Gainers</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-success">847</div>
+              <p className="text-xs text-muted-foreground">24h gainers</p>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center space-x-2 text-sm font-medium">
+                <TrendingDown className="w-4 h-4 text-destructive" />
+                <span>Losers</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-destructive">432</div>
+              <p className="text-xs text-muted-foreground">24h losers</p>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Market Overview */}
         <MarketOverview />
