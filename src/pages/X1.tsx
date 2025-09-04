@@ -12,6 +12,9 @@ import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
+import LiveSignalsDisplay from '../components/LiveSignalsDisplay';
+import LiveScannerControl from '../components/LiveScannerControl';
+import AutomatedTradingDashboard from '../components/AutomatedTradingDashboard';
 
 const X1 = () => {
   return (
@@ -29,6 +32,15 @@ const X1 = () => {
         
         {/* Database Setup */}
         <DatabaseSetup />
+        
+        {/* Live Scanner Control */}
+        <LiveScannerControl />
+        
+        {/* Automated Trading Dashboard */}
+        <AutomatedTradingDashboard />
+        
+        {/* Live Signals Display */}
+        <LiveSignalsDisplay />
         
         {/* AItradeX1 Scanner Chart */}
         <AItradeX1ScannerChart />
