@@ -478,13 +478,7 @@ async function createOrder(
   });
 }
 
-async function cancelOrder(client: BybitV5Client, symbol: string, orderId?: string) {
-  return client.privatePost("/v5/order/cancel", {
-    category: "linear",
-    symbol,
-    ...(orderId ? { orderId } : {}),
-  });
-}
+// cancelOrder function removed - duplicate of class method and export above
 
 class AutomatedTradingEngine {
   private trader: BybitV5Client;
