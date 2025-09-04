@@ -9,7 +9,7 @@ import SpynxScoreCard from '../components/SpynxScoreCard';
 import TelegramIntegration from '../components/TelegramIntegration';
 import TradingPanel from '../components/TradingPanel';
 import BacktestEngine from '../components/BacktestEngine';
-import QuantumAnalysis from '../components/QuantumAnalysis';
+
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
 
@@ -51,7 +51,6 @@ const X = () => {
             <PortfolioStats />
             <TradingPanel />
             <TelegramIntegration />
-            <QuantumAnalysis />
             <SpynxScoreCard />
             <SignalsList />
           </div>

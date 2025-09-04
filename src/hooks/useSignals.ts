@@ -140,11 +140,7 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
     .slice(0, 20); // Limit to 20 most recent signals
 }
 
-function getMockSignals(): Signal[] {
-  // REAL DATA ONLY - No mock signals
-  console.log('[Signals] Mock signals disabled - only real market data');
-  return [];
-}
+// Mock function removed - only real data is used
 
 function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) => void) {
   console.log('[Signals] Setting up real-time subscription...');
