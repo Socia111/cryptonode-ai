@@ -242,43 +242,39 @@ serve(async (req) => {
         
         for (const signal of signals || []) {
           try {
-            // Use the bybit-order-execution function instead of direct API calls
-            const { data: executionResult, error: executionError } = await supabase.functions.invoke('bybit-order-execution', {
-              body: {
-                signal: {
-                  token: signal.symbol,
-                  direction: signal.direction,
-                  entry_price: signal.entry_price || signal.price,
-                  stop_loss: signal.sl,
-                  take_profit: signal.tp,
-                  confidence_score: signal.score
-                },
-                orderSize: config.max_position_size.toString(),
-                leverage: config.leverage_amount,
-                category: 'linear'
-              }
-            });
+            // Calculate order size based on position size and leverage
+            const orderSize = (config.max_position_size / signal.price);
+            
+            // Place order via Bybit API
+            const orderParams = {
+              category: 'linear',
+              symbol: signal.symbol,
+              side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
+              orderType: 'Market',
+              qty: orderSize.toFixed(4),
+              stopLoss: signal.sl?.toString(),
+              takeProfit: signal.tp?.toString()
+            };
 
-            if (executionError) {
-              throw new Error(executionError.message);
+            if (config.use_leverage) {
+              // Set leverage first
+              await makeBybitRequest('/v5/position/set-leverage', {
+                category: 'linear',
+                symbol: signal.symbol,
+                buyLeverage: config.leverage_amount.toString(),
+                sellLeverage: config.leverage_amount.toString()
+              }, 'POST');
             }
 
-            if (executionResult?.success) {
+            const orderResult = await makeBybitRequest('/v5/order/create', orderParams, 'POST');
+            
+            if (orderResult.retCode === 0) {
               executedCount++;
-              results.push({ 
-                symbol: signal.symbol, 
-                success: true, 
-                orderId: executionResult.orderId,
-                message: executionResult.message
-              });
+              results.push({ symbol: signal.symbol, success: true, orderId: orderResult.result?.orderId });
               console.log(`[Bybit Trading] Successfully placed order for ${signal.symbol}`);
             } else {
-              results.push({ 
-                symbol: signal.symbol, 
-                success: false, 
-                error: executionResult?.error || 'Unknown execution error'
-              });
-              console.error(`[Bybit Trading] Failed to place order for ${signal.symbol}:`, executionResult?.error);
+              results.push({ symbol: signal.symbol, success: false, error: orderResult.retMsg });
+              console.error(`[Bybit Trading] Failed to place order for ${signal.symbol}:`, orderResult.retMsg);
             }
           } catch (orderError) {
             results.push({ symbol: signal.symbol, success: false, error: orderError.message });
