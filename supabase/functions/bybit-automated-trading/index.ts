@@ -328,9 +328,25 @@ serve(async (req) => {
     }
   } catch (error) {
     console.error('[Bybit Trading] Error:', error);
+    
+    // Provide more specific error information
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    const isConnectionError = errorMessage.includes('API credentials') || 
+                              errorMessage.includes('IP restriction') || 
+                              errorMessage.includes('Unmatched IP') ||
+                              errorMessage.includes('connection');
+    
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        success: false, 
+        error: errorMessage,
+        isConnectionError,
+        details: isConnectionError ? 'Please check your Bybit API credentials and IP restrictions' : null
+      }),
+      {
+        status: isConnectionError ? 401 : 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
     );
   }
 });

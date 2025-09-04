@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import LiveSignalsPanel from './LiveSignalsPanel';
 import LiveScannerControl from './LiveScannerControl';
+import SignalGenerationPanel from './SignalGenerationPanel';
+import AutomationTestPanel from './AutomationTestPanel';
 
 interface TradingConfig {
   enabled: boolean;
@@ -675,15 +677,17 @@ const AutomatedTradingDashboard = () => {
         </TabsContent>
 
         <TabsContent value="manual" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Manual Trade Execution</CardTitle>
-              <CardDescription>Execute individual trades from live signals</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <LiveSignalsPanel onExecuteTrade={executeManualTrade} />
-            </CardContent>
-          </Card>
+          <div className="grid gap-6">
+            <AutomationTestPanel />
+            <SignalGenerationPanel onSignalsGenerated={(count) => {
+              toast({
+                title: `🎯 ${count} New Signals`,
+                description: "Fresh trading opportunities detected"
+              });
+            }} />
+            <LiveSignalsPanel onExecuteTrade={executeManualTrade} />
+            <LiveScannerControl />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
