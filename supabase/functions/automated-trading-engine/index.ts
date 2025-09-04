@@ -124,8 +124,15 @@ export const getRecentTrades = (symbol: string, category="linear", limit=50) =>
 export const getWalletBalance = (accountType="UNIFIED") =>
   v5Request("GET", "/v5/account/wallet-balance", { accountType });
 
-export const listPositions = (symbol?: string) =>
-  v5Request("GET", "/v5/position/list", { category: "linear", symbol });
+export const listPositions = (symbol?: string, settleCoin = "USDT") => {
+  const params: any = { category: "linear" };
+  if (symbol) {
+    params.symbol = symbol;
+  } else {
+    params.settleCoin = settleCoin;
+  }
+  return v5Request("GET", "/v5/position/list", params);
+};
 
 export const placeOrder = (p: {
   symbol: string; side: "Buy"|"Sell"; orderType: "Limit"|"Market";
@@ -406,14 +413,13 @@ class BybitV5Client {
   }
 
   async getPositions(category = "linear", symbol?: string, settleCoin = "USDT"): Promise<Position[]> {
-    const params: any = {
-      category,
-      settleCoin // Always include settleCoin to avoid parameter error
-    };
+    const params: any = { category };
     
-    // Only add symbol if provided
+    // V5 API requires either symbol OR settleCoin, not both for optimal performance
     if (symbol) {
       params.symbol = symbol;
+    } else {
+      params.settleCoin = settleCoin;
     }
     
     const response = await this.privateGet('/v5/position/list', params);
