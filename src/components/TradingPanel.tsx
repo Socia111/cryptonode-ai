@@ -139,8 +139,9 @@ const TradingPanel = () => {
             </div>
             
             <div>
-              <label className="text-xs text-muted-foreground">Max Leverage</label>
+              <label htmlFor="max_leverage" className="text-xs text-muted-foreground">Max Leverage</label>
               <Input
+                id="max_leverage"
                 type="number"
                 value={executionSettings.leverage}
                 onChange={(e) => setExecutionSettings(prev => ({...prev, leverage: parseInt(e.target.value)}))}
@@ -151,8 +152,9 @@ const TradingPanel = () => {
           </div>
           
           <div>
-            <label className="text-xs text-muted-foreground">Capital Per Trade (%)</label>
+            <label htmlFor="capital_per_trade" className="text-xs text-muted-foreground">Capital Per Trade (%)</label>
             <Input
+              id="capital_per_trade"
               type="number"
               value={executionSettings.capital_percent}
               onChange={(e) => setExecutionSettings(prev => ({...prev, capital_percent: parseFloat(e.target.value)}))}

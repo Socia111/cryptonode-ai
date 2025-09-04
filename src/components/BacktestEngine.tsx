@@ -166,8 +166,9 @@ const BacktestEngine = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs text-muted-foreground">Start Date</label>
+              <label htmlFor="start_date" className="text-xs text-muted-foreground">Start Date</label>
               <Input
+                id="start_date"
                 type="date"
                 value={params.start_date}
                 onChange={(e) => updateParam('start_date', e.target.value)}
@@ -175,8 +176,9 @@ const BacktestEngine = () => {
             </div>
             
             <div>
-              <label className="text-xs text-muted-foreground">End Date</label>
+              <label htmlFor="end_date" className="text-xs text-muted-foreground">End Date</label>
               <Input
+                id="end_date"
                 type="date"
                 value={params.end_date}
                 onChange={(e) => updateParam('end_date', e.target.value)}
@@ -186,8 +188,9 @@ const BacktestEngine = () => {
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="text-xs text-muted-foreground">Initial Capital</label>
+              <label htmlFor="initial_capital" className="text-xs text-muted-foreground">Initial Capital</label>
               <Input
+                id="initial_capital"
                 type="number"
                 value={params.initial_capital}
                 onChange={(e) => updateParam('initial_capital', parseInt(e.target.value))}
@@ -195,8 +198,9 @@ const BacktestEngine = () => {
             </div>
             
             <div>
-              <label className="text-xs text-muted-foreground">Leverage</label>
+              <label htmlFor="leverage" className="text-xs text-muted-foreground">Leverage</label>
               <Input
+                id="leverage"
                 type="number"
                 value={params.strategy_config.leverage}
                 onChange={(e) => updateParam('strategy_config.leverage', parseInt(e.target.value))}
@@ -206,8 +210,9 @@ const BacktestEngine = () => {
             </div>
             
             <div>
-              <label className="text-xs text-muted-foreground">Stop Loss %</label>
+              <label htmlFor="stop_loss_percent" className="text-xs text-muted-foreground">Stop Loss %</label>
               <Input
+                id="stop_loss_percent"
                 type="number"
                 value={params.strategy_config.stop_loss_percent}
                 onChange={(e) => updateParam('strategy_config.stop_loss_percent', parseFloat(e.target.value))}
