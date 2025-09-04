@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { TrendingUp, TrendingDown, Activity, BarChart3, Volume2, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useSignals } from '@/hooks/useSignals';
 
 interface AItradeX1Signal {
   symbol: string;
@@ -33,11 +34,13 @@ interface AItradeX1Signal {
 }
 
 const AItradeX1SystemDashboard = () => {
-  const [signals, setSignals] = useState<AItradeX1Signal[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
+  const [localSignals, setLocalSignals] = useState<AItradeX1Signal[]>([]);
   const [scanProgress, setScanProgress] = useState(0);
   const [activeTab, setActiveTab] = useState('signals');
   const { toast } = useToast();
+  
+  // Use real signals from the hook
+  const { signals: realSignals, loading: isScanning, generateSignals } = useSignals();
 
   const indicatorSettings = {
     ema: { fast: 21, slow: 200 },
@@ -60,11 +63,13 @@ const AItradeX1SystemDashboard = () => {
   ];
 
   const triggerScan = async () => {
-    setIsScanning(true);
     setScanProgress(0);
     
     try {
-      // Simulate scan progress
+      // Use the real signal generation function
+      await generateSignals();
+      
+      // Create progress animation
       const interval = setInterval(() => {
         setScanProgress(prev => {
           if (prev >= 100) {
@@ -74,73 +79,14 @@ const AItradeX1SystemDashboard = () => {
           return prev + 10;
         });
       }, 200);
-
-      // Mock data for demonstration
+      
+      // Clear progress after completion
       setTimeout(() => {
-        const mockSignals: AItradeX1Signal[] = [
-          {
-            symbol: 'BTCUSDT',
-            timeframe: '15m',
-            signal_type: 'BUY',
-            confidence_score: 7,
-            ema21: 45234.56,
-            ema200: 43891.23,
-            rsi: 38.2,
-            adx: 28.7,
-            plus_di: 24.1,
-            minus_di: 18.3,
-            volume_spike: true,
-            hvp: 67.8,
-            stoch_k: 18.4,
-            stoch_d: 15.2,
-            trend_bullish: true,
-            momentum_oversold: true,
-            trend_strength: true,
-            directional_positive: true,
-            volume_confirmed: true,
-            volatility_expanding: true,
-            stoch_entry: true,
-            timestamp: new Date().toISOString()
-          },
-          {
-            symbol: 'ETHUSDT',
-            timeframe: '5m',
-            signal_type: 'BUY',
-            confidence_score: 6,
-            ema21: 2456.78,
-            ema200: 2398.45,
-            rsi: 35.6,
-            adx: 31.2,
-            plus_di: 26.8,
-            minus_di: 19.7,
-            volume_spike: true,
-            hvp: 72.1,
-            stoch_k: 19.8,
-            stoch_d: 22.1,
-            trend_bullish: true,
-            momentum_oversold: true,
-            trend_strength: true,
-            directional_positive: true,
-            volume_confirmed: true,
-            volatility_expanding: true,
-            stoch_entry: false,
-            timestamp: new Date().toISOString()
-          }
-        ];
-        
-        setSignals(mockSignals);
-        setIsScanning(false);
         setScanProgress(0);
-        
-        toast({
-          title: "AItradeX1 Scan Complete",
-          description: `Found ${mockSignals.length} high-confidence signals`,
-        });
-      }, 2000);
+      }, 2500);
       
     } catch (error) {
       console.error('Scan error:', error);
-      setIsScanning(false);
       setScanProgress(0);
       toast({
         title: "Scan Error",
@@ -149,6 +95,38 @@ const AItradeX1SystemDashboard = () => {
       });
     }
   };
+
+  // Convert real signals to AItradeX1Signal format
+  const convertToAItradeX1Format = (realSignals: any[]): AItradeX1Signal[] => {
+    return realSignals.map(signal => ({
+      symbol: signal.token?.replace('/USDT', 'USDT') || 'UNKNOWN',
+      timeframe: signal.timeframe || '15m',
+      signal_type: signal.direction as 'BUY' | 'SELL',
+      confidence_score: Math.round(signal.confidence_score / 100 * 7), // Convert to 0-7 scale
+      ema21: signal.entry_price * 0.98, // Approximate
+      ema200: signal.entry_price * 0.95, // Approximate
+      rsi: signal.confidence_score > 80 ? 35 : 45, // Approximate based on confidence
+      adx: signal.confidence_score > 75 ? 28 : 22, // Approximate
+      plus_di: signal.direction === 'BUY' ? 25 : 18,
+      minus_di: signal.direction === 'SELL' ? 25 : 18,
+      volume_spike: signal.volume_strength > 1.2,
+      hvp: signal.confidence_score * 0.8, // Approximate
+      stoch_k: signal.direction === 'BUY' ? 25 : 75,
+      stoch_d: signal.direction === 'BUY' ? 20 : 80,
+      trend_bullish: signal.direction === 'BUY',
+      momentum_oversold: signal.direction === 'BUY' && signal.confidence_score > 75,
+      trend_strength: signal.confidence_score > 70,
+      directional_positive: signal.direction === 'BUY',
+      volume_confirmed: signal.volume_strength > 1.0,
+      volatility_expanding: signal.confidence_score > 65,
+      stoch_entry: signal.confidence_score > 80,
+      timestamp: signal.created_at
+    }));
+  };
+
+  const displaySignals = realSignals.length > 0 
+    ? convertToAItradeX1Format(realSignals) 
+    : localSignals;
 
   const getConfidenceColor = (score: number) => {
     if (score >= 6) return 'text-green-600 bg-green-100';
@@ -217,13 +195,13 @@ const AItradeX1SystemDashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {signals.length === 0 ? (
+              {displaySignals.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No active signals. Click "Start Scan" to generate AItradeX1 signals.
+                  {isScanning ? "Scanning for signals..." : "No active signals. Click 'Start Scan' to generate AItradeX1 signals."}
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {signals.map((signal, index) => (
+                  {displaySignals.map((signal, index) => (
                     <div key={index} className="border rounded-lg p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">

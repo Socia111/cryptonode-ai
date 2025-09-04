@@ -1,6 +1,8 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import AItradeX1SystemDashboard from '../components/AItradeX1SystemDashboard';
+import LiveSignalsDisplay from '../components/LiveSignalsDisplay';
+import LiveScannerControl from '../components/LiveScannerControl';
 import DatabaseSetup from '../components/DatabaseSetup';
 
 const X2 = () => {
@@ -19,6 +21,12 @@ const X2 = () => {
         
         {/* Database Setup */}
         <DatabaseSetup />
+        
+        {/* Live Scanner Control */}
+        <LiveScannerControl />
+        
+        {/* Live Signals Display */}
+        <LiveSignalsDisplay />
         
         {/* AItradeX1 System Dashboard */}
         <AItradeX1SystemDashboard />
