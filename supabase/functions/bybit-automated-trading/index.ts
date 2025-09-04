@@ -229,7 +229,7 @@ serve(async (req) => {
         const { data: signals, error: signalsError } = await supabase
           .from('signals')
           .select('*')
-          .gte('score', config?.min_confidence_score || 77)
+          .gte('score', config?.min_confidence_score || 80)
           .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours for fresher signals
           .order('created_at', { ascending: false })
           .limit(config?.max_open_positions || 5);
@@ -248,7 +248,7 @@ serve(async (req) => {
               total_signals: 0,
               message: 'No signals found meeting criteria',
               criteria: {
-                min_score: config?.min_confidence_score || 77,
+                min_score: config?.min_confidence_score || 80,
                 timeframe: '2 hours',
                 max_positions: config?.max_open_positions || 5
               }

@@ -22,7 +22,7 @@ serve(async (req) => {
     console.log('[Signal Automation] New signal received:', record);
 
     // Check if this is a new high-confidence signal
-    if (record && record.score >= 77 && record.created_at) {
+    if (record && record.score >= 80 && record.created_at) {
       console.log(`[Signal Automation] High confidence signal detected: ${record.symbol} ${record.direction} Score: ${record.score}`);
       
       // Check if automated trading is enabled for any users
@@ -80,7 +80,7 @@ serve(async (req) => {
         console.log('[Signal Automation] No users have automation enabled for this signal');
       }
     } else {
-      console.log(`[Signal Automation] Signal doesn't meet automation criteria: Score ${record?.score}, Required: >=77`);
+      console.log(`[Signal Automation] Signal doesn't meet automation criteria: Score ${record?.score}, Required: >=80`);
     }
 
     return new Response(
