@@ -405,10 +405,18 @@ class BybitV5Client {
     });
   }
 
-  async getPositions(): Promise<Position[]> {
-    const response = await this.privateGet('/v5/position/list', {
-      category: 'linear'
-    });
+  async getPositions(category = "linear", symbol?: string, settleCoin = "USDT"): Promise<Position[]> {
+    const params: any = {
+      category,
+      settleCoin // Always include settleCoin to avoid parameter error
+    };
+    
+    // Only add symbol if provided
+    if (symbol) {
+      params.symbol = symbol;
+    }
+    
+    const response = await this.privateGet('/v5/position/list', params);
     
     return response.result.list.map((pos: any) => ({
       symbol: pos.symbol,

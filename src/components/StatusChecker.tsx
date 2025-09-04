@@ -24,7 +24,7 @@ const StatusChecker = () => {
       { service: 'Database Connection', status: 'checking', message: 'Testing database connectivity...' },
       { service: 'Signals API', status: 'checking', message: 'Testing signals API endpoint...' },
       { service: 'Live Scanner', status: 'checking', message: 'Testing live scanner function...' },
-      { service: 'Bybit API', status: 'checking', message: 'Testing Bybit API connection...' }
+      { service: 'Trading Engine', status: 'checking', message: 'Testing trading engine connection...' }
     ];
     
     setStatusResults([...checks]);
@@ -98,21 +98,27 @@ const StatusChecker = () => {
     }
     setStatusResults([...checks]);
 
-    // Check Bybit API
+    // Check Trading Engine (with proper parameters)
     try {
-      const { data, error } = await supabase.functions.invoke('debug-bybit-api');
+      const { data, error } = await supabase.functions.invoke('automated-trading-engine', {
+        body: { 
+          action: 'status',
+          symbol: 'BTCUSDT',
+          settleCoin: 'USDT'
+        }
+      });
       if (error) throw error;
       checks[3] = { 
-        service: 'Bybit API', 
-        status: data?.bybit_connectivity ? 'healthy' : 'error', 
-        message: data?.bybit_connectivity ? 'Bybit API accessible' : 'Bybit API connection failed',
+        service: 'Trading Engine', 
+        status: data?.success ? 'healthy' : 'error', 
+        message: data?.success ? 'Trading engine operational' : data?.error || 'Unknown error',
         lastChecked: new Date().toLocaleTimeString()
       };
     } catch (error: any) {
       checks[3] = { 
-        service: 'Bybit API', 
+        service: 'Trading Engine', 
         status: 'error', 
-        message: `Bybit API error: ${error.message}`,
+        message: `Trading engine error: ${error.message}`,
         lastChecked: new Date().toLocaleTimeString()
       };
     }

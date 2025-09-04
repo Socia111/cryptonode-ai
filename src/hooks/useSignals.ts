@@ -372,15 +372,29 @@ export const useSignals = () => {
         description: "Scanning markets for new trading opportunities..."
       });
       
-      const result = await generateSignals();
+      console.log('🔄 Triggering live scanner for signals generation...');
+      
+      const { data, error } = await supabase.functions.invoke('live-scanner-production', {
+        body: {
+          timeframe: '5m',
+          symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'BNBUSDT', 'XRPUSDT'],
+          relaxed_filters: true
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
       
       // Force refresh signals after generation
       await new Promise(resolve => setTimeout(resolve, 1500)); // Wait 1.5 seconds for signals to save
       await refreshSignals();
       
+      const signalsFound = data?.signals_found || 0;
+      
       toast({
         title: "✅ Signals Generated",
-        description: `Successfully generated ${result.signals_created || 'new'} trading signals`
+        description: `Successfully generated ${signalsFound} new trading signals`
       });
     } catch (e: any) {
       console.error('[useSignals] Generate signals failed:', e);
