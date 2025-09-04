@@ -167,7 +167,8 @@ serve(async (req) => {
         try {
           const accountInfo = await makeBybitRequest('/v5/account/info');
           const walletBalance = await makeBybitRequest('/v5/account/wallet-balance', { accountType: 'UNIFIED' });
-          const positions = await makeBybitRequest('/v5/position/list', { category: 'linear' });
+          // Get positions with proper settlement coin parameter
+          const positions = await makeBybitRequest('/v5/position/list', { category: 'linear', settleCoin: 'USDT' });
           
           const balance = walletBalance.result?.list?.[0]?.totalWalletBalance || '0';
           const activePositions = positions.result?.list?.filter((pos: any) => parseFloat(pos.size) > 0).length || 0;
@@ -229,7 +230,7 @@ serve(async (req) => {
           .from('signals')
           .select('*')
           .gte('score', config?.min_confidence_score || 77)
-          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
+          .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours for fresher signals
           .order('created_at', { ascending: false })
           .limit(config?.max_open_positions || 5);
 
@@ -237,52 +238,74 @@ serve(async (req) => {
           throw new Error(`Failed to fetch signals: ${signalsError.message}`);
         }
 
+        console.log(`[Bybit Trading] Found ${signals?.length || 0} signals to execute`);
+
+        if (!signals || signals.length === 0) {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              executed_count: 0,
+              total_signals: 0,
+              message: 'No signals found meeting criteria',
+              criteria: {
+                min_score: config?.min_confidence_score || 77,
+                timeframe: '2 hours',
+                max_positions: config?.max_open_positions || 5
+              }
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
         let executedCount = 0;
         const results = [];
         
-        for (const signal of signals || []) {
+        for (const signal of signals) {
           try {
-            // Use the bybit-order-execution function instead of direct API calls
-            const { data: executionResult, error: executionError } = await supabase.functions.invoke('bybit-order-execution', {
-              body: {
-                signal: {
-                  token: signal.symbol,
-                  direction: signal.direction,
-                  entry_price: signal.entry_price || signal.price,
-                  stop_loss: signal.sl,
-                  take_profit: signal.tp,
-                  confidence_score: signal.score
-                },
-                orderSize: config.max_position_size.toString(),
-                leverage: config.leverage_amount,
-                category: 'linear'
-              }
-            });
+            console.log(`[Bybit Trading] Processing signal for ${signal.symbol}: ${signal.direction} at ${signal.price}`);
+            
+            // Convert signal to proper format for execution
+            const orderParams = {
+              category: 'linear',
+              symbol: signal.symbol,
+              side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
+              orderType: 'Market',
+              qty: (config.max_position_size / parseFloat(signal.price || signal.entry_price || '1')).toFixed(6),
+              positionIdx: 0,
+              timeInForce: 'IOC',
+              stopLoss: signal.sl ? signal.sl.toString() : undefined,
+              takeProfit: signal.tp ? signal.tp.toString() : undefined
+            };
 
-            if (executionError) {
-              throw new Error(executionError.message);
-            }
+            console.log(`[Bybit Trading] Order params for ${signal.symbol}:`, orderParams);
 
-            if (executionResult?.success) {
+            // Place order directly through Bybit API
+            const orderResult = await makeBybitRequest('/v5/order/create', orderParams, 'POST');
+
+            if (orderResult.retCode === 0) {
               executedCount++;
               results.push({ 
                 symbol: signal.symbol, 
                 success: true, 
-                orderId: executionResult.orderId,
-                message: executionResult.message
+                orderId: orderResult.result?.orderId,
+                message: `${signal.direction} order placed successfully`
               });
-              console.log(`[Bybit Trading] Successfully placed order for ${signal.symbol}`);
+              console.log(`[Bybit Trading] ✅ Successfully placed order for ${signal.symbol}`);
             } else {
               results.push({ 
                 symbol: signal.symbol, 
                 success: false, 
-                error: executionResult?.error || 'Unknown execution error'
+                error: orderResult.retMsg || 'Order placement failed'
               });
-              console.error(`[Bybit Trading] Failed to place order for ${signal.symbol}:`, executionResult?.error);
+              console.error(`[Bybit Trading] ❌ Failed to place order for ${signal.symbol}:`, orderResult.retMsg);
             }
           } catch (orderError) {
-            results.push({ symbol: signal.symbol, success: false, error: orderError.message });
-            console.error(`[Bybit Trading] Error placing order for ${signal.symbol}:`, orderError);
+            results.push({ 
+              symbol: signal.symbol, 
+              success: false, 
+              error: orderError.message || 'Unknown error'
+            });
+            console.error(`[Bybit Trading] ❌ Error placing order for ${signal.symbol}:`, orderError);
           }
         }
         
