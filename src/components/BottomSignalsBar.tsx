@@ -38,7 +38,7 @@ const BottomSignalsBar: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-grey-50/95 backdrop-blur-sm border-t border-grey-300 shadow-grey">
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50/95 backdrop-blur-sm border-t border-gradient-to-r from-purple-300 to-blue-300 shadow-xl">
       <div className="container mx-auto px-4 py-2">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-3">
@@ -88,44 +88,53 @@ const BottomSignalsBar: React.FC = () => {
               )}
             </div>
           ) : (
-            activeSignals.map((signal, index) => (
-              <Card key={`${signal.id}-${index}`} className={`flex items-center space-x-3 px-3 py-2 border shrink-0 min-w-[300px] animate-in slide-in-from-right-5 duration-300 shadow-grey ${
-                signal.direction === 'BUY' 
-                  ? 'bg-grey-200/80 border-grey-400' 
-                  : 'bg-grey-300/80 border-grey-500'
-              }`}>
+            activeSignals.map((signal, index) => {
+              const rainbowColors = [
+                'from-red-200 to-pink-200 border-red-300',
+                'from-orange-200 to-yellow-200 border-orange-300', 
+                'from-yellow-200 to-lime-200 border-yellow-300',
+                'from-green-200 to-emerald-200 border-green-300',
+                'from-cyan-200 to-blue-200 border-cyan-300',
+                'from-blue-200 to-indigo-200 border-blue-300',
+                'from-purple-200 to-violet-200 border-purple-300',
+                'from-pink-200 to-rose-200 border-pink-300'
+              ];
+              const colorClass = rainbowColors[index % rainbowColors.length];
+              
+              return (
+              <Card key={`${signal.id}-${index}`} className={`flex items-center space-x-3 px-4 py-3 bg-gradient-to-r ${colorClass} shrink-0 min-w-[320px] animate-in slide-in-from-right-5 duration-300 shadow-lg hover:shadow-xl transition-all`}>
                 <div className="flex items-center space-x-2">
                   {signal.direction === 'BUY' ? (
-                    <div className="flex items-center space-x-1 bg-grey-600 text-white px-2 py-1 rounded-md">
+                    <div className="flex items-center space-x-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-1.5 rounded-full shadow-md">
                       <TrendingUp className="h-4 w-4" />
                       <span className="text-xs font-bold">LONG</span>
                     </div>
                   ) : (
-                    <div className="flex items-center space-x-1 bg-grey-700 text-white px-2 py-1 rounded-md">
+                    <div className="flex items-center space-x-1 bg-gradient-to-r from-red-500 to-rose-600 text-white px-3 py-1.5 rounded-full shadow-md">
                       <TrendingDown className="h-4 w-4" />
                       <span className="text-xs font-bold">SHORT</span>
                     </div>
                   )}
-                  <span className="font-semibold text-sm text-grey-primary">{signal.token}</span>
+                  <span className="font-bold text-sm text-gray-800">{signal.token}</span>
                 </div>
                 
-                <div className="text-xs text-grey-700 font-medium">
+                <div className="text-xs text-gray-700 font-bold bg-white/50 px-2 py-1 rounded">
                   ${formatPrice(signal.entry_price)}
                 </div>
                 
-                <Badge variant="secondary" className="text-xs bg-grey-400 text-grey-800">
+                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-violet-400 to-purple-500 text-white border-0">
                   {signal.timeframe}
                 </Badge>
                 
-                <div className="text-xs">
-                  <span className="text-grey-800 font-bold">{signal.confidence_score}%</span>
+                <div className="text-xs bg-white/60 px-2 py-1 rounded-full">
+                  <span className="text-indigo-700 font-bold">{signal.confidence_score}%</span>
                 </div>
                 
-                <div className="text-xs text-grey-600">
+                <div className="text-xs text-gray-600 bg-white/40 px-2 py-1 rounded">
                   {formatTimeAgo(signal.created_at)}
                 </div>
               </Card>
-            ))
+            )})
           )}
         </div>
       </div>

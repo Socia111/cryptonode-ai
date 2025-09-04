@@ -41,7 +41,7 @@ const LiveSignalsDisplay = () => {
         ) : (
           <div className="space-y-4">
             {signals.slice(0, 10).map((signal) => (
-              <div key={signal.id} className="border border-grey-300 bg-grey-100/50 rounded-lg p-4 space-y-2 hover:bg-grey-200/50 transition-colors">
+              <div key={signal.id} className="border border-purple-300 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-4 space-y-2 hover:from-purple-100 hover:to-indigo-100 transition-all duration-300 shadow-md">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <h3 className="font-semibold text-lg">{signal.token}</h3>
@@ -53,9 +53,9 @@ const LiveSignalsDisplay = () => {
                       )}
                     </Badge>
                      <Badge className={
-                       signal.confidence_score >= 80 ? 'bg-grey-200 text-grey-800 border-grey-300' :
-                       signal.confidence_score >= 70 ? 'bg-grey-300 text-grey-700 border-grey-400' :
-                       'bg-grey-400 text-grey-600 border-grey-500'
+                       signal.confidence_score >= 80 ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white border-0' :
+                       signal.confidence_score >= 70 ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-0' :
+                       'bg-gradient-to-r from-red-400 to-rose-500 text-white border-0'
                      }>
                       {signal.confidence_score.toFixed(1)}% Confidence
                     </Badge>
