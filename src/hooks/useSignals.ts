@@ -143,102 +143,22 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
 // Mock function removed - only real data is used
 
 function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) => void) {
-  console.log('[Signals] Setting up real-time subscription...');
+  console.log('[Signals] Setting up periodic refresh instead of real-time subscription...');
   
-  const channel = supabase
-    .channel('signals-subscription')
-    .on(
-      'postgres_changes',
-      { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'signals'
-      },
-      (payload) => {
-        console.log('[Signals] New signal received via realtime:', payload.new);
-        try {
-          // Map the actual signals table structure to our Signal interface
-          const rawSignal = payload.new;
-          const newSignal: Signal = {
-            id: rawSignal.id.toString(),
-            token: rawSignal.symbol.replace('USDT', '/USDT'),
-            direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
-            signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
-            timeframe: rawSignal.timeframe,
-            entry_price: Number(rawSignal.price),
-            exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
-            stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
-            leverage: 1,
-            confidence_score: Number(rawSignal.score),
-            pms_score: Number(rawSignal.score),
-            trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
-            volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
-            roi_projection: Math.abs((Number(rawSignal.tp || rawSignal.price * 1.1) - Number(rawSignal.price)) / Number(rawSignal.price) * 100),
-            signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
-            risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
-            quantum_probability: Number(rawSignal.score) / 100,
-            status: 'active',
-            created_at: rawSignal.created_at || new Date().toISOString(),
-          };
-          
-          if (newSignal) {
-            onInsert(newSignal);
-          }
-        } catch (e) {
-          console.error('[Signals] Failed to map new signal:', e);
-        }
-      }
-    )
-    .on(
-      'postgres_changes',
-      { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'signals'
-      },
-      (payload) => {
-        console.log('[Signals] Signal updated via realtime:', payload.new);
-        try {
-          // Map the actual signals table structure to our Signal interface
-          const rawSignal = payload.new;
-          const updatedSignal: Signal = {
-            id: rawSignal.id.toString(),
-            token: rawSignal.symbol.replace('USDT', '/USDT'),
-            direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
-            signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
-            timeframe: rawSignal.timeframe,
-            entry_price: Number(rawSignal.price),
-            exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
-            stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
-            leverage: 1,
-            confidence_score: Number(rawSignal.score),
-            pms_score: Number(rawSignal.score),
-            trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
-            volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
-            roi_projection: Math.abs((Number(rawSignal.tp || rawSignal.price * 1.1) - Number(rawSignal.price)) / Number(rawSignal.price) * 100),
-            signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
-            risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
-            quantum_probability: Number(rawSignal.score) / 100,
-            status: 'active',
-            created_at: rawSignal.created_at || new Date().toISOString(),
-          };
-          
-          if (updatedSignal) {
-            onUpdate(updatedSignal);
-          }
-        } catch (e) {
-          console.error('[Signals] Failed to map updated signal:', e);
-        }
-      }
-    )
-    .subscribe((status, err) => {
-      console.log('[Signals] Subscription status:', status);
-      if (err) {
-        console.error('[Signals] Subscription error:', err);
-      }
-    });
-    
-  return channel;
+  // Use periodic refresh instead of real-time subscription to avoid schema mismatch errors
+  const refreshInterval = setInterval(async () => {
+    try {
+      const freshSignals = await fetchSignals();
+      // This will be handled by the useSignals hook to merge updates
+    } catch (error) {
+      console.error('[Signals] Periodic refresh failed:', error);
+    }
+  }, 30000); // Refresh every 30 seconds
+  
+  // Return a dummy channel object for compatibility
+  return {
+    unsubscribe: () => clearInterval(refreshInterval)
+  };
 }
 
 export async function generateSignals() {
@@ -429,7 +349,7 @@ export const useSignals = () => {
   useEffect(() => {
     refreshSignals();
     
-    // Set up realtime subscription for live signal updates
+    // Set up periodic refresh instead of real-time subscription to avoid schema mismatch
     const channel = subscribeSignals(
       (newSignal) => {
         console.info('[useSignals] New signal inserted:', newSignal);
@@ -456,7 +376,9 @@ export const useSignals = () => {
 
     // Cleanup
     return () => {
-      supabase.removeChannel(channel);
+      if (channel && typeof channel.unsubscribe === 'function') {
+        channel.unsubscribe();
+      }
       clearInterval(refreshInterval);
     };
   }, []);

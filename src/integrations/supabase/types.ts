@@ -2939,7 +2939,7 @@ export type Database = {
           auto_trade_enabled: boolean | null
           created_at: string | null
           id: string
-          max_open_positions: number | null
+          max_position_size: number | null
           min_confidence_score: number | null
           risk_per_trade: number | null
           updated_at: string | null
@@ -2948,7 +2948,7 @@ export type Database = {
           auto_trade_enabled?: boolean | null
           created_at?: string | null
           id?: string
-          max_open_positions?: number | null
+          max_position_size?: number | null
           min_confidence_score?: number | null
           risk_per_trade?: number | null
           updated_at?: string | null
@@ -2957,7 +2957,7 @@ export type Database = {
           auto_trade_enabled?: boolean | null
           created_at?: string | null
           id?: string
-          max_open_positions?: number | null
+          max_position_size?: number | null
           min_confidence_score?: number | null
           risk_per_trade?: number | null
           updated_at?: string | null
