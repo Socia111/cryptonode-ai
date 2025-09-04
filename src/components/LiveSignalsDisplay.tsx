@@ -53,10 +53,10 @@ const LiveSignalsDisplay = () => {
                       )}
                     </Badge>
                      <Badge className={
-                       signal.confidence_score >= 80 ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white border-0' :
-                       signal.confidence_score >= 70 ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-0' :
-                       'bg-gradient-to-r from-red-400 to-rose-500 text-white border-0'
-                     }>
+                        signal.confidence_score >= 80 ? 'bg-success text-success-foreground border-0' :
+                        signal.confidence_score >= 70 ? 'bg-warning text-warning-foreground border-0' :
+                        'bg-destructive text-destructive-foreground border-0'
+                      }>
                       {signal.confidence_score.toFixed(1)}% Confidence
                     </Badge>
                   </div>
@@ -82,12 +82,12 @@ const LiveSignalsDisplay = () => {
                       {signal.exit_target ? `$${signal.exit_target.toFixed(4)}` : 'N/A'}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground">ROI Projection</p>
-                    <p className="font-medium text-green-600">
-                      +{signal.roi_projection.toFixed(1)}%
-                    </p>
-                  </div>
+                   <div>
+                     <p className="text-muted-foreground">ROI Projection</p>
+                     <p className="font-medium text-success">
+                       +{signal.roi_projection.toFixed(1)}%
+                     </p>
+                   </div>
                 </div>
               </div>
             ))}

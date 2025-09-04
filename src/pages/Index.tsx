@@ -14,6 +14,7 @@ import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
 import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
 import AutomatedTradingDashboard from '../components/AutomatedTradingDashboard';
+import StatusChecker from '../components/StatusChecker';
 
 const Index = () => {
   return (
@@ -28,6 +29,9 @@ const Index = () => {
             AI-powered cryptocurrency trading platform with real-time market analysis and automated portfolio management
           </p>
         </div>
+        
+        {/* System Health Status */}
+        <StatusChecker />
         
         {/* Database Setup */}
         <DatabaseSetup />

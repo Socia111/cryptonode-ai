@@ -56,7 +56,7 @@ const BottomSignalsBar: React.FC = () => {
             size="lg" 
             onClick={generateSignals}
             disabled={loading}
-            className="shrink-0 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3"
+            className="shrink-0 bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold px-6 py-3"
           >
             {loading ? (
               <Loader2 className="h-3 w-3 animate-spin mr-1" />
@@ -104,33 +104,33 @@ const BottomSignalsBar: React.FC = () => {
               return (
               <Card key={`${signal.id}-${index}`} className={`flex items-center space-x-3 px-4 py-3 bg-gradient-to-r ${colorClass} shrink-0 min-w-[320px] animate-in slide-in-from-right-5 duration-300 shadow-lg hover:shadow-xl transition-all`}>
                 <div className="flex items-center space-x-2">
-                  {signal.direction === 'BUY' ? (
-                    <div className="flex items-center space-x-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-1.5 rounded-full shadow-md">
-                      <TrendingUp className="h-4 w-4" />
-                      <span className="text-xs font-bold">LONG</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-1 bg-gradient-to-r from-red-500 to-rose-600 text-white px-3 py-1.5 rounded-full shadow-md">
-                      <TrendingDown className="h-4 w-4" />
-                      <span className="text-xs font-bold">SHORT</span>
-                    </div>
-                  )}
-                  <span className="font-bold text-sm text-gray-800">{signal.token}</span>
-                </div>
-                
-                <div className="text-xs text-gray-700 font-bold bg-white/50 px-2 py-1 rounded">
-                  ${formatPrice(signal.entry_price)}
-                </div>
-                
-                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-violet-400 to-purple-500 text-white border-0">
-                  {signal.timeframe}
-                </Badge>
-                
-                <div className="text-xs bg-white/60 px-2 py-1 rounded-full">
-                  <span className="text-indigo-700 font-bold">{signal.confidence_score}%</span>
-                </div>
-                
-                <div className="text-xs text-gray-600 bg-white/40 px-2 py-1 rounded">
+                   {signal.direction === 'BUY' ? (
+                     <div className="flex items-center space-x-1 bg-success text-success-foreground px-3 py-1.5 rounded-full shadow-md">
+                       <TrendingUp className="h-4 w-4" />
+                       <span className="text-xs font-bold">LONG</span>
+                     </div>
+                   ) : (
+                     <div className="flex items-center space-x-1 bg-destructive text-destructive-foreground px-3 py-1.5 rounded-full shadow-md">
+                       <TrendingDown className="h-4 w-4" />
+                       <span className="text-xs font-bold">SHORT</span>
+                     </div>
+                   )}
+                   <span className="font-bold text-sm text-foreground">{signal.token}</span>
+                 </div>
+                 
+                 <div className="text-xs text-foreground font-bold bg-background/50 px-2 py-1 rounded">
+                   ${formatPrice(signal.entry_price)}
+                 </div>
+                 
+                 <Badge variant="secondary" className="text-xs bg-primary text-primary-foreground border-0">
+                   {signal.timeframe}
+                 </Badge>
+                 
+                 <div className="text-xs bg-background/60 px-2 py-1 rounded-full">
+                   <span className="text-primary font-bold">{signal.confidence_score}%</span>
+                 </div>
+                 
+                 <div className="text-xs text-muted-foreground bg-background/40 px-2 py-1 rounded">
                   {formatTimeAgo(signal.created_at)}
                 </div>
               </Card>
