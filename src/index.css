@@ -6,50 +6,50 @@
 
 @layer base {
   :root {
-    /* Unireli Color Palette */
+    /* Unireli Color Palette - Accessibility Optimized */
     --background: 212 47% 5%;         /* #0B0F14 */
-    --foreground: 210 17% 90%;        /* #E5E7EB */
+    --foreground: 210 17% 95%;        /* Increased from 90% to 95% for better contrast */
     --card: 213 35% 11%;              /* #111820 */
-    --card-foreground: 210 17% 90%;   /* #E5E7EB */
+    --card-foreground: 210 17% 95%;   /* Increased from 90% to 95% for better contrast */
     --popover: 213 35% 11%;           /* #111820 */
-    --popover-foreground: 210 17% 90%; /* #E5E7EB */
+    --popover-foreground: 210 17% 95%; /* Increased from 90% to 95% for better contrast */
     
     /* Primary: Unireli Blue #4F83FF */
     --primary: 225 100% 65%;
     --primary-foreground: 212 47% 5%;
     
-    /* Secondary: Indigo Glow #6C5CE7 */
-    --secondary: 248 62% 63%;
-    --secondary-foreground: 210 17% 90%;
+    /* Secondary: Improved contrast - lightened */
+    --secondary: 248 62% 70%;         /* Increased from 63% to 70% for better contrast */
+    --secondary-foreground: 210 17% 95%;
     
-    /* Surface variations */
-    --muted: 213 28% 15%;             /* #141C24 */
-    --muted-foreground: 214 15% 58%;  /* #94A3B8 */
-    --accent: 213 28% 15%;            /* #141C24 */
-    --accent-foreground: 210 17% 90%;
+    /* Surface variations - improved contrast */
+    --muted: 213 28% 18%;             /* Increased from 15% to 18% for better contrast */
+    --muted-foreground: 214 15% 70%;  /* Increased from 58% to 70% for better contrast */
+    --accent: 213 28% 18%;            /* Increased from 15% to 18% for better contrast */
+    --accent-foreground: 210 17% 95%;
     
-    /* Status colors */
-    --success: 142 76% 36%;           /* #10B981 */
+    /* Status colors - improved contrast */
+    --success: 142 76% 45%;           /* Increased from 36% to 45% for better contrast */
     --success-foreground: 138 76% 97%;
-    --warning: 32 95% 44%;            /* #F59E0B */
+    --warning: 32 95% 50%;            /* Increased from 44% to 50% for better contrast */
     --warning-foreground: 48 96% 12%;
-    --destructive: 0 84% 60%;         /* #EF4444 */
-    --destructive-foreground: 210 17% 90%;
+    --destructive: 0 84% 65%;         /* Increased from 60% to 65% for better contrast */
+    --destructive-foreground: 210 17% 95%; /* Improved contrast */
     
     /* Info */
-    --info: 199 89% 48%;              /* #38BDF8 */
-    --info-foreground: 210 17% 90%;
+    --info: 199 89% 55%;              /* Increased from 48% to 55% for better contrast */
+    --info-foreground: 210 17% 95%;
     
-    /* Borders */
-    --border: 215 28% 17%;            /* #1F2937 */
-    --input: 215 28% 17%;
+    /* Borders - improved contrast */
+    --border: 215 28% 22%;            /* Increased from 17% to 22% for better contrast */
+    --input: 215 28% 22%;             /* Increased from 17% to 22% for better contrast */
     --ring: 168 100% 44%;             /* Electric Teal */
     
-    /* Trading specific */
-    --chart-bull: 168 100% 44%;       /* #00E0B8 */
-    --chart-bear: 0 84% 60%;          /* #EF4444 */
-    --chart-neutral: 214 15% 58%;     /* #94A3B8 */
-    --chart-volume: 213 28% 15%;      /* #141C24 */
+    /* Trading specific - improved contrast */
+    --chart-bull: 168 100% 50%;       /* Increased from 44% to 50% for better contrast */
+    --chart-bear: 0 84% 65%;          /* Increased from 60% to 65% for better contrast */
+    --chart-neutral: 214 15% 70%;     /* Increased from 58% to 70% for better contrast */
+    --chart-volume: 213 28% 18%;      /* Increased from 15% to 18% for better contrast */
     
     --radius: 1rem;
   }
