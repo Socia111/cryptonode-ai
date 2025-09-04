@@ -52,7 +52,7 @@ const StatusChecker = () => {
     // Check Signals API
     try {
       const { data, error } = await supabase.functions.invoke('signals-api', {
-        body: { action: 'health' }
+        body: { method: 'GET', path: '/health' }
       });
       if (error) throw error;
       checks[1] = { 

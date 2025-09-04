@@ -922,13 +922,8 @@ async function executeManualTrade(trader: BybitV5Client, signal: any, quantity: 
   }
 }
 
-// JSON response helper
-function json(status: number, body: unknown) {
-  return new Response(JSON.stringify(body, null, 2), {
-    status,
-    headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
-  });
-}
+// JSON response helper (reusing existing function)
+// Note: json function already declared at line 153
 
 // Main hardened handler - ensures diagnostic routes always work
 Deno.serve(async (req) => {
