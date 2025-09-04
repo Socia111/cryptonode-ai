@@ -41,7 +41,7 @@ const LiveSignalsDisplay = () => {
         ) : (
           <div className="space-y-4">
             {signals.slice(0, 10).map((signal) => (
-              <div key={signal.id} className="border rounded-lg p-4 space-y-2">
+              <div key={signal.id} className="border border-grey-300 bg-grey-100/50 rounded-lg p-4 space-y-2 hover:bg-grey-200/50 transition-colors">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <h3 className="font-semibold text-lg">{signal.token}</h3>
@@ -52,11 +52,11 @@ const LiveSignalsDisplay = () => {
                         <><TrendingDown className="h-3 w-3 mr-1" /> SELL</>
                       )}
                     </Badge>
-                    <Badge className={
-                      signal.confidence_score >= 80 ? 'bg-green-100 text-green-700' :
-                      signal.confidence_score >= 70 ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-red-100 text-red-700'
-                    }>
+                     <Badge className={
+                       signal.confidence_score >= 80 ? 'bg-grey-200 text-grey-800 border-grey-300' :
+                       signal.confidence_score >= 70 ? 'bg-grey-300 text-grey-700 border-grey-400' :
+                       'bg-grey-400 text-grey-600 border-grey-500'
+                     }>
                       {signal.confidence_score.toFixed(1)}% Confidence
                     </Badge>
                   </div>
