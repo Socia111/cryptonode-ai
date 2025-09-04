@@ -94,18 +94,18 @@ const AItradeX1ScannerChart: React.FC = () => {
 
   const getSignalStrengthColor = (strength: string) => {
     switch (strength) {
-      case 'STRONG': return 'text-green-500';
-      case 'MEDIUM': return 'text-yellow-500';
-      default: return 'text-gray-500';
+      case 'STRONG': return 'text-grey-800';
+      case 'MEDIUM': return 'text-grey-600';
+      default: return 'text-grey-500';
     }
   };
 
   const getRiskLevelColor = (risk: string) => {
     switch (risk) {
-      case 'LOW': return 'text-green-500';
-      case 'MEDIUM': return 'text-yellow-500';
-      case 'HIGH': return 'text-red-500';
-      default: return 'text-gray-500';
+      case 'LOW': return 'text-grey-600';
+      case 'MEDIUM': return 'text-grey-700';
+      case 'HIGH': return 'text-grey-800';
+      default: return 'text-grey-500';
     }
   };
 
@@ -130,9 +130,9 @@ const AItradeX1ScannerChart: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             {currentSignal.direction === 'BUY' ? (
-              <TrendingUp className="h-8 w-8 text-green-500" />
+              <TrendingUp className="h-8 w-8 text-grey-700" />
             ) : (
-              <TrendingDown className="h-8 w-8 text-red-500" />
+              <TrendingDown className="h-8 w-8 text-grey-700" />
             )}
             <div>
               <h3 className="text-2xl font-bold">{currentSignal.token}</h3>
@@ -179,21 +179,21 @@ const AItradeX1ScannerChart: React.FC = () => {
         {(currentSignal.stop_loss || currentSignal.exit_target) && (
           <div className="grid grid-cols-2 gap-4">
             {currentSignal.stop_loss && (
-              <div className="flex items-center space-x-2 p-3 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
-                <Shield className="h-4 w-4 text-red-500" />
+              <div className="flex items-center space-x-2 p-3 bg-grey-200/50 rounded-lg border border-grey-400">
+                <Shield className="h-4 w-4 text-grey-600" />
                 <div>
-                  <p className="text-xs font-medium text-red-700 dark:text-red-300">Stop Loss</p>
-                  <p className="font-semibold text-red-900 dark:text-red-100">${formatPrice(currentSignal.stop_loss)}</p>
+                  <p className="text-xs font-medium text-grey-700">Stop Loss</p>
+                  <p className="font-semibold text-grey-900">${formatPrice(currentSignal.stop_loss)}</p>
                 </div>
               </div>
             )}
             
             {currentSignal.exit_target && (
-              <div className="flex items-center space-x-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
-                <Target className="h-4 w-4 text-green-500" />
+              <div className="flex items-center space-x-2 p-3 bg-grey-300/50 rounded-lg border border-grey-500">
+                <Target className="h-4 w-4 text-grey-700" />
                 <div>
-                  <p className="text-xs font-medium text-green-700 dark:text-green-300">Target</p>
-                  <p className="font-semibold text-green-900 dark:text-green-100">${formatPrice(currentSignal.exit_target)}</p>
+                  <p className="text-xs font-medium text-grey-800">Target</p>
+                  <p className="font-semibold text-grey-950">${formatPrice(currentSignal.exit_target)}</p>
                 </div>
               </div>
             )}
