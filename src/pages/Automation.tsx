@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import MainLayout from '@/layouts/MainLayout';
 import BybitTradingAutomation from '@/components/BybitTradingAutomation';
+import { AutoTradingStatus } from '@/components/AutoTradingStatus';
 import { Shield, AlertTriangle, Settings, Bot, Zap, Target } from 'lucide-react';
 
 const Automation = () => {
@@ -189,6 +190,9 @@ const Automation = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Auto-Trading Status */}
+        <AutoTradingStatus />
 
         {/* Bybit Trading Automation */}
         <BybitTradingAutomation />
