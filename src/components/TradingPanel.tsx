@@ -170,21 +170,8 @@ const TradingPanel = () => {
             <span className="font-medium">Active Trades</span>
           </div>
           
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div className="p-3 bg-success/10 rounded-lg border border-success/20">
-              <p className="text-lg font-bold text-success">8</p>
-              <p className="text-xs text-muted-foreground">Open Positions</p>
-            </div>
-            
-            <div className="p-3 bg-warning/10 rounded-lg border border-warning/20">
-              <p className="text-lg font-bold text-warning">+12.4%</p>
-              <p className="text-xs text-muted-foreground">Unrealized P&L</p>
-            </div>
-            
-            <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
-              <p className="text-lg font-bold text-primary">$2,847</p>
-              <p className="text-xs text-muted-foreground">Total Value</p>
-            </div>
+          <div className="text-center py-4">
+            <p className="text-sm text-muted-foreground">No active trades</p>
           </div>
         </div>
 
