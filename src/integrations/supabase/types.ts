@@ -3943,6 +3943,22 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      fetch_signals_to_execute: {
+        Args: {
+          p_limit?: number
+          p_min_confidence?: number
+          p_timeframes?: string[]
+        }
+        Returns: {
+          confidence: number
+          id: string
+          side: string
+          sl_price: number
+          symbol: string
+          timeframe: string
+          tp_price: number
+        }[]
+      }
       find_nearby_agents: {
         Args: { _agent_id: string; _limit?: number; _max_distance?: number }
         Returns: {
@@ -4040,6 +4056,29 @@ export type Database = {
       log_security_policy_hardening: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      log_trade_sent: {
+        Args: {
+          p_order_link_id: string
+          p_qty: number
+          p_side: string
+          p_sl: number
+          p_strategy_signal_id: string
+          p_symbol: string
+          p_tp: number
+          p_user_id: string
+        }
+        Returns: string
+      }
+      queue_top_strategy_signals: {
+        Args: {
+          p_limit?: number
+          p_min_confidence?: number
+          p_timeframes?: string[]
+        }
+        Returns: {
+          queued_id: string
+        }[]
       }
       refresh_materialized_views: {
         Args: Record<PropertyKey, never>

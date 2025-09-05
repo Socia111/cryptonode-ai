@@ -12,14 +12,41 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🤖 Auto-trader poller started');
+    console.log('🤖 Auto-trader poller started using new atomic queueing system');
     
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get all users with auto-trading enabled
+    // 1. Fetch and atomically queue high-confidence signals
+    const { data: signalsToExecute, error: signalsError } = await supabase
+      .rpc('fetch_signals_to_execute', {
+        p_min_confidence: 80,
+        p_timeframes: ['15m', '30m'],
+        p_limit: 10
+      });
+
+    if (signalsError) {
+      throw new Error(`Failed to fetch signals: ${signalsError.message}`);
+    }
+
+    if (!signalsToExecute || signalsToExecute.length === 0) {
+      console.log('📋 No high-confidence signals to execute');
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'No signals to execute',
+          signals_processed: 0,
+          trades_executed: 0
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`📈 Found ${signalsToExecute.length} signals to execute`);
+
+    // 2. Get users with auto-trading enabled
     const { data: configs, error: configError } = await supabase
       .from('user_trading_configs')
       .select('*')
@@ -30,12 +57,13 @@ serve(async (req) => {
     }
 
     if (!configs || configs.length === 0) {
-      console.log('📋 No users have auto-trading enabled');
+      console.log('👥 No users have auto-trading enabled');
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: 'No users with auto-trading enabled',
-          processed: 0
+          signals_processed: signalsToExecute.length,
+          trades_executed: 0
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -46,153 +74,117 @@ serve(async (req) => {
     let totalExecuted = 0;
     const results = [];
 
+    // 3. For each user and each signal, execute trades
     for (const config of configs) {
-      try {
-        console.log(`🔄 Processing user ${config.user_id}`);
+      let userExecuted = 0;
 
-        // Fetch recent high-confidence signals for AItradeX1 strategy
-        const { data: signals, error: signalsError } = await supabase
-          .from('signals')
-          .select('*')
-          .gte('confidence_score', config.min_confidence_score || 80)
-          .eq('status', 'active')
-          .in('timeframe', ['15m', '30m']) // AItradeX1 criteria
-          .gte('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()) // Last 30 minutes
-          .not('symbol', 'in', `(${config.symbols_blacklist?.join(',') || ''})`)
-          .order('confidence_score', { ascending: false })
-          .limit(config.max_open_positions || 3);
+      for (const signal of signalsToExecute) {
+        try {
+          // Check if user already has max positions
+          const { data: openTrades } = await supabase
+            .from('trades')
+            .select('id')
+            .eq('user_id', config.user_id)
+            .eq('status', 'open');
 
-        if (signalsError) {
-          console.error(`❌ Error fetching signals for user ${config.user_id}:`, signalsError);
-          continue;
-        }
+          const currentPositions = openTrades?.length || 0;
+          if (currentPositions >= config.max_open_positions) {
+            console.log(`🚫 User ${config.user_id} has max positions (${currentPositions}/${config.max_open_positions})`);
+            continue;
+          }
 
-        if (!signals || signals.length === 0) {
-          console.log(`📊 No qualifying signals for user ${config.user_id}`);
-          continue;
-        }
+          // Calculate position size based on risk per trade
+          const orderSizeUSDT = config.risk_per_trade || 1.0;
+          const leverage = config.leverage || 5;
+          
+          // Prepare order for Bybit
+          const orderPayload = {
+            category: 'linear',
+            symbol: signal.symbol.replace('/', ''),
+            side: signal.side,
+            orderType: 'Market',
+            qty: (orderSizeUSDT * leverage / (signal.entry_hint || 50000)).toFixed(4),
+            timeInForce: 'IOC',
+            orderLinkId: `auto_${signal.id}_${Date.now()}`,
+            positionIdx: 0
+          };
 
-        console.log(`📈 Found ${signals.length} qualifying signals for user ${config.user_id}`);
+          // Add stop loss and take profit if available
+          if (signal.sl_price) {
+            orderPayload.stopLoss = signal.sl_price.toString();
+            orderPayload.slTriggerBy = 'LastPrice';
+            orderPayload.slOrderType = 'Market';
+          }
+          
+          if (signal.tp_price) {
+            orderPayload.takeProfit = signal.tp_price.toString();
+            orderPayload.tpTriggerBy = 'LastPrice';
+            orderPayload.tpOrderType = 'Market';
+          }
 
-        // Check current open positions to respect max_open_positions
-        const { data: openTrades } = await supabase
-          .from('trades')
-          .select('id')
-          .eq('user_id', config.user_id)
-          .eq('status', 'open');
+          console.log(`🎯 Executing order for ${signal.symbol} (confidence: ${signal.confidence}%)`);
 
-        const currentPositions = openTrades?.length || 0;
-        const availableSlots = Math.max(0, config.max_open_positions - currentPositions);
+          // Execute via bybit-order-execution endpoint
+          const orderResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/bybit-order-execution/order`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+            },
+            body: JSON.stringify(orderPayload)
+          });
 
-        if (availableSlots === 0) {
-          console.log(`🚫 User ${config.user_id} has max positions (${currentPositions}/${config.max_open_positions})`);
-          continue;
-        }
+          const orderResult = await orderResponse.json();
 
-        // Execute signals up to available slots
-        const signalsToExecute = signals.slice(0, availableSlots);
-        let userExecuted = 0;
-
-        for (const signal of signalsToExecute) {
-          try {
-            // Calculate order size based on risk per trade
-            const orderSizeUSDT = config.risk_per_trade || 10;
-            
-            // Prepare order payload
-            const orderPayload = {
-              category: config.use_leverage ? 'linear' : 'spot',
-              symbol: signal.symbol.replace('/', ''),
-              side: signal.direction === 'BUY' ? 'Buy' : 'Sell',
-              orderType: 'Market',
-              qty: config.use_leverage ? 
-                (orderSizeUSDT / signal.entry_price * config.leverage_amount).toFixed(4) :
-                (orderSizeUSDT / signal.entry_price).toFixed(4),
-              timeInForce: 'IOC',
-              orderLinkId: `auto_${signal.id}_${Date.now()}`,
-              positionIdx: config.use_leverage ? 0 : undefined
-            };
-
-            // Add stop loss and take profit
-            if (signal.stop_loss) {
-              orderPayload.stopLoss = signal.stop_loss.toString();
-              orderPayload.slTriggerBy = 'LastPrice';
-              orderPayload.slOrderType = 'Market';
-            }
-            
-            if (signal.take_profit) {
-              orderPayload.takeProfit = signal.take_profit.toString();
-              orderPayload.tpTriggerBy = 'LastPrice';
-              orderPayload.tpOrderType = 'Market';
-            }
-
-            console.log(`🎯 Executing order for ${signal.symbol} (confidence: ${signal.confidence_score}%)`);
-
-            // Execute via bybit-order-execution endpoint
-            const orderResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/bybit-order-execution/order`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-              },
-              body: JSON.stringify(orderPayload)
-            });
-
-            const orderResult = await orderResponse.json();
-
-            if (orderResult.ok && orderResult.result?.retCode === 0) {
-              userExecuted++;
-              totalExecuted++;
-
-              // Log trade to database
-              await supabase.from('trades').insert({
-                user_id: config.user_id,
-                signal_id: signal.id,
-                exchange: 'bybit',
-                symbol: signal.symbol,
-                side: signal.direction,
-                quantity: parseFloat(orderPayload.qty),
-                entry_price: signal.entry_price,
-                leverage: config.use_leverage ? config.leverage_amount : 1,
-                status: 'open',
-                external_order_id: orderResult.result.result.orderId,
-                fees: 0,
-                opened_at: new Date().toISOString()
+          if (orderResult.ok && orderResult.result?.retCode === 0) {
+            // Log trade using the new atomic function
+            const { data: tradeId, error: tradeError } = await supabase
+              .rpc('log_trade_sent', {
+                p_user_id: config.user_id,
+                p_strategy_signal_id: signal.id,
+                p_symbol: signal.symbol,
+                p_side: signal.side,
+                p_qty: parseFloat(orderPayload.qty),
+                p_tp: signal.tp_price,
+                p_sl: signal.sl_price,
+                p_order_link_id: orderPayload.orderLinkId
               });
 
-              // Mark signal as executed
-              await supabase
-                .from('signals')
-                .update({ status: 'executed' })
-                .eq('id', signal.id);
-
+            if (!tradeError) {
+              userExecuted++;
+              totalExecuted++;
               console.log(`✅ Successfully executed ${signal.symbol} for user ${config.user_id}`);
-            } else {
-              const errorMsg = orderResult.data?.retMsg || orderResult.error || 'Unknown error';
-              console.error(`❌ Failed to execute ${signal.symbol}:`, errorMsg);
             }
-          } catch (error) {
-            console.error(`❌ Error executing ${signal.symbol}:`, error.message);
+          } else {
+            const errorMsg = orderResult.data?.retMsg || orderResult.error || 'Unknown error';
+            console.error(`❌ Failed to execute ${signal.symbol}:`, errorMsg);
           }
+        } catch (error) {
+          console.error(`❌ Error executing ${signal.symbol}:`, error.message);
         }
-
-        results.push({
-          user_id: config.user_id,
-          signals_found: signals.length,
-          executed: userExecuted,
-          available_slots: availableSlots
-        });
-
-      } catch (error) {
-        console.error(`❌ Error processing user ${config.user_id}:`, error.message);
       }
+
+      results.push({
+        user_id: config.user_id,
+        signals_available: signalsToExecute.length,
+        executed: userExecuted
+      });
     }
 
-    console.log(`🎉 Auto-trader completed: ${totalExecuted} orders executed across ${configs.length} users`);
+    // 4. Update trading session stats
+    await supabase.rpc('update_trading_session_stats', {
+      p_signals_processed: signalsToExecute.length,
+      p_trades_executed: totalExecuted,
+      p_users_processed: configs.length
+    });
+
+    console.log(`🎉 Auto-trader completed: ${totalExecuted} orders executed from ${signalsToExecute.length} signals`);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: `Auto-trader completed successfully`,
+        signals_processed: signalsToExecute.length,
         total_executed: totalExecuted,
         users_processed: configs.length,
         results
