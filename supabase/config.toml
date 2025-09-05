@@ -136,3 +136,6 @@ verify_jwt = false
 
 [functions.bybit-broker]
 verify_jwt = false
+
+[functions.auto-trading-poller]
+verify_jwt = false
