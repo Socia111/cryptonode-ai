@@ -123,31 +123,19 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
       ) : (
         <div className="grid gap-3">
           {signals.map((signal, index) => {
-            const rainbowGradients = [
-              'from-red-300 via-pink-300 to-rose-300',
-              'from-orange-300 via-amber-300 to-yellow-300', 
-              'from-yellow-300 via-lime-300 to-green-300',
-              'from-green-300 via-emerald-300 to-teal-300',
-              'from-cyan-300 via-blue-300 to-indigo-300',
-              'from-blue-300 via-indigo-300 to-purple-300',
-              'from-purple-300 via-violet-300 to-fuchsia-300',
-              'from-pink-300 via-rose-300 to-red-300'
-            ];
-            const gradientClass = rainbowGradients[index % rainbowGradients.length];
-            
             return (
-            <Card key={signal.id} className={`p-4 bg-gradient-to-r ${gradientClass} border-2 border-white/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]`}>
+            <Card key={signal.id} className="p-4 bg-card border border-border shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-bold text-gray-800 text-lg">{signal.symbol}</h4>
+                      <h4 className="font-bold text-foreground text-lg">{signal.symbol}</h4>
                       <Badge 
                         variant={signal.direction === 'LONG' ? 'default' : 'destructive'}
                         className={`text-xs ${
                           signal.direction === 'LONG' 
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-md' 
-                            : 'bg-gradient-to-r from-red-500 to-rose-600 text-white border-0 shadow-md'
+                            ? 'bg-success text-success-foreground border-0 shadow-md' 
+                            : 'bg-destructive text-destructive-foreground border-0 shadow-md'
                         }`}
                       >
                         {signal.direction === 'LONG' ? (
@@ -156,12 +144,12 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
                           <><TrendingDown className="h-3 w-3 mr-1" /> SHORT</>
                         )}
                       </Badge>
-                      <Badge variant="outline" className="text-xs bg-white/80 text-purple-700 border-purple-300 font-bold">
+                      <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border font-bold">
                         {signal.timeframe}
                       </Badge>
                     </div>
-                    <div className="text-xs text-gray-700 bg-white/60 px-2 py-1 rounded-full inline-block">
-                      {formatTimeAgo(signal.created_at)} • Score: <span className="font-bold text-indigo-600">{signal.score.toFixed(1)}%</span>
+                    <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full inline-block">
+                      {formatTimeAgo(signal.created_at)} • Score: <span className="font-bold text-primary">{signal.score.toFixed(1)}%</span>
                     </div>
                   </div>
                 </div>
@@ -169,24 +157,24 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
                 <div className="flex items-center gap-4">
                   <div className="text-right text-sm">
                     <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="bg-white/70 p-2 rounded-lg">
-                        <p className="text-gray-600 font-medium">Entry</p>
-                        <p className="font-bold text-purple-800">${signal.entry_price.toFixed(4)}</p>
+                      <div className="bg-muted p-2 rounded-lg">
+                        <p className="text-muted-foreground font-medium">Entry</p>
+                        <p className="font-bold text-foreground">${signal.entry_price.toFixed(4)}</p>
                       </div>
-                      <div className="bg-white/70 p-2 rounded-lg">
-                        <p className="text-gray-600 font-medium flex items-center gap-1">
+                      <div className="bg-muted p-2 rounded-lg">
+                        <p className="text-muted-foreground font-medium flex items-center gap-1">
                           <Shield className="h-3 w-3" /> SL
                         </p>
-                        <p className="font-bold text-red-700">${signal.sl.toFixed(4)}</p>
+                        <p className="font-bold text-destructive">${signal.sl.toFixed(4)}</p>
                       </div>
-                      <div className="bg-white/70 p-2 rounded-lg">
-                        <p className="text-gray-600 font-medium flex items-center gap-1">
+                      <div className="bg-muted p-2 rounded-lg">
+                        <p className="text-muted-foreground font-medium flex items-center gap-1">
                           <Target className="h-3 w-3" /> TP
                         </p>
-                        <p className="font-bold text-green-700">${signal.tp.toFixed(4)}</p>
+                        <p className="font-bold text-success">${signal.tp.toFixed(4)}</p>
                       </div>
                     </div>
-                    <div className="text-xs bg-white/50 px-2 py-1 rounded mt-1 font-bold text-blue-700">
+                    <div className="text-xs bg-muted px-2 py-1 rounded mt-1 font-bold text-primary">
                       R:R {calculateRiskReward(signal).toFixed(2)}
                     </div>
                   </div>
@@ -195,7 +183,7 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
                     size="sm"
                     onClick={() => handleExecuteTrade(signal)}
                     disabled={executingSignals.has(signal.id)}
-                    className="min-w-[80px] bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-bold shadow-lg border-0"
+                    className="min-w-[80px] bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg border-0"
                   >
                     {executingSignals.has(signal.id) ? (
                       "Executing..."

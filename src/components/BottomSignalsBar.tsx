@@ -89,20 +89,8 @@ const BottomSignalsBar: React.FC = () => {
             </div>
           ) : (
             activeSignals.map((signal, index) => {
-              const rainbowColors = [
-                'from-red-200 to-pink-200 border-red-300',
-                'from-orange-200 to-yellow-200 border-orange-300', 
-                'from-yellow-200 to-lime-200 border-yellow-300',
-                'from-green-200 to-emerald-200 border-green-300',
-                'from-cyan-200 to-blue-200 border-cyan-300',
-                'from-blue-200 to-indigo-200 border-blue-300',
-                'from-purple-200 to-violet-200 border-purple-300',
-                'from-pink-200 to-rose-200 border-pink-300'
-              ];
-              const colorClass = rainbowColors[index % rainbowColors.length];
-              
               return (
-              <Card key={`${signal.id}-${index}`} className={`flex items-center space-x-3 px-4 py-3 bg-gradient-to-r ${colorClass} shrink-0 min-w-[320px] animate-in slide-in-from-right-5 duration-300 shadow-lg hover:shadow-xl transition-all`}>
+              <Card key={`${signal.id}-${index}`} className="flex items-center space-x-3 px-4 py-3 bg-card border border-border shrink-0 min-w-[320px] animate-in slide-in-from-right-5 duration-300 shadow-lg hover:shadow-xl transition-all">
                 <div className="flex items-center space-x-2">
                    {signal.direction === 'BUY' ? (
                      <div className="flex items-center space-x-1 bg-success text-success-foreground px-3 py-1.5 rounded-full shadow-md">
