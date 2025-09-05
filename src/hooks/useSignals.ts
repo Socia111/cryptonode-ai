@@ -452,11 +452,11 @@ export const useSignals = () => {
       }
     );
 
-    // Auto-refresh signals every 60 seconds to catch any missed updates
+    // Auto-refresh signals every 30 seconds to catch any missed updates
     const refreshInterval = setInterval(() => {
       console.log('[useSignals] Auto-refreshing signals...');
       refreshSignals();
-    }, 60000);
+    }, 30000);
 
     // Cleanup
     return () => {

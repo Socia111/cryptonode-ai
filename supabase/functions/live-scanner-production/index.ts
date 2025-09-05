@@ -257,11 +257,39 @@ function evalAItradeX1(ohlc:K[], tfCfg:typeof AITRADEX1.tight){
   const longOk = longConditions.filter(Boolean).length >= 3;
   const shortOk = shortConditions.filter(Boolean).length >= 3;
 
-  // Score: 9 buckets × 11.1 (rounded to 12.5 for cleaner numbers)
+  // Dynamic scoring: Base score + weighted bonuses for different conditions
   const longBuckets  = [bullishTrend, adxStrong, bullDMI, stochBull, volSpike, obvBull, hvpOk, spreadOk, breakoutLong];
   const shortBuckets = [bearishTrend, adxStrong, bearDMI, stochBear, volSpike, obvBear, hvpOk, spreadOk, breakoutShort];
-  const longScore  = Math.min(100, longBuckets.filter(Boolean).length * 11.1);
-  const shortScore = Math.min(100, shortBuckets.filter(Boolean).length * 11.1);
+  
+  // Enhanced scoring with weighted conditions
+  const calculateScore = (conditions: boolean[], adxVal: number, hvpVal: number, volRatio: number) => {
+    let score = 0;
+    const passedCount = conditions.filter(Boolean).length;
+    
+    // Base score from passed conditions (70% of total)
+    score += (passedCount / 9) * 70;
+    
+    // Bonus points for quality indicators (30% of total)
+    if (adxVal > 35) score += 8; // Strong trend
+    else if (adxVal > 25) score += 5; // Moderate trend
+    
+    if (hvpVal > 80) score += 10; // High volatility
+    else if (hvpVal > 60) score += 6; // Moderate volatility
+    
+    if (volRatio > 2.0) score += 7; // Strong volume
+    else if (volRatio > 1.5) score += 4; // Good volume
+    
+    // Extra bonus for having many conditions (confluence)
+    if (passedCount >= 7) score += 8;
+    else if (passedCount >= 6) score += 5;
+    else if (passedCount >= 5) score += 3;
+    
+    return Math.min(100, Math.max(0, score));
+  };
+  
+  const volRatio = vol[i] / (volSma21[i] || 1);
+  const longScore  = calculateScore(longBuckets, adx[i], hvp[i] || 0, volRatio);
+  const shortScore = calculateScore(shortBuckets, adx[i], hvp[i] || 0, volRatio);
 
   const atr = ATR(ohlc,14)[i];
   const hvpVal = hvp[i] || 0;
@@ -383,8 +411,8 @@ serve(async (req) => {
           created_at: new Date().toISOString(),
         };
 
-        // Try LONG - Only save high-quality signals (score >= 75%)
-        if (ev.longOk && ev.longScore >= 75){
+        // Try LONG - Only save high-quality signals (score >= 80%)
+        if (ev.longOk && ev.longScore >= 80){
           const payload = {
             ...common,
             direction: "LONG",
@@ -406,8 +434,8 @@ serve(async (req) => {
           }
         }
 
-        // Try SHORT - Only save high-quality signals (score >= 75%)
-        if (ev.shortOk && ev.shortScore >= 75){
+        // Try SHORT - Only save high-quality signals (score >= 80%)
+        if (ev.shortOk && ev.shortScore >= 80){
           const payload = {
             ...common,
             direction: "SHORT",
