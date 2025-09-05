@@ -9,11 +9,9 @@ import SpynxScoreCard from '../components/SpynxScoreCard';
 import TelegramIntegration from '../components/TelegramIntegration';
 import TradingPanel from '../components/TradingPanel';
 import BacktestEngine from '../components/BacktestEngine';
+import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
-import LiveSignalsDisplay from '../components/LiveSignalsDisplay';
-import LiveScannerControl from '../components/LiveScannerControl';
-import AutomatedTradingDashboard from '../components/AutomatedTradingDashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Zap, Target, Settings } from 'lucide-react';
@@ -55,15 +53,6 @@ const AItradeX1Original = () => {
         {/* Database Setup */}
         <DatabaseSetup />
         
-        {/* Live Scanner Control */}
-        <LiveScannerControl />
-        
-        {/* Automated Trading Dashboard */}
-        <AutomatedTradingDashboard />
-        
-        {/* Live Signals Display */}
-        <LiveSignalsDisplay />
-        
         {/* AItradeX1 Scanner Chart */}
         <AItradeX1ScannerChart />
         
@@ -85,6 +74,7 @@ const AItradeX1Original = () => {
             <PortfolioStats />
             <TradingPanel />
             <TelegramIntegration />
+            <QuantumAnalysis />
             <SpynxScoreCard />
             <SignalsList />
           </div>

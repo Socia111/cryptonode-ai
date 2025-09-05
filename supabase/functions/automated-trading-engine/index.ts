@@ -124,15 +124,8 @@ export const getRecentTrades = (symbol: string, category="linear", limit=50) =>
 export const getWalletBalance = (accountType="UNIFIED") =>
   v5Request("GET", "/v5/account/wallet-balance", { accountType });
 
-export const listPositions = (symbol?: string, settleCoin = "USDT") => {
-  const params: any = { category: "linear" };
-  if (symbol) {
-    params.symbol = symbol;
-  } else {
-    params.settleCoin = settleCoin;
-  }
-  return v5Request("GET", "/v5/position/list", params);
-};
+export const listPositions = (symbol?: string) =>
+  v5Request("GET", "/v5/position/list", { category: "linear", symbol });
 
 export const placeOrder = (p: {
   symbol: string; side: "Buy"|"Sell"; orderType: "Limit"|"Market";
@@ -412,17 +405,10 @@ class BybitV5Client {
     });
   }
 
-  async getPositions(category = "linear", symbol?: string, settleCoin = "USDT"): Promise<Position[]> {
-    const params: any = { category };
-    
-    // V5 API requires either symbol OR settleCoin, not both for optimal performance
-    if (symbol) {
-      params.symbol = symbol;
-    } else {
-      params.settleCoin = settleCoin;
-    }
-    
-    const response = await this.privateGet('/v5/position/list', params);
+  async getPositions(): Promise<Position[]> {
+    const response = await this.privateGet('/v5/position/list', {
+      category: 'linear'
+    });
     
     return response.result.list.map((pos: any) => ({
       symbol: pos.symbol,
@@ -492,7 +478,13 @@ async function createOrder(
   });
 }
 
-// cancelOrder function removed - duplicate of class method and export above
+async function cancelOrderV5(client: BybitV5Client, symbol: string, orderId?: string) {
+  return client.privatePost("/v5/order/cancel", {
+    category: "linear",
+    symbol,
+    ...(orderId ? { orderId } : {}),
+  });
+}
 
 class AutomatedTradingEngine {
   private trader: BybitV5Client;
@@ -936,143 +928,27 @@ async function executeManualTrade(trader: BybitV5Client, signal: any, quantity: 
   }
 }
 
-// Create auto-trading connection monitor
-async function monitorTradingConnection() {
-  try {
-    const { data: signals, error } = await supabase
-      .from('signals')
-      .select('*')
-      .eq('status', 'active')
-      .gte('confidence_score', 80)
-      .limit(10);
-    
-    if (error) throw error;
-    
-    console.log(`📡 Found ${signals?.length || 0} high-confidence signals for auto-execution`);
-    
-    // Check for auto-trade settings
-    for (const signal of signals || []) {
-      await processAutoTradeSignal(signal);
-    }
-    
-    return { success: true, processed: signals?.length || 0 };
-  } catch (error) {
-    console.error('❌ Trading connection monitor error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-async function processAutoTradeSignal(signal: any) {
-  try {
-    // Check if auto-trading is enabled for this signal type
-    const { data: settings } = await supabase
-      .from('trading_configs')
-      .select('*')
-      .eq('is_active', true)
-      .single();
-    
-    if (!settings?.auto_trade_enabled) {
-      console.log(`⏸️ Auto-trade disabled, skipping signal ${signal.id}`);
-      return;
-    }
-    
-    // Execute the trade
-    const tradeParams = {
-      symbol: signal.symbol,
-      side: signal.direction.toLowerCase(),
-      quantity: settings.default_quantity || 0.01,
-      leverage: settings.default_leverage || 1,
-      order_type: 'market'
-    };
-    
-    console.log(`🚀 Auto-executing trade for ${signal.symbol}:`, tradeParams);
-    
-    // Call bybit broker for execution
-    const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/bybit-broker`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        action: 'place_order',
-        category: 'linear',
-        ...tradeParams
-      })
-    });
-    
-    const result = await response.json();
-    
-    if (result.success) {
-      // Update signal status
-      await supabase
-        .from('signals')
-        .update({ 
-          status: 'executed',
-          metadata: { 
-            ...signal.metadata, 
-            auto_executed: true,
-            execution_time: new Date().toISOString(),
-            order_id: result.order_id
-          }
-        })
-        .eq('id', signal.id);
-      
-      console.log(`✅ Auto-trade executed successfully for ${signal.symbol}`);
-    } else {
-      console.error(`❌ Auto-trade failed for ${signal.symbol}:`, result.error);
-    }
-    
-  } catch (error) {
-    console.error(`❌ Error processing auto-trade signal:`, error);
-  }
+// JSON response helper
+function json(status: number, body: unknown) {
+  return new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
+  });
 }
 
 // Main hardened handler - ensures diagnostic routes always work
 Deno.serve(async (req) => {
-  const reqMethod = req.method;
-  const u = new URL(req.url);
-  const path = u.pathname;
-
-  console.log(`🔎 ${reqMethod} ${path}`);
-
-  // ===== PREFLIGHT CORS (always successful) =====
-  if (reqMethod === "OPTIONS") {
-    console.log("🔎 Preflight", {
-      reqHdrs: req.headers.get("access-control-request-headers"),
-      origin: req.headers.get("origin"),
-      headers: corsHeaders,
-    });
-    return new Response(null, { status: 204, headers: corsHeaders });
-  }
-  
-  // ===== HEALTH CHECK (always successful) =====
-  if (path === "/health" || path === "/") {
-    return new Response(JSON.stringify({
-      status: "healthy",
-      timestamp: new Date().toISOString(),
-      version: "v2.2-auto-trading",
-      endpoints: {
-        "/health": "System health check",
-        "/monitor": "Trading monitor status", 
-        "/status": "Detailed system status",
-        "/env": "Environment info",
-        "/ping": "Basic connectivity test",
-        "/auto-trade": "Auto-trading execution"
-      }
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
-    });
-  }
-  
-  // ===== AUTO-TRADING MONITOR =====
-  if (path === "/auto-trade" && reqMethod === "POST") {
-    const result = await monitorTradingConnection();
-    return new Response(JSON.stringify(result), {
-      status: result.success ? 200 : 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
-    });
+  if (req.method === "OPTIONS") {
+    // reflect extra headers the browser asks for (future-proof)
+    const reqHdrs = req.headers.get("access-control-request-headers") ?? "";
+    const origin = req.headers.get("origin") ?? "*"; // switch to origin if you prefer not to use "*"
+    const headers = {
+      ...baseCors,
+      "Access-Control-Allow-Origin": "*", // or origin
+      "Access-Control-Allow-Headers": `${baseCors["Access-Control-Allow-Headers"]}${reqHdrs ? `, ${reqHdrs}` : ""}`,
+    };
+    console.log("🔎 Preflight", { reqHdrs, origin, headers });
+    return new Response("ok", { status: 204, headers });
   }
 
   const url = new URL(req.url);

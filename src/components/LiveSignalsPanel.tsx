@@ -122,21 +122,16 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
         </div>
       ) : (
         <div className="grid gap-3">
-          {signals.map((signal, index) => {
-            return (
-            <Card key={signal.id} className="p-4 bg-card border border-border shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+          {signals.map((signal) => (
+            <Card key={signal.id} className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-bold text-foreground text-lg">{signal.symbol}</h4>
+                      <h4 className="font-medium">{signal.symbol}</h4>
                       <Badge 
                         variant={signal.direction === 'LONG' ? 'default' : 'destructive'}
-                        className={`text-xs ${
-                          signal.direction === 'LONG' 
-                            ? 'bg-success text-success-foreground border-0 shadow-md' 
-                            : 'bg-destructive text-destructive-foreground border-0 shadow-md'
-                        }`}
+                        className="text-xs"
                       >
                         {signal.direction === 'LONG' ? (
                           <><TrendingUp className="h-3 w-3 mr-1" /> LONG</>
@@ -144,12 +139,12 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
                           <><TrendingDown className="h-3 w-3 mr-1" /> SHORT</>
                         )}
                       </Badge>
-                      <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border font-bold">
+                      <Badge variant="outline" className="text-xs">
                         {signal.timeframe}
                       </Badge>
                     </div>
-                    <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full inline-block">
-                      {formatTimeAgo(signal.created_at)} • Score: <span className="font-bold text-primary">{signal.score.toFixed(1)}%</span>
+                    <div className="text-xs text-muted-foreground">
+                      {formatTimeAgo(signal.created_at)} • Score: {signal.score.toFixed(1)}
                     </div>
                   </div>
                 </div>
@@ -157,24 +152,24 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
                 <div className="flex items-center gap-4">
                   <div className="text-right text-sm">
                     <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="bg-muted p-2 rounded-lg">
-                        <p className="text-muted-foreground font-medium">Entry</p>
-                        <p className="font-bold text-foreground">${signal.entry_price.toFixed(4)}</p>
+                      <div>
+                        <p className="text-muted-foreground">Entry</p>
+                        <p className="font-medium">${signal.entry_price.toFixed(4)}</p>
                       </div>
-                      <div className="bg-muted p-2 rounded-lg">
-                        <p className="text-muted-foreground font-medium flex items-center gap-1">
+                      <div>
+                        <p className="text-muted-foreground flex items-center gap-1">
                           <Shield className="h-3 w-3" /> SL
                         </p>
-                        <p className="font-bold text-destructive">${signal.sl.toFixed(4)}</p>
+                        <p className="font-medium text-red-600">${signal.sl.toFixed(4)}</p>
                       </div>
-                      <div className="bg-muted p-2 rounded-lg">
-                        <p className="text-muted-foreground font-medium flex items-center gap-1">
+                      <div>
+                        <p className="text-muted-foreground flex items-center gap-1">
                           <Target className="h-3 w-3" /> TP
                         </p>
-                        <p className="font-bold text-success">${signal.tp.toFixed(4)}</p>
+                        <p className="font-medium text-green-600">${signal.tp.toFixed(4)}</p>
                       </div>
                     </div>
-                    <div className="text-xs bg-muted px-2 py-1 rounded mt-1 font-bold text-primary">
+                    <div className="text-xs text-muted-foreground mt-1">
                       R:R {calculateRiskReward(signal).toFixed(2)}
                     </div>
                   </div>
@@ -183,7 +178,7 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
                     size="sm"
                     onClick={() => handleExecuteTrade(signal)}
                     disabled={executingSignals.has(signal.id)}
-                    className="min-w-[80px] bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg border-0"
+                    className="min-w-[80px]"
                   >
                     {executingSignals.has(signal.id) ? (
                       "Executing..."
@@ -197,8 +192,7 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
                 </div>
               </div>
             </Card>
-            );
-          })}
+          ))}
         </div>
       )}
 

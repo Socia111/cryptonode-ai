@@ -72,20 +72,6 @@ export default {
 					bear: 'hsl(var(--chart-bear))',
 					neutral: 'hsl(var(--chart-neutral))',
 					volume: 'hsl(var(--chart-volume))'
-				},
-				// 50 Shades of Grey palette
-				grey: {
-					50: 'hsl(var(--grey-50))',
-					100: 'hsl(var(--grey-100))',
-					200: 'hsl(var(--grey-200))',
-					300: 'hsl(var(--grey-300))',
-					400: 'hsl(var(--grey-400))',
-					500: 'hsl(var(--grey-500))',
-					600: 'hsl(var(--grey-600))',
-					700: 'hsl(var(--grey-700))',
-					800: 'hsl(var(--grey-800))',
-					900: 'hsl(var(--grey-900))',
-					950: 'hsl(var(--grey-950))'
 				}
 			},
 			borderRadius: {

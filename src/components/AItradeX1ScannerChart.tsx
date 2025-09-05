@@ -94,18 +94,18 @@ const AItradeX1ScannerChart: React.FC = () => {
 
   const getSignalStrengthColor = (strength: string) => {
     switch (strength) {
-      case 'STRONG': return 'text-emerald-500';
-      case 'MEDIUM': return 'text-amber-500';
-      default: return 'text-violet-500';
+      case 'STRONG': return 'text-green-500';
+      case 'MEDIUM': return 'text-yellow-500';
+      default: return 'text-gray-500';
     }
   };
 
   const getRiskLevelColor = (risk: string) => {
     switch (risk) {
-      case 'LOW': return 'text-cyan-500';
-      case 'MEDIUM': return 'text-orange-500';
+      case 'LOW': return 'text-green-500';
+      case 'MEDIUM': return 'text-yellow-500';
       case 'HIGH': return 'text-red-500';
-      default: return 'text-indigo-500';
+      default: return 'text-gray-500';
     }
   };
 
@@ -142,11 +142,7 @@ const AItradeX1ScannerChart: React.FC = () => {
           
           <Badge 
             variant={currentSignal.direction === 'BUY' ? 'default' : 'destructive'}
-            className={`text-lg px-4 py-2 ${
-              currentSignal.direction === 'BUY' 
-                ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white' 
-                : 'bg-gradient-to-r from-red-400 to-rose-500 text-white'
-            }`}
+            className="text-lg px-4 py-2"
           >
             {currentSignal.direction}
           </Badge>
@@ -154,25 +150,25 @@ const AItradeX1ScannerChart: React.FC = () => {
 
         {/* Signal Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg border border-purple-300">
-            <p className="text-sm text-purple-700">Entry Price</p>
-            <p className="text-lg font-bold text-purple-900">${formatPrice(currentSignal.entry_price)}</p>
+          <div className="text-center p-4 bg-muted/50 rounded-lg">
+            <p className="text-sm text-muted-foreground">Entry Price</p>
+            <p className="text-lg font-bold">${formatPrice(currentSignal.entry_price)}</p>
           </div>
           
-          <div className="text-center p-4 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg border border-blue-300">
-            <p className="text-sm text-blue-700">Confidence</p>
-            <p className="text-lg font-bold text-blue-900">{currentSignal.confidence_score}%</p>
+          <div className="text-center p-4 bg-muted/50 rounded-lg">
+            <p className="text-sm text-muted-foreground">Confidence</p>
+            <p className="text-lg font-bold text-primary">{currentSignal.confidence_score}%</p>
           </div>
           
-          <div className="text-center p-4 bg-gradient-to-br from-yellow-100 to-orange-200 rounded-lg border border-orange-300">
-            <p className="text-sm text-orange-700">Strength</p>
+          <div className="text-center p-4 bg-muted/50 rounded-lg">
+            <p className="text-sm text-muted-foreground">Strength</p>
             <p className={`text-lg font-bold ${getSignalStrengthColor(currentSignal.signal_strength)}`}>
               {currentSignal.signal_strength}
             </p>
           </div>
           
-          <div className="text-center p-4 bg-gradient-to-br from-pink-100 to-rose-200 rounded-lg border border-rose-300">
-            <p className="text-sm text-rose-700">Risk Level</p>
+          <div className="text-center p-4 bg-muted/50 rounded-lg">
+            <p className="text-sm text-muted-foreground">Risk Level</p>
             <p className={`text-lg font-bold ${getRiskLevelColor(currentSignal.risk_level)}`}>
               {currentSignal.risk_level}
             </p>
@@ -183,21 +179,21 @@ const AItradeX1ScannerChart: React.FC = () => {
         {(currentSignal.stop_loss || currentSignal.exit_target) && (
           <div className="grid grid-cols-2 gap-4">
             {currentSignal.stop_loss && (
-              <div className="flex items-center space-x-2 p-3 bg-gradient-to-r from-red-100 to-pink-100 rounded-lg border border-red-300">
-                <Shield className="h-4 w-4 text-red-600" />
+              <div className="flex items-center space-x-2 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
+                <Shield className="h-4 w-4 text-red-500" />
                 <div>
-                  <p className="text-xs font-medium text-red-700">Stop Loss</p>
-                  <p className="font-semibold text-red-900">${formatPrice(currentSignal.stop_loss)}</p>
+                  <p className="text-xs text-muted-foreground">Stop Loss</p>
+                  <p className="font-medium">${formatPrice(currentSignal.stop_loss)}</p>
                 </div>
               </div>
             )}
             
             {currentSignal.exit_target && (
-              <div className="flex items-center space-x-2 p-3 bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg border border-green-300">
-                <Target className="h-4 w-4 text-green-600" />
+              <div className="flex items-center space-x-2 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                <Target className="h-4 w-4 text-green-500" />
                 <div>
-                  <p className="text-xs font-medium text-green-700">Target</p>
-                  <p className="font-semibold text-green-900">${formatPrice(currentSignal.exit_target)}</p>
+                  <p className="text-xs text-muted-foreground">Target</p>
+                  <p className="font-medium">${formatPrice(currentSignal.exit_target)}</p>
                 </div>
               </div>
             )}

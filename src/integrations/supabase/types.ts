@@ -1963,42 +1963,6 @@ export type Database = {
         }
         Relationships: []
       }
-      pipeline_logs: {
-        Row: {
-          created_at: string
-          high_confidence_signals: number | null
-          id: string
-          min_confidence_threshold: number | null
-          pipeline_run_at: string
-          signals_generated: number | null
-          timeframes_scanned: string[] | null
-          trade_errors: number | null
-          trades_executed: number | null
-        }
-        Insert: {
-          created_at?: string
-          high_confidence_signals?: number | null
-          id?: string
-          min_confidence_threshold?: number | null
-          pipeline_run_at?: string
-          signals_generated?: number | null
-          timeframes_scanned?: string[] | null
-          trade_errors?: number | null
-          trades_executed?: number | null
-        }
-        Update: {
-          created_at?: string
-          high_confidence_signals?: number | null
-          id?: string
-          min_confidence_threshold?: number | null
-          pipeline_run_at?: string
-          signals_generated?: number | null
-          timeframes_scanned?: string[] | null
-          trade_errors?: number | null
-          trades_executed?: number | null
-        }
-        Relationships: []
-      }
       portfolios: {
         Row: {
           base_ccy: string
@@ -2970,36 +2934,6 @@ export type Database = {
           },
         ]
       }
-      trading_configs: {
-        Row: {
-          auto_trade_enabled: boolean | null
-          created_at: string | null
-          id: string
-          max_position_size: number | null
-          min_confidence_score: number | null
-          risk_per_trade: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          auto_trade_enabled?: boolean | null
-          created_at?: string | null
-          id?: string
-          max_position_size?: number | null
-          min_confidence_score?: number | null
-          risk_per_trade?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          auto_trade_enabled?: boolean | null
-          created_at?: string | null
-          id?: string
-          max_position_size?: number | null
-          min_confidence_score?: number | null
-          risk_per_trade?: number | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       trait_snapshots: {
         Row: {
           agent_id: string | null
@@ -3568,54 +3502,6 @@ export type Database = {
           updated_at?: string
           user_id?: string
           weekly_score?: number
-        }
-        Relationships: []
-      }
-      user_trading_configs: {
-        Row: {
-          auto_execute_enabled: boolean | null
-          created_at: string | null
-          id: string
-          leverage_amount: number | null
-          max_open_positions: number | null
-          max_position_size: number | null
-          min_confidence_score: number | null
-          risk_per_trade: number | null
-          symbols_blacklist: string[] | null
-          timeframes: string[] | null
-          updated_at: string | null
-          use_leverage: boolean | null
-          user_id: string
-        }
-        Insert: {
-          auto_execute_enabled?: boolean | null
-          created_at?: string | null
-          id?: string
-          leverage_amount?: number | null
-          max_open_positions?: number | null
-          max_position_size?: number | null
-          min_confidence_score?: number | null
-          risk_per_trade?: number | null
-          symbols_blacklist?: string[] | null
-          timeframes?: string[] | null
-          updated_at?: string | null
-          use_leverage?: boolean | null
-          user_id: string
-        }
-        Update: {
-          auto_execute_enabled?: boolean | null
-          created_at?: string | null
-          id?: string
-          leverage_amount?: number | null
-          max_open_positions?: number | null
-          max_position_size?: number | null
-          min_confidence_score?: number | null
-          risk_per_trade?: number | null
-          symbols_blacklist?: string[] | null
-          timeframes?: string[] | null
-          updated_at?: string | null
-          use_leverage?: boolean | null
-          user_id?: string
         }
         Relationships: []
       }

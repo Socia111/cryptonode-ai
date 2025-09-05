@@ -2,7 +2,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
 import { isSupabaseConfigured } from '@/lib/supabaseClient';
@@ -19,7 +18,8 @@ import Markets from "./pages/Markets";
 import Backtests from "./pages/Backtests";
 import Automation from "./pages/Automation";
 import Alerts from "./pages/Alerts";
-import Settings from "./pages/Settings";
+import SettingsPage from "./pages/Settings";
+import BybitAuth from "./pages/BybitAuth";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,11 +34,10 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/health" element={<Health />} />
@@ -53,12 +52,12 @@ function App() {
             <Route path="/backtests" element={<Backtests />} />
             <Route path="/automation" element={<Automation />} />
             <Route path="/alerts" element={<Alerts />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/bybit-auth" element={<BybitAuth />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-        </TooltipProvider>
-      </ThemeProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

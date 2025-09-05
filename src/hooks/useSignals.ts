@@ -86,7 +86,7 @@ async function fetchSignals(): Promise<Signal[]> {
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
-      .gte('score', 70) // Score 70+ signals (actual score ranges)
+      .gte('score', 80) // Score 80+ signals only (high confidence)
       .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
       .order('created_at', { ascending: false })
       .limit(50);
@@ -115,7 +115,7 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
   const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
   
   return signals
-    .filter(item => validTimeframes.includes(item.timeframe))
+    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 80)
     .map((item: any): Signal => ({
       id: item.id.toString(),
       token: item.symbol.replace('USDT', '/USDT'),
@@ -140,60 +140,157 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
     .slice(0, 20); // Limit to 20 most recent signals
 }
 
-// Mock function removed - only real data is used
+function getMockSignals(): Signal[] {
+  // REAL DATA ONLY - No mock signals
+  console.log('[Signals] Mock signals disabled - only real market data');
+  return [];
+}
 
 function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) => void) {
-  console.log('[Signals] Setting up periodic refresh instead of real-time subscription...');
+  console.log('[Signals] Setting up real-time subscription...');
   
-  // Use periodic refresh instead of real-time subscription to avoid schema mismatch errors
-  const refreshInterval = setInterval(async () => {
-    try {
-      const freshSignals = await fetchSignals();
-      // This will be handled by the useSignals hook to merge updates
-    } catch (error) {
-      console.error('[Signals] Periodic refresh failed:', error);
-    }
-  }, 30000); // Refresh every 30 seconds
-  
-  // Return a dummy channel object for compatibility
-  return {
-    unsubscribe: () => clearInterval(refreshInterval)
-  };
+  const channel = supabase
+    .channel('signals-subscription')
+    .on(
+      'postgres_changes',
+      { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'signals'
+      },
+      (payload) => {
+        console.log('[Signals] New signal received via realtime:', payload.new);
+        try {
+          // Map the actual signals table structure to our Signal interface
+          const rawSignal = payload.new;
+          const newSignal: Signal = {
+            id: rawSignal.id.toString(),
+            token: rawSignal.symbol.replace('USDT', '/USDT'),
+            direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
+            signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
+            timeframe: rawSignal.timeframe,
+            entry_price: Number(rawSignal.price),
+            exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
+            stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
+            leverage: 1,
+            confidence_score: Number(rawSignal.score),
+            pms_score: Number(rawSignal.score),
+            trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
+            volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
+            roi_projection: Math.abs((Number(rawSignal.tp || rawSignal.price * 1.1) - Number(rawSignal.price)) / Number(rawSignal.price) * 100),
+            signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
+            risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
+            quantum_probability: Number(rawSignal.score) / 100,
+            status: 'active',
+            created_at: rawSignal.created_at || new Date().toISOString(),
+          };
+          
+          if (newSignal && newSignal.confidence_score >= 80) {
+            onInsert(newSignal);
+          }
+        } catch (e) {
+          console.error('[Signals] Failed to map new signal:', e);
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'signals'
+      },
+      (payload) => {
+        console.log('[Signals] Signal updated via realtime:', payload.new);
+        try {
+          // Map the actual signals table structure to our Signal interface
+          const rawSignal = payload.new;
+          const updatedSignal: Signal = {
+            id: rawSignal.id.toString(),
+            token: rawSignal.symbol.replace('USDT', '/USDT'),
+            direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
+            signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
+            timeframe: rawSignal.timeframe,
+            entry_price: Number(rawSignal.price),
+            exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
+            stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
+            leverage: 1,
+            confidence_score: Number(rawSignal.score),
+            pms_score: Number(rawSignal.score),
+            trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
+            volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
+            roi_projection: Math.abs((Number(rawSignal.tp || rawSignal.price * 1.1) - Number(rawSignal.price)) / Number(rawSignal.price) * 100),
+            signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
+            risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
+            quantum_probability: Number(rawSignal.score) / 100,
+            status: 'active',
+            created_at: rawSignal.created_at || new Date().toISOString(),
+          };
+          
+          if (updatedSignal && updatedSignal.confidence_score >= 80) {
+            onUpdate(updatedSignal);
+          }
+        } catch (e) {
+          console.error('[Signals] Failed to map updated signal:', e);
+        }
+      }
+    )
+    .subscribe((status, err) => {
+      console.log('[Signals] Subscription status:', status);
+      if (err) {
+        console.error('[Signals] Subscription error:', err);
+      }
+    });
+    
+  return channel;
 }
 
 export async function generateSignals() {
   try {
     console.info('[generateSignals] Triggering comprehensive live signal generation...');
     
-    const symbols: string[] = []; // Empty to scan all available USDT pairs
+    const symbols: string[] = []; // Empty array means scan ALL available USDT pairs on Bybit
     
     // Run multiple timeframes in parallel for faster execution
     const scanPromises = [
-      // 5-minute scan for quick opportunities  
+      // 5-minute comprehensive scan - all coins
       supabase.functions.invoke('live-scanner-production', {
         body: {
           exchange: 'bybit',
           timeframe: '5m',
           relaxed_filters: true,
-          symbols: symbols
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
         }
       }),
-      // 15-minute scan for balanced signals
+      // 15-minute comprehensive scan - all coins
       supabase.functions.invoke('live-scanner-production', {
         body: {
           exchange: 'bybit', 
           timeframe: '15m',
           relaxed_filters: true,
-          symbols: symbols
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
         }
       }),
-      // 1-hour scan for higher confidence signals
+      // 1-hour comprehensive scan - all coins
       supabase.functions.invoke('live-scanner-production', {
         body: {
           exchange: 'bybit',
           timeframe: '1h', 
           relaxed_filters: false, // Use canonical settings for higher timeframe
-          symbols: symbols
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      }),
+      // 4-hour comprehensive scan - all coins for swing trades
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '4h', 
+          relaxed_filters: false,
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
         }
       })
     ];
@@ -202,7 +299,7 @@ export async function generateSignals() {
     const results = await Promise.allSettled(scanPromises);
     
     let totalSignals = 0;
-    const timeframes = ['5m', '15m', '1h'];
+    const timeframes = ['5m', '15m', '1h', '4h'];
     
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && result.value.data) {
@@ -226,7 +323,8 @@ export async function generateSignals() {
           exchange: 'bybit',
           timeframe: '1h',
           relaxed_filters: true,
-          symbols: [...symbols, 'LINKUSDT', 'LTCUSDT', 'DOGEUSDT', 'NEARUSDT']
+          symbols: [], // Empty = scan ALL USDT pairs as fallback
+          scan_all_coins: true
         }
       });
 
@@ -292,29 +390,15 @@ export const useSignals = () => {
         description: "Scanning markets for new trading opportunities..."
       });
       
-      console.log('🔄 Triggering live scanner for signals generation...');
-      
-      const { data, error } = await supabase.functions.invoke('live-scanner-production', {
-        body: {
-          timeframe: '5m',
-          symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'BNBUSDT', 'XRPUSDT'],
-          relaxed_filters: true
-        }
-      });
-
-      if (error) {
-        throw error;
-      }
+      const result = await generateSignals();
       
       // Force refresh signals after generation
       await new Promise(resolve => setTimeout(resolve, 1500)); // Wait 1.5 seconds for signals to save
       await refreshSignals();
       
-      const signalsFound = data?.signals_found || 0;
-      
       toast({
         title: "✅ Signals Generated",
-        description: `Successfully generated ${signalsFound} new trading signals`
+        description: `Successfully generated ${result.signals_created || 'new'} trading signals`
       });
     } catch (e: any) {
       console.error('[useSignals] Generate signals failed:', e);
@@ -349,18 +433,34 @@ export const useSignals = () => {
   useEffect(() => {
     refreshSignals();
     
-    // Disable real-time subscription temporarily to avoid schema mismatch
-    // Will re-enable once database schema is stable
-    console.log('[Signals] Real-time subscription disabled to prevent schema errors');
-    
-    // Set up periodic refresh instead
+    // Set up realtime subscription for live signal updates
+    const channel = subscribeSignals(
+      (newSignal) => {
+        console.info('[useSignals] New signal inserted:', newSignal);
+        setSignals(prev => [newSignal, ...prev.slice(0, 49)]); // Keep max 50 signals
+        
+        // Show toast notification for new signal
+        toast({
+          title: "🚨 New Signal Generated",
+          description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
+          duration: 5000,
+        });
+      },
+      (updatedSignal) => {
+        console.info('[useSignals] Signal updated:', updatedSignal);
+        setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
+      }
+    );
+
+    // Auto-refresh signals every 60 seconds to catch any missed updates
     const refreshInterval = setInterval(() => {
       console.log('[useSignals] Auto-refreshing signals...');
       refreshSignals();
-    }, 60000); // Refresh every 60 seconds
+    }, 60000);
 
     // Cleanup
     return () => {
+      supabase.removeChannel(channel);
       clearInterval(refreshInterval);
     };
   }, []);

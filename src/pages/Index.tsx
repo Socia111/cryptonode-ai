@@ -10,35 +10,26 @@ import SpynxScoreCard from '../components/SpynxScoreCard';
 import TelegramIntegration from '../components/TelegramIntegration';
 import TradingPanel from '../components/TradingPanel';
 import BacktestEngine from '../components/BacktestEngine';
+import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
 import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
 import AutomatedTradingDashboard from '../components/AutomatedTradingDashboard';
-import StatusChecker from '../components/StatusChecker';
-import { AutoTradingMonitor } from '../components/AutoTradingMonitor';
+import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
+import TradePlanGenerator from '../components/TradePlanGenerator';
 
 const Index = () => {
   return (
     <MainLayout>
       <div className="container mx-auto px-6 py-8 space-y-8">
-        {/* Page Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Unireli Trading Platform
-          </h1>
-          <p className="text-muted-foreground">
-            AI-powered cryptocurrency trading platform with real-time market analysis and automated portfolio management
-          </p>
-        </div>
-        
-        {/* System Health Status */}
-        <StatusChecker />
-        
-        {/* Auto-Trading Monitor */}
-        <AutoTradingMonitor />
-        
         {/* Database Setup */}
         <DatabaseSetup />
+        
+        {/* AItradeX1 Strategy Panel */}
+        <AItradeX1StrategyPanel />
+        
+        {/* Trade Plan Generator */}
+        <TradePlanGenerator />
         
         {/* Comprehensive Scanner Dashboard */}
         <ComprehensiveScannerDashboard />
@@ -67,6 +58,7 @@ const Index = () => {
             <PortfolioStats />
             <TradingPanel />
             <TelegramIntegration />
+            <QuantumAnalysis />
             <SpynxScoreCard />
             <SignalsList />
           </div>

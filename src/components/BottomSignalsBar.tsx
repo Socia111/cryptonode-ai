@@ -38,13 +38,13 @@ const BottomSignalsBar: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50/95 backdrop-blur-sm border-t border-gradient-to-r from-purple-300 to-blue-300 shadow-xl">
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t">
       <div className="container mx-auto px-4 py-2">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-2">
               <Zap className="h-4 w-4 text-primary" />
-              <span className="font-medium text-sm text-grey-primary">Live Signals</span>
+              <span className="font-medium text-sm">Live Signals</span>
             </div>
             <Badge variant="outline" className="text-xs">
               {activeSignals.length} Active (5m-4h)
@@ -56,7 +56,7 @@ const BottomSignalsBar: React.FC = () => {
             size="lg" 
             onClick={generateSignals}
             disabled={loading}
-            className="shrink-0 bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold px-6 py-3"
+            className="shrink-0 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3"
           >
             {loading ? (
               <Loader2 className="h-3 w-3 animate-spin mr-1" />
@@ -88,41 +88,41 @@ const BottomSignalsBar: React.FC = () => {
               )}
             </div>
           ) : (
-            activeSignals.map((signal, index) => {
-              return (
-              <Card key={`${signal.id}-${index}`} className="flex items-center space-x-3 px-4 py-3 bg-card border border-border shrink-0 min-w-[320px] animate-in slide-in-from-right-5 duration-300 shadow-lg hover:shadow-xl transition-all">
+            activeSignals.map((signal, index) => (
+              <Card key={`${signal.id}-${index}`} className="flex items-center space-x-3 px-3 py-2 bg-card/50 border-border/50 shrink-0 min-w-[280px] animate-in slide-in-from-right-5 duration-300">
                 <div className="flex items-center space-x-2">
-                   {signal.direction === 'BUY' ? (
-                     <div className="flex items-center space-x-1 bg-success text-success-foreground px-3 py-1.5 rounded-full shadow-md">
-                       <TrendingUp className="h-4 w-4" />
-                       <span className="text-xs font-bold">LONG</span>
-                     </div>
-                   ) : (
-                     <div className="flex items-center space-x-1 bg-destructive text-destructive-foreground px-3 py-1.5 rounded-full shadow-md">
-                       <TrendingDown className="h-4 w-4" />
-                       <span className="text-xs font-bold">SHORT</span>
-                     </div>
-                   )}
-                   <span className="font-bold text-sm text-foreground">{signal.token}</span>
-                 </div>
-                 
-                 <div className="text-xs text-foreground font-bold bg-background/50 px-2 py-1 rounded">
-                   ${formatPrice(signal.entry_price)}
-                 </div>
-                 
-                 <Badge variant="secondary" className="text-xs bg-primary text-primary-foreground border-0">
-                   {signal.timeframe}
-                 </Badge>
-                 
-                 <div className="text-xs bg-background/60 px-2 py-1 rounded-full">
-                   <span className="text-primary font-bold">{signal.confidence_score}%</span>
-                 </div>
-                 
-                 <div className="text-xs text-muted-foreground bg-background/40 px-2 py-1 rounded">
+                  {signal.direction === 'BUY' ? (
+                    <TrendingUp className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-red-500" />
+                  )}
+                  <span className="font-medium text-sm">{signal.token}</span>
+                </div>
+                
+                <Badge 
+                  variant={signal.direction === 'BUY' ? 'default' : 'destructive'}
+                  className="text-xs"
+                >
+                  {signal.direction}
+                </Badge>
+                
+                <div className="text-xs text-muted-foreground">
+                  ${formatPrice(signal.entry_price)}
+                </div>
+                
+                <Badge variant="secondary" className="text-xs">
+                  {signal.timeframe}
+                </Badge>
+                
+                <div className="text-xs">
+                  <span className="text-primary font-medium">{signal.confidence_score}%</span>
+                </div>
+                
+                <div className="text-xs text-muted-foreground">
                   {formatTimeAgo(signal.created_at)}
                 </div>
               </Card>
-            )})
+            ))
           )}
         </div>
       </div>
