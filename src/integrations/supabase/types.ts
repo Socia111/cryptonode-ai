@@ -702,6 +702,42 @@ export type Database = {
         }
         Relationships: []
       }
+      automated_trading_sessions: {
+        Row: {
+          created_at: string | null
+          id: string
+          session_end: string | null
+          session_start: string | null
+          session_status: string | null
+          total_signals_processed: number | null
+          total_trades_executed: number | null
+          total_users_processed: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          session_end?: string | null
+          session_start?: string | null
+          session_status?: string | null
+          total_signals_processed?: number | null
+          total_trades_executed?: number | null
+          total_users_processed?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          session_end?: string | null
+          session_start?: string | null
+          session_status?: string | null
+          total_signals_processed?: number | null
+          total_trades_executed?: number | null
+          total_users_processed?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       avatar_generations: {
         Row: {
           avatar_url: string | null
@@ -4025,6 +4061,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      start_automated_trading_session: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       sync_health_to_amarean_memory: {
         Args: { p_health_score: number; p_metrics: Json; p_user_id: string }
         Returns: undefined
@@ -4036,6 +4076,14 @@ export type Database = {
       update_karma_score: {
         Args: { action_type: string; action_value?: number; p_user_id: string }
         Returns: number
+      }
+      update_trading_session_stats: {
+        Args: {
+          p_signals_processed?: number
+          p_trades_executed?: number
+          p_users_processed?: number
+        }
+        Returns: undefined
       }
       upsert_signal: {
         Args: {
