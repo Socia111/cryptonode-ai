@@ -1,351 +1,230 @@
-import { createHmac } from "node:crypto";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const BASE = Deno.env.get("BYBIT_BASE") ?? "https://api-testnet.bybit.com";
+const APIKEY = Deno.env.get("BYBIT_KEY")!;
+const SECRET = Deno.env.get("BYBIT_SECRET")!;
+const RECV = "5000";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
 };
 
-interface BybitOrderParams {
-  category: 'spot' | 'linear' | 'inverse' | 'option';
-  symbol: string;
-  side: 'Buy' | 'Sell';
-  orderType: 'Market' | 'Limit';
-  qty: string;
-  price?: string;
-  timeInForce?: 'GTC' | 'IOC' | 'FOK' | 'PostOnly';
-  orderLinkId?: string;
-  isLeverage?: 0 | 1;
-  orderFilter?: 'Order' | 'StopOrder' | 'tpslOrder';
-  triggerDirection?: 1 | 2;
-  triggerPrice?: string;
-  triggerBy?: 'LastPrice' | 'IndexPrice' | 'MarkPrice';
-  orderIv?: string;
-  positionIdx?: 0 | 1 | 2;
-  stopLoss?: string;
-  takeProfit?: string;
-  tpTriggerBy?: 'LastPrice' | 'IndexPrice' | 'MarkPrice';
-  slTriggerBy?: 'LastPrice' | 'IndexPrice' | 'MarkPrice';
-  reduceOnly?: boolean;
-  closeOnTrigger?: boolean;
-  smpType?: 'None' | 'CancelMaker' | 'CancelTaker' | 'CancelBoth';
-  mmp?: boolean;
-  tpslMode?: 'Full' | 'Partial';
-  tpLimitPrice?: string;
-  slLimitPrice?: string;
-  tpOrderType?: 'Market' | 'Limit';
-  slOrderType?: 'Market' | 'Limit';
-}
-
-interface BybitResponse<T = any> {
-  retCode: number;
-  retMsg: string;
-  result: T;
-  retExtInfo: Record<string, any>;
-  time: number;
-}
-
-interface OrderResult {
-  orderId: string;
-  orderLinkId: string;
-}
-
-// Generate signature according to Bybit v5 API docs
-function generateSignature(timestamp: string, apiKey: string, recvWindow: string, queryString: string, apiSecret: string): string {
-  const param_str = timestamp + apiKey + recvWindow + queryString;
-  return createHmac('sha256', apiSecret).update(param_str).digest('hex');
-}
-
-async function executeBybitOrder(orderParams: BybitOrderParams): Promise<BybitResponse<OrderResult>> {
-  const apiKey = Deno.env.get('BYBIT_API_KEY');
-  const apiSecret = Deno.env.get('BYBIT_API_SECRET');
-  
-  if (!apiKey || !apiSecret) {
-    throw new Error('Missing Bybit API credentials. Please configure BYBIT_API_KEY and BYBIT_API_SECRET.');
-  }
-
-  const timestamp = Date.now().toString();
-  const recvWindow = '5000';
-  
-  // Clean params - remove undefined values
-  const cleanParams = Object.fromEntries(
-    Object.entries(orderParams).filter(([_, value]) => value !== undefined)
+async function sign(msg: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw", 
+    new TextEncoder().encode(secret), 
+    { name: "HMAC", hash: "SHA-256" }, 
+    false, 
+    ["sign"]
   );
-  
-  const queryString = JSON.stringify(cleanParams);
-  const signature = generateSignature(timestamp, apiKey, recvWindow, queryString, apiSecret);
-  
-  // PRODUCTION ENDPOINT - Using mainnet
-  const url = 'https://api.bybit.com/v5/order/create';
-  
-  console.log('Bybit API Request:', {
-    url,
-    params: cleanParams,
-    timestamp,
-    headers: {
-      'X-BAPI-API-KEY': apiKey.substring(0, 8) + '...',
-      'X-BAPI-TIMESTAMP': timestamp,
-      'X-BAPI-RECV-WINDOW': recvWindow,
-    }
-  });
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'X-BAPI-API-KEY': apiKey,
-      'X-BAPI-SIGN': signature,
-      'X-BAPI-TIMESTAMP': timestamp,
-      'X-BAPI-RECV-WINDOW': recvWindow,
-      'Content-Type': 'application/json',
-    },
-    body: queryString,
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg));
+  return [...new Uint8Array(sig)]
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function withCORS(req: Request, res: Response): Response {
+  const h = new Headers(res.headers);
+  h.set("Access-Control-Allow-Origin", "*");
+  h.set("Access-Control-Allow-Headers", "content-type,authorization");
+  h.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  return new Response(res.body, { status: res.status, headers: h });
+}
+
+async function bybit(
+  path: string, 
+  method: "GET" | "POST", 
+  body?: Record<string, unknown>, 
+  key = APIKEY, 
+  secret = SECRET
+) {
+  const ts = Date.now().toString();
+  const url = BASE + path;
+  let qs = "";
+  let payload = "";
+
+  if (method === "GET" && body) {
+    qs = "?" + new URLSearchParams(
+      Object.entries(body).map(([k, v]) => [k, String(v)])
+    ).toString();
+  }
+  if (method === "POST") {
+    payload = JSON.stringify(body ?? {});
+  }
+
+  const presign = ts + key + RECV + payload;
+  const sig = await sign(presign, secret);
+
+  console.log(`🔗 Bybit API ${method} ${path}`, { 
+    timestamp: ts, 
+    payload: method === "POST" ? payload.substring(0, 200) : qs 
   });
 
-  const result: BybitResponse<OrderResult> = await response.json();
-  
-  console.log('Bybit API Response:', {
+  const response = await fetch(url + qs, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      "X-BAPI-API-KEY": key,
+      "X-BAPI-TIMESTAMP": ts,
+      "X-BAPI-RECV-WINDOW": RECV,
+      "X-BAPI-SIGN": sig,
+    },
+    body: method === "POST" ? payload : undefined,
+  });
+
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
+
+  console.log(`📊 Bybit API Response:`, {
     status: response.status,
-    retCode: result.retCode,
-    retMsg: result.retMsg,
-    orderId: result.result?.orderId
+    retCode: data.retCode,
+    retMsg: data.retMsg,
+    hasResult: !!data.result
   });
-  
+
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    throw new Response(
+      JSON.stringify({ ok: false, status: response.status, data }), 
+      { status: response.status }
+    );
   }
   
-  if (result.retCode !== 0) {
-    throw new Error(`Bybit API error (${result.retCode}): ${result.retMsg}`);
+  if (data.retCode !== 0) {
+    throw new Response(
+      JSON.stringify({ ok: false, status: 400, data }), 
+      { status: 400 }
+    );
   }
 
-  return result;
+  return data;
 }
 
-// Get account balance for validation
-async function getAccountBalance(category: string, coin?: string): Promise<any> {
-  const apiKey = Deno.env.get('BYBIT_API_KEY');
-  const apiSecret = Deno.env.get('BYBIT_API_SECRET');
-  
-  if (!apiKey || !apiSecret) {
-    throw new Error('Missing Bybit API credentials');
-  }
-
-  const timestamp = Date.now().toString();
-  const recvWindow = '5000';
-  
-  let queryString = `accountType=UNIFIED&category=${category}`;
-  if (coin) {
-    queryString += `&coin=${coin}`;
-  }
-  
-  const signature = generateSignature(timestamp, apiKey, recvWindow, queryString, apiSecret);
-  
-  // PRODUCTION ENDPOINT - Using mainnet
-  const url = `https://api.bybit.com/v5/account/wallet-balance?${queryString}`;
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'X-BAPI-API-KEY': apiKey,
-      'X-BAPI-SIGN': signature,
-      'X-BAPI-TIMESTAMP': timestamp,
-      'X-BAPI-RECV-WINDOW': recvWindow,
-    },
-  });
-
-  const result = await response.json();
-  
-  if (!response.ok || result.retCode !== 0) {
-    throw new Error(`Failed to get balance: ${result.retMsg || 'Unknown error'}`);
-  }
-
-  return result;
-}
-
-Deno.serve(async (req) => {
+serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return withCORS(req, new Response(null, { status: 204 }));
   }
 
   try {
-    // Add detailed logging for debugging
-    console.log('🔧 Checking API credentials availability...');
-    const apiKey = Deno.env.get('BYBIT_API_KEY');
-    const apiSecret = Deno.env.get('BYBIT_API_SECRET');
-    console.log('🔑 API Key present:', !!apiKey);
-    console.log('🔐 API Secret present:', !!apiSecret);
-    
-    const { signal, orderSize = '10', leverage = 1, category = 'spot', testMode = false } = await req.json();
-    
-    if (!signal) {
-      throw new Error('Signal data is required');
+    const { pathname } = new URL(req.url);
+    console.log(`🚀 Request: ${req.method} ${pathname}`);
+
+    // 1) Health check + auth verification
+    if (pathname.endsWith("/test") && req.method === "GET") {
+      console.log("🔍 Testing Bybit API connection...");
+      
+      // Check server time
+      const timeResponse = await fetch(`${BASE}/v5/market/time`);
+      const time = await timeResponse.json();
+      
+      // Check API authentication
+      const me = await bybit("/v5/user/query-api", "GET");
+      
+      console.log("✅ Bybit API test successful");
+      return withCORS(req, new Response(
+        JSON.stringify({ ok: true, time, me, base: BASE }), 
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      ));
     }
 
-    console.log('🚀 Executing Bybit order for signal:', {
-      token: signal.token,
-      direction: signal.direction,
-      entry_price: signal.entry_price,
-      orderSize,
-      category
-    });
-
-    // Validate signal data
-    if (!signal.token || !signal.direction || !signal.entry_price) {
-      throw new Error('Invalid signal data: missing required fields (token, direction, entry_price)');
-    }
-
-    // Generate unique order link ID
-    const orderLinkId = `signal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Clean symbol format (remove slashes, ensure USDT pair)
-    let symbol = signal.token.replace('/', '').toUpperCase();
-    if (!symbol.endsWith('USDT')) {
-      symbol = symbol.replace('USDT', '') + 'USDT';
-    }
-
-    // Prepare order parameters based on Bybit v5 API with ALL signal data
-    const orderParams: BybitOrderParams = {
-      category: category as 'spot' | 'linear',
-      symbol: symbol,
-      side: signal.direction === 'BUY' ? 'Buy' : 'Sell',
-      orderType: 'Market',
-      qty: orderSize.toString(),
-      orderLinkId: orderLinkId,
-      timeInForce: 'IOC', // Immediate or Cancel for market orders
-    };
-
-    // For linear/futures trading, add position index
-    if (category === 'linear') {
-      orderParams.positionIdx = 0; // One-way mode
-    }
-
-    // ALWAYS add stop loss and take profit from signals (all signal parameters)
-    if (signal.stop_loss) {
-      orderParams.stopLoss = signal.stop_loss.toString();
-      orderParams.slTriggerBy = 'LastPrice';
-      orderParams.slOrderType = 'Market';
-    }
-    
-    if (signal.exit_target || signal.take_profit) {
-      const targetPrice = signal.exit_target || signal.take_profit;
-      orderParams.takeProfit = targetPrice.toString();
-      orderParams.tpTriggerBy = 'LastPrice';
-      orderParams.tpOrderType = 'Market';
-    }
-
-    // Add additional signal parameters for risk management
-    if (signal.confidence_score && signal.confidence_score < 70) {
-      // Reduce quantity for low confidence signals
-      const adjustedQty = parseFloat(orderSize) * 0.5;
-      orderParams.qty = adjustedQty.toString();
-    }
-
-    // For spot trading with SL/TP, we'll need conditional orders (OCO)
-    if (category === 'spot' && (signal.stop_loss || signal.exit_target)) {
-      console.log('🔄 Spot trading with SL/TP - will create conditional orders after main order');
-    }
-
-    console.log('📊 Order parameters:', orderParams);
-
-    if (testMode) {
-      // Return mock response for testing
-      return new Response(JSON.stringify({
-        success: true,
-        testMode: true,
-        orderId: `test_${orderLinkId}`,
-        orderLinkId: orderLinkId,
-        message: `TEST MODE: ${signal.direction} order prepared for ${symbol}`,
-        orderParams,
-        signal
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Check account balance before executing (optional safety check)
-    try {
-      const balance = await getAccountBalance(category, 'USDT');
-      console.log('💰 Account balance check passed');
-    } catch (balanceError) {
-      console.warn('⚠️ Could not verify balance:', balanceError.message);
-      // Continue with order execution anyway
-    }
-
-    // Execute the order
-    const orderResult = await executeBybitOrder(orderParams);
-
-    console.log('✅ Order executed successfully:', {
-      orderId: orderResult.result.orderId,
-      orderLinkId: orderResult.result.orderLinkId,
-      retCode: orderResult.retCode,
-      retMsg: orderResult.retMsg
-    });
-
-    // Always return success: true for successful orders
-    return new Response(JSON.stringify({
-      success: true,
-      orderId: orderResult.result.orderId,
-      orderLinkId: orderResult.result.orderLinkId,
-      message: `✅ LIVE ${signal.direction} order executed successfully for ${symbol}`,
-      orderParams,
-      executionTime: new Date().toISOString(),
-      bybitResponse: {
-        retCode: orderResult.retCode,
-        retMsg: orderResult.retMsg,
-        time: orderResult.time
-      },
-      signal: {
-        token: signal.token,
-        direction: signal.direction,
-        entry_price: signal.entry_price,
-        stop_loss: signal.stop_loss,
-        take_profit: signal.exit_target || signal.take_profit,
-        confidence: signal.confidence_score
-      },
-      // Market execution details
-      executionDetails: {
-        market: 'bybit',
-        category: orderParams.category,
-        leverage: leverage,
-        quantity: orderParams.qty,
-        apiStatus: 'LIVE_PRODUCTION'
+    // 2) Place order
+    if (pathname.endsWith("/order") && req.method === "POST") {
+      const body = await req.json();
+      console.log("📝 Placing order:", body);
+      
+      // Validate required fields
+      if (!body.category || !body.symbol || !body.side || !body.orderType || !body.qty) {
+        return withCORS(req, new Response(
+          JSON.stringify({ 
+            ok: false, 
+            error: "Missing required fields: category, symbol, side, orderType, qty" 
+          }), 
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        ));
       }
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+
+      // Place order via Bybit API v5
+      const result = await bybit("/v5/order/create", "POST", body);
+      
+      console.log("✅ Order placed successfully:", result.result?.orderId);
+      return withCORS(req, new Response(
+        JSON.stringify({ ok: true, result }), 
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      ));
+    }
+
+    // 3) Cancel order
+    if (pathname.endsWith("/cancel") && req.method === "POST") {
+      const body = await req.json();
+      console.log("❌ Cancelling order:", body);
+      
+      const result = await bybit("/v5/order/cancel", "POST", body);
+      
+      console.log("✅ Order cancelled successfully");
+      return withCORS(req, new Response(
+        JSON.stringify({ ok: true, result }), 
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      ));
+    }
+
+    // 4) Get positions
+    if (pathname.endsWith("/positions") && req.method === "GET") {
+      const url = new URL(req.url);
+      const category = url.searchParams.get("category") || "linear";
+      const symbol = url.searchParams.get("symbol");
+      
+      const params: Record<string, unknown> = { category };
+      if (symbol) params.symbol = symbol;
+      
+      console.log("📊 Getting positions:", params);
+      const result = await bybit("/v5/position/list", "GET", params);
+      
+      return withCORS(req, new Response(
+        JSON.stringify({ ok: true, result }), 
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      ));
+    }
+
+    // 5) Get account balance
+    if (pathname.endsWith("/balance") && req.method === "GET") {
+      const url = new URL(req.url);
+      const accountType = url.searchParams.get("accountType") || "UNIFIED";
+      const coin = url.searchParams.get("coin");
+      
+      const params: Record<string, unknown> = { accountType };
+      if (coin) params.coin = coin;
+      
+      console.log("💰 Getting balance:", params);
+      const result = await bybit("/v5/account/wallet-balance", "GET", params);
+      
+      return withCORS(req, new Response(
+        JSON.stringify({ ok: true, result }), 
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      ));
+    }
+
+    return withCORS(req, new Response(
+      JSON.stringify({ error: "Endpoint not found" }), 
+      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    ));
 
   } catch (error) {
-    console.error('❌ Error executing Bybit order:', error);
+    console.error("❌ Error in bybit-order-execution:", error);
     
-    let errorMessage = error.message || 'Failed to execute order';
-    let userFriendlyMessage = errorMessage;
-    
-    // Handle specific Bybit error codes with user-friendly messages
-    if (error.message?.includes('10010')) {
-      userFriendlyMessage = '🔒 IP Address not whitelisted. Please add your server IP to Bybit API settings or disable IP restriction.';
-    } else if (error.message?.includes('10003')) {
-      userFriendlyMessage = '🔑 Invalid API key. Please check your Bybit API credentials.';
-    } else if (error.message?.includes('10004')) {
-      userFriendlyMessage = '⏰ API signature expired. Please check your system time.';
-    } else if (error.message?.includes('10005')) {
-      userFriendlyMessage = '🚫 Invalid API permissions. Enable spot/futures trading in your Bybit API settings.';
-    } else if (error.message?.includes('10001')) {
-      userFriendlyMessage = '📏 Order size below minimum. Increase order quantity (try $50+ for futures).';
-    } else if (error.message?.includes('insufficient balance')) {
-      userFriendlyMessage = '💰 Insufficient balance. Please add funds to your Bybit account.';
-    } else if (error.message?.includes('Missing Bybit API credentials')) {
-      userFriendlyMessage = '🔧 Bybit API credentials not configured. Please add BYBIT_API_KEY and BYBIT_API_SECRET.';
+    if (error instanceof Response) {
+      return withCORS(req, error);
     }
     
-    return new Response(JSON.stringify({
-      success: false,
-      error: userFriendlyMessage,
-      technical_error: errorMessage,
-      timestamp: new Date().toISOString(),
-      help: error.message?.includes('10010') ? 'Go to Bybit API settings and either add your IP address or disable IP restriction.' : undefined
-    }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return withCORS(req, new Response(
+      JSON.stringify({ ok: false, error: String(error) }), 
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    ));
   }
 });
