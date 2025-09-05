@@ -37,7 +37,7 @@ const ScannerDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [selectedExchange, setSelectedExchange] = useState('bybit');
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1h');
+  const [selectedTimeframe, setSelectedTimeframe] = useState('15m');
   const [sortBy, setSortBy] = useState<'confidence_score' | 'symbol' | 'generated_at'>('confidence_score');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const { toast } = useToast();
@@ -80,18 +80,24 @@ const ScannerDashboard = () => {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Map database signals to scanner format
-      const mappedSignals = (data || []).map(signal => ({
-        id: signal.id,
-        symbol: signal.symbol,
-        exchange: signal.exchange || 'bybit',
-        direction: signal.direction,
-        confidence_score: signal.confidence_score || signal.score || 0,
-        price: signal.entry_price || 0,
-        timeframe: signal.timeframe,
-        generated_at: signal.generated_at || signal.created_at,
-        indicators: signal.metadata?.indicators || {}
-      }));
+      // Map database signals to scanner format and filter for AItradeX1 criteria
+      const mappedSignals = (data || [])
+        .map(signal => ({
+          id: signal.id,
+          symbol: signal.symbol,
+          exchange: signal.exchange || 'bybit',
+          direction: signal.direction,
+          confidence_score: signal.confidence_score || signal.score || 0,
+          price: signal.entry_price || 0,
+          timeframe: signal.timeframe,
+          generated_at: signal.generated_at || signal.created_at,
+          indicators: signal.metadata?.indicators || {},
+          roi_percentage: signal.metadata?.roi_percentage || 0
+        }))
+        .filter(signal => 
+          (signal.timeframe === '15m' || signal.timeframe === '30m') &&
+          signal.roi_percentage > 5
+        );
 
       setSignals(mappedSignals);
       setLastUpdate(new Date().toLocaleString());
@@ -199,11 +205,8 @@ const ScannerDashboard = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="5m">5m</SelectItem>
                   <SelectItem value="15m">15m</SelectItem>
                   <SelectItem value="30m">30m</SelectItem>
-                  <SelectItem value="1h">1h</SelectItem>
-                  <SelectItem value="4h">4h</SelectItem>
                 </SelectContent>
               </Select>
             </div>

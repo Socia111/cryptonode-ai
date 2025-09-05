@@ -17,6 +17,7 @@ interface Signal {
   created_at: string;
   stop_loss?: number;
   exit_target?: number;
+  roi_projection: number;
 }
 
 const AItradeX1ScannerChart: React.FC = () => {
@@ -25,10 +26,12 @@ const AItradeX1ScannerChart: React.FC = () => {
   const [timeRemaining, setTimeRemaining] = useState(60);
   const [isActive, setIsActive] = useState(false);
 
-  // Filter for active AItradeX1 signals
+  // Filter for AItradeX1 signals: 15m and 30m timeframes with ROI over 5%
   const activeSignals = signals.filter(signal => 
     signal.status === 'active' && 
-    signal.confidence_score >= 70
+    signal.confidence_score >= 70 &&
+    (signal.timeframe === '15m' || signal.timeframe === '30m') &&
+    signal.roi_projection > 5
   );
 
   // Auto-cycle through signals every 60 seconds
