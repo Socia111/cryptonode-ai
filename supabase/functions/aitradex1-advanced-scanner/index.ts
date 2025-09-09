@@ -6,61 +6,52 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// AItradeX1 Profitable Configuration - Regime-Aware PMS
+// ===================== AItradeX1 Advanced CONFIG =====================
 const CONFIG = {
-  // Core technical parameters
+  // Core indicators
   ema_fast: 21,
   ema_slow: 200,
-  ema_trend: 50, // For regime detection
-  rsi_length: 14,
-  adx_length: 13,
+  dmi_length: 13,
   adx_threshold: 25,
   adx_ranging_threshold: 20,
-  dmi_length: 13,
-  volume_sma_length: 21,
-  volume_spike_multiplier: 1.2, // More conservative
-  hvp_length: 21,
-  hvp_lookback: 100,
-  hvp_trending_min: 60, // 60th percentile for trending
-  hvp_ranging_max: 40,  // 40th percentile for ranging
   stoch_k_length: 14,
   stoch_d_smooth: 3,
-  stoch_oversold: 40, // Less extreme for pullbacks
-  stoch_overbought: 60,
-  atr_length: 14,
-  
-  // Profitability filters
-  liquidity: {
-    min_24h_volume: 50_000_000, // $50M minimum volume
-    min_book_depth: 50_000,     // $50k depth within 10bps
-    max_spread_bps: 10          // Max 10 basis points spread
-  },
-  
-  // Confidence scoring weights
-  confidence_weights: {
-    trend: 30,        // Trend strength & direction
-    momentum: 25,     // Momentum indicators
-    volatility: 20,   // Volatility regime
-    volume: 15,       // Volume confirmation
-    breadth: 10       // Market breadth
-  },
-  
-  // Execution & risk management
+  stoch_oversold: 20,
+  stoch_overbought: 80,
+  volume_sma_length: 21,
+  hvp_length: 21,
+  hvp_lookback: 100,
+  hvp_threshold: 70,
+
+  // PMS weights (profit-optimized)
+  weights: { ema_sma: 0.30, adx_dmi: 0.25, stochastic: 0.15, volume: 0.15, hvp: 0.15 },
+
+  // Score thresholds
+  pms_buy_threshold: 0.50,
+  pms_sell_threshold: -0.50,
+  confidence_threshold: 0.70,
+
+  // Regime thresholds
+  hvp_trending_min: 60,  // percentile
+  hvp_ranging_max: 40,
+
+  // Liquidity & execution
+  liquidity: { min_24h_volume: 50_000_000, max_spread_bps: 10 },
   execution: {
-    min_confidence: 70,           // Only trade 70+ confidence
-    max_daily_loss_pct: 1.5,     // Daily kill switch at -1.5%
-    position_risk_pct: 0.75,     // Risk 0.75% per trade
-    max_open_risk_pct: 2.0,      // Max 2% total open risk
-    atr_stop_multiplier: 1.3,    // ATR-based stops
-    atr_target_multiplier: 2.0,  // 2:1 RR minimum
-    max_funding_rate: 0.05       // Skip if |funding| > 0.05%
+    maker_first: true,
+    post_only: true,
+    repl_post_secs: 20,
+    atr_stop_multiplier: 1.3,
+    atr_target_multiplier: 2.6
   },
-  
-  // Whitelisted high-liquidity pairs only
-  whitelist: [
-    'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 
-    'ADAUSDT', 'DOTUSDT', 'LINKUSDT', 'AVAXUSDT'
-  ]
+
+  // Risk
+  risk_percent_per_trade: 0.75,
+  max_open_risk_percent: 2.0,
+  daily_loss_limit_percent: -1.5,
+
+  // Whitelist: high-liquidity contracts only
+  whitelist: ['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','ADAUSDT','DOTUSDT','LINKUSDT','AVAXUSDT']
 }
 
 interface OHLCV {
@@ -300,6 +291,62 @@ function isCrossunder(current: number, previous: number, currentRef: number, pre
   return previous >= previousRef && current < currentRef
 }
 
+// =============== helper predicates ===============
+const crossUp = (k: number, kPrev: number, d: number, dPrev: number) => k > d && kPrev <= dPrev
+const crossDown = (k: number, kPrev: number, d: number, dPrev: number) => k < d && kPrev >= dPrev
+const sigmoid = (x: number) => 1 / (1 + Math.exp(-x))
+
+// =============== compute PMS components ===============
+function componentSignals(ctx: any) {
+  let emaSignal = 0
+  if (ctx.ema_fast > ctx.ema_slow) emaSignal = ctx.prev.ema_fast <= ctx.prev.ema_slow ? 1 : 0.5
+  else emaSignal = ctx.prev.ema_fast >= ctx.prev.ema_slow ? -1 : -0.5
+
+  let adxSignal = 0
+  if (ctx.adx >= CONFIG.adx_threshold) adxSignal = ctx.plus_di > ctx.minus_di ? 1 : -1
+  else if (ctx.adx >= 20) adxSignal = ctx.plus_di > ctx.minus_di ? 0.5 : -0.5
+
+  let stochSignal = 0
+  if (ctx.stoch_k < CONFIG.stoch_oversold && crossUp(ctx.stoch_k, ctx.prev.stoch_k, ctx.stoch_d, ctx.prev.stoch_d)) stochSignal = 1
+  else if (ctx.stoch_k > CONFIG.stoch_overbought && crossDown(ctx.stoch_k, ctx.prev.stoch_k, ctx.stoch_d, ctx.prev.stoch_d)) stochSignal = -1
+  else if (ctx.stoch_k < CONFIG.stoch_oversold) stochSignal = 0.5
+  else if (ctx.stoch_k > CONFIG.stoch_overbought) stochSignal = -0.5
+
+  let volumeSignal = 0
+  if (ctx.volume_ratio >= 1.5) volumeSignal = 1
+  else if (ctx.volume_ratio > 1.0) volumeSignal = 0.5
+  else if (ctx.volume_ratio < 0.5) volumeSignal = -0.5
+
+  let hvpSignal = 0
+  if (ctx.hvp > CONFIG.hvp_threshold) hvpSignal = ctx.close > ctx.ema_fast ? 1 : -1
+
+  return { emaSignal, adxSignal, stochSignal, volumeSignal, hvpSignal }
+}
+
+function computePMS(sig: any) {
+  const w = CONFIG.weights
+  return w.ema_sma * sig.emaSignal + w.adx_dmi * sig.adxSignal + w.stochastic * sig.stochSignal
+       + w.volume * sig.volumeSignal + w.hvp * sig.hvpSignal
+}
+
+// =============== regime detection ===============
+function detectRegime({ adx, hvp }: { adx: number, hvp: number }) {
+  if (adx >= CONFIG.adx_threshold && hvp >= CONFIG.hvp_trending_min) return 'trending'
+  if (adx < CONFIG.adx_ranging_threshold && hvp < CONFIG.hvp_ranging_max) return 'ranging'
+  return 'unknown'
+}
+
+// =============== confidence scoring (0-100) ===============
+function confidenceScore(ctx: any) {
+  const trendSlope = (ctx.ema200_now - ctx.ema200_prev) / ctx.ema200_prev
+  const Trend = Math.max(0, Math.min(1, sigmoid(10 * trendSlope))) * (ctx.adx >= CONFIG.adx_threshold ? 1 : 0)
+  const Momentum = 0.4 * Math.abs(50 - ctx.rsi) / 50 + 0.3 * ((ctx.stoch_k < 20 || ctx.stoch_k > 80) ? 1 : 0.5) + 0.3 * Math.abs(ctx.plus_di - ctx.minus_di) / 50
+  const VolRegime = Math.min(1, (ctx.hvp / 100) * (ctx.adx / CONFIG.adx_threshold))
+  const Volume = Math.max(0, Math.min(1, ctx.volume_ratio - 1))
+  const Breadth = ctx.major_trend_align ? 1 : 0.5
+  return Math.round(30 * Trend + 25 * Momentum + 20 * VolRegime + 15 * Volume + 10 * Breadth)
+}
+
 // Regime Detection & Liquidity Check
 function checkLiquidityAndRegime(symbol: string, bars: OHLCV[]): { 
   isLiquid: boolean, 
@@ -324,26 +371,16 @@ function checkLiquidityAndRegime(symbol: string, bars: OHLCV[]): {
   const highs = bars.map(b => b.high)
   const lows = bars.map(b => b.low)
   
-  const emaTrend = ema(closes, CONFIG.ema_trend)
   const { adx } = dmi(highs, lows, closes, CONFIG.dmi_length)
   const hvpValues = hvp(closes, CONFIG.hvp_length, CONFIG.hvp_lookback)
   
   const lastIdx = bars.length - 1
   const currentADX = adx[lastIdx]
   const currentHVP = hvpValues[lastIdx]
-  const trendSlope = (emaTrend[lastIdx] - emaTrend[lastIdx - 5]) / emaTrend[lastIdx - 5] * 100
   
-  // Regime determination
-  let regime: 'trending' | 'ranging' | 'unknown' = 'unknown'
-  let regimeStrength = 0
-  
-  if (currentADX >= CONFIG.adx_threshold && currentHVP >= CONFIG.hvp_trending_min) {
-    regime = 'trending'
-    regimeStrength = (currentADX / 50) * (currentHVP / 100) // Normalized 0-1
-  } else if (currentADX < CONFIG.adx_ranging_threshold && currentHVP < CONFIG.hvp_ranging_max) {
-    regime = 'ranging'
-    regimeStrength = 0.3 // Lower strength for ranging
-  }
+  // Regime determination using new logic
+  const regime = detectRegime({ adx: currentADX, hvp: currentHVP })
+  const regimeStrength = regime === 'trending' ? (currentADX / 50) * (currentHVP / 100) : 0.3
   
   return { isLiquid, regime, regimeStrength }
 }
@@ -381,132 +418,102 @@ function calculateConfidenceScore(bars: OHLCV[], indicators: any): number {
   return Math.max(0, Math.min(100, totalScore))
 }
 
-function evaluateAItradeX1Advanced(bars: OHLCV[]): any {
+// =============== main evaluator (per symbol/timeframe) ===============
+function evaluateAItradeX1Advanced(bars: OHLCV[], symbol: string = 'MOCK_SYMBOL'): any {
   if (bars.length < Math.max(CONFIG.ema_slow, CONFIG.hvp_lookback) + 10) {
     return null
   }
 
-  const closes = bars.map(b => b.close)
-  const highs = bars.map(b => b.high)
-  const lows = bars.map(b => b.low)
-  const volumes = bars.map(b => b.volume)
+  // Whitelist check first
+  if (!CONFIG.whitelist.includes(symbol)) return null
+
+  const c = bars.map(b => b.close), h = bars.map(b => b.high), l = bars.map(b => b.low), v = bars.map(b => b.volume)
+  const n = bars.length - 1
   
-  // Calculate indicators
-  const emaFast = ema(closes, CONFIG.ema_fast)
-  const emaSlow = ema(closes, CONFIG.ema_slow)
-  const rsiValues = rsi(closes, CONFIG.rsi_length)
-  const { plusDI, minusDI, adx } = dmi(highs, lows, closes, CONFIG.dmi_length)
-  const volumeSMA = sma(volumes, CONFIG.volume_sma_length)
-  const hvpValues = hvp(closes, CONFIG.hvp_length, CONFIG.hvp_lookback)
-  const { k: stochK, d: stochD } = stochastic(highs, lows, closes, CONFIG.stoch_k_length, CONFIG.stoch_d_smooth)
-  const atrValues = trueRange(highs, lows, closes)
-  const atrSMA = sma(atrValues.slice(1), CONFIG.atr_length) // Remove first NaN
-  
-  const lastIdx = bars.length - 1
-  const prevIdx = lastIdx - 1
-  
-  if (lastIdx < 1) return null
-  
-  // Current values
-  const currentBar = bars[lastIdx]
-  const currentEmaFast = emaFast[lastIdx]
-  const currentEmaSlow = emaSlow[lastIdx]
-  const currentRSI = rsiValues[lastIdx]
-  const currentPlusDI = plusDI[lastIdx]
-  const currentMinusDI = minusDI[lastIdx]
-  const currentADX = adx[lastIdx]
-  const currentVolume = volumes[lastIdx]
-  const currentVolumeSMA = volumeSMA[lastIdx]
-  const currentHVP = hvpValues[lastIdx]
-  const currentStochK = stochK[lastIdx]
-  const currentStochD = stochD[lastIdx]
-  const currentATR = atrSMA[lastIdx - 1] || atrSMA[lastIdx - 2] // Handle potential undefined
-  
-  // Previous values for crossover detection
-  const prevEmaFast = emaFast[prevIdx]
-  const prevEmaSlow = emaSlow[prevIdx]
-  const prevStochK = stochK[prevIdx]
-  const prevStochD = stochD[prevIdx]
-  
-  // Check for NaN values
-  if ([currentEmaFast, currentEmaSlow, currentRSI, currentPlusDI, currentMinusDI, 
-       currentADX, currentVolumeSMA, currentHVP, currentStochK, currentStochD, currentATR].some(val => isNaN(val))) {
+  // Calculate all indicators
+  const ema21 = ema(c, CONFIG.ema_fast), ema200 = ema(c, CONFIG.ema_slow)
+  const { plusDI, minusDI, adx } = dmi(h, l, c, CONFIG.dmi_length)
+  const { k: K, d: D } = stochastic(h, l, c, CONFIG.stoch_k_length, CONFIG.stoch_d_smooth)
+  const hvpVals = hvp(c, CONFIG.hvp_length, CONFIG.hvp_lookback)
+  const volSMA = sma(v, CONFIG.volume_sma_length)
+  const atrVals = trueRange(h, l, c)
+  const atrSMA = sma(atrVals.slice(1), 14)
+  const rsiVals = rsi(c, 14)
+
+  // Check for sufficient data and no NaN values
+  if ([ema21[n], ema200[n], adx[n], K[n], D[n], hvpVals[n], volSMA[n], atrSMA[n-1]].some(val => isNaN(val))) {
     return null
   }
-  
-  // Prepare indicators object for confidence scoring
-  const indicatorSet = {
-    ema_fast: currentEmaFast,
-    ema_slow: currentEmaSlow,
-    rsi: currentRSI,
-    adx: currentADX,
-    plus_di: currentPlusDI,
-    minus_di: currentMinusDI,
-    volume_ratio: currentVolume / currentVolumeSMA,
-    hvp: currentHVP,
-    stoch_k: currentStochK,
-    stoch_d: currentStochD
+
+  const ctx = {
+    close: c[n], ema_fast: ema21[n], ema_slow: ema200[n],
+    prev: { ema_fast: ema21[n-1], ema_slow: ema200[n-1], stoch_k: K[n-1], stoch_d: D[n-1] },
+    rsi: rsiVals[n], plus_di: plusDI[n], minus_di: minusDI[n], adx: adx[n],
+    stoch_k: K[n], stoch_d: D[n], hvp: hvpVals[n],
+    volume_ratio: v[n] / volSMA[n], ema200_now: ema200[n], ema200_prev: ema200[n-10],
+    major_trend_align: true // Simplified for now
   }
-  
-  // === PROFITABLE TRADING LOGIC ===
-  
-  // First, check if this symbol passes liquidity and regime filters
-  const { isLiquid, regime, regimeStrength } = checkLiquidityAndRegime('MOCK_SYMBOL', bars)
-  
-  if (!isLiquid) {
-    console.log(`❌ Symbol failed liquidity check`)
-    return null
-  }
-  
-  // Calculate advanced confidence score
-  const confidenceScore = calculateConfidenceScore(bars, indicatorSet)
-  
-  // Apply minimum confidence filter
-  if (confidenceScore < CONFIG.execution.min_confidence) {
-    console.log(`❌ Signal below confidence threshold: ${confidenceScore} < ${CONFIG.execution.min_confidence}`)
-    return null
-  }
-  
-  // === REGIME-SPECIFIC SIGNAL LOGIC ===
-  let signal = null
-  let direction = null
-  
+
+  // Liquidity check
+  const volume24h = bars.slice(-288).reduce((sum, bar) => sum + (bar.close * bar.volume), 0)
+  if (volume24h < CONFIG.liquidity.min_24h_volume) return null
+
+  const regime = detectRegime({ adx: ctx.adx, hvp: ctx.hvp })
+  const sigs = componentSignals(ctx)
+  const PMS = computePMS(sigs)
+
+  // Base PMS gate + confidence
+  let direction: 'LONG' | 'SHORT' | null = null
+  if (PMS > CONFIG.pms_buy_threshold) direction = 'LONG'
+  else if (PMS < CONFIG.pms_sell_threshold) direction = 'SHORT'
+  else return null
+
+  const conf = confidenceScore(ctx)
+  if (conf < 70 || Math.abs(PMS) < CONFIG.confidence_threshold) return null
+
+  // Regime validation (trend entries only by default)
   if (regime === 'trending') {
-    // TRENDING MODE: Breakout/Pullback Strategy
-    const trendBullish = currentEmaFast > currentEmaSlow
-    const strongTrend = currentADX >= CONFIG.adx_threshold
-    const dmiPositive = currentPlusDI > currentMinusDI
-    const volumeConfirm = (currentVolume / currentVolumeSMA) >= CONFIG.volume_spike_multiplier
-    const pullbackEntry = currentStochK < CONFIG.stoch_oversold && isCrossover(currentStochK, prevStochK, currentStochD, prevStochD)
-    
-    if (trendBullish && strongTrend && dmiPositive && volumeConfirm && pullbackEntry) {
-      signal = 'BUY'
-      direction = 'LONG'
-    } else if (!trendBullish && strongTrend && !dmiPositive && volumeConfirm && 
-               currentStochK > CONFIG.stoch_overbought && isCrossunder(currentStochK, prevStochK, currentStochD, prevStochD)) {
-      signal = 'SELL'
-      direction = 'SHORT'
-    }
-    
+    if (direction === 'LONG' && !(ctx.ema_fast > ctx.ema_slow && ctx.plus_di > ctx.minus_di && ctx.volume_ratio >= 1.5 && 
+        (ctx.stoch_k < 20 && crossUp(ctx.stoch_k, ctx.prev.stoch_k, ctx.stoch_d, ctx.prev.stoch_d)))) return null
+    if (direction === 'SHORT' && !(ctx.ema_fast < ctx.ema_slow && ctx.minus_di > ctx.plus_di && ctx.volume_ratio >= 1.5 && 
+        (ctx.stoch_k > 80 && crossDown(ctx.stoch_k, ctx.prev.stoch_k, ctx.stoch_d, ctx.prev.stoch_d)))) return null
   } else if (regime === 'ranging') {
-    // RANGING MODE: Mean Reversion (more conservative)
-    const nearSupport = currentRSI < 30 && currentStochK < 20
-    const nearResistance = currentRSI > 70 && currentStochK > 80
-    const volumeConfirm = (currentVolume / currentVolumeSMA) > 1.0
-    
-    if (nearSupport && volumeConfirm && isCrossover(currentStochK, prevStochK, currentStochD, prevStochD)) {
-      signal = 'BUY'
-      direction = 'LONG'
-    } else if (nearResistance && volumeConfirm && isCrossunder(currentStochK, prevStochK, currentStochD, prevStochD)) {
-      signal = 'SELL'
-      direction = 'SHORT'
-    }
-  }
-  
-  // No signal generated
-  if (!signal) {
+    // Skip by default; uncomment next line if you want conservative MR
     return null
   }
+
+  // ATR stops/targets with ≥2:1 RR
+  const atrNow = atrSMA[n-1] || atrSMA[n-2]
+  const stop = direction === 'LONG' ? ctx.close - CONFIG.execution.atr_stop_multiplier * atrNow
+                                    : ctx.close + CONFIG.execution.atr_stop_multiplier * atrNow
+  const target = direction === 'LONG' ? ctx.close + CONFIG.execution.atr_target_multiplier * atrNow
+                                      : ctx.close - CONFIG.execution.atr_target_multiplier * atrNow
+  const rr = Math.abs(target - ctx.close) / Math.abs(ctx.close - stop)
+  if (rr < 2.0) return null
+
+  return {
+    algorithm: 'AItradeX1-PMS',
+    symbol,
+    timeframe: '5m',
+    regime,
+    direction,
+    price: ctx.close,
+    pms: +PMS.toFixed(3),
+    confidence: conf,
+    stop_loss: +stop.toFixed(6),
+    take_profit: +target.toFixed(6),
+    risk_reward: +rr.toFixed(2),
+    components: {
+      ema: sigs.emaSignal, adx: sigs.adxSignal, stoch: sigs.stochSignal, volume: sigs.volumeSignal, hvp: sigs.hvpSignal
+    },
+    indicators: {
+      ema21: +ctx.ema_fast.toFixed(6), ema200: +ctx.ema_slow.toFixed(6),
+      adx: +ctx.adx.toFixed(2), plus_di: +ctx.plus_di.toFixed(2), minus_di: +ctx.minus_di.toFixed(2),
+      hvp: +ctx.hvp.toFixed(1), vol_ratio: +ctx.volume_ratio.toFixed(2), stoch_k: +ctx.stoch_k.toFixed(1), stoch_d: +ctx.stoch_d.toFixed(1)
+    },
+    exec: { maker_first: CONFIG.execution.maker_first, post_only: CONFIG.execution.post_only }
+  }
+}
   
   // === RISK MANAGEMENT ===
   
