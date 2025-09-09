@@ -122,6 +122,9 @@ verify_jwt = false
 [functions.aitradex1-config]
 verify_jwt = false
 
+[functions.aitradex1-trade-executor]
+verify_jwt = false
+
 [functions.trigger-comprehensive-scan]
 verify_jwt = false
 
