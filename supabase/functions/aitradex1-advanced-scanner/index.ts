@@ -6,25 +6,42 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// AItradeX1 Advanced Configuration
+// AItradeX1 Advanced Configuration - PMS Formula Weights
 const CONFIG = {
+  // Core parameters
   ema_fast: 21,
   ema_slow: 200,
   rsi_length: 14,
-  rsi_buy_threshold: 40,
-  rsi_sell_threshold: 60,
   adx_length: 13,
   adx_threshold: 25,
   dmi_length: 13,
   volume_sma_length: 21,
-  volume_spike_multiplier: 1.3,
+  volume_spike_multiplier: 1.5,
   hvp_length: 21,
   hvp_lookback: 100,
-  hvp_threshold: 60,
+  hvp_threshold: 70,
   stoch_k_length: 14,
   stoch_d_smooth: 3,
   stoch_oversold: 20,
-  stoch_overbought: 80
+  stoch_overbought: 80,
+  
+  // PMS Formula Weights (optimized for profitability)
+  weights: {
+    ema_sma: 0.30,      // α - EMA/SMA Crossovers
+    adx_dmi: 0.25,      // β - ADX + DMI  
+    stochastic: 0.15,   // γ - Stochastic Oscillator
+    volume: 0.15,       // δ - Volume Spike
+    hvp: 0.15          // ε - HVP
+  },
+  
+  // Signal thresholds
+  pms_buy_threshold: 0.5,
+  pms_sell_threshold: -0.5,
+  confidence_threshold: 0.7,
+  
+  // Risk management
+  risk_percent: 2.0,
+  target_roi_percent: 8.0
 }
 
 interface OHLCV {
@@ -277,7 +294,6 @@ function evaluateAItradeX1Advanced(bars: OHLCV[]): any {
   // Calculate indicators
   const emaFast = ema(closes, CONFIG.ema_fast)
   const emaSlow = ema(closes, CONFIG.ema_slow)
-  const rsiValues = rsi(closes, CONFIG.rsi_length)
   const { plusDI, minusDI, adx } = dmi(highs, lows, closes, CONFIG.dmi_length)
   const volumeSMA = sma(volumes, CONFIG.volume_sma_length)
   const hvpValues = hvp(closes, CONFIG.hvp_length, CONFIG.hvp_lookback)
@@ -292,7 +308,6 @@ function evaluateAItradeX1Advanced(bars: OHLCV[]): any {
   const currentBar = bars[lastIdx]
   const currentEmaFast = emaFast[lastIdx]
   const currentEmaSlow = emaSlow[lastIdx]
-  const currentRSI = rsiValues[lastIdx]
   const currentPlusDI = plusDI[lastIdx]
   const currentMinusDI = minusDI[lastIdx]
   const currentADX = adx[lastIdx]
@@ -303,58 +318,147 @@ function evaluateAItradeX1Advanced(bars: OHLCV[]): any {
   const currentStochD = stochD[lastIdx]
   
   // Previous values for crossover detection
+  const prevEmaFast = emaFast[prevIdx]
+  const prevEmaSlow = emaSlow[prevIdx]
   const prevStochK = stochK[prevIdx]
   const prevStochD = stochD[prevIdx]
   
   // Check for NaN values
-  if ([currentEmaFast, currentEmaSlow, currentRSI, currentPlusDI, currentMinusDI, 
+  if ([currentEmaFast, currentEmaSlow, currentPlusDI, currentMinusDI, 
        currentADX, currentVolumeSMA, currentHVP, currentStochK, currentStochD].some(val => isNaN(val))) {
     return null
   }
   
-  // Buy Signal Conditions
-  const trendBullish = currentEmaFast > currentEmaSlow
-  const rsiOversold = currentRSI < CONFIG.rsi_buy_threshold
-  const adxStrong = currentADX > CONFIG.adx_threshold
-  const dmiPositive = currentPlusDI > currentMinusDI
-  const volumeSpike = currentVolume > (currentVolumeSMA * CONFIG.volume_spike_multiplier)
-  const hvpExpanding = currentHVP > CONFIG.hvp_threshold
-  const stochOversoldCross = currentStochK < CONFIG.stoch_oversold && isCrossover(currentStochK, prevStochK, currentStochD, prevStochD)
+  // === PMS FORMULA COMPONENT SIGNALS ===
   
-  const buySignal = trendBullish && rsiOversold && adxStrong && dmiPositive && volumeSpike && hvpExpanding && stochOversoldCross
+  // 1. EMA/SMA Signal (α = 0.30) - Golden Cross vs Death Cross
+  let emaSignal = 0
+  if (currentEmaFast > currentEmaSlow) {
+    // Bullish trend
+    if (prevEmaFast <= prevEmaSlow && currentEmaFast > currentEmaSlow) {
+      emaSignal = 1.0 // Golden Cross
+    } else {
+      emaSignal = 0.5 // Just bullish
+    }
+  } else {
+    // Bearish trend
+    if (prevEmaFast >= prevEmaSlow && currentEmaFast < currentEmaSlow) {
+      emaSignal = -1.0 // Death Cross
+    } else {
+      emaSignal = -0.5 // Just bearish
+    }
+  }
   
-  // Sell Signal Conditions
-  const trendBearish = currentEmaFast < currentEmaSlow
-  const rsiOverbought = currentRSI > CONFIG.rsi_sell_threshold
-  const dmiBearish = currentMinusDI > currentPlusDI
-  const stochOverboughtCross = currentStochK > CONFIG.stoch_overbought && isCrossunder(currentStochK, prevStochK, currentStochD, prevStochD)
+  // 2. ADX + DMI Signal (β = 0.25)
+  let adxSignal = 0
+  if (currentADX > CONFIG.adx_threshold) {
+    // Strong trend
+    if (currentPlusDI > currentMinusDI) {
+      adxSignal = 1.0 // Strong bullish trend
+    } else {
+      adxSignal = -1.0 // Strong bearish trend
+    }
+  } else if (currentADX > 20) {
+    // Moderate trend
+    if (currentPlusDI > currentMinusDI) {
+      adxSignal = 0.5
+    } else {
+      adxSignal = -0.5
+    }
+  }
+  // else adxSignal remains 0 (weak trend/sideways)
   
-  const sellSignal = trendBearish || rsiOverbought || dmiBearish || stochOverboughtCross
+  // 3. Stochastic Signal (γ = 0.15)
+  let stochSignal = 0
+  if (currentStochK < CONFIG.stoch_oversold && isCrossover(currentStochK, prevStochK, currentStochD, prevStochD)) {
+    stochSignal = 1.0 // Bullish crossover from oversold
+  } else if (currentStochK > CONFIG.stoch_overbought && isCrossunder(currentStochK, prevStochK, currentStochD, prevStochD)) {
+    stochSignal = -1.0 // Bearish crossover from overbought
+  } else if (currentStochK < CONFIG.stoch_oversold) {
+    stochSignal = 0.5 // Just oversold
+  } else if (currentStochK > CONFIG.stoch_overbought) {
+    stochSignal = -0.5 // Just overbought
+  }
   
-  // Calculate confidence score (0-7 based on conditions met)
-  let confidence = 0
-  if (trendBullish) confidence++
-  if (rsiOversold) confidence++
-  if (adxStrong) confidence++
-  if (dmiPositive) confidence++
-  if (volumeSpike) confidence++
-  if (hvpExpanding) confidence++
-  if (stochOversoldCross) confidence++
+  // 4. Volume Signal (δ = 0.15)
+  let volumeSignal = 0
+  const volumeRatio = currentVolume / currentVolumeSMA
+  if (volumeRatio > CONFIG.volume_spike_multiplier) {
+    volumeSignal = 1.0 // Strong volume confirmation
+  } else if (volumeRatio > 1.0) {
+    volumeSignal = 0.5 // Moderate volume
+  } else if (volumeRatio < 0.5) {
+    volumeSignal = -0.5 // Weak volume (bearish)
+  }
   
-  const confidenceScore = (confidence / 7) * 100
+  // 5. HVP Signal (ε = 0.15)
+  let hvpSignal = 0
+  if (currentHVP > CONFIG.hvp_threshold) {
+    // High volatility - check if breaking resistance/support
+    if (currentBar.close > currentEmaFast) {
+      hvpSignal = 1.0 // Breaking resistance
+    } else if (currentBar.close < currentEmaFast) {
+      hvpSignal = -1.0 // Breaking support
+    } else {
+      hvpSignal = 0.5 // High volatility, neutral
+    }
+  }
   
-  if (!buySignal && !sellSignal) return null
+  // === CALCULATE PMS (Price Momentum Score) ===
+  const PMS = (
+    CONFIG.weights.ema_sma * emaSignal +
+    CONFIG.weights.adx_dmi * adxSignal +
+    CONFIG.weights.stochastic * stochSignal +
+    CONFIG.weights.volume * volumeSignal +
+    CONFIG.weights.hvp * hvpSignal
+  )
   
+  // === SIGNAL GENERATION ===
+  let signal = null
+  let direction = null
+  let confidenceScore = 0
+  
+  if (PMS > CONFIG.pms_buy_threshold) {
+    signal = 'BUY'
+    direction = 'LONG'
+    confidenceScore = Math.min(100, Math.abs(PMS) * 100)
+  } else if (PMS < CONFIG.pms_sell_threshold) {
+    signal = 'SELL'
+    direction = 'SHORT'  
+    confidenceScore = Math.min(100, Math.abs(PMS) * 100)
+  } else {
+    // HOLD/Neutral zone
+    return null
+  }
+  
+  // Apply confidence filter - only fire high-confidence signals
+  if (Math.abs(PMS) < CONFIG.confidence_threshold) {
+    return null
+  }
+  
+  // Calculate stop loss and take profit
+  const stopLoss = direction === 'LONG' 
+    ? currentBar.close * (1 - CONFIG.risk_percent / 100)
+    : currentBar.close * (1 + CONFIG.risk_percent / 100)
+    
+  const takeProfit = direction === 'LONG'
+    ? currentBar.close * (1 + CONFIG.target_roi_percent / 100)
+    : currentBar.close * (1 - CONFIG.target_roi_percent / 100)
+
   return {
-    algorithm: 'AItradeX1-Advanced',
-    signal: buySignal ? 'BUY' : 'SELL',
+    algorithm: 'AItradeX1-PMS',
+    signal,
+    direction,
     price: currentBar.close,
     confidence_score: Math.round(confidenceScore),
+    pms_score: Math.round(PMS * 1000) / 1000, // 3 decimal precision
     bar_time: new Date(currentBar.time).toISOString(),
+    stop_loss: Math.round(stopLoss * 100) / 100,
+    take_profit: Math.round(takeProfit * 100) / 100,
+    risk_reward_ratio: Math.round((Math.abs(takeProfit - currentBar.close) / Math.abs(currentBar.close - stopLoss)) * 100) / 100,
     indicators: {
       ema_fast: Math.round(currentEmaFast * 100) / 100,
       ema_slow: Math.round(currentEmaSlow * 100) / 100,
-      rsi: Math.round(currentRSI * 100) / 100,
       adx: Math.round(currentADX * 100) / 100,
       plus_di: Math.round(currentPlusDI * 100) / 100,
       minus_di: Math.round(currentMinusDI * 100) / 100,
@@ -363,19 +467,21 @@ function evaluateAItradeX1Advanced(bars: OHLCV[]): any {
       stoch_k: Math.round(currentStochK * 100) / 100,
       stoch_d: Math.round(currentStochD * 100) / 100
     },
-    conditions: {
-      trend_bullish: trendBullish,
-      rsi_oversold: rsiOversold,
-      adx_strong: adxStrong,
-      dmi_positive: dmiPositive,
-      volume_spike: volumeSpike,
-      hvp_expanding: hvpExpanding,
-      stoch_oversold_cross: stochOversoldCross
+    component_signals: {
+      ema_signal: Math.round(emaSignal * 1000) / 1000,
+      adx_signal: Math.round(adxSignal * 1000) / 1000,
+      stoch_signal: Math.round(stochSignal * 1000) / 1000,
+      volume_signal: Math.round(volumeSignal * 1000) / 1000,
+      hvp_signal: Math.round(hvpSignal * 1000) / 1000
     },
+    weights_used: CONFIG.weights,
     metadata: {
       timeframe: '5m',
-      strategy_version: '1.0',
-      relaxed_mode: false
+      strategy_version: '2.0-PMS',
+      pms_formula: 'α·EMA + β·ADX + γ·Stoch + δ·Vol + ε·HVP',
+      confidence_threshold: CONFIG.confidence_threshold,
+      risk_percent: CONFIG.risk_percent,
+      target_roi_percent: CONFIG.target_roi_percent
     }
   }
 }
