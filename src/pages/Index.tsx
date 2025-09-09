@@ -15,6 +15,7 @@ import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
 import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
 import AutomatedTradingDashboard from '../components/AutomatedTradingDashboard';
+import { AutoTradingToggle } from '../components/AutoTradingToggle';
 import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
 import TradePlanGenerator from '../components/TradePlanGenerator';
 
@@ -27,6 +28,9 @@ const Index = () => {
         
         {/* AItradeX1 Strategy Panel */}
         <AItradeX1StrategyPanel />
+        
+        {/* Auto-Trading Toggle */}
+        <AutoTradingToggle />
         
         {/* Trade Plan Generator */}
         <TradePlanGenerator />

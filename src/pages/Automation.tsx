@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import MainLayout from '@/layouts/MainLayout';
 import BybitTradingAutomation from '@/components/BybitTradingAutomation';
 import { AutoTradingStatus } from '@/components/AutoTradingStatus';
+import { AutoTradingDashboard } from '@/components/AutoTradingDashboard';
 import { Shield, AlertTriangle, Settings, Bot, Zap, Target } from 'lucide-react';
 
 const Automation = () => {
@@ -191,7 +192,10 @@ const Automation = () => {
           </Card>
         </div>
 
-        {/* Auto-Trading Status */}
+        {/* AItradeX1 Auto-Trading Dashboard */}
+        <AutoTradingDashboard />
+
+        {/* Legacy Auto-Trading Status */}
         <AutoTradingStatus />
 
         {/* Bybit Trading Automation */}

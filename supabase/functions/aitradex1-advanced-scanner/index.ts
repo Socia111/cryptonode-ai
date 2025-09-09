@@ -520,6 +520,43 @@ function evaluateAItradeX1Advanced(bars: OHLCV[], symbol: string = 'MOCK_SYMBOL'
       liquidity_filtered: true
     }
   }
+
+  // === AUTO-TRADING INTEGRATION ===
+  
+  // Check if auto-trading is enabled and send signal to executor
+  try {
+    const { data: tradingConfig } = await supabase
+      .from('trading_config')
+      .select('auto_trading_enabled')
+      .single()
+    
+    if (tradingConfig?.auto_trading_enabled && signal.confidence >= 70) {
+      console.log(`🤖 Sending high-confidence signal to auto-trading engine: ${signal.symbol} ${signal.direction}`)
+      
+      // Send to trading executor (fire and forget - don't block signal generation)
+      supabase.functions.invoke('aitradex1-trade-executor', {
+        body: {
+          symbol: signal.symbol,
+          direction: signal.direction,
+          entry_price: signal.price,
+          stop_loss: signal.stop_loss,
+          take_profit: signal.take_profit,
+          pms_score: signal.pms,
+          confidence_score: signal.confidence,
+          regime: signal.regime,
+          risk_reward_ratio: signal.risk_reward_ratio,
+          atr: signal.atr,
+          indicators: signal.indicators
+        }
+      }).catch(error => {
+        console.error('Failed to send signal to auto-trading:', error)
+      })
+    }
+  } catch (error) {
+    console.error('Auto-trading integration error:', error)
+  }
+
+  return signal
 }
 
 serve(async (req) => {
