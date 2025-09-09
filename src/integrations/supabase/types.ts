@@ -3048,6 +3048,63 @@ export type Database = {
           },
         ]
       }
+      trading_config: {
+        Row: {
+          auto_trading_enabled: boolean | null
+          created_at: string
+          daily_loss_limit_pct: number | null
+          default_leverage: number | null
+          funding_rate_limit_pct: number | null
+          id: string
+          maker_only: boolean | null
+          max_open_risk_pct: number | null
+          max_positions: number | null
+          min_confidence_score: number | null
+          min_risk_reward_ratio: number | null
+          paper_mode: boolean | null
+          risk_per_trade_pct: number | null
+          slippage_tolerance_bps: number | null
+          symbol_whitelist: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          auto_trading_enabled?: boolean | null
+          created_at?: string
+          daily_loss_limit_pct?: number | null
+          default_leverage?: number | null
+          funding_rate_limit_pct?: number | null
+          id?: string
+          maker_only?: boolean | null
+          max_open_risk_pct?: number | null
+          max_positions?: number | null
+          min_confidence_score?: number | null
+          min_risk_reward_ratio?: number | null
+          paper_mode?: boolean | null
+          risk_per_trade_pct?: number | null
+          slippage_tolerance_bps?: number | null
+          symbol_whitelist?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          auto_trading_enabled?: boolean | null
+          created_at?: string
+          daily_loss_limit_pct?: number | null
+          default_leverage?: number | null
+          funding_rate_limit_pct?: number | null
+          id?: string
+          maker_only?: boolean | null
+          max_open_risk_pct?: number | null
+          max_positions?: number | null
+          min_confidence_score?: number | null
+          min_risk_reward_ratio?: number | null
+          paper_mode?: boolean | null
+          risk_per_trade_pct?: number | null
+          slippage_tolerance_bps?: number | null
+          symbol_whitelist?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       trading_configs: {
         Row: {
           auto_trade_enabled: boolean | null
@@ -3075,6 +3132,329 @@ export type Database = {
           min_confidence_score?: number | null
           risk_per_trade?: number | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      trading_execution_log: {
+        Row: {
+          created_at: string
+          error_code: string | null
+          id: string
+          level: string
+          message: string
+          metadata: Json | null
+          order_id: string | null
+          scope: string
+          signal_id: string | null
+          stack_trace: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          level: string
+          message: string
+          metadata?: Json | null
+          order_id?: string | null
+          scope: string
+          signal_id?: string | null
+          stack_trace?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          level?: string
+          message?: string
+          metadata?: Json | null
+          order_id?: string | null
+          scope?: string
+          signal_id?: string | null
+          stack_trace?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trading_execution_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "trading_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trading_execution_log_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "trading_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trading_orders: {
+        Row: {
+          avg_fill_price: number | null
+          client_order_id: string
+          created_at: string
+          error_message: string | null
+          exchange: string
+          exchange_order_id: string | null
+          execution_latency_ms: number | null
+          fees: number | null
+          filled_qty: number | null
+          id: string
+          leverage: number | null
+          order_type: string
+          price: number | null
+          qty: number
+          raw_response: Json | null
+          reduce_only: boolean | null
+          side: string
+          signal_id: string | null
+          slippage_bps: number | null
+          status: string
+          symbol: string
+          time_in_force: string | null
+          updated_at: string
+        }
+        Insert: {
+          avg_fill_price?: number | null
+          client_order_id: string
+          created_at?: string
+          error_message?: string | null
+          exchange?: string
+          exchange_order_id?: string | null
+          execution_latency_ms?: number | null
+          fees?: number | null
+          filled_qty?: number | null
+          id?: string
+          leverage?: number | null
+          order_type: string
+          price?: number | null
+          qty: number
+          raw_response?: Json | null
+          reduce_only?: boolean | null
+          side: string
+          signal_id?: string | null
+          slippage_bps?: number | null
+          status?: string
+          symbol: string
+          time_in_force?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avg_fill_price?: number | null
+          client_order_id?: string
+          created_at?: string
+          error_message?: string | null
+          exchange?: string
+          exchange_order_id?: string | null
+          execution_latency_ms?: number | null
+          fees?: number | null
+          filled_qty?: number | null
+          id?: string
+          leverage?: number | null
+          order_type?: string
+          price?: number | null
+          qty?: number
+          raw_response?: Json | null
+          reduce_only?: boolean | null
+          side?: string
+          signal_id?: string | null
+          slippage_bps?: number | null
+          status?: string
+          symbol?: string
+          time_in_force?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trading_orders_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "trading_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trading_positions: {
+        Row: {
+          auto_add_margin: boolean | null
+          avg_entry_price: number | null
+          closed_at: string | null
+          created_at: string
+          id: string
+          leverage: number | null
+          margin_mode: string | null
+          mark_price: number | null
+          qty: number
+          realized_pnl: number | null
+          side: string
+          status: string
+          stop_loss: number | null
+          symbol: string
+          take_profit: number | null
+          trailing_stop: number | null
+          unrealized_pnl: number | null
+          updated_at: string
+        }
+        Insert: {
+          auto_add_margin?: boolean | null
+          avg_entry_price?: number | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          leverage?: number | null
+          margin_mode?: string | null
+          mark_price?: number | null
+          qty?: number
+          realized_pnl?: number | null
+          side: string
+          status?: string
+          stop_loss?: number | null
+          symbol: string
+          take_profit?: number | null
+          trailing_stop?: number | null
+          unrealized_pnl?: number | null
+          updated_at?: string
+        }
+        Update: {
+          auto_add_margin?: boolean | null
+          avg_entry_price?: number | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          leverage?: number | null
+          margin_mode?: string | null
+          mark_price?: number | null
+          qty?: number
+          realized_pnl?: number | null
+          side?: string
+          status?: string
+          stop_loss?: number | null
+          symbol?: string
+          take_profit?: number | null
+          trailing_stop?: number | null
+          unrealized_pnl?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      trading_risk_state: {
+        Row: {
+          auto_trading_enabled: boolean | null
+          created_at: string
+          daily_fees: number | null
+          daily_loss_limit_pct: number | null
+          daily_pnl: number | null
+          id: string
+          kill_switch_reason: string | null
+          kill_switch_triggered: boolean | null
+          max_open_risk_pct: number | null
+          max_positions: number | null
+          open_risk_amount: number | null
+          risk_per_trade_pct: number | null
+          trades_today: number | null
+          trading_date: string
+          updated_at: string
+        }
+        Insert: {
+          auto_trading_enabled?: boolean | null
+          created_at?: string
+          daily_fees?: number | null
+          daily_loss_limit_pct?: number | null
+          daily_pnl?: number | null
+          id?: string
+          kill_switch_reason?: string | null
+          kill_switch_triggered?: boolean | null
+          max_open_risk_pct?: number | null
+          max_positions?: number | null
+          open_risk_amount?: number | null
+          risk_per_trade_pct?: number | null
+          trades_today?: number | null
+          trading_date?: string
+          updated_at?: string
+        }
+        Update: {
+          auto_trading_enabled?: boolean | null
+          created_at?: string
+          daily_fees?: number | null
+          daily_loss_limit_pct?: number | null
+          daily_pnl?: number | null
+          id?: string
+          kill_switch_reason?: string | null
+          kill_switch_triggered?: boolean | null
+          max_open_risk_pct?: number | null
+          max_positions?: number | null
+          open_risk_amount?: number | null
+          risk_per_trade_pct?: number | null
+          trades_today?: number | null
+          trading_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      trading_signals: {
+        Row: {
+          atr: number
+          auto_trade_eligible: boolean
+          confidence_score: number
+          created_at: string
+          direction: string
+          entry_price: number
+          id: string
+          indicators: Json
+          pms_score: number
+          processed_at: string | null
+          regime: string
+          rejection_reason: string | null
+          risk_reward_ratio: number
+          status: string
+          stop_loss: number
+          symbol: string
+          take_profit: number
+          timeframe: string
+          updated_at: string
+        }
+        Insert: {
+          atr: number
+          auto_trade_eligible?: boolean
+          confidence_score: number
+          created_at?: string
+          direction: string
+          entry_price: number
+          id?: string
+          indicators?: Json
+          pms_score: number
+          processed_at?: string | null
+          regime: string
+          rejection_reason?: string | null
+          risk_reward_ratio: number
+          status?: string
+          stop_loss: number
+          symbol: string
+          take_profit: number
+          timeframe?: string
+          updated_at?: string
+        }
+        Update: {
+          atr?: number
+          auto_trade_eligible?: boolean
+          confidence_score?: number
+          created_at?: string
+          direction?: string
+          entry_price?: number
+          id?: string
+          indicators?: Json
+          pms_score?: number
+          processed_at?: string | null
+          regime?: string
+          rejection_reason?: string | null
+          risk_reward_ratio?: number
+          status?: string
+          stop_loss?: number
+          symbol?: string
+          take_profit?: number
+          timeframe?: string
+          updated_at?: string
         }
         Relationships: []
       }
