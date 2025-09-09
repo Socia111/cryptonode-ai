@@ -511,65 +511,7 @@ function evaluateAItradeX1Advanced(bars: OHLCV[], symbol: string = 'MOCK_SYMBOL'
       adx: +ctx.adx.toFixed(2), plus_di: +ctx.plus_di.toFixed(2), minus_di: +ctx.minus_di.toFixed(2),
       hvp: +ctx.hvp.toFixed(1), vol_ratio: +ctx.volume_ratio.toFixed(2), stoch_k: +ctx.stoch_k.toFixed(1), stoch_d: +ctx.stoch_d.toFixed(1)
     },
-    exec: { maker_first: CONFIG.execution.maker_first, post_only: CONFIG.execution.post_only }
-  }
-}
-  
-  // === RISK MANAGEMENT ===
-  
-  // Calculate ATR-based stops and targets
-  const stopLoss = direction === 'LONG' 
-    ? currentBar.close - (CONFIG.execution.atr_stop_multiplier * currentATR)
-    : currentBar.close + (CONFIG.execution.atr_stop_multiplier * currentATR)
-    
-  const takeProfit = direction === 'LONG'
-    ? currentBar.close + (CONFIG.execution.atr_target_multiplier * currentATR)
-    : currentBar.close - (CONFIG.execution.atr_target_multiplier * currentATR)
-  
-  // Calculate risk-reward ratio
-  const riskAmount = Math.abs(currentBar.close - stopLoss)
-  const rewardAmount = Math.abs(takeProfit - currentBar.close)
-  const riskRewardRatio = rewardAmount / riskAmount
-  
-  // Ensure minimum 2:1 RR
-  if (riskRewardRatio < 2.0) {
-    console.log(`❌ Poor risk-reward ratio: ${riskRewardRatio.toFixed(2)} < 2.0`)
-    return null
-  }
-  
-  // === RETURN PROFITABLE SIGNAL ===
-  return {
-    algorithm: 'AItradeX1-Profitable',
-    signal,
-    direction,
-    price: currentBar.close,
-    confidence_score: Math.round(confidenceScore),
-    regime,
-    regime_strength: Math.round(regimeStrength * 100) / 100,
-    bar_time: new Date(currentBar.time).toISOString(),
-    stop_loss: Math.round(stopLoss * 100) / 100,
-    take_profit: Math.round(takeProfit * 100) / 100,
-    risk_reward_ratio: Math.round(riskRewardRatio * 100) / 100,
-    atr: Math.round(currentATR * 100) / 100,
-    indicators: {
-      ema_fast: Math.round(currentEmaFast * 100) / 100,
-      ema_slow: Math.round(currentEmaSlow * 100) / 100,
-      rsi: Math.round(currentRSI * 100) / 100,
-      adx: Math.round(currentADX * 100) / 100,
-      plus_di: Math.round(currentPlusDI * 100) / 100,
-      minus_di: Math.round(currentMinusDI * 100) / 100,
-      volume_ratio: Math.round((currentVolume / currentVolumeSMA) * 100) / 100,
-      hvp: Math.round(currentHVP * 100) / 100,
-      stoch_k: Math.round(currentStochK * 100) / 100,
-      stoch_d: Math.round(currentStochD * 100) / 100
-    },
-    profitability_filters: {
-      liquidity_passed: isLiquid,
-      regime_detected: regime,
-      confidence_threshold: CONFIG.execution.min_confidence,
-      min_risk_reward: 2.0,
-      execution_mode: 'maker_preferred'
-    },
+    exec: { maker_first: CONFIG.execution.maker_first, post_only: CONFIG.execution.post_only },
     metadata: {
       timeframe: '5m',
       strategy_version: '3.0-Profitable',
