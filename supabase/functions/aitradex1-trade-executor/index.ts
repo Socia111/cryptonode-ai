@@ -1,9 +1,21 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+const ALLOWED_ORIGINS = [
+  'https://unireli.io',
+  'https://www.unireli.io', 
+  'http://localhost:3000',
+  'http://localhost:5173'
+]
+
+function getCorsHeaders(origin: string | null) {
+  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-aix-sign',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Vary': 'Origin'
+  }
 }
 
 // =================== BYBIT V5 API INTEGRATION ===================
@@ -458,6 +470,9 @@ class AutoTradingEngine {
 // =================== MAIN HANDLER ===================
 
 serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const corsHeaders = getCorsHeaders(origin)
+  
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -467,6 +482,8 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+    
+    console.log(`[AItradeX1 Executor] ${req.method} ${req.url}`)
 
     const url = new URL(req.url)
     const path = url.pathname
@@ -624,10 +641,10 @@ serve(async (req) => {
     })
 
   } catch (error) {
-    console.error('Trade executor error:', error)
+    console.error('[AItradeX1 Executor] Error:', error)
     return new Response(JSON.stringify({ 
       error: error.message,
-      stack: error.stack 
+      timestamp: new Date().toISOString()
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
