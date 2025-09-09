@@ -1058,6 +1058,48 @@ export type Database = {
         }
         Relationships: []
       }
+      competitor_redirects: {
+        Row: {
+          competitor: string
+          created_at: string
+          destination: string
+          gclid_present: boolean | null
+          has_gl_stripped: boolean | null
+          id: string
+          ip_address: unknown | null
+          referrer: string | null
+          source_path: string
+          user_agent: string | null
+          utm_campaign: string | null
+        }
+        Insert: {
+          competitor: string
+          created_at?: string
+          destination: string
+          gclid_present?: boolean | null
+          has_gl_stripped?: boolean | null
+          id?: string
+          ip_address?: unknown | null
+          referrer?: string | null
+          source_path: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+        }
+        Update: {
+          competitor?: string
+          created_at?: string
+          destination?: string
+          gclid_present?: boolean | null
+          has_gl_stripped?: boolean | null
+          id?: string
+          ip_address?: unknown | null
+          referrer?: string | null
+          source_path?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+        }
+        Relationships: []
+      }
       configs: {
         Row: {
           created_at: string | null
