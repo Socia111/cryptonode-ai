@@ -14,20 +14,15 @@ export const TradingGateway = {
     }
 
     try {
-      console.log('🚀 Executing real trade via Bybit API:', params);
+      console.log('🚀 Executing trade:', params);
       
-      // Call the Bybit broker edge function with proper endpoint
-      const { data, error } = await supabase.functions.invoke('bybit-broker', {
-        method: 'POST',
+      // Use the new reliable trade executor
+      const { data, error } = await supabase.functions.invoke('trade-executor', {
         body: {
-          symbol: params.symbol.replace('/', ''), // Convert BTC/USDT to BTCUSDT
-          side: params.side === 'BUY' ? 'Buy' : 'Sell', // Bybit expects 'Buy'/'Sell'
-          orderType: 'Market',
-          qty: '0.001', // Fixed small quantity for testing
-          category: 'linear'
-        },
-        headers: {
-          'Content-Type': 'application/json'
+          symbol: params.symbol,
+          side: params.side,
+          notionalUSD: params.notionalUSD,
+          testMode: true // Enable test mode for now
         }
       });
 
@@ -36,8 +31,13 @@ export const TradingGateway = {
         return { ok: false, code: 'EXECUTION_ERROR', message: error.message };
       }
 
-      console.log('✅ Trade executed successfully:', data);
-      return { ok: true, data };
+      if (!data.ok) {
+        console.error('❌ Trade failed:', data.error);
+        return { ok: false, code: 'TRADE_FAILED', message: data.error };
+      }
+
+      console.log('✅ Trade executed successfully:', data.data);
+      return { ok: true, data: data.data };
       
     } catch (error: any) {
       console.error('❌ Trading gateway error:', error);
@@ -51,19 +51,22 @@ export const TradingGateway = {
     }
 
     try {
-      console.log('🚀 Executing bulk trades:', list.length, 'orders');
+      console.log('🚀 Queuing bulk trades:', list.length, 'orders');
       
-      const results = await Promise.allSettled(
-        list.map(params => this.execute(params))
-      );
-
-      const successful = results.filter(r => r.status === 'fulfilled' && r.value.ok).length;
-      const failed = results.length - successful;
+      // Import trade queue here to avoid circular dependencies
+      const { tradeQueue } = await import('./tradeQueue');
+      
+      const tradeIds = list.map(params => tradeQueue.addTrade(params));
+      
+      console.log(`📋 ${tradeIds.length} trades queued for execution`);
 
       return { 
         ok: true, 
-        data: { successful, failed, total: results.length },
-        results 
+        data: { 
+          queued: tradeIds.length, 
+          tradeIds,
+          message: 'Trades queued for execution'
+        }
       };
       
     } catch (error: any) {
