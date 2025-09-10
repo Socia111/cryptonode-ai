@@ -5,6 +5,31 @@ const APIKEY = Deno.env.get("BYBIT_KEY")!;
 const SECRET = Deno.env.get("BYBIT_SECRET")!;
 const RECV = "5000";
 
+// Rate limiting
+const requestQueue: Map<string, number> = new Map();
+const RATE_LIMIT = 600; // 600 requests per minute (Bybit limit)
+const RATE_WINDOW = 60000; // 1 minute
+
+function checkRateLimit(): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_WINDOW;
+  
+  // Clean old entries
+  for (const [timestamp] of requestQueue) {
+    if (parseInt(timestamp) < windowStart) {
+      requestQueue.delete(timestamp);
+    }
+  }
+  
+  // Check if we're within rate limit
+  if (requestQueue.size >= RATE_LIMIT) {
+    return false;
+  }
+  
+  requestQueue.set(now.toString(), now);
+  return true;
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -54,7 +79,13 @@ async function bybit(
     payload = JSON.stringify(body ?? {});
   }
 
-  const presign = ts + key + RECV + payload;
+  // Fixed Bybit V5 signature format: timestamp + apiKey + recvWindow + queryString + body
+  let queryString = "";
+  if (method === "GET" && qs) {
+    queryString = qs.substring(1); // Remove the leading '?'
+  }
+  
+  const presign = ts + key + RECV + queryString + payload;
   const sig = await sign(presign, secret);
 
   console.log(`🔗 Bybit API ${method} ${path}`, { 
@@ -113,6 +144,17 @@ serve(async (req) => {
   }
 
   try {
+    // Check rate limit
+    if (!checkRateLimit()) {
+      return withCORS(req, new Response(
+        JSON.stringify({ 
+          ok: false, 
+          error: "Rate limit exceeded. Please wait before making more requests." 
+        }), 
+        { status: 429, headers: { 'Content-Type': 'application/json' } }
+      ));
+    }
+
     const { pathname } = new URL(req.url);
     console.log(`🚀 Request: ${req.method} ${pathname}`);
 
