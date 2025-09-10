@@ -103,16 +103,30 @@ export const TradingDiagnostics = () => {
         
         if (response.ok) {
           const data = await response.json();
+          let message = 'Executor is responding correctly';
+          
+          // Enhanced status reporting
+          if (data.config) {
+            const configStatus = data.config.auto_trading_enabled ? 'enabled' : 'disabled';
+            message += ` (auto-trading ${configStatus})`;
+          }
+          
           diagnostics.push({
             name: 'Trading Executor',
             status: 'success',
-            message: 'Executor is responding correctly',
+            message,
             details: data
           });
         } else {
           let message = `HTTP ${response.status}: ${response.statusText}`;
+          
+          // Map specific error codes
           if (response.status === 401 || response.status === 403) {
             message = 'Authentication required or insufficient permissions';
+          } else if (response.status === 404) {
+            message = 'Executor endpoint not found - check deployment';
+          } else if (response.status >= 500) {
+            message = 'Server error - check function logs';
           }
           
           diagnostics.push({

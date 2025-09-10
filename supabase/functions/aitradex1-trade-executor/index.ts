@@ -227,6 +227,14 @@ interface TradingConfig {
   symbol_whitelist: string[]
 }
 
+// Idempotency cache for preventing duplicate orders
+const idempotencyCache = new Map<string, any>();
+
+// Helper function to round to exchange step size
+function roundToStep(value: number, stepSize: number): number {
+  return Math.floor(value / stepSize) * stepSize;
+}
+
 class AutoTradingEngine {
   private supabase: any
   private bybit: BybitV5Client
@@ -236,6 +244,35 @@ class AutoTradingEngine {
     this.supabase = supabase
     this.bybit = bybit
     this.config = config
+  }
+
+  async getInstrumentMeta(symbol: string) {
+    try {
+      const result = await this.bybit.getInstrumentInfo(symbol);
+      const instrument = result.result?.list?.[0];
+      
+      if (!instrument) {
+        throw new Error(`Instrument ${symbol} not found`);
+      }
+      
+      return {
+        tickSize: parseFloat(instrument.priceFilter?.tickSize || '0.01'),
+        qtyStep: parseFloat(instrument.lotSizeFilter?.qtyStep || '0.001'),
+        minNotional: parseFloat(instrument.lotSizeFilter?.minNotionalValue || '5'),
+        basePrecision: parseInt(instrument.lotSizeFilter?.basePrecision || '3'),
+        quotePrecision: parseInt(instrument.priceFilter?.basePrecision || '2')
+      };
+    } catch (error) {
+      console.error('Failed to get instrument meta:', error);
+      // Return sensible defaults for most USDT perpetuals
+      return {
+        tickSize: 0.1,
+        qtyStep: 0.001,
+        minNotional: 5,
+        basePrecision: 3,
+        quotePrecision: 1
+      };
+    }
   }
 
   async validateSignal(signal: TradingSignal): Promise<{ valid: boolean; reason?: string }> {
@@ -306,45 +343,97 @@ class AutoTradingEngine {
     return Math.floor(quantity * 1000000) / 1000000
   }
 
-  async executeSignal(signal: TradingSignal): Promise<any> {
+  async executeSignal(signal: TradingSignal, idempotencyKey?: string): Promise<any> {
     try {
+      // Check idempotency first
+      if (idempotencyKey && idempotencyCache.has(idempotencyKey)) {
+        const cachedResult = idempotencyCache.get(idempotencyKey);
+        await this.logExecution('info', 'signal', `Returning cached result for idempotency key: ${idempotencyKey}`, {
+          cached_result: cachedResult
+        });
+        return cachedResult;
+      }
+
       await this.logExecution('info', 'signal', `Processing signal: ${signal.symbol} ${signal.direction}`, {
         signal_id: null,
-        signal: signal
+        signal: signal,
+        idempotency_key: idempotencyKey
       })
 
       // 1. Validate signal
       const validation = await this.validateSignal(signal)
       if (!validation.valid) {
+        const result = { success: false, reason: validation.reason };
+        
+        // Cache negative results too (for 1 minute)
+        if (idempotencyKey) {
+          idempotencyCache.set(idempotencyKey, result);
+          setTimeout(() => idempotencyCache.delete(idempotencyKey), 60000);
+        }
+        
         await this.logExecution('warning', 'signal', `Signal rejected: ${validation.reason}`, {
           signal: signal,
           rejection_reason: validation.reason
         })
-        return { success: false, reason: validation.reason }
+        return result;
       }
 
-      // 2. Check position limits
+      // 2. Get instrument metadata for proper rounding
+      const instrumentMeta = await this.getInstrumentMeta(signal.symbol);
+      
+      // 3. Calculate and validate position size
+      const accountEquity = 10000; // Placeholder - should fetch from Bybit account info
+      const notionalUSD = signal.indicators?.notionalUSD || 50;
+      
+      // Use notional from indicators if available, otherwise calculate from risk
+      let qty: number;
+      if (notionalUSD) {
+        const currentPrice = signal.entry_price || 50000; // Fallback price
+        qty = notionalUSD / currentPrice;
+      } else {
+        qty = this.calculatePositionSize(signal, accountEquity);
+      }
+      
+      // Round to exchange step size
+      qty = roundToStep(qty, instrumentMeta.qtyStep);
+      
+      // Validate minimum notional
+      const orderNotional = qty * (signal.entry_price || 50000);
+      if (orderNotional < instrumentMeta.minNotional) {
+        const result = { 
+          success: false, 
+          reason: `Order value $${orderNotional.toFixed(2)} below minimum $${instrumentMeta.minNotional}` 
+        };
+        
+        if (idempotencyKey) {
+          idempotencyCache.set(idempotencyKey, result);
+          setTimeout(() => idempotencyCache.delete(idempotencyKey), 60000);
+        }
+        
+        return result;
+      }
+
+      // 4. Check position limits
       const { data: existingPositions } = await this.supabase
         .from('trading_positions')
         .select('id')
         .eq('status', 'open')
 
       if (existingPositions?.length >= this.config.max_positions) {
-        return { success: false, reason: 'Maximum positions limit reached' }
+        const result = { success: false, reason: 'Maximum positions limit reached' };
+        
+        if (idempotencyKey) {
+          idempotencyCache.set(idempotencyKey, result);
+          setTimeout(() => idempotencyCache.delete(idempotencyKey), 60000);
+        }
+        
+        return result;
       }
 
-      // 3. Calculate position size (simplified - would need actual account balance)
-      const accountEquity = 10000 // Placeholder - should fetch from Bybit
-      const qty = this.calculatePositionSize(signal, accountEquity)
-
-      if (qty <= 0) {
-        return { success: false, reason: 'Position size too small' }
-      }
-
-      // 4. Set leverage
+      // 5. Set leverage
       await this.bybit.setLeverage(signal.symbol, this.config.default_leverage)
 
-      // 5. Get optimal entry price for maker order
+      // 6. Get optimal entry price for maker order
       const orderbook = await this.bybit.getOrderbook(signal.symbol)
       const bestBid = parseFloat(orderbook.result.b[0][0])
       const bestAsk = parseFloat(orderbook.result.a[0][0])
@@ -356,7 +445,10 @@ class AutoTradingEngine {
         entryPrice = bestAsk
       }
 
-      // 6. Store signal in database
+      // Round entry price to tick size
+      entryPrice = roundToStep(entryPrice, instrumentMeta.tickSize);
+
+      // 7. Store signal in database
       const { data: dbSignal, error: signalError } = await this.supabase
         .from('trading_signals')
         .insert({
@@ -380,7 +472,7 @@ class AutoTradingEngine {
 
       if (signalError) throw signalError
 
-      // 7. Place order on Bybit
+      // 8. Place order on Bybit
       const orderResult = await this.bybit.placeOrder({
         symbol: signal.symbol,
         side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
@@ -391,7 +483,7 @@ class AutoTradingEngine {
         reduceOnly: false
       })
 
-      // 8. Store order in database
+      // 9. Store order in database
       const { data: dbOrder, error: orderError } = await this.supabase
         .from('trading_orders')
         .insert({
@@ -414,7 +506,7 @@ class AutoTradingEngine {
 
       if (orderError) throw orderError
 
-      // 9. Set stop loss and take profit
+      // 10. Set stop loss and take profit
       if (orderResult.result.orderId) {
         try {
           await this.bybit.setTradingStop({
@@ -431,29 +523,77 @@ class AutoTradingEngine {
         }
       }
 
-      await this.logExecution('info', 'order', `Order placed successfully: ${orderResult.result.orderId}`, {
-        signal_id: dbSignal.id,
-        order_id: dbOrder.id,
-        exchange_order_id: orderResult.result.orderId
-      })
-
-      return {
+      const result = {
         success: true,
         signal_id: dbSignal.id,
         order_id: dbOrder.id,
         exchange_order_id: orderResult.result.orderId,
         qty: qty,
         entry_price: entryPrice
+      };
+
+      // Cache successful result (for 5 minutes)
+      if (idempotencyKey) {
+        idempotencyCache.set(idempotencyKey, result);
+        setTimeout(() => idempotencyCache.delete(idempotencyKey), 300000);
       }
 
+      await this.logExecution('info', 'order', `Order placed successfully: ${orderResult.result.orderId}`, {
+        signal_id: dbSignal.id,
+        order_id: dbOrder.id,
+        exchange_order_id: orderResult.result.orderId
+      })
+
+      return result;
+
     } catch (error) {
+      const result = { success: false, reason: this.mapBybitError(error.message) };
+      
+      // Cache error results too (for 1 minute)
+      if (idempotencyKey) {
+        idempotencyCache.set(idempotencyKey, result);
+        setTimeout(() => idempotencyCache.delete(idempotencyKey), 60000);
+      }
+      
       await this.logExecution('error', 'system', `Trade execution failed: ${error.message}`, {
         signal: signal,
         error: error.message,
         stack_trace: error.stack
       })
-      return { success: false, reason: error.message }
+      return result;
     }
+  }
+
+  private mapBybitError(errorMessage: string): string {
+    if (errorMessage.includes('10003')) {
+      return 'Invalid API key - check your Bybit credentials';
+    }
+    if (errorMessage.includes('10004')) {
+      return 'Invalid signature - check API keys and system time';
+    }
+    if (errorMessage.includes('10005')) {
+      return 'Permission denied - enable trading in Bybit API settings';
+    }
+    if (errorMessage.includes('10006')) {
+      return 'Too many requests - rate limit exceeded';
+    }
+    if (errorMessage.includes('110001')) {
+      return 'Order quantity too small for this symbol';
+    }
+    if (errorMessage.includes('110003')) {
+      return 'Order price outside allowed range';
+    }
+    if (errorMessage.includes('110004')) {
+      return 'Insufficient balance for this trade';
+    }
+    if (errorMessage.includes('110005')) {
+      return 'Position size would exceed risk limits';
+    }
+    if (errorMessage.includes('110025')) {
+      return 'Market is not active for trading';
+    }
+    
+    return errorMessage; // Return original if no specific mapping
   }
 
   private async logExecution(level: string, scope: string, message: string, metadata: any = {}) {
@@ -504,7 +644,7 @@ serve(async (req) => {
       console.log('[AItradeX1 Executor] No JSON body or parse error:', error.message)
     }
     
-    const { action, enabled, signal } = requestBody as any
+    const { action, enabled, signal, idempotencyKey } = requestBody as any
     console.log('[AItradeX1 Executor] Action:', action, 'Enabled:', enabled)
     
     // Route by action
@@ -620,7 +760,7 @@ serve(async (req) => {
         })
       }
       
-      const result = await engine.executeSignal(signal)
+      const result = await engine.executeSignal(signal, idempotencyKey)
 
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

@@ -1,5 +1,6 @@
 import MainLayout from '@/layouts/MainLayout';
 import { TradingDiagnostics } from '@/components/TradingDiagnostics';
+import { TradingConnectionTest } from '@/components/TradingConnectionTest';
 import AutoTradingToggle from '@/components/AutoTradingToggle';
 
 export default function Settings() {
@@ -17,6 +18,11 @@ export default function Settings() {
           <div>
             <h2 className="text-xl font-semibold mb-4">Automation Control</h2>
             <AutoTradingToggle />
+          </div>
+          
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Quick Tests</h2>
+            <TradingConnectionTest />
           </div>
         </div>
 
