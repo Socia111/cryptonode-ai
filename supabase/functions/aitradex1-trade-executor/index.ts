@@ -5,7 +5,8 @@ const ALLOWED_ORIGINS = [
   'https://unireli.io',
   'https://www.unireli.io', 
   'http://localhost:3000',
-  'http://localhost:5173'
+  'http://localhost:5173',
+  'https://id-preview--59e92957-e12b-427f-b4a6-69cc13955562.lovable.app'
 ]
 
 function getCorsHeaders(origin: string | null) {
@@ -470,6 +471,7 @@ class AutoTradingEngine {
 // =================== MAIN HANDLER ===================
 
 serve(async (req) => {
+  console.log('[AItradeX1 Executor] Function called!')
   const origin = req.headers.get('origin')
   const corsHeaders = getCorsHeaders(origin)
   
@@ -486,11 +488,22 @@ serve(async (req) => {
     console.log(`[AItradeX1 Executor] ${req.method} ${req.url}`)
 
     // Parse request body for action routing
-    const { action, enabled } = await req.json().catch(() => ({}))
+    let requestBody = {}
+    try {
+      const text = await req.text()
+      if (text) {
+        requestBody = JSON.parse(text)
+      }
+    } catch (error) {
+      console.log('[AItradeX1 Executor] No JSON body or parse error:', error.message)
+    }
+    
+    const { action, enabled, signal } = requestBody as any
+    console.log('[AItradeX1 Executor] Action:', action, 'Enabled:', enabled)
     
     // Route by action
     if (action === 'status') {
-      // Get trading status
+      console.log('[AItradeX1 Executor] Handling status request')
       const { data: config } = await supabase
         .from('trading_config')
         .select('*')
@@ -591,8 +604,16 @@ serve(async (req) => {
       const bybit = new BybitV5Client(bybitCredentials)
       const engine = new AutoTradingEngine(supabase, bybit, config)
 
-      // Execute signal (signal data would be passed in the request body)
-      const { signal } = await req.json().catch(() => ({}))
+      // Execute signal (signal data is already parsed from request body)
+      if (!signal) {
+        return new Response(JSON.stringify({
+          success: false,
+          reason: 'No signal data provided'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      
       const result = await engine.executeSignal(signal)
 
       return new Response(JSON.stringify(result), {
