@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts'
 
 const ALLOWED_ORIGINS = [
   'https://unireli.io',
@@ -20,6 +21,44 @@ function getCorsHeaders(origin: string | null) {
     'Content-Type': 'application/json'
   }
 }
+
+// =================== VALIDATION SCHEMAS ===================
+
+const SignalSchema = z.object({
+  symbol: z.string().regex(/USDT$/, "Symbol must end with USDT"),
+  direction: z.enum(['LONG', 'SHORT']),
+  entry_price: z.number().positive().optional(),
+  stop_loss: z.number().positive().optional(), 
+  take_profit: z.number().positive().optional(),
+  pms_score: z.number().min(0).max(1),
+  confidence_score: z.number().min(0).max(1),
+  risk_reward_ratio: z.number().min(1.5),
+  regime: z.string(),
+  atr: z.number().positive(),
+  indicators: z.object({
+    notionalUSD: z.number().min(5),
+    leverage: z.number().min(1).max(25)
+  })
+});
+
+// =================== PRECISION UTILITIES ===================
+
+const round = (value: number, step: number): number => Math.floor(value / step) * step;
+const toStep = (qty: number, step: number): number => Number(round(qty, step).toFixed(8));
+const toTick = (price: number, tick: number): number => Number(round(price, tick).toFixed(8));
+
+// =================== STRUCTURED LOGGING ===================
+
+const structuredLog = (event: string, data: Record<string, any> = {}) => {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    event,
+    requestId: data.requestId || crypto.randomUUID(),
+    ...data
+  };
+  console.log(JSON.stringify(logEntry));
+  return logEntry.requestId;
+};
 
 // =================== BYBIT V5 API INTEGRATION ===================
 
@@ -71,13 +110,76 @@ class BybitV5Client {
       .join('')
   }
 
+  private async requestWithRetry(
+    method: 'GET' | 'POST',
+    endpoint: string,
+    params: Record<string, any> = {},
+    maxRetries: number = 3
+  ): Promise<any> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await this.request(method, endpoint, params);
+        return result;
+      } catch (error) {
+        lastError = error;
+        const errorMessage = error.message || '';
+        
+        // Don't retry on business logic errors - these should bubble up immediately
+        if (errorMessage.includes('10003') || // Invalid API key
+            errorMessage.includes('10004') || // Invalid signature  
+            errorMessage.includes('10005') || // Permission denied
+            errorMessage.includes('110001') || // Order quantity too small
+            errorMessage.includes('110003') || // Price outside range
+            errorMessage.includes('110004') || // Insufficient balance
+            errorMessage.includes('110025')) { // Market not active
+          throw error;
+        }
+        
+        // Only retry on rate limits, server errors, or network issues
+        if (errorMessage.includes('429') || 
+            errorMessage.includes('5') || 
+            errorMessage.includes('network') ||
+            errorMessage.includes('timeout')) {
+          
+          if (attempt < maxRetries) {
+            const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+            structuredLog('bybit_retry', { 
+              attempt, 
+              maxRetries, 
+              backoffMs, 
+              error: errorMessage,
+              endpoint 
+            });
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
+            continue;
+          }
+        }
+        
+        // Don't retry other errors
+        throw error;
+      }
+    }
+    
+    throw lastError || new Error('Max retries exceeded');
+  }
+
   private async request(
     method: 'GET' | 'POST',
     endpoint: string,
     params: Record<string, any> = {}
   ): Promise<any> {
+    // Check for time drift before signing (Bybit is strict about timing)
+    const serverTime = await this.getServerTime();
+    const localTime = Date.now();
+    const timeDrift = Math.abs(serverTime - localTime);
+    
+    if (timeDrift > 500) {
+      structuredLog('time_drift_warning', { timeDrift, serverTime, localTime });
+    }
     const url = `${this.baseURL}${endpoint}`
-    const timestamp = Date.now().toString()
+    const timestamp = serverTime.toString()
     const recvWindow = '5000'
     
     let queryString = ''
@@ -122,15 +224,27 @@ class BybitV5Client {
     return result
   }
 
+  private async getServerTime(): Promise<number> {
+    try {
+      const response = await fetch(`${this.baseURL}/v5/market/time`);
+      const data = await response.json();
+      return parseInt(data.result.timeSecond) * 1000;
+    } catch (error) {
+      // Fallback to local time if server time unavailable
+      return Date.now();
+    }
+  }
+  }
+
   async getInstrumentInfo(symbol: string): Promise<any> {
-    return this.request('GET', '/v5/market/instruments-info', {
+    return this.requestWithRetry('GET', '/v5/market/instruments-info', {
       category: 'linear',
       symbol
     })
   }
 
   async getOrderbook(symbol: string): Promise<any> {
-    return this.request('GET', '/v5/market/orderbook', {
+    return this.requestWithRetry('GET', '/v5/market/orderbook', {
       category: 'linear',
       symbol,
       limit: 25
@@ -138,7 +252,7 @@ class BybitV5Client {
   }
 
   async setLeverage(symbol: string, leverage: number): Promise<any> {
-    return this.request('POST', '/v5/position/set-leverage', {
+    return this.requestWithRetry('POST', '/v5/position/set-leverage', {
       category: 'linear',
       symbol,
       buyLeverage: leverage.toString(),
@@ -163,11 +277,11 @@ class BybitV5Client {
       orderLinkId: `AIX1-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     }
     
-    return this.request('POST', '/v5/order/create', params)
+    return this.requestWithRetry('POST', '/v5/order/create', params)
   }
 
   async cancelOrder(symbol: string, orderId: string): Promise<any> {
-    return this.request('POST', '/v5/order/cancel', {
+    return this.requestWithRetry('POST', '/v5/order/cancel', {
       category: 'linear',
       symbol,
       orderId
@@ -178,7 +292,7 @@ class BybitV5Client {
     const params: any = { category: 'linear' }
     if (symbol) params.symbol = symbol
     
-    return this.request('GET', '/v5/position/list', params)
+    return this.requestWithRetry('GET', '/v5/position/list', params)
   }
 
   async setTradingStop(params: {
@@ -188,7 +302,7 @@ class BybitV5Client {
     tpTriggerBy?: 'LastPrice' | 'IndexPrice' | 'MarkPrice'
     slTriggerBy?: 'LastPrice' | 'IndexPrice' | 'MarkPrice'
   }): Promise<any> {
-    return this.request('POST', '/v5/position/trading-stop', {
+    return this.requestWithRetry('POST', '/v5/position/trading-stop', {
       category: 'linear',
       ...params
     })
@@ -344,26 +458,63 @@ class AutoTradingEngine {
   }
 
   async executeSignal(signal: TradingSignal, idempotencyKey?: string): Promise<any> {
+    const requestId = crypto.randomUUID();
+    
     try {
+      // Validate signal payload first
+      try {
+        SignalSchema.parse(signal);
+      } catch (validationError) {
+        const result = { 
+          success: false, 
+          reason: `Invalid signal format: ${validationError.message}`,
+          code: 'VALIDATION_ERROR'
+        };
+        
+        structuredLog('signal_validation_failed', { 
+          requestId, 
+          signal, 
+          validationError: validationError.message 
+        });
+        
+        return result;
+      }
+
       // Check idempotency first
       if (idempotencyKey && idempotencyCache.has(idempotencyKey)) {
         const cachedResult = idempotencyCache.get(idempotencyKey);
-        await this.logExecution('info', 'signal', `Returning cached result for idempotency key: ${idempotencyKey}`, {
-          cached_result: cachedResult
+        structuredLog('idempotency_cache_hit', { 
+          requestId, 
+          idempotencyKey, 
+          cachedResult 
         });
         return cachedResult;
       }
 
-      await this.logExecution('info', 'signal', `Processing signal: ${signal.symbol} ${signal.direction}`, {
+      structuredLog('signal_processing_started', {
+        requestId,
         signal_id: null,
         signal: signal,
         idempotency_key: idempotencyKey
-      })
+      });
 
-      // 1. Validate signal
+      // 1. Check live trading feature flag
+      const liveEnabled = Deno.env.get('LIVE_TRADING_ENABLED') === 'true';
+      if (!liveEnabled) {
+        const result = { 
+          success: false, 
+          reason: 'Live trading is disabled by feature flag',
+          code: 'FEATURE_DISABLED'
+        };
+        
+        structuredLog('live_trading_disabled', { requestId });
+        return result;
+      }
+
+      // 2. Validate signal
       const validation = await this.validateSignal(signal)
       if (!validation.valid) {
-        const result = { success: false, reason: validation.reason };
+        const result = { success: false, reason: validation.reason, code: 'VALIDATION_FAILED' };
         
         // Cache negative results too (for 1 minute)
         if (idempotencyKey) {
@@ -371,17 +522,24 @@ class AutoTradingEngine {
           setTimeout(() => idempotencyCache.delete(idempotencyKey), 60000);
         }
         
-        await this.logExecution('warning', 'signal', `Signal rejected: ${validation.reason}`, {
+        structuredLog('signal_validation_failed', {
+          requestId,
           signal: signal,
           rejection_reason: validation.reason
-        })
+        });
         return result;
       }
 
-      // 2. Get instrument metadata for proper rounding
+      // 3. Get instrument metadata for proper rounding
       const instrumentMeta = await this.getInstrumentMeta(signal.symbol);
       
-      // 3. Calculate and validate position size
+      structuredLog('instrument_meta_fetched', {
+        requestId,
+        symbol: signal.symbol,
+        instrumentMeta
+      });
+      
+      // 4. Calculate and validate position size
       const accountEquity = 10000; // Placeholder - should fetch from Bybit account info
       const notionalUSD = signal.indicators?.notionalUSD || 50;
       
@@ -394,15 +552,43 @@ class AutoTradingEngine {
         qty = this.calculatePositionSize(signal, accountEquity);
       }
       
-      // Round to exchange step size
-      qty = roundToStep(qty, instrumentMeta.qtyStep);
+      // Round to exchange step size with precision utilities
+      qty = toStep(qty, instrumentMeta.qtyStep);
       
       // Validate minimum notional
       const orderNotional = qty * (signal.entry_price || 50000);
       if (orderNotional < instrumentMeta.minNotional) {
         const result = { 
           success: false, 
-          reason: `Order value $${orderNotional.toFixed(2)} below minimum $${instrumentMeta.minNotional}` 
+          reason: `Order value $${orderNotional.toFixed(2)} below minimum $${instrumentMeta.minNotional}`,
+          code: 'MIN_NOTIONAL_NOT_MET'
+        };
+        
+        if (idempotencyKey) {
+          idempotencyCache.set(idempotencyKey, result);
+          setTimeout(() => idempotencyCache.delete(idempotencyKey), 60000);
+        }
+        
+        structuredLog('min_notional_check_failed', {
+          requestId,
+          orderNotional,
+          minNotional: instrumentMeta.minNotional
+        });
+        
+        return result;
+      }
+
+      // 5. Check position limits
+      const { data: existingPositions } = await this.supabase
+        .from('trading_positions')
+        .select('id')
+        .eq('status', 'open')
+
+      if (existingPositions?.length >= this.config.max_positions) {
+        const result = { 
+          success: false, 
+          reason: 'Maximum positions limit reached',
+          code: 'POSITION_LIMIT_EXCEEDED'
         };
         
         if (idempotencyKey) {
@@ -413,27 +599,10 @@ class AutoTradingEngine {
         return result;
       }
 
-      // 4. Check position limits
-      const { data: existingPositions } = await this.supabase
-        .from('trading_positions')
-        .select('id')
-        .eq('status', 'open')
-
-      if (existingPositions?.length >= this.config.max_positions) {
-        const result = { success: false, reason: 'Maximum positions limit reached' };
-        
-        if (idempotencyKey) {
-          idempotencyCache.set(idempotencyKey, result);
-          setTimeout(() => idempotencyCache.delete(idempotencyKey), 60000);
-        }
-        
-        return result;
-      }
-
-      // 5. Set leverage
+      // 6. Set leverage
       await this.bybit.setLeverage(signal.symbol, this.config.default_leverage)
 
-      // 6. Get optimal entry price for maker order
+      // 7. Get optimal entry price for maker order
       const orderbook = await this.bybit.getOrderbook(signal.symbol)
       const bestBid = parseFloat(orderbook.result.b[0][0])
       const bestAsk = parseFloat(orderbook.result.a[0][0])
@@ -445,10 +614,18 @@ class AutoTradingEngine {
         entryPrice = bestAsk
       }
 
-      // Round entry price to tick size
-      entryPrice = roundToStep(entryPrice, instrumentMeta.tickSize);
+      // Round entry price to tick size with precision utilities
+      entryPrice = toTick(entryPrice, instrumentMeta.tickSize);
 
-      // 7. Store signal in database
+      structuredLog('order_preparation', {
+        requestId,
+        symbol: signal.symbol,
+        qty,
+        entryPrice,
+        orderType: this.config.maker_only ? 'Limit' : 'Market'
+      });
+
+      // 8. Store signal in database
       const { data: dbSignal, error: signalError } = await this.supabase
         .from('trading_signals')
         .insert({
@@ -472,7 +649,16 @@ class AutoTradingEngine {
 
       if (signalError) throw signalError
 
-      // 8. Place order on Bybit
+      structuredLog('order_submit', {
+        requestId,
+        symbol: signal.symbol,
+        qty,
+        side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
+        orderType: this.config.maker_only ? 'Limit' : 'Market',
+        idempotencyKey
+      });
+
+      // 9. Place order on Bybit
       const orderResult = await this.bybit.placeOrder({
         symbol: signal.symbol,
         side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
@@ -483,7 +669,15 @@ class AutoTradingEngine {
         reduceOnly: false
       })
 
-      // 9. Store order in database
+      structuredLog('order_result', {
+        requestId,
+        retCode: orderResult.retCode || 0,
+        retMsg: orderResult.retMsg || 'success',
+        exchange_order_id: orderResult.result?.orderId,
+        symbol: signal.symbol
+      });
+
+      // 10. Store order in database
       const { data: dbOrder, error: orderError } = await this.supabase
         .from('trading_orders')
         .insert({
@@ -506,20 +700,22 @@ class AutoTradingEngine {
 
       if (orderError) throw orderError
 
-      // 10. Set stop loss and take profit
-      if (orderResult.result.orderId) {
+      // 11. Set stop loss and take profit with proper precision
+      if (orderResult.result.orderId && signal.stop_loss && signal.take_profit) {
         try {
           await this.bybit.setTradingStop({
             symbol: signal.symbol,
-            stopLoss: signal.stop_loss.toString(),
-            takeProfit: signal.take_profit.toString(),
+            stopLoss: toTick(signal.stop_loss, instrumentMeta.tickSize).toString(),
+            takeProfit: toTick(signal.take_profit, instrumentMeta.tickSize).toString(),
             tpTriggerBy: 'LastPrice',
             slTriggerBy: 'LastPrice'
           })
         } catch (error) {
-          await this.logExecution('warning', 'order', `Failed to set SL/TP: ${error.message}`, {
-            order_id: dbOrder.id
-          })
+          structuredLog('sl_tp_set_failed', {
+            requestId,
+            order_id: dbOrder.id,
+            error: error.message
+          });
         }
       }
 
@@ -529,7 +725,8 @@ class AutoTradingEngine {
         order_id: dbOrder.id,
         exchange_order_id: orderResult.result.orderId,
         qty: qty,
-        entry_price: entryPrice
+        entry_price: entryPrice,
+        liveAllowed: true
       };
 
       // Cache successful result (for 5 minutes)
@@ -538,16 +735,21 @@ class AutoTradingEngine {
         setTimeout(() => idempotencyCache.delete(idempotencyKey), 300000);
       }
 
-      await this.logExecution('info', 'order', `Order placed successfully: ${orderResult.result.orderId}`, {
+      structuredLog('trade_execution_success', {
+        requestId,
         signal_id: dbSignal.id,
         order_id: dbOrder.id,
         exchange_order_id: orderResult.result.orderId
-      })
+      });
 
       return result;
 
     } catch (error) {
-      const result = { success: false, reason: this.mapBybitError(error.message) };
+      const result = { 
+        success: false, 
+        reason: this.mapBybitError(error.message),
+        code: 'EXECUTION_ERROR'
+      };
       
       // Cache error results too (for 1 minute)
       if (idempotencyKey) {
@@ -555,33 +757,35 @@ class AutoTradingEngine {
         setTimeout(() => idempotencyCache.delete(idempotencyKey), 60000);
       }
       
-      await this.logExecution('error', 'system', `Trade execution failed: ${error.message}`, {
+      structuredLog('trade_execution_failed', {
+        requestId,
         signal: signal,
         error: error.message,
         stack_trace: error.stack
-      })
+      });
       return result;
     }
   }
 
   private mapBybitError(errorMessage: string): string {
+    // Enhanced error mapping with user-friendly messages
     if (errorMessage.includes('10003')) {
-      return 'Invalid API key - check your Bybit credentials';
+      return 'Invalid API key - recheck your Bybit credentials';
     }
     if (errorMessage.includes('10004')) {
-      return 'Invalid signature - check API keys and system time';
+      return 'Invalid signature - resync time / recheck keys';
     }
     if (errorMessage.includes('10005')) {
-      return 'Permission denied - enable trading in Bybit API settings';
+      return 'Permission denied - enable "Trade" in Bybit API settings';
     }
     if (errorMessage.includes('10006')) {
-      return 'Too many requests - rate limit exceeded';
+      return 'Rate limited - retrying shortly';
     }
     if (errorMessage.includes('110001')) {
-      return 'Order quantity too small for this symbol';
+      return 'Price/Qty precision invalid - retrying with exchange tick/step';
     }
     if (errorMessage.includes('110003')) {
-      return 'Order price outside allowed range';
+      return 'Price outside allowed range - market may be volatile';
     }
     if (errorMessage.includes('110004')) {
       return 'Insufficient balance for this trade';
@@ -590,7 +794,10 @@ class AutoTradingEngine {
       return 'Position size would exceed risk limits';
     }
     if (errorMessage.includes('110025')) {
-      return 'Market is not active for trading';
+      return 'Min notional not met - increase order size';
+    }
+    if (errorMessage.includes('429')) {
+      return 'Rate limited - retrying shortly';
     }
     
     return errorMessage; // Return original if no specific mapping
@@ -678,6 +885,7 @@ serve(async (req) => {
         risk_state: riskState,
         open_positions: positions?.length || 0,
         pending_orders: orders?.length || 0,
+        liveAllowed: Deno.env.get('LIVE_TRADING_ENABLED') === 'true',
         last_updated: new Date().toISOString()
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
