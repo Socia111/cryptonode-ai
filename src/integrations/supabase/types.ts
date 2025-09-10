@@ -1865,92 +1865,6 @@ export type Database = {
         }
         Relationships: []
       }
-      kb_chunks: {
-        Row: {
-          chunk_idx: number
-          created_at: string
-          doc_id: string
-          embedding: string
-          id: string
-          team_id: string
-          text: string
-          tokens: number
-        }
-        Insert: {
-          chunk_idx: number
-          created_at?: string
-          doc_id: string
-          embedding: string
-          id?: string
-          team_id: string
-          text: string
-          tokens?: number
-        }
-        Update: {
-          chunk_idx?: number
-          created_at?: string
-          doc_id?: string
-          embedding?: string
-          id?: string
-          team_id?: string
-          text?: string
-          tokens?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "kb_chunks_doc_id_fkey"
-            columns: ["doc_id"]
-            isOneToOne: false
-            referencedRelation: "knowledge_docs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      knowledge_docs: {
-        Row: {
-          chunk_count: number | null
-          created_at: string
-          error: string | null
-          id: string
-          kind: string | null
-          metadata: Json | null
-          status: string | null
-          storage_path: string | null
-          team_id: string
-          text_content: string | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          chunk_count?: number | null
-          created_at?: string
-          error?: string | null
-          id?: string
-          kind?: string | null
-          metadata?: Json | null
-          status?: string | null
-          storage_path?: string | null
-          team_id: string
-          text_content?: string | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          chunk_count?: number | null
-          created_at?: string
-          error?: string | null
-          id?: string
-          kind?: string | null
-          metadata?: Json | null
-          status?: string | null
-          storage_path?: string | null
-          team_id?: string
-          text_content?: string | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       marketplace_products: {
         Row: {
           category: string
@@ -3844,104 +3758,6 @@ export type Database = {
         }
         Relationships: []
       }
-      trading_positions: {
-        Row: {
-          bybit_position_id: string | null
-          closed_at: string | null
-          created_at: string
-          current_price: number | null
-          entry_price: number
-          id: string
-          realized_pnl: number | null
-          side: string
-          signal_id: string | null
-          size: number
-          status: string
-          stop_loss: number | null
-          symbol: string
-          take_profit: number | null
-          unrealized_pnl: number | null
-          updated_at: string
-        }
-        Insert: {
-          bybit_position_id?: string | null
-          closed_at?: string | null
-          created_at?: string
-          current_price?: number | null
-          entry_price: number
-          id?: string
-          realized_pnl?: number | null
-          side: string
-          signal_id?: string | null
-          size: number
-          status?: string
-          stop_loss?: number | null
-          symbol: string
-          take_profit?: number | null
-          unrealized_pnl?: number | null
-          updated_at?: string
-        }
-        Update: {
-          bybit_position_id?: string | null
-          closed_at?: string | null
-          created_at?: string
-          current_price?: number | null
-          entry_price?: number
-          id?: string
-          realized_pnl?: number | null
-          side?: string
-          signal_id?: string | null
-          size?: number
-          status?: string
-          stop_loss?: number | null
-          symbol?: string
-          take_profit?: number | null
-          unrealized_pnl?: number | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "trading_positions_signal_id_fkey"
-            columns: ["signal_id"]
-            isOneToOne: false
-            referencedRelation: "strategy_signals"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      trading_risk_state: {
-        Row: {
-          created_at: string
-          daily_pnl: number
-          daily_volume: number
-          id: string
-          kill_switch_triggered: boolean
-          open_positions: number
-          trading_date: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          daily_pnl?: number
-          daily_volume?: number
-          id?: string
-          kill_switch_triggered?: boolean
-          open_positions?: number
-          trading_date?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          daily_pnl?: number
-          daily_volume?: number
-          id?: string
-          kill_switch_triggered?: boolean
-          open_positions?: number
-          trading_date?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       trading_signals: {
         Row: {
           atr: number
@@ -4759,10 +4575,6 @@ export type Database = {
           total_public_tables: number
         }[]
       }
-      binary_quantize: {
-        Args: { "": string } | { "": unknown }
-        Returns: unknown
-      }
       calculate_aura_resonance: {
         Args: { user_a_memory: Json; user_b_memory: Json }
         Returns: number
@@ -4965,22 +4777,6 @@ export type Database = {
         Args: { "": unknown }
         Returns: unknown
       }
-      halfvec_avg: {
-        Args: { "": number[] }
-        Returns: unknown
-      }
-      halfvec_out: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      halfvec_send: {
-        Args: { "": unknown }
-        Returns: string
-      }
-      halfvec_typmod_in: {
-        Args: { "": unknown[] }
-        Returns: number
-      }
       has_credits: {
         Args: { required_credits?: number; team_uuid: string }
         Returns: boolean
@@ -4992,22 +4788,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      hnsw_bit_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      hnsw_halfvec_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      hnsw_sparsevec_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      hnswhandler: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
@@ -5016,43 +4796,8 @@ export type Database = {
         Args: { p_team_id: string }
         Returns: boolean
       }
-      is_team_member: {
-        Args: { p_team_id: string }
-        Returns: boolean
-      }
-      ivfflat_bit_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      ivfflat_halfvec_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      ivfflathandler: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
       jwt_team_id: {
         Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      kb_search: {
-        Args: { p_doc: string; p_limit: number; q: string }
-        Returns: {
-          chunk_id: string
-          doc_id: string
-          score: number
-          status: string
-          text: string
-          title: string
-        }[]
-      }
-      l2_norm: {
-        Args: { "": unknown } | { "": unknown }
-        Returns: number
-      }
-      l2_normalize: {
-        Args: { "": string } | { "": unknown } | { "": unknown }
         Returns: string
       }
       log_critical_security_fix: {
@@ -5179,18 +4924,6 @@ export type Database = {
         Args: { "": string }
         Returns: string[]
       }
-      sparsevec_out: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      sparsevec_send: {
-        Args: { "": unknown }
-        Returns: string
-      }
-      sparsevec_typmod_in: {
-        Args: { "": unknown[] }
-        Returns: number
-      }
       spend_credits: {
         Args: { p_amount: number; p_team: string }
         Returns: undefined
@@ -5246,30 +4979,6 @@ export type Database = {
       validate_user_input_enhanced: {
         Args: { input_text: string; input_type?: string; max_length?: number }
         Returns: Json
-      }
-      vector_avg: {
-        Args: { "": number[] }
-        Returns: string
-      }
-      vector_dims: {
-        Args: { "": string } | { "": unknown }
-        Returns: number
-      }
-      vector_norm: {
-        Args: { "": string }
-        Returns: number
-      }
-      vector_out: {
-        Args: { "": string }
-        Returns: unknown
-      }
-      vector_send: {
-        Args: { "": string }
-        Returns: string
-      }
-      vector_typmod_in: {
-        Args: { "": unknown[] }
-        Returns: number
       }
       verify_wallet_signature: {
         Args: {
