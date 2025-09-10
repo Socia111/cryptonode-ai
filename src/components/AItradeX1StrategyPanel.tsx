@@ -18,12 +18,13 @@ import {
   DollarSign,
   Clock,
   Activity,
-  Settings,
+  BarChart3,
   Play,
-  Pause,
-  BarChart3
+  Square,
+  Settings
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { FEATURES } from '@/config/featureFlags';
 import { useSignals } from '@/hooks/useSignals';
 
 interface StrategySettings {
@@ -174,7 +175,7 @@ const AItradeX1StrategyPanel = () => {
                 variant={isActive ? "destructive" : "default"}
                 size="sm"
               >
-                {isActive ? <Pause className="w-4 h-4 mr-1" /> : <Play className="w-4 h-4 mr-1" />}
+                {isActive ? <Square className="w-4 h-4 mr-1" /> : <Play className="w-4 h-4 mr-1" />}
                 {isActive ? "Stop" : "Start"}
               </Button>
               <Button
@@ -481,7 +482,7 @@ const AItradeX1StrategyPanel = () => {
                 <p className="text-muted-foreground">
                   • {strategy.leverage}x leverage on {strategy.timeframe} signals
                   • Risk: {strategy.riskPerTrade}% per trade, max {strategy.maxOpenTrades} positions
-                  • Auto-execute: {strategy.autoExecute ? 'ON' : 'OFF'} for {strategy.minConfidence}%+ confidence
+                  • Auto-execute: {(strategy.autoExecute && FEATURES.AUTOTRADE_ENABLED) ? 'ON' : 'OFF'} for {strategy.minConfidence}%+ confidence
                   • Emergency stop available at any time
                 </p>
               </div>

@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { TrendingUp, Play, Square, Settings, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
+import { TradingGateway } from '@/lib/tradingGateway';
+import { FEATURES } from '@/config/featureFlags';
 
 interface TradeExecution {
   symbol: string
@@ -29,40 +31,50 @@ const TradingPanel = () => {
   const { toast } = useToast();
 
   const executeTrade = async (signal: any, settings: TradeExecution) => {
+    if (!FEATURES.AUTOTRADE_ENABLED) {
+      toast({
+        title: "Auto-trading disabled",
+        description: "Auto-trading is disabled in this build. Actions are simulated only.",
+        variant: "default",
+      });
+      return;
+    }
+
     setIsExecuting(true);
     
     try {
-      const { data, error } = await supabase.functions.invoke('trade-execution', {
-        body: {
-          user_id: 'user_id', // Get from auth
-          signal_id: signal.id,
-          exchange: settings.exchange,
-          symbol: signal.token,
-          side: signal.direction.toLowerCase(),
-          quantity: settings.quantity,
-          leverage: settings.leverage,
-          order_type: settings.order_type,
-          price: settings.price
-        }
+      const side = signal.direction === 'LONG' ? 'BUY' : 'SELL';
+      const res = await TradingGateway.execute({ 
+        symbol: signal.symbol, 
+        side, 
+        notionalUSD: settings.quantity 
       });
+      
+      if (!res.ok && res.code === 'DISABLED') {
+        toast({
+          title: "Auto-trading disabled", 
+          description: res.message,
+          variant: "default",
+        });
+        return;
+      }
 
-      if (error) throw error;
-
+      // Simulate trade execution for now
+      console.log('🚀 Simulating trade execution:', signal, settings);
+      
+      // Simulate processing time
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       toast({
-        title: "Trade Executed",
-        description: `${signal.direction} order for ${signal.token} placed successfully`,
+        title: "Trade Executed (Simulated)",
+        description: `${signal.symbol} ${signal.direction} - $${settings.quantity}`,
+        variant: "default",
       });
-
-      // Update signal status
-      await supabase
-        .from('signals')
-        .update({ status: 'executed' })
-        .eq('id', signal.id);
-
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Trade execution error:', error);
       toast({
-        title: "Execution Failed",
-        description: error.message,
+        title: "Trade Error",
+        description: error.message || 'Failed to execute trade',
         variant: "destructive",
       });
     } finally {
