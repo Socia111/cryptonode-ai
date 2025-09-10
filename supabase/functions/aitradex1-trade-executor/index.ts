@@ -485,13 +485,11 @@ serve(async (req) => {
     
     console.log(`[AItradeX1 Executor] ${req.method} ${req.url}`)
 
-    const url = new URL(req.url)
-    const path = url.pathname
-    const method = req.method
-
-    // ============ GET ENDPOINTS ============
-
-    if (method === 'GET' && path === '/status') {
+    // Parse request body for action routing
+    const { action, enabled } = await req.json().catch(() => ({}))
+    
+    // Route by action
+    if (action === 'status') {
       // Get trading status
       const { data: config } = await supabase
         .from('trading_config')
@@ -516,6 +514,7 @@ serve(async (req) => {
         .limit(10)
 
       return new Response(JSON.stringify({
+        success: true,
         config,
         risk_state: riskState,
         open_positions: positions?.length || 0,
@@ -526,22 +525,47 @@ serve(async (req) => {
       })
     }
 
-    if (method === 'GET' && path === '/config') {
-      const { data: config } = await supabase
+    if (action === 'toggle') {
+      const { error } = await supabase
         .from('trading_config')
-        .select('*')
-        .single()
+        .update({ auto_trading_enabled: enabled })
+        .eq('id', (await supabase.from('trading_config').select('id').single()).data.id)
 
-      return new Response(JSON.stringify(config), {
+      if (error) throw error
+
+      return new Response(JSON.stringify({
+        success: true,
+        auto_trading_enabled: enabled
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // ============ POST ENDPOINTS ============
+    if (action === 'emergency-stop') {
+      // Cancel all pending orders and disable auto-trading
+      const { error: configError } = await supabase
+        .from('trading_config')
+        .update({ auto_trading_enabled: false })
+        .eq('id', (await supabase.from('trading_config').select('id').single()).data.id)
 
-    if (method === 'POST' && path === '/signal') {
-      const signalData = await req.json()
+      const { error: riskError } = await supabase
+        .from('trading_risk_state')
+        .upsert({
+          trading_date: new Date().toISOString().split('T')[0],
+          kill_switch_triggered: true,
+          kill_switch_reason: 'Manual emergency stop',
+          auto_trading_enabled: false
+        })
 
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Emergency stop activated - all auto-trading disabled'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    if (action === 'signal') {
       // Get trading config
       const { data: config } = await supabase
         .from('trading_config')
@@ -567,76 +591,20 @@ serve(async (req) => {
       const bybit = new BybitV5Client(bybitCredentials)
       const engine = new AutoTradingEngine(supabase, bybit, config)
 
-      // Execute signal
-      const result = await engine.executeSignal(signalData)
+      // Execute signal (signal data would be passed in the request body)
+      const { signal } = await req.json().catch(() => ({}))
+      const result = await engine.executeSignal(signal)
 
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    if (method === 'POST' && path === '/toggle') {
-      const { enabled } = await req.json()
-
-      const { error } = await supabase
-        .from('trading_config')
-        .update({ auto_trading_enabled: enabled })
-        .eq('id', (await supabase.from('trading_config').select('id').single()).data.id)
-
-      if (error) throw error
-
-      return new Response(JSON.stringify({
-        success: true,
-        auto_trading_enabled: enabled
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    if (method === 'POST' && path === '/config') {
-      const configUpdate = await req.json()
-
-      const { error } = await supabase
-        .from('trading_config')
-        .update(configUpdate)
-        .eq('id', (await supabase.from('trading_config').select('id').single()).data.id)
-
-      if (error) throw error
-
-      return new Response(JSON.stringify({
-        success: true,
-        updated: configUpdate
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    if (method === 'POST' && path === '/emergency-stop') {
-      // Cancel all pending orders and disable auto-trading
-      const { error: configError } = await supabase
-        .from('trading_config')
-        .update({ auto_trading_enabled: false })
-        .eq('id', (await supabase.from('trading_config').select('id').single()).data.id)
-
-      const { error: riskError } = await supabase
-        .from('trading_risk_state')
-        .upsert({
-          trading_date: new Date().toISOString().split('T')[0],
-          kill_switch_triggered: true,
-          kill_switch_reason: 'Manual emergency stop',
-          auto_trading_enabled: false
-        })
-
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'Emergency stop activated - all auto-trading disabled'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    return new Response(JSON.stringify({ error: 'Endpoint not found' }), {
-      status: 404,
+    return new Response(JSON.stringify({ 
+      success: false, 
+      message: `Unknown action: ${action}. Available actions: status, toggle, emergency-stop, signal` 
+    }), {
+      status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
 
