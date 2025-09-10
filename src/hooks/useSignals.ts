@@ -431,36 +431,56 @@ export const useSignals = () => {
   };
 
   useEffect(() => {
-    refreshSignals();
+    let isMounted = true;
     
-    // Set up realtime subscription for live signal updates
-    const channel = subscribeSignals(
-      (newSignal) => {
-        console.info('[useSignals] New signal inserted:', newSignal);
-        setSignals(prev => [newSignal, ...prev.slice(0, 49)]); // Keep max 50 signals
-        
-        // Show toast notification for new signal
-        toast({
-          title: "🚨 New Signal Generated",
-          description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
-          duration: 5000,
-        });
-      },
-      (updatedSignal) => {
-        console.info('[useSignals] Signal updated:', updatedSignal);
-        setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
+    const initializeSignals = async () => {
+      if (isMounted) {
+        await refreshSignals();
       }
-    );
+    };
+    
+    initializeSignals();
+    
+    // Set up realtime subscription for live signal updates (with error handling)
+    let channel: any = null;
+    try {
+      channel = subscribeSignals(
+        (newSignal) => {
+          if (!isMounted) return;
+          console.info('[useSignals] New signal inserted:', newSignal);
+          setSignals(prev => [newSignal, ...prev.slice(0, 49)]); // Keep max 50 signals
+          
+          // Show toast notification for new signal
+          toast({
+            title: "🚨 New Signal Generated",
+            description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
+            duration: 5000,
+          });
+        },
+        (updatedSignal) => {
+          if (!isMounted) return;
+          console.info('[useSignals] Signal updated:', updatedSignal);
+          setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
+        }
+      );
+    } catch (err) {
+      console.warn('[useSignals] Realtime subscription failed, using polling fallback:', err);
+    }
 
     // Auto-refresh signals every 30 seconds to catch any missed updates
     const refreshInterval = setInterval(() => {
-      console.log('[useSignals] Auto-refreshing signals...');
-      refreshSignals();
+      if (isMounted) {
+        console.log('[useSignals] Auto-refreshing signals...');
+        refreshSignals();
+      }
     }, 30000);
 
     // Cleanup
     return () => {
-      supabase.removeChannel(channel);
+      isMounted = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
       clearInterval(refreshInterval);
     };
   }, []);
