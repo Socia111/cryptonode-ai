@@ -18,6 +18,8 @@ import AutomatedTradingDashboard from '../components/AutomatedTradingDashboard';
 import { AutoTradingToggle } from '../components/AutoTradingToggle';
 import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
 import TradePlanGenerator from '../components/TradePlanGenerator';
+import RealtimeSignalsFeed from '../components/RealtimeSignalsFeed';
+import BottomSignalsBar from '../components/BottomSignalsBar';
 
 const Index = () => {
   return (
@@ -68,6 +70,12 @@ const Index = () => {
           </div>
         </div>
       </div>
+      
+      {/* Real-time Signals Feed */}
+      <RealtimeSignalsFeed />
+      
+      {/* Bottom Signals Bar */}
+      <BottomSignalsBar />
     </MainLayout>
   );
 };
