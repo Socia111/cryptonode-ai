@@ -44,6 +44,9 @@ const Index = () => {
         {/* Market Overview */}
         <MarketOverview />
         
+        {/* Live Signals - Prominent Position */}
+        <SignalsList />
+        
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Trading Chart */}
           <div className="lg:col-span-2 space-y-6">
@@ -51,14 +54,13 @@ const Index = () => {
             <BacktestEngine />
           </div>
           
-          {/* Signals Panel */}
+          {/* Side Panel */}
           <div className="space-y-6">
             <PortfolioStats />
             <TradingPanel />
             <TelegramIntegration />
             <QuantumAnalysis />
             <SpynxScoreCard />
-            <SignalsList />
           </div>
         </div>
       </div>
