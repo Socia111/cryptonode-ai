@@ -11,7 +11,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // Direct fetch function as fallback
 export async function fetchSignalsDirect() {
   try {
-    const response = await fetch(`${supabaseUrl}/rest/v1/signals?score=gte.80&created_at=gte.${new Date(Date.now() - 60 * 60 * 1000).toISOString()}&order=created_at.desc&limit=50`, {
+    console.log('[Direct Fetch] Attempting to fetch signals...');
+    const response = await fetch(`${supabaseUrl}/rest/v1/signals?score=gte.80&created_at=gte.${new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()}&order=created_at.desc&limit=50`, {
       headers: {
         'apikey': supabaseAnonKey,
         'Authorization': `Bearer ${supabaseAnonKey}`,
@@ -19,13 +20,18 @@ export async function fetchSignalsDirect() {
       }
     });
     
+    console.log('[Direct Fetch] Response status:', response.status);
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error('[Direct Fetch] Error response:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
     }
     
     const data = await response.json();
-    console.log('[Direct Fetch] Got signals:', data.length);
-    return data;
+    console.log('[Direct Fetch] Got signals:', data?.length || 0, 'signals');
+    console.log('[Direct Fetch] Sample signal:', data?.[0]);
+    return data || [];
   } catch (error) {
     console.error('[Direct Fetch] Error:', error);
     return [];

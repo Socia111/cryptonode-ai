@@ -287,9 +287,27 @@ export const useSignals = () => {
     setLoading(true);
     try {
       setError(null);
+      console.log('[useSignals] Starting signal refresh...');
+      
+      // Try direct fetch first
+      const { fetchSignalsDirect } = await import('@/lib/supabaseClient');
+      const directData = await fetchSignalsDirect();
+      
+      if (directData && directData.length > 0) {
+        console.log(`[useSignals] Got ${directData.length} signals via direct fetch`);
+        const mappedSignals = directData
+          .filter((signal: any) => signal.score >= 80) // Only 80%+ signals
+          .map(mapDbToSignal);
+        setSignals(mappedSignals);
+        console.log(`[useSignals] Filtered to ${mappedSignals.length} signals with 80%+ score`);
+        return;
+      }
+      
+      // Fallback to Supabase client
+      console.log('[useSignals] Trying Supabase client fallback...');
       const { data, error } = await supabase.from('signals')
         .select('*')
-        .gte('score', 70) // Show signals with score 70+ 
+        .gte('score', 80) // Only 80%+ signals
         .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()) // Last 6 hours
         .order('created_at', { ascending: false })
         .limit(50);
@@ -298,7 +316,7 @@ export const useSignals = () => {
       
       const mappedSignals = (data || []).map(mapDbToSignal);
       setSignals(mappedSignals);
-      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database`);
+      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from Supabase client`);
     } catch (err: any) {
       console.error('[useSignals] refreshSignals failed:', err);
       setError(err.message || 'Failed to fetch signals');
