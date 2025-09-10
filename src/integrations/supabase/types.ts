@@ -4738,6 +4738,7 @@ export type Database = {
           max_open_positions: number | null
           max_position_size: number | null
           min_confidence_score: number | null
+          paper_mode: boolean | null
           risk_per_trade: number | null
           symbols_blacklist: string[] | null
           timeframes: string[] | null
@@ -4753,6 +4754,7 @@ export type Database = {
           max_open_positions?: number | null
           max_position_size?: number | null
           min_confidence_score?: number | null
+          paper_mode?: boolean | null
           risk_per_trade?: number | null
           symbols_blacklist?: string[] | null
           timeframes?: string[] | null
@@ -4768,6 +4770,7 @@ export type Database = {
           max_open_positions?: number | null
           max_position_size?: number | null
           min_confidence_score?: number | null
+          paper_mode?: boolean | null
           risk_per_trade?: number | null
           symbols_blacklist?: string[] | null
           timeframes?: string[] | null
