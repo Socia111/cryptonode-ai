@@ -83,40 +83,36 @@ function mapDbSignal(row: any): Signal {
 async function fetchSignals(): Promise<Signal[]> {
   try {
     console.log('[Signals] Fetching live signals from database...');
-    console.log('[Signals] Supabase client configured:', !!supabase);
     
-    // Test connection first
-    const { data: testData, error: testError } = await supabase.from('signals').select('count').limit(1);
-    if (testError) {
-      console.error('[Signals] Connection test failed:', testError);
-      return [];
+    // Try direct fetch first as fallback
+    const { fetchSignalsDirect } = await import('@/lib/supabaseClient');
+    const directData = await fetchSignalsDirect();
+    
+    if (directData && directData.length > 0) {
+      console.log(`[Signals] Got ${directData.length} signals via direct fetch`);
+      return mapSignalsToInterface(directData);
     }
-    
-    // Direct database query with 80% threshold as requested
+
+    // Fallback to Supabase client
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
-      .gte('score', 80) // 80% threshold as specifically requested
+      .gte('score', 80)
       .gte('created_at', new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(50);
 
     if (signalsError) {
-      console.error('[Signals] Signals query failed:', signalsError);
-      console.error('[Signals] Error details:', JSON.stringify(signalsError, null, 2));
+      console.error('[Signals] Supabase query failed:', signalsError);
       return [];
     }
 
     if (allSignals && allSignals.length > 0) {
-      console.log(`[Signals] Found ${allSignals.length} raw signals from database`);
-      console.log('[Signals] Sample signal:', allSignals[0]);
-      const mappedSignals = mapSignalsToInterface(allSignals);
-      console.log(`[Signals] Mapped to ${mappedSignals.length} interface signals`);
-      return mappedSignals;
+      console.log(`[Signals] Found ${allSignals.length} signals via Supabase client`);
+      return mapSignalsToInterface(allSignals);
     }
 
-    // No signals available
-    console.log('[Signals] No live signals found in database');
+    console.log('[Signals] No signals found');
     return [];
 
   } catch (e) {
