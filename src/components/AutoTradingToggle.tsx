@@ -32,7 +32,7 @@ export function AutoTradingToggle() {
       
       setStatus({
         auto_trading_enabled: data.config?.auto_trading_enabled || false,
-        paper_mode: data.config?.paper_mode || true,
+        paper_mode: data.config?.paper_mode !== false, // Default to true
         open_positions: data.open_positions || 0,
         pending_orders: data.pending_orders || 0,
         daily_pnl: data.risk_state?.daily_pnl || 0,
@@ -40,11 +40,12 @@ export function AutoTradingToggle() {
       })
     } catch (error) {
       console.error('Failed to fetch trading status:', error)
-      // Fallback to database query
+      // Fallback to database query using new table structure
       try {
         const { data: config } = await supabase
-          .from('trading_config')
+          .from('user_trading_configs')
           .select('auto_trading_enabled, paper_mode')
+          .eq('user_id', '00000000-0000-0000-0000-000000000000')
           .single()
         
         const { data: positions } = await supabase
@@ -59,7 +60,7 @@ export function AutoTradingToggle() {
         
         setStatus({
           auto_trading_enabled: config?.auto_trading_enabled || false,
-          paper_mode: config?.paper_mode || true,
+          paper_mode: config?.paper_mode !== false, // Default to true
           open_positions: positions?.length || 0,
           pending_orders: orders?.length || 0,
           daily_pnl: 0,
@@ -83,7 +84,8 @@ export function AutoTradingToggle() {
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
-        table: 'trading_config'
+        table: 'user_trading_configs',
+        filter: 'user_id=eq.00000000-0000-0000-0000-000000000000'
       }, () => fetchStatus())
       .subscribe()
 
