@@ -65,8 +65,16 @@ export function AutoTradingDashboard() {
   // Fetch trading status
   const fetchStatus = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor/status')
-      if (error) throw error
+      const response = await fetch('https://codhlwjogfjywmjyjbbn.functions.supabase.co/aitradex1-trade-executor/status', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      
+      const data = await response.json()
       setStatus(data)
       setConfig(data.config)
     } catch (error) {
@@ -135,11 +143,18 @@ export function AutoTradingDashboard() {
   const toggleAutoTrading = async (enabled: boolean) => {
     setUpdating(true)
     try {
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor/toggle', {
-        body: { enabled }
+      const response = await fetch('https://codhlwjogfjywmjyjbbn.functions.supabase.co/aitradex1-trade-executor/toggle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ enabled })
       })
       
-      if (error) throw error
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      
+      const data = await response.json()
+      if (!data.success) throw new Error(data.message || 'Toggle failed')
 
       setConfig(prev => prev ? { ...prev, auto_trading_enabled: enabled } : null)
       toast({
@@ -160,11 +175,18 @@ export function AutoTradingDashboard() {
   const updateConfig = async (updates: Partial<TradingConfig>) => {
     setUpdating(true)
     try {
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor/config', {
-        body: updates
+      const response = await fetch('https://codhlwjogfjywmjyjbbn.functions.supabase.co/aitradex1-trade-executor/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates)
       })
       
-      if (error) throw error
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      
+      const data = await response.json()
+      if (!data.success) throw new Error('Config update failed')
 
       setConfig(prev => prev ? { ...prev, ...updates } : null)
       toast({
@@ -185,9 +207,17 @@ export function AutoTradingDashboard() {
   const emergencyStop = async () => {
     setUpdating(true)
     try {
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor/emergency-stop')
+      const response = await fetch('https://codhlwjogfjywmjyjbbn.functions.supabase.co/aitradex1-trade-executor/emergency-stop', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
       
-      if (error) throw error
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      
+      const data = await response.json()
+      if (!data.success) throw new Error('Emergency stop failed')
 
       await fetchStatus()
       toast({
