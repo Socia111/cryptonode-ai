@@ -7,6 +7,25 @@ export type ExecParams = {
   notionalUSD: number
 }
 
+// Get the functions base URL dynamically from supabase client
+function getFunctionsBaseUrl(): string {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (!supabaseUrl) {
+    throw new Error('VITE_SUPABASE_URL environment variable is not set');
+  }
+  return supabaseUrl.replace('.supabase.co', '.functions.supabase.co');
+}
+
+async function getSessionToken(): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  } catch (error) {
+    console.warn('Failed to get session token:', error);
+    return null;
+  }
+}
+
 export const TradingGateway = {
   async execute(params: ExecParams) {
     if (!FEATURES.AUTOTRADE_ENABLED) {
@@ -16,29 +35,53 @@ export const TradingGateway = {
     try {
       console.log('🚀 Executing trade:', params);
       
-      // Use the real Bybit trade executor for live trading
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
-        body: {
+      const functionsBase = getFunctionsBaseUrl();
+      const sessionToken = await getSessionToken();
+      
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+      };
+      
+      // Add authorization header if we have a session token
+      if (sessionToken) {
+        headers['authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
           action: 'signal',
           signal: {
-            token: params.symbol,
+            symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT for Bybit
             direction: params.side === 'BUY' ? 'LONG' : 'SHORT',
             entry_price: 0, // Will be determined by market price
             stop_loss: 0, // Will be calculated based on risk
-            exit_target: 0, // Will be calculated based on profit target
-            confidence: 85, // Default confidence for manual trades
-            leverage: 1
+            take_profit: 0, // Will be calculated based on profit target
+            confidence_score: 85, // Default confidence for manual trades
+            pms_score: 0.8, // Default PMS score for manual trades
+            risk_reward_ratio: 2.0, // Default RR ratio
+            regime: 'trending', // Default regime
+            atr: 0.01, // Default ATR
+            indicators: {} // Empty indicators object
           }
-        }
+        })
       });
 
-      if (error) {
-        console.error('❌ Trade execution failed:', error);
-        return { ok: false, code: 'EXECUTION_ERROR', message: error.message };
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ HTTP Error:', response.status, errorText);
+        return { 
+          ok: false, 
+          code: 'HTTP_ERROR', 
+          message: `HTTP ${response.status}: ${errorText}` 
+        };
       }
 
-      if (!data || !data.success) {
-        console.error('❌ Trade failed:', data);
+      const data = await response.json();
+      
+      if (!data.success) {
+        console.error('❌ Trade execution failed:', data);
         const errorMessage = data?.reason || data?.message || 'Unknown error';
         return { ok: false, code: 'TRADE_FAILED', message: errorMessage };
       }
@@ -79,6 +122,38 @@ export const TradingGateway = {
     } catch (error: any) {
       console.error('❌ Bulk trading error:', error);
       return { ok: false, code: 'BULK_ERROR', message: error.message };
+    }
+  },
+
+  // Test function to check edge function connectivity
+  async testConnection() {
+    try {
+      const functionsBase = getFunctionsBaseUrl();
+      const sessionToken = await getSessionToken();
+      
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+      };
+      
+      if (sessionToken) {
+        headers['authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'status' })
+      });
+
+      if (!response.ok) {
+        return { ok: false, status: response.status, statusText: response.statusText };
+      }
+
+      const data = await response.json();
+      return { ok: true, data };
+      
+    } catch (error: any) {
+      return { ok: false, error: error.message };
     }
   }
 }

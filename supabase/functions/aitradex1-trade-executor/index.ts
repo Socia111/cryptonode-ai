@@ -6,7 +6,7 @@ const ALLOWED_ORIGINS = [
   'https://www.unireli.io', 
   'http://localhost:3000',
   'http://localhost:5173',
-  'https://id-preview--59e92957-e12b-427f-b4a6-69cc13955562.lovable.app'
+  'https://59e92957-e12b-427f-b4a6-69cc13955562.lovableproject.com'
 ]
 
 function getCorsHeaders(origin: string | null) {
@@ -600,8 +600,8 @@ serve(async (req) => {
 
       // Initialize Bybit client
       const bybitCredentials = {
-        apiKey: Deno.env.get('BYBIT_API_KEY') ?? '',
-        apiSecret: Deno.env.get('BYBIT_API_SECRET') ?? '',
+        apiKey: Deno.env.get('BYBIT_KEY') ?? '',
+        apiSecret: Deno.env.get('BYBIT_SECRET') ?? '',
         testnet: config.paper_mode
       }
 
