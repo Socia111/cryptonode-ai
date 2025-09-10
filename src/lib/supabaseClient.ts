@@ -1,35 +1,35 @@
-// Re-export from main integrations file
-export { supabase } from '@/integrations/supabase/client';
+// Single Supabase client for the entire app
+import { createClient } from '@supabase/supabase-js';
 
-// Direct fetch function as backup only
-export async function fetchSignalsDirect() {
+// Direct configuration - no env wrapper needed
+const supabaseUrl = 'https://codhlwjogfjywmjyjbbn.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0';
+
+// Create Supabase client
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});
+
+
+
+// A tiny health check that *really* verifies connectivity + RLS
+export async function isSupabaseConfigured(): Promise<boolean> {
   try {
-    console.log('[Direct Fetch] Attempting to fetch signals...');
-    const supabaseUrl = 'https://codhlwjogfjywmjyjbbn.supabase.co';
-    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0';
-    
-    const response = await fetch(`${supabaseUrl}/rest/v1/signals?score=gte.80&created_at=gte.${new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()}&order=created_at.desc&limit=50`, {
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    console.log('[Direct Fetch] Response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Direct Fetch] Error response:', errorText);
-      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    // Choose a public-read table; markets is ideal if you created it
+    const { error } = await supabase.from('markets').select('id').limit(1);
+    if (error) {
+      console.warn('[Supabase] Config present but query failed:', error.message);
+      return false;
     }
-    
-    const data = await response.json();
-    console.log('[Direct Fetch] Got signals:', data?.length || 0, 'signals');
-    console.log('[Direct Fetch] Sample signal:', data?.[0]);
-    return data || [];
-  } catch (error) {
-    console.error('[Direct Fetch] Error:', error);
-    return [];
+    return true;
+  } catch (e) {
+    console.warn('[Supabase] Query threw:', e);
+    return false;
   }
 }
+
+// Expose client for dev console access
+if (typeof window !== 'undefined') (window as any).__supabase = supabase;

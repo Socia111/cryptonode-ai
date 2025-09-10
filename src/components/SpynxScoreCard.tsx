@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { TrendingUp, TrendingDown, Star, RefreshCw } from 'lucide-react';
 import { useSpynxScores } from '@/hooks/useSignals';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/integrations/supabase/client';
 
 const SpynxScoreCard = () => {
   const { scores, loading, error, updateSpynxScores } = useSpynxScores();

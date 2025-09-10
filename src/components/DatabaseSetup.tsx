@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Database, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 
 const requiredTables = [
@@ -18,9 +18,10 @@ const DatabaseSetup = () => {
 
   useEffect(() => {
     (async () => {
-      console.info('[DatabaseSetup] Starting connection test...');
-      setConnected(true);
-      await checkTables();
+      const ok = await isSupabaseConfigured();
+      console.info('[DatabaseSetup] Supabase configured:', ok);
+      setConnected(ok);
+      if (ok) await checkTables();
     })();
   }, []);
 

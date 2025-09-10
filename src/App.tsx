@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
-import { supabase } from '@/lib/supabaseClient';
+import { isSupabaseConfigured } from '@/lib/supabaseClient';
 import Index from "./pages/Index";
 import Health from "./pages/Health";
 import AItradeX1Original from "./pages/AItradeX1Original";
@@ -25,11 +25,16 @@ const queryClient = new QueryClient();
 
 function App() {
   useEffect(() => {
-    console.log('[Boot] Starting app initialization...');
-    console.log('[Boot] Environment check:', {
-      supabaseUrl: 'https://codhlwjogfjywmjyjbbn.supabase.co',
-      hasAnonKey: true
-    });
+    (async () => {
+      console.log('[Boot] Starting app initialization...');
+      console.log('[Boot] Environment check:', {
+        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+        hasAnonKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY
+      });
+      
+      const ok = await isSupabaseConfigured();
+      console.info('[Boot] Using Supabase client @', import.meta.env.VITE_SUPABASE_URL, 'configured=', ok);
+    })();
   }, []);
 
   return (
