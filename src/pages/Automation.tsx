@@ -1,141 +1,90 @@
-import { useState } from 'react';
-import MainLayout from '../layouts/MainLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Bot, Settings, Activity, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react'
+import MainLayout from '@/layouts/MainLayout'
+import AutoTradingToggle from '@/components/AutoTradingToggle'
+import { AutomationAPI } from '@/lib/automation'
+import { Button } from '@/components/ui/button'
+import { Zap } from 'lucide-react'
 
 export default function Automation() {
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setConnected] = useState(false)
+  const [activeTrades, setActiveTrades] = useState(0)
+  const [pnlToday, setPnl] = useState(0)
+
+  useEffect(() => {
+    (async () => {
+      const s = await AutomationAPI.get()
+      setConnected(s.connected)
+      setActiveTrades(s.activeTrades)
+      setPnl(s.pnlToday)
+    })()
+  }, [])
+
+  const connect = async () => {
+    const s = await AutomationAPI.connectExchange()
+    setConnected(s.connected)
+  }
 
   return (
     <MainLayout>
-      <div className="container mx-auto px-6 py-8 space-y-8">
+      <div className="max-w-5xl mx-auto p-6 space-y-6">
         {/* Header */}
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-            AI Trading Automation
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Connect your exchange account and enable AI-powered automated trading
-          </p>
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold">AI Trading Automation</h1>
+          <p className="text-muted-foreground">Connect your exchange account and enable AI-powered automated trading</p>
         </div>
 
-        {/* Connection Status */}
-        <Card className="border-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bot className="w-5 h-5" />
-              Connection Status
-              <Badge variant={isConnected ? "default" : "secondary"}>
-                {isConnected ? "Connected" : "Disconnected"}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        {/* Connection */}
+        <div className="rounded-xl border border-border bg-card/40 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-muted-foreground">Connection Status</div>
+              <div className="text-lg font-semibold">{isConnected ? 'Connected' : 'Disconnected'}</div>
+            </div>
             {!isConnected ? (
-              <div className="text-center space-y-4">
-                <div className="text-muted-foreground">
-                  No exchange account connected
-                </div>
-                <Button onClick={() => setIsConnected(true)} className="w-full">
-                  <Zap className="w-4 h-4 mr-2" />
-                  Connect Exchange Account
-                </Button>
-              </div>
+              <Button onClick={connect} className="bg-primary hover:bg-primary/90">
+                <Zap className="w-4 h-4 mr-2" />
+                Connect Exchange Account
+              </Button>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-500">✓</div>
-                  <div className="text-sm text-muted-foreground">Exchange Connected</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">0</div>
-                  <div className="text-sm text-muted-foreground">Active Trades</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">$0.00</div>
-                  <div className="text-sm text-muted-foreground">P&L Today</div>
-                </div>
+              <div className="flex gap-6 text-sm">
+                <div><span className="text-muted-foreground">Active Trades</span><div className="font-semibold">{activeTrades}</div></div>
+                <div><span className="text-muted-foreground">P&L Today</span><div className="font-semibold">${pnlToday.toFixed(2)}</div></div>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="w-5 h-5" />
-                Trading Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span>Auto Trading</span>
-                  <Badge variant="secondary">Disabled</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span>Paper Mode</span>
-                  <Badge variant="outline">Enabled</Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                Configuration
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span>Risk Level</span>
-                  <Badge variant="outline">Conservative</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span>Max Position Size</span>
-                  <span className="text-sm">$100</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          </div>
         </div>
 
-        {/* Coming Soon Features */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Features Coming Soon</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="p-4 border rounded-lg">
-                <h3 className="font-semibold mb-2">Real-time Trading</h3>
-                <p className="text-sm text-muted-foreground">
-                  Execute trades automatically based on AI signals
-                </p>
-              </div>
-              <div className="p-4 border rounded-lg">
-                <h3 className="font-semibold mb-2">Risk Management</h3>
-                <p className="text-sm text-muted-foreground">
-                  Advanced stop-loss and position sizing controls
-                </p>
-              </div>
-              <div className="p-4 border rounded-lg">
-                <h3 className="font-semibold mb-2">Portfolio Analytics</h3>
-                <p className="text-sm text-muted-foreground">
-                  Comprehensive performance tracking and reporting
-                </p>
-              </div>
+        {/* Quick actions */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <AutoTradingToggle />
+          <div className="rounded-xl border border-border bg-card/50 p-4">
+            <div className="text-sm text-muted-foreground">Configuration</div>
+            <div className="mt-2 text-sm">
+              <div>Risk Level: <b>Conservative</b></div>
+              <div>Max Position Size: <b>$100</b></div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Coming soon */}
+        <div className="rounded-xl border border-border p-4">
+          <div className="text-sm text-muted-foreground mb-2">Features Coming Soon</div>
+          <ul className="grid md:grid-cols-3 gap-3 text-sm">
+            <li className="bg-card/50 p-3 rounded-md">
+              <div className="font-medium">Real-time Trading</div>
+              <div className="text-muted-foreground">Execute trades automatically based on AI signals</div>
+            </li>
+            <li className="bg-card/50 p-3 rounded-md">
+              <div className="font-medium">Risk Management</div>
+              <div className="text-muted-foreground">Advanced stop-loss & position sizing</div>
+            </li>
+            <li className="bg-card/50 p-3 rounded-md">
+              <div className="font-medium">Portfolio Analytics</div>
+              <div className="text-muted-foreground">Performance tracking & reporting</div>
+            </li>
+          </ul>
+        </div>
       </div>
     </MainLayout>
-  );
+  )
 }
