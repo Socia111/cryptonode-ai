@@ -91,6 +91,29 @@ const AItradeX1ScannerChart: React.FC = () => {
   const currentSignal = activeSignals[currentSignalIndex];
   const progressPercentage = ((60 - timeRemaining) / 60) * 100;
 
+  // Additional safety check for currentSignal
+  if (!currentSignal) {
+    return (
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Zap className="h-5 w-5 text-primary" />
+            <span>AItradeX1 Scanner</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-12 text-muted-foreground">
+            <div className="text-center">
+              <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Loading signal data...</p>
+              <p className="text-sm">Please wait while we load the next signal</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const formatPrice = (price: number) => {
     return price?.toFixed(4) || '0.0000';
   };
