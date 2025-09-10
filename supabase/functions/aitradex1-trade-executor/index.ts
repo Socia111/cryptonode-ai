@@ -4,6 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const ALLOWED_ORIGINS = [
   'https://unireli.io',
   'https://www.unireli.io', 
+  'https://lovable.dev',
   'http://localhost:3000',
   'http://localhost:5173',
   'https://59e92957-e12b-427f-b4a6-69cc13955562.lovableproject.com'
@@ -13,9 +14,10 @@ function getCorsHeaders(origin: string | null) {
   const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-aix-sign',
+    'Access-Control-Allow-Headers': 'authorization, content-type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Vary': 'Origin'
+    'Vary': 'Origin',
+    'Content-Type': 'application/json'
   }
 }
 
@@ -35,7 +37,7 @@ class BybitV5Client {
   constructor(credentials: BybitCredentials) {
     this.baseURL = credentials.testnet 
       ? 'https://api-testnet.bybit.com' 
-      : 'https://api.bybit.com'
+      : (Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com')
     this.apiKey = credentials.apiKey
     this.apiSecret = credentials.apiSecret
   }
@@ -602,7 +604,7 @@ serve(async (req) => {
       const bybitCredentials = {
         apiKey: Deno.env.get('BYBIT_KEY') ?? '',
         apiSecret: Deno.env.get('BYBIT_SECRET') ?? '',
-        testnet: config.paper_mode
+        testnet: config.paper_mode || false
       }
 
       const bybit = new BybitV5Client(bybitCredentials)
