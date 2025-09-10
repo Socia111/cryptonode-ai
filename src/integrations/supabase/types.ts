@@ -3844,6 +3844,104 @@ export type Database = {
         }
         Relationships: []
       }
+      trading_positions: {
+        Row: {
+          bybit_position_id: string | null
+          closed_at: string | null
+          created_at: string
+          current_price: number | null
+          entry_price: number
+          id: string
+          realized_pnl: number | null
+          side: string
+          signal_id: string | null
+          size: number
+          status: string
+          stop_loss: number | null
+          symbol: string
+          take_profit: number | null
+          unrealized_pnl: number | null
+          updated_at: string
+        }
+        Insert: {
+          bybit_position_id?: string | null
+          closed_at?: string | null
+          created_at?: string
+          current_price?: number | null
+          entry_price: number
+          id?: string
+          realized_pnl?: number | null
+          side: string
+          signal_id?: string | null
+          size: number
+          status?: string
+          stop_loss?: number | null
+          symbol: string
+          take_profit?: number | null
+          unrealized_pnl?: number | null
+          updated_at?: string
+        }
+        Update: {
+          bybit_position_id?: string | null
+          closed_at?: string | null
+          created_at?: string
+          current_price?: number | null
+          entry_price?: number
+          id?: string
+          realized_pnl?: number | null
+          side?: string
+          signal_id?: string | null
+          size?: number
+          status?: string
+          stop_loss?: number | null
+          symbol?: string
+          take_profit?: number | null
+          unrealized_pnl?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trading_positions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "strategy_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trading_risk_state: {
+        Row: {
+          created_at: string
+          daily_pnl: number
+          daily_volume: number
+          id: string
+          kill_switch_triggered: boolean
+          open_positions: number
+          trading_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          daily_pnl?: number
+          daily_volume?: number
+          id?: string
+          kill_switch_triggered?: boolean
+          open_positions?: number
+          trading_date?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          daily_pnl?: number
+          daily_volume?: number
+          id?: string
+          kill_switch_triggered?: boolean
+          open_positions?: number
+          trading_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       trading_signals: {
         Row: {
           atr: number
