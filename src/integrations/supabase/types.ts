@@ -335,6 +335,47 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_employees: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          role: string
+          skills: Json
+          system_prompt: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          role: string
+          skills?: Json
+          system_prompt: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          role?: string
+          skills?: Json
+          system_prompt?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_employees_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "minime_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_personas: {
         Row: {
           behavior_summary: string | null
@@ -1124,6 +1165,42 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_leads: {
+        Row: {
+          company: string | null
+          created_at: string | null
+          email: string
+          id: string
+          message: string | null
+          name: string | null
+          phone: string | null
+          team_size: string | null
+          use_case: string | null
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string | null
+          email: string
+          id?: string
+          message?: string | null
+          name?: string | null
+          phone?: string | null
+          team_size?: string | null
+          use_case?: string | null
+        }
+        Update: {
+          company?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          message?: string | null
+          name?: string | null
+          phone?: string | null
+          team_size?: string | null
+          use_case?: string | null
+        }
+        Relationships: []
+      }
       contract_deployments: {
         Row: {
           block_number: number | null
@@ -1168,6 +1245,48 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      credit_ledger: {
+        Row: {
+          created_at: string
+          delta: number
+          id: string
+          reason: string
+          run_id: string | null
+          team_id: string
+        }
+        Insert: {
+          created_at?: string
+          delta: number
+          id?: string
+          reason: string
+          run_id?: string | null
+          team_id: string
+        }
+        Update: {
+          created_at?: string
+          delta?: number
+          id?: string
+          reason?: string
+          run_id?: string | null
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_ledger_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "employee_skill_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_ledger_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "minime_teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       daily_coaching: {
         Row: {
@@ -1239,6 +1358,63 @@ export type Database = {
             columns: ["deployment_id"]
             isOneToOne: false
             referencedRelation: "contract_deployments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_skill_runs: {
+        Row: {
+          agent_id: string
+          created_at: string
+          created_by_user: string | null
+          error_message: string | null
+          id: string
+          input: Json
+          output: Json | null
+          skill_name: string
+          status: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          created_by_user?: string | null
+          error_message?: string | null
+          id?: string
+          input?: Json
+          output?: Json | null
+          skill_name: string
+          status?: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          created_by_user?: string | null
+          error_message?: string | null
+          id?: string
+          input?: Json
+          output?: Json | null
+          skill_name?: string
+          status?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_skill_runs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_skill_runs_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "minime_teams"
             referencedColumns: ["id"]
           },
         ]
@@ -1724,6 +1900,48 @@ export type Database = {
           },
         ]
       }
+      integrations: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          metadata: Json | null
+          provider: string
+          refresh_token: string | null
+          scope: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          metadata?: Json | null
+          provider: string
+          refresh_token?: string | null
+          scope?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          metadata?: Json | null
+          provider?: string
+          refresh_token?: string | null
+          scope?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       marketplace_products: {
         Row: {
           category: string
@@ -1866,6 +2084,388 @@ export type Database = {
           sender_agent_id?: string
           sent_at?: string
           session_id?: string
+        }
+        Relationships: []
+      }
+      minime_agents: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          role: string
+          skills: Json
+          system_prompt: string | null
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          role: string
+          skills?: Json
+          system_prompt?: string | null
+          team_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          role?: string
+          skills?: Json
+          system_prompt?: string | null
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      minime_integrations: {
+        Row: {
+          created_at: string | null
+          id: string
+          provider: string
+          status: string
+          team_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          provider: string
+          status?: string
+          team_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          provider?: string
+          status?: string
+          team_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      minime_knowledge_docs: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          metadata: Json
+          storage_path: string | null
+          team_id: string
+          text_content: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind?: string
+          metadata?: Json
+          storage_path?: string | null
+          team_id: string
+          text_content?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          metadata?: Json
+          storage_path?: string | null
+          team_id?: string
+          text_content?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "minime_knowledge_docs_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "minime_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      minime_memories: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          key: string
+          team_id: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          key: string
+          team_id?: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          key?: string
+          team_id?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
+      minime_messages: {
+        Row: {
+          agent_id: string
+          content: string
+          created_at: string
+          id: string
+          metadata: Json
+          role: string
+          sender: string
+          team_id: string
+          thread_id: string | null
+        }
+        Insert: {
+          agent_id: string
+          content: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          role: string
+          sender: string
+          team_id: string
+          thread_id?: string | null
+        }
+        Update: {
+          agent_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          role?: string
+          sender?: string
+          team_id?: string
+          thread_id?: string | null
+        }
+        Relationships: []
+      }
+      minime_oauth_tokens: {
+        Row: {
+          access_token: string
+          created_at: string | null
+          expires_at: string | null
+          ext_account_id: string | null
+          ext_metadata: Json | null
+          id: string
+          provider: string
+          refresh_token: string | null
+          scope: string | null
+          team_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          access_token: string
+          created_at?: string | null
+          expires_at?: string | null
+          ext_account_id?: string | null
+          ext_metadata?: Json | null
+          id?: string
+          provider: string
+          refresh_token?: string | null
+          scope?: string | null
+          team_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          access_token?: string
+          created_at?: string | null
+          expires_at?: string | null
+          ext_account_id?: string | null
+          ext_metadata?: Json | null
+          id?: string
+          provider?: string
+          refresh_token?: string | null
+          scope?: string | null
+          team_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      minime_runs: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          input: Json
+          output: Json | null
+          status: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          input?: Json
+          output?: Json | null
+          status?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          input?: Json
+          output?: Json | null
+          status?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      minime_team_members: {
+        Row: {
+          created_at: string
+          role: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          role?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          role?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "minime_team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "minime_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      minime_teams: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      minime_threads: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          created_by: string
+          id: string
+          team_id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          team_id: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          team_id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "minime_threads_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "minime_threads_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "minime_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      minime_webhook_events: {
+        Row: {
+          event_type: string | null
+          id: string
+          payload: Json
+          processed_at: string | null
+          provider: string
+          received_at: string | null
+          team_id: string | null
+        }
+        Insert: {
+          event_type?: string | null
+          id?: string
+          payload: Json
+          processed_at?: string | null
+          provider: string
+          received_at?: string | null
+          team_id?: string | null
+        }
+        Update: {
+          event_type?: string | null
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          provider?: string
+          received_at?: string | null
+          team_id?: string | null
         }
         Relationships: []
       }
@@ -2911,6 +3511,106 @@ export type Database = {
           only_direction?: string | null
           target?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      team_credits: {
+        Row: {
+          balance: number
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          balance?: number
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          balance?: number
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_credits_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "minime_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_members: {
+        Row: {
+          created_at: string | null
+          role: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          role?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          role?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          billing_status: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          integration_limit: number | null
+          monthly_credits: number | null
+          name: string
+          plan_id: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_expires_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          billing_status?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          integration_limit?: number | null
+          monthly_credits?: number | null
+          name: string
+          plan_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_expires_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          billing_status?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          integration_limit?: number | null
+          monthly_credits?: number | null
+          name?: string
+          plan_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_expires_at?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -4353,6 +5053,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      consume_credits: {
+        Args: { credits_to_consume?: number; team_uuid: string }
+        Returns: boolean
+      }
       create_default_goals: {
         Args: { user_uuid: string }
         Returns: undefined
@@ -4435,6 +5139,30 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: Json
       }
+      gtrgm_compress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_decompress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_in: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_options: {
+        Args: { "": unknown }
+        Returns: undefined
+      }
+      gtrgm_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      has_credits: {
+        Args: { required_credits?: number; team_uuid: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -4445,6 +5173,14 @@ export type Database = {
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
+      }
+      is_team_claim: {
+        Args: { p_team_id: string }
+        Returns: boolean
+      }
+      jwt_team_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       log_critical_security_fix: {
         Args: Record<PropertyKey, never>
@@ -4492,6 +5228,38 @@ export type Database = {
         }
         Returns: string
       }
+      minime_avg_duration_ms: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      minime_metrics_since: {
+        Args: { recent_limit?: number; since: string }
+        Returns: Json
+      }
+      minime_runs_since_counts: {
+        Args: { since_ts: string }
+        Returns: {
+          cnt: number
+          status: string
+        }[]
+      }
+      phonefi_metrics_since: {
+        Args: { since: string }
+        Returns: {
+          avg_duration_ms: number
+          recent: Json
+          success_rate: number
+          total_runs: number
+        }[]
+      }
+      phonefi_run_buckets: {
+        Args: { since: string }
+        Returns: {
+          succeeded: number
+          total: number
+          ts: string
+        }[]
+      }
       queue_top_strategy_signals: {
         Args: {
           p_limit?: number
@@ -4514,6 +5282,10 @@ export type Database = {
         Args: { user_email: string }
         Returns: Json
       }
+      reset_monthly_credits: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       security_health_check: {
         Args: Record<PropertyKey, never>
         Returns: Json
@@ -4521,6 +5293,22 @@ export type Database = {
       security_monitoring_check: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      set_limit: {
+        Args: { "": number }
+        Returns: number
+      }
+      show_limit: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      show_trgm: {
+        Args: { "": string }
+        Returns: string[]
+      }
+      spend_credits: {
+        Args: { p_amount: number; p_team: string }
+        Returns: undefined
       }
       start_automated_trading_session: {
         Args: Record<PropertyKey, never>
