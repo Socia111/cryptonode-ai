@@ -89,8 +89,8 @@ async function fetchSignals(): Promise<Signal[]> {
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
-      .gte('score', 80) // Score 80+ signals only (high confidence)
-      .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours (more recent)
+      .gte('score', 70) // Lower threshold to match network requests
+      .gte('created_at', new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString()) // Last 1 hour only
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -119,7 +119,7 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
   const validTimeframes = ['1m', '5m', '15m', '30m', '1h', '2h', '4h'];
   
   return signals
-    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 80)
+    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 70)
     .map((item: any): Signal => ({
       id: item.id.toString(),
       token: item.symbol.replace('USDT', '/USDT'),
