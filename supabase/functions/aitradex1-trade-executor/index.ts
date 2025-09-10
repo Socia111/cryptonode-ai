@@ -234,7 +234,6 @@ class BybitV5Client {
       return Date.now();
     }
   }
-  }
 
   async getInstrumentInfo(symbol: string): Promise<any> {
     return this.requestWithRetry('GET', '/v5/market/instruments-info', {
