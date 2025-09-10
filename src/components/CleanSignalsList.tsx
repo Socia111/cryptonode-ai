@@ -13,13 +13,13 @@ const CleanSignalsList = () => {
   const { toast } = useToast();
   const [executingSignals, setExecutingSignals] = useState<Set<string>>(new Set());
 
-  // Filter for high-confidence signals only
+  // Filter for high-confidence signals only (80%+)
   const filteredSignals = useMemo(() => {
     if (!signals) return [];
     return signals
       .filter(signal => {
         const confidence = signal.confidence_score || 0;
-        return confidence >= 70; // Only show high-confidence signals
+        return confidence >= 80; // Only show 80%+ confidence signals as requested
       })
       .slice(0, 8); // Limit to 8 signals max for clean UI
   }, [signals]);
@@ -122,7 +122,7 @@ const CleanSignalsList = () => {
           <div className="text-center py-12 text-muted-foreground">
             <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>No high-confidence signals</p>
-            <p className="text-xs">Waiting for 70%+ confidence signals</p>
+            <p className="text-xs">Waiting for 80%+ confidence signals</p>
           </div>
         ) : (
           <div className="space-y-3">

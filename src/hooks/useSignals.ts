@@ -92,11 +92,11 @@ async function fetchSignals(): Promise<Signal[]> {
       return [];
     }
     
-    // Direct database query with correct score threshold
+    // Direct database query with 80% threshold as requested
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
-      .gte('score', 70)
+      .gte('score', 80) // 80% threshold as specifically requested
       .gte('created_at', new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(50);
@@ -108,8 +108,11 @@ async function fetchSignals(): Promise<Signal[]> {
     }
 
     if (allSignals && allSignals.length > 0) {
-      console.log(`[Signals] Found ${allSignals.length} total signals`);
-      return mapSignalsToInterface(allSignals);
+      console.log(`[Signals] Found ${allSignals.length} raw signals from database`);
+      console.log('[Signals] Sample signal:', allSignals[0]);
+      const mappedSignals = mapSignalsToInterface(allSignals);
+      console.log(`[Signals] Mapped to ${mappedSignals.length} interface signals`);
+      return mappedSignals;
     }
 
     // No signals available
@@ -125,8 +128,11 @@ async function fetchSignals(): Promise<Signal[]> {
 function mapSignalsToInterface(signals: any[]): Signal[] {
   const validTimeframes = ['1m', '5m', '15m', '30m', '1h', '2h', '4h'];
   
-  return signals
-    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 70)
+  console.log('[Signals] Input signals for mapping:', signals.length);
+  const filtered = signals.filter(item => validTimeframes.includes(item.timeframe) && item.score >= 80);
+  console.log('[Signals] After timeframe + score filter:', filtered.length);
+  
+  return filtered
     .map((item: any): Signal => ({
       id: item.id.toString(),
       token: item.symbol.replace('USDT', '/USDT'),
@@ -137,7 +143,7 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
       exit_target: item.tp ? Number(item.tp) : null,
       stop_loss: item.sl ? Number(item.sl) : null,
       leverage: 1,
-      confidence_score: Number(item.score),
+      confidence_score: Number(item.score), // This is the key field for 80% filtering
       pms_score: Number(item.score),
       trend_projection: item.direction === 'LONG' ? '⬆️' : '⬇️',
       volume_strength: item.indicators?.volSma21 ? Number(item.indicators.volSma21) / 1000000 : 1.0,
