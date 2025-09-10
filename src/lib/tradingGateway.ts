@@ -58,10 +58,10 @@ export const TradingGateway = {
           signal: {
             symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT for Bybit
             direction: params.side === 'BUY' ? 'LONG' : 'SHORT',
-            entry_price: 0, // Will be determined by market price
-            stop_loss: 0, // Will be calculated based on risk
-            take_profit: 0, // Will be calculated based on profit target
-            confidence_score: 85, // Default confidence for manual trades
+            entry_price: 50000, // Default market price placeholder (will be updated by executor)
+            stop_loss: 45000, // Default SL placeholder (will be calculated by executor)
+            take_profit: 60000, // Default TP placeholder (will be calculated by executor)
+            confidence_score: 0.85, // Confidence as decimal (0-1)
             pms_score: 0.8, // Default PMS score for manual trades
             risk_reward_ratio: 2.0, // Default RR ratio
             regime: 'trending', // Default regime
