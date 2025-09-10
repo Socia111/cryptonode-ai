@@ -237,9 +237,13 @@ class AutoTradingEngine {
   }
 
   async validateSignal(signal: TradingSignal): Promise<{ valid: boolean; reason?: string }> {
-    // 1. Check whitelist
-    if (!this.config.symbol_whitelist.includes(signal.symbol)) {
-      return { valid: false, reason: 'Symbol not in whitelist' }
+    // 1. Check whitelist - handle both formats (BTCUSDT and BTC/USDT)
+    const normalizedSymbol = signal.symbol.replace('/', '')
+    const symbolInWhitelist = this.config.symbol_whitelist.includes(signal.symbol) || 
+                             this.config.symbol_whitelist.includes(normalizedSymbol)
+    
+    if (!symbolInWhitelist) {
+      return { valid: false, reason: `Symbol ${signal.symbol} not in whitelist. Available: ${this.config.symbol_whitelist.join(', ')}` }
     }
 
     // 2. Check confidence and PMS thresholds

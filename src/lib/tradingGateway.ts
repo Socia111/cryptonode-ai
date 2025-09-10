@@ -39,7 +39,8 @@ export const TradingGateway = {
 
       if (!data || !data.success) {
         console.error('❌ Trade failed:', data);
-        return { ok: false, code: 'TRADE_FAILED', message: data?.message || 'Unknown error' };
+        const errorMessage = data?.reason || data?.message || 'Unknown error';
+        return { ok: false, code: 'TRADE_FAILED', message: errorMessage };
       }
 
       console.log('✅ Live trade executed successfully:', data);
