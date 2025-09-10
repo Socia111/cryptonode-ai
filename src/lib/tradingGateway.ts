@@ -16,13 +16,19 @@ export const TradingGateway = {
     try {
       console.log('🚀 Executing trade:', params);
       
-      // Use the new reliable trade executor
-      const { data, error } = await supabase.functions.invoke('trade-executor', {
+      // Use the real Bybit trade executor for live trading
+      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
         body: {
-          symbol: params.symbol,
-          side: params.side,
-          notionalUSD: params.notionalUSD,
-          testMode: true // Enable test mode for now
+          action: 'signal',
+          signal: {
+            token: params.symbol,
+            direction: params.side === 'BUY' ? 'LONG' : 'SHORT',
+            entry_price: 0, // Will be determined by market price
+            stop_loss: 0, // Will be calculated based on risk
+            exit_target: 0, // Will be calculated based on profit target
+            confidence: 85, // Default confidence for manual trades
+            leverage: 1
+          }
         }
       });
 
