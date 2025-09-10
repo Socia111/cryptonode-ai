@@ -43,7 +43,7 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
       if (data.success && data.items) {
         // Convert the API format to our Signal interface
         const formattedSignals: Signal[] = data.items
-          .filter((item: any) => item.score >= 75) // Only high-confidence signals
+          .filter((item: any) => item.score >= 75 && item.timeframe !== '5m') // Only high-confidence signals, exclude 5m
           .slice(0, 10) // Limit to 10 most recent
           .map((item: any) => ({
             id: item.id,

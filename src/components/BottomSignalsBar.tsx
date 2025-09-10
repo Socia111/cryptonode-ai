@@ -16,10 +16,10 @@ const BottomSignalsBar: React.FC = () => {
     }
   }, [signals.length]);
 
-  // Filter active signals from multiple timeframes (5m to 4h)
+  // Filter active signals from multiple timeframes (excluding 5m)
   const activeSignals = signals.filter(signal => 
     signal.status === 'active' && 
-    ['5m', '15m', '30m', '1h', '2h', '4h'].includes(signal.timeframe)
+    ['15m', '30m', '1h', '2h', '4h'].includes(signal.timeframe)
   );
 
   const formatPrice = (price: number) => {
@@ -47,7 +47,7 @@ const BottomSignalsBar: React.FC = () => {
               <span className="font-medium text-sm">Live Signals</span>
             </div>
             <Badge variant="outline" className="text-xs">
-              {activeSignals.length} Active (5m-4h)
+              {activeSignals.length} Active (15m-4h)
             </Badge>
           </div>
           
