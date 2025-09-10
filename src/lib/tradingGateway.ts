@@ -37,13 +37,13 @@ export const TradingGateway = {
         return { ok: false, code: 'EXECUTION_ERROR', message: error.message };
       }
 
-      if (!data.ok) {
-        console.error('❌ Trade failed:', data.error);
-        return { ok: false, code: 'TRADE_FAILED', message: data.error };
+      if (!data || !data.success) {
+        console.error('❌ Trade failed:', data);
+        return { ok: false, code: 'TRADE_FAILED', message: data?.message || 'Unknown error' };
       }
 
-      console.log('✅ Trade executed successfully:', data.data);
-      return { ok: true, data: data.data };
+      console.log('✅ Live trade executed successfully:', data);
+      return { ok: true, data: data.result || data };
       
     } catch (error: any) {
       console.error('❌ Trading gateway error:', error);
