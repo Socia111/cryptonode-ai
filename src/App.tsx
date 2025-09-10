@@ -16,6 +16,7 @@ import Portfolio from "./pages/Portfolio";
 import Signals from "./pages/Signals";
 import Markets from "./pages/Markets";
 import Backtests from "./pages/Backtests";
+import Automation from "./pages/Automation";
 import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -48,6 +49,7 @@ function App() {
             <Route path="/signals" element={<Signals />} />
             <Route path="/markets" element={<Markets />} />
             <Route path="/backtests" element={<Backtests />} />
+            <Route path="/automation" element={<Automation />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
