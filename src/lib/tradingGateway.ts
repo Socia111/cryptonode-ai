@@ -47,11 +47,14 @@ export const TradingGateway = {
         headers['authorization'] = `Bearer ${sessionToken}`;
       }
       
+      const idempotencyKey = `web-${params.symbol}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
       const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           action: 'signal',
+          idempotencyKey,
           signal: {
             symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT for Bybit
             direction: params.side === 'BUY' ? 'LONG' : 'SHORT',
@@ -63,7 +66,10 @@ export const TradingGateway = {
             risk_reward_ratio: 2.0, // Default RR ratio
             regime: 'trending', // Default regime
             atr: 0.01, // Default ATR
-            indicators: {} // Empty indicators object
+            indicators: {
+              notionalUSD: params.notionalUSD,
+              leverage: 3
+            }
           }
         })
       });
