@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw, Activity, Zap, AlertTriangle, Coins } from 'lucide-react';
 import { useSignals } from '@/hooks/useSignals';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseClient';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { FEATURES } from '@/config/featureFlags';
 

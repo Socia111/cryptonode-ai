@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseClient';
 import { FEATURES } from '@/config/featureFlags'
 
 export type ExecParams = {

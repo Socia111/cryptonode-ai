@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseClient';
 import StatusChip from '@/components/StatusChip';
 import { Loader2, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';

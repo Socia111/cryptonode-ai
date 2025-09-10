@@ -83,21 +83,20 @@ function mapDbSignal(row: any): Signal {
 async function fetchSignals(): Promise<Signal[]> {
   try {
     console.log('[Signals] Fetching live signals from database...');
+    console.log('[Signals] Supabase client configured:', !!supabase);
     
-    // Direct database query (since functions are now public, no need for complex API)
-    console.log('[Signals] Using direct database query for best performance...');
-
-    // Fallback to direct database query
+    // Direct database query with fresh timeframe
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
       .gte('score', 80) // Score 80+ signals only (high confidence)
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
+      .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours (more recent)
       .order('created_at', { ascending: false })
       .limit(50);
 
     if (signalsError) {
-      console.error('[Signals] Signals query failed:', signalsError.message);
+      console.error('[Signals] Signals query failed:', signalsError);
+      console.error('[Signals] Error details:', JSON.stringify(signalsError, null, 2));
       return [];
     }
 
@@ -117,7 +116,7 @@ async function fetchSignals(): Promise<Signal[]> {
 }
 
 function mapSignalsToInterface(signals: any[]): Signal[] {
-  const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
+  const validTimeframes = ['1m', '5m', '15m', '30m', '1h', '2h', '4h'];
   
   return signals
     .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 80)
