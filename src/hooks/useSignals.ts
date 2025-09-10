@@ -85,12 +85,19 @@ async function fetchSignals(): Promise<Signal[]> {
     console.log('[Signals] Fetching live signals from database...');
     console.log('[Signals] Supabase client configured:', !!supabase);
     
-    // Direct database query with fresh timeframe
+    // Test connection first
+    const { data: testData, error: testError } = await supabase.from('signals').select('count').limit(1);
+    if (testError) {
+      console.error('[Signals] Connection test failed:', testError);
+      return [];
+    }
+    
+    // Direct database query with correct score threshold
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
-      .gte('score', 70) // Lower threshold to match network requests
-      .gte('created_at', new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString()) // Last 1 hour only
+      .gte('score', 70)
+      .gte('created_at', new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(50);
 
