@@ -26,27 +26,32 @@ type Signal = {
 };
 
 function mapDbToSignal(row: any): Signal {
-  const side = (row.side ?? 'LONG').toUpperCase(); // LONG|SHORT
+  // Handle both old format and new realtime format
+  const direction = (row.direction ?? row.side ?? 'LONG').toUpperCase();
+  const symbol = row.symbol ?? row.market_symbol ?? 'UNKNOWN';
+  const formattedSymbol = symbol.includes('/') ? symbol : symbol.replace('USDT', '/USDT');
+  
   return {
-    id: row.id,
-    token: row.market_symbol ?? `${row.strategy ?? 'AI'}/USDT`,
-    direction: side === 'LONG' ? 'BUY' : 'SELL',
-    signal_type: row.strategy ?? 'Unknown',
-    timeframe: row.meta?.timeframe ?? '1h',
-    entry_price: Number(row.entry_hint ?? 0),
-    exit_target: row.tp_hint != null ? Number(row.tp_hint) : null,
-    stop_loss: row.sl_hint != null ? Number(row.sl_hint) : null,
-    leverage: Number(row.meta?.leverage ?? 1),
-    confidence_score: Number((row.confidence ?? 0) * 100),
+    id: row.id?.toString() ?? '',
+    token: formattedSymbol,
+    direction: direction === 'LONG' ? 'BUY' : 'SELL',
+    signal_type: `${row.algo ?? row.strategy ?? 'AItradeX1'} ${row.timeframe ?? '1h'}`,
+    timeframe: row.timeframe ?? row.meta?.timeframe ?? '1h',
+    entry_price: Number(row.price ?? row.entry_hint ?? 0),
+    exit_target: (row.tp ?? row.tp_hint) != null ? Number(row.tp ?? row.tp_hint) : null,
+    stop_loss: (row.sl ?? row.sl_hint) != null ? Number(row.sl ?? row.sl_hint) : null,
+    leverage: Number(row.leverage ?? row.meta?.leverage ?? 1),
+    confidence_score: Number(row.score ?? row.confidence ?? 0),
     pms_score: Number(row.score ?? 0),
-    trend_projection: side === 'LONG' ? '⬆️' : '⬇️',
-    volume_strength: Number(row.meta?.volume_strength ?? 1.0),
-    roi_projection: Number(row.meta?.roi_projection ?? 10),
-    signal_strength: (row.meta?.signal_strength ?? 'MEDIUM').toUpperCase() as 'WEAK' | 'MEDIUM' | 'STRONG',
-    risk_level: (row.meta?.risk_level ?? 'MEDIUM').toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH',
-    quantum_probability: Number(row.confidence ?? 0.5),
-    status: row.is_active ? 'active' : 'inactive',
-    created_at: row.generated_at ?? new Date().toISOString(),
+    trend_projection: direction === 'LONG' ? '⬆️' : '⬇️',
+    volume_strength: Number(row.volume_strength ?? row.meta?.volume_strength ?? 1.0),
+    roi_projection: (row.tp ?? row.tp_hint) && (row.price ?? row.entry_hint) ? 
+      Math.abs((Number(row.tp ?? row.tp_hint) - Number(row.price ?? row.entry_hint)) / Number(row.price ?? row.entry_hint) * 100) : 10,
+    signal_strength: row.score > 85 ? 'STRONG' : row.score > 75 ? 'MEDIUM' : 'WEAK',
+    risk_level: row.score > 85 ? 'LOW' : row.score > 75 ? 'MEDIUM' : 'HIGH',
+    quantum_probability: Number(row.score ?? row.confidence ?? 0) / 100,
+    status: 'active',
+    created_at: row.created_at ?? row.generated_at ?? new Date().toISOString(),
   };
 }
 
@@ -276,6 +281,8 @@ export const useSignals = () => {
       setError(null);
       const { data, error } = await supabase.from('signals')
         .select('*')
+        .gte('score', 70) // Show signals with score 70+ 
+        .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()) // Last 6 hours
         .order('created_at', { ascending: false })
         .limit(50);
         
@@ -283,6 +290,7 @@ export const useSignals = () => {
       
       const mappedSignals = (data || []).map(mapDbToSignal);
       setSignals(mappedSignals);
+      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database`);
     } catch (err: any) {
       console.error('[useSignals] refreshSignals failed:', err);
       setError(err.message || 'Failed to fetch signals');
