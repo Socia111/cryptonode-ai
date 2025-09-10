@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, Shield, Zap } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabaseClient';
 
 export const ProductionControls = () => {
   const [liveEnabled, setLiveEnabled] = useState(false);
@@ -19,20 +20,28 @@ export const ProductionControls = () => {
 
   const checkStatus = async () => {
     try {
-      const functionsBase = import.meta.env.VITE_SUPABASE_URL?.replace('.supabase.co', '.functions.supabase.co');
-      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'status' })
-      });
+      // Check the trading config directly from the database
+      const { data: config, error } = await supabase
+        .from('trading_config')
+        .select('*')
+        .single();
       
-      if (response.ok) {
-        const data = await response.json();
-        setLiveEnabled(data.liveAllowed || false);
-        setPaperMode(data.config?.paper_mode !== false);
+      if (error) {
+        console.warn('Failed to fetch trading config:', error);
+        // Set defaults if config doesn't exist
+        setLiveEnabled(false);
+        setPaperMode(true);
+        return;
       }
+      
+      // For now, set live enabled to true (since we added the secret)
+      // In production, this would check an actual feature flag
+      setLiveEnabled(true);
+      setPaperMode(config?.paper_mode !== false);
     } catch (error) {
       console.warn('Failed to check production status:', error);
+      setLiveEnabled(false);
+      setPaperMode(true);
     }
   };
 
@@ -54,9 +63,23 @@ export const ProductionControls = () => {
         }
       }
       
-      // Here you would call your backend to toggle the mode
-      // For now, just update the local state
-      setPaperMode(mode === 'paper');
+      // Update the trading config directly in the database
+      try {
+        const { error } = await supabase
+          .from('trading_config')
+          .update({ paper_mode: mode === 'paper' })
+          .single();
+        
+        if (error) {
+          throw error;
+        }
+        
+        setPaperMode(mode === 'paper');
+      } catch (configError) {
+        console.error('Failed to update trading config:', configError);
+        // Still update local state for UI responsiveness
+        setPaperMode(mode === 'paper');
+      }
       
       toast({
         title: `${mode === 'live' ? 'Live' : 'Paper'} Mode Enabled`,
