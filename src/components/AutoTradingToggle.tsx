@@ -24,8 +24,17 @@ export function AutoTradingToggle() {
 
   const fetchStatus = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor/status')
-      if (error) throw error
+      const response = await fetch('https://codhlwjogfjywmjyjbbn.supabase.co/functions/v1/aitradex1-trade-executor/status', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0`,
+          'Content-Type': 'application/json',
+        }
+      })
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      
+      const data = await response.json()
       
       setStatus({
         auto_trading_enabled: data.config?.auto_trading_enabled || false,
@@ -93,11 +102,19 @@ export function AutoTradingToggle() {
   const toggleAutoTrading = async (enabled: boolean) => {
     setUpdating(true)
     try {
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor/toggle', {
-        body: { enabled }
+      const response = await fetch('https://codhlwjogfjywmjyjbbn.supabase.co/functions/v1/aitradex1-trade-executor/toggle', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ enabled })
       })
       
-      if (error) throw error
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      
+      const data = await response.json()
+      if (!data.success) throw new Error(data.message || 'Toggle failed')
 
       setStatus(prev => prev ? { ...prev, auto_trading_enabled: enabled } : null)
       toast({
@@ -120,9 +137,18 @@ export function AutoTradingToggle() {
   const emergencyStop = async () => {
     setUpdating(true)
     try {
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor/emergency-stop')
+      const response = await fetch('https://codhlwjogfjywmjyjbbn.supabase.co/functions/v1/aitradex1-trade-executor/emergency-stop', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0`,
+          'Content-Type': 'application/json',
+        }
+      })
       
-      if (error) throw error
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      
+      const data = await response.json()
+      if (!data.success) throw new Error(data.message || 'Emergency stop failed')
 
       await fetchStatus()
       toast({
