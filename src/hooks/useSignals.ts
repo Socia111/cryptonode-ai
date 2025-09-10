@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { openSignalsChannel } from '@/lib/realtime';
+import { subscribeSignals as subscribeSignalsRealtime } from '@/lib/realtime';
 
 type Signal = {
   id: string;
@@ -146,104 +146,7 @@ function getMockSignals(): Signal[] {
   return [];
 }
 
-function subscribeSignals(onInsert: (s: Signal) => void, onUpdate: (s: Signal) => void) {
-  console.log('[Signals] Setting up real-time subscription...');
-  
-  const channel = supabase
-    .channel('signals-subscription')
-    .on(
-      'postgres_changes',
-      { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'signals'
-      },
-      (payload) => {
-        console.log('[Signals] New signal received via realtime:', payload.new);
-        try {
-          // Map the actual signals table structure to our Signal interface
-          const rawSignal = payload.new;
-          const newSignal: Signal = {
-            id: rawSignal.id.toString(),
-            token: rawSignal.symbol.replace('USDT', '/USDT'),
-            direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
-            signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
-            timeframe: rawSignal.timeframe,
-            entry_price: Number(rawSignal.price),
-            exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
-            stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
-            leverage: 1,
-            confidence_score: Number(rawSignal.score),
-            pms_score: Number(rawSignal.score),
-            trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
-            volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
-            roi_projection: Math.abs((Number(rawSignal.tp || rawSignal.price * 1.1) - Number(rawSignal.price)) / Number(rawSignal.price) * 100),
-            signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
-            risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
-            quantum_probability: Number(rawSignal.score) / 100,
-            status: 'active',
-            created_at: rawSignal.created_at || new Date().toISOString(),
-          };
-          
-          if (newSignal && newSignal.confidence_score >= 80) {
-            onInsert(newSignal);
-          }
-        } catch (e) {
-          console.error('[Signals] Failed to map new signal:', e);
-        }
-      }
-    )
-    .on(
-      'postgres_changes',
-      { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'signals'
-      },
-      (payload) => {
-        console.log('[Signals] Signal updated via realtime:', payload.new);
-        try {
-          // Map the actual signals table structure to our Signal interface
-          const rawSignal = payload.new;
-          const updatedSignal: Signal = {
-            id: rawSignal.id.toString(),
-            token: rawSignal.symbol.replace('USDT', '/USDT'),
-            direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
-            signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
-            timeframe: rawSignal.timeframe,
-            entry_price: Number(rawSignal.price),
-            exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
-            stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
-            leverage: 1,
-            confidence_score: Number(rawSignal.score),
-            pms_score: Number(rawSignal.score),
-            trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
-            volume_strength: rawSignal.indicators?.volSma21 ? Number(rawSignal.indicators.volSma21) / 1000000 : 1.0,
-            roi_projection: Math.abs((Number(rawSignal.tp || rawSignal.price * 1.1) - Number(rawSignal.price)) / Number(rawSignal.price) * 100),
-            signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
-            risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
-            quantum_probability: Number(rawSignal.score) / 100,
-            status: 'active',
-            created_at: rawSignal.created_at || new Date().toISOString(),
-          };
-          
-          if (updatedSignal && updatedSignal.confidence_score >= 80) {
-            onUpdate(updatedSignal);
-          }
-        } catch (e) {
-          console.error('[Signals] Failed to map updated signal:', e);
-        }
-      }
-    )
-    .subscribe((status, err) => {
-      console.log('[Signals] Subscription status:', status);
-      if (err) {
-        console.error('[Signals] Subscription error:', err);
-      }
-    });
-    
-  return channel;
-}
+// Function removed - now using subscribeSignalsRealtime from @/lib/realtime
 
 export async function generateSignals() {
   try {
@@ -368,11 +271,18 @@ export const useSignals = () => {
   const { toast } = useToast();
 
   const refreshSignals = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       setError(null);
-      const data = await fetchSignals();
-      setSignals(data);
+      const { data, error } = await supabase.from('signals')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+        
+      if (error) throw error;
+      
+      const mappedSignals = (data || []).map(mapDbToSignal);
+      setSignals(mappedSignals);
     } catch (err: any) {
       console.error('[useSignals] refreshSignals failed:', err);
       setError(err.message || 'Failed to fetch signals');
@@ -431,57 +341,55 @@ export const useSignals = () => {
   };
 
   useEffect(() => {
-    let isMounted = true;
-    
-    const initializeSignals = async () => {
-      if (isMounted) {
-        await refreshSignals();
-      }
-    };
-    
-    initializeSignals();
-    
-    // Set up realtime subscription for live signal updates (with error handling)
+    let mounted = true;
     let channel: any = null;
-    try {
-      channel = subscribeSignals(
-        (newSignal) => {
-          if (!isMounted) return;
-          console.info('[useSignals] New signal inserted:', newSignal);
-          setSignals(prev => [newSignal, ...prev.slice(0, 49)]); // Keep max 50 signals
-          
-          // Show toast notification for new signal
-          toast({
-            title: "🚨 New Signal Generated",
-            description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
-            duration: 5000,
-          });
-        },
-        (updatedSignal) => {
-          if (!isMounted) return;
-          console.info('[useSignals] Signal updated:', updatedSignal);
-          setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
+    let pollId: number | null = null;
+    const POLL_MS = 30000;
+
+    const boot = async () => {
+      try {
+        await refreshSignals();
+      } catch (e) {
+        console.warn('[signals] initial load failed', e);
+      }
+
+      try {
+        channel = subscribeSignalsRealtime(
+          (newSignal) => { 
+            if (mounted) {
+              setSignals(prev => [newSignal, ...prev].slice(0, 50));
+              
+              // Show toast notification for new signal
+              toast({
+                title: "🚨 New Signal Generated",
+                description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
+                duration: 5000,
+              });
+            }
+          },
+          (updatedSignal) => { 
+            if (mounted) {
+              setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
+            }
+          },
+        );
+      } catch (e) {
+        console.warn('[signals] realtime subscribe failed, fallback to polling', e);
+      }
+
+      pollId = window.setInterval(() => {
+        if (mounted) {
+          refreshSignals().catch(() => {});
         }
-      );
-    } catch (err) {
-      console.warn('[useSignals] Realtime subscription failed, using polling fallback:', err);
-    }
+      }, POLL_MS);
+    };
 
-    // Auto-refresh signals every 30 seconds to catch any missed updates
-    const refreshInterval = setInterval(() => {
-      if (isMounted) {
-        console.log('[useSignals] Auto-refreshing signals...');
-        refreshSignals();
-      }
-    }, 30000);
+    boot();
 
-    // Cleanup
     return () => {
-      isMounted = false;
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-      clearInterval(refreshInterval);
+      mounted = false;
+      if (channel) supabase.removeChannel(channel);
+      if (pollId) clearInterval(pollId);
     };
   }, []);
 
