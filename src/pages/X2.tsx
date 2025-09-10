@@ -6,7 +6,7 @@ import LivePrice from '../components/LivePrice';
 import TradingChart from '../components/TradingChart';
 import MarketOverview from '../components/MarketOverview';
 import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
-import AutomatedTradingDashboard from '../components/AutomatedTradingDashboard';
+
 import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
 import DatabaseSetup from '../components/DatabaseSetup';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -100,7 +100,7 @@ const X2 = () => {
         <ComprehensiveScannerDashboard />
 
         {/* Automated Trading */}
-        <AutomatedTradingDashboard />
+        
         
         {/* Database Setup */}
         <DatabaseSetup />

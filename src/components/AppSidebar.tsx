@@ -37,9 +37,7 @@ const mainItems = [
   { title: "Signals", url: "/signals", icon: Zap },
   { title: "Markets", url: "/markets", icon: BarChart3 },
   { title: "Backtests", url: "/backtests", icon: TestTube },
-  { title: "Automation", url: "/automation", icon: Bot },
   { title: "Alerts", url: "/alerts", icon: Bell },
-  { title: "Bybit Login", url: "/bybit-auth", icon: Building2 },
 ];
 
 const settingsItems = [
