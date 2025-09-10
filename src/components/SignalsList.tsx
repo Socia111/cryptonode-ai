@@ -113,10 +113,10 @@ const SignalsList = () => {
       return;
     }
 
-    // Legacy simulation for now
+    // Execute real trade via TradingGateway
     setIsExecutingOrder(true);
     try {
-      console.log('🚀 Simulating trade execution:', {
+      console.log('🚀 Executing real trade:', {
         token: signal.token,
         direction: signal.direction,
         entry_price: signal.entry_price,
@@ -126,14 +126,20 @@ const SignalsList = () => {
         leverage: useLeverage ? leverage : 1
       });
 
-      // Simulate order processing
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      toast({
-        title: "Trade Executed (Simulated)",
-        description: `${signal.token} ${signal.direction} - Simulated execution completed`,
-        variant: "default",
-      });
+      if (res.ok) {
+        toast({
+          title: "✅ Trade Executed Successfully",
+          description: `${signal.token} ${signal.direction} - Real order placed on Bybit`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "❌ Trade Execution Failed", 
+          description: res.message || 'Failed to execute trade on Bybit',
+          variant: "destructive",
+        });
+        return;
+      }
 
       // Mark as executed
       setExecutedSignals(prev => new Set(prev).add(signal.id));
@@ -431,23 +437,23 @@ const SignalsList = () => {
 
               {/* Status and Warnings */}
               <div className="flex items-center justify-between">
-                <div className="text-xs text-muted-foreground">
-                  {!FEATURES.AUTOTRADE_ENABLED ? (
-                    <p className="text-amber-400">
-                      Auto-trading is disabled in this build. Actions are simulated only.
+              <div className="text-xs text-muted-foreground">
+                {!FEATURES.AUTOTRADE_ENABLED ? (
+                  <p className="text-amber-400">
+                    Auto-trading is disabled in this build. Actions are simulated only.
+                  </p>
+                ) : (
+                  <>
+                    <p className="flex items-center gap-1 text-green-400">
+                      <Coins className="w-3 h-3" />
+                      ✅ Live trading enabled - executing real orders on Bybit v5 API
                     </p>
-                  ) : (
-                    <>
-                      <p className="flex items-center gap-1">
-                        <Coins className="w-3 h-3" />
-                        Execute trades directly on Bybit v5 API
-                      </p>
-                      <p className="text-warning flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
-                        Real money trading - use carefully!
-                      </p>
-                    </>
-                  )}
+                    <p className="text-amber-400 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Real money trading - use carefully!
+                    </p>
+                  </>
+                )}
                 </div>
                 
                 <div className="flex items-center space-x-2">
