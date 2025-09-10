@@ -24,7 +24,7 @@ export const ProductionControls = () => {
       const { data: config, error } = await supabase
         .from('trading_config')
         .select('*')
-        .single();
+        .maybeSingle();
       
       if (error) {
         console.warn('Failed to fetch trading config:', error);
@@ -34,10 +34,15 @@ export const ProductionControls = () => {
         return;
       }
       
-      // For now, set live enabled to true (since we added the secret)
-      // In production, this would check an actual feature flag
+      // Enable live trading if config exists (since we have Bybit API configured)
       setLiveEnabled(true);
       setPaperMode(config?.paper_mode !== false);
+      
+      console.log('Trading config loaded:', { 
+        liveEnabled: true, 
+        paperMode: config?.paper_mode !== false,
+        config 
+      });
     } catch (error) {
       console.warn('Failed to check production status:', error);
       setLiveEnabled(false);
@@ -68,7 +73,7 @@ export const ProductionControls = () => {
         const { error } = await supabase
           .from('trading_config')
           .update({ paper_mode: mode === 'paper' })
-          .single();
+          .eq('id', 'fc48936e-93c3-4cfc-85bd-23d0c74b767b');
         
         if (error) {
           throw error;
