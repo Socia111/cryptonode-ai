@@ -1,75 +1,12 @@
 
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
-import MarketOverview from '../components/MarketOverview';
-import SignalsList from '../components/SignalsList';
-import TradingChart from '../components/TradingChart';
-import PortfolioStats from '../components/PortfolioStats';
-import DatabaseSetup from '../components/DatabaseSetup';
-import SpynxScoreCard from '../components/SpynxScoreCard';
-import TelegramIntegration from '../components/TelegramIntegration';
-import TradingPanel from '../components/TradingPanel';
-import BacktestEngine from '../components/BacktestEngine';
-import QuantumAnalysis from '../components/QuantumAnalysis';
-import ScannerDashboard from '../components/ScannerDashboard';
-import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
-import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
-import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
-import TradePlanGenerator from '../components/TradePlanGenerator';
-import RealtimeSignalsFeed from '../components/RealtimeSignalsFeed';
-import BottomSignalsBar from '../components/BottomSignalsBar';
+import TradingDashboard from '../components/TradingDashboard';
 
 const Index = () => {
   return (
     <MainLayout>
-      <div className="container mx-auto px-6 py-8 space-y-8">
-        {/* Database Setup */}
-        <DatabaseSetup />
-        
-        {/* AItradeX1 Strategy Panel */}
-        <AItradeX1StrategyPanel />
-        
-        {/* Trade Plan Generator */}
-        <TradePlanGenerator />
-        
-        {/* Comprehensive Scanner Dashboard */}
-        <ComprehensiveScannerDashboard />
-        
-        {/* AItradeX1 Scanner Chart */}
-        <AItradeX1ScannerChart />
-        
-        {/* AItradeX1 Scanner Dashboard */}
-        <ScannerDashboard />
-        
-        {/* Market Overview */}
-        <MarketOverview />
-        
-        {/* Live Signals - Prominent Position */}
-        <SignalsList />
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Trading Chart */}
-          <div className="lg:col-span-2 space-y-6">
-            <TradingChart />
-            <BacktestEngine />
-          </div>
-          
-          {/* Side Panel */}
-          <div className="space-y-6">
-            <PortfolioStats />
-            <TradingPanel />
-            <TelegramIntegration />
-            <QuantumAnalysis />
-            <SpynxScoreCard />
-          </div>
-        </div>
-      </div>
-      
-      {/* Real-time Signals Feed */}
-      <RealtimeSignalsFeed />
-      
-      {/* Bottom Signals Bar */}
-      <BottomSignalsBar />
+      <TradingDashboard />
     </MainLayout>
   );
 };
