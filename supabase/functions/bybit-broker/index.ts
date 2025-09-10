@@ -115,8 +115,11 @@ async function bybitRequest(
     throw err;
   }
   if (data?.retCode !== 0) {
-    const err: any = new Error(data?.retMsg || "Bybit error");
-    err.retCode = data?.retCode; err.retMsg = data?.retMsg;
+    const errorMsg = data?.retMsg || "Bybit API error";
+    console.error('❌ Bybit API error:', { retCode: data?.retCode, retMsg: data?.retMsg, data });
+    const err: any = new Error(errorMsg);
+    err.retCode = data?.retCode; 
+    err.retMsg = data?.retMsg;
     throw err;
   }
   return data;
@@ -341,6 +344,34 @@ serve(async (req) => {
       let body: any = {};
       if (req.headers.get("content-type")?.includes("application/json")) {
         try { body = await req.json(); } catch { body = {}; }
+      }
+
+      // Handle order placement - check if this is an order request (has symbol, side, etc.)
+      if (body.symbol && body.side) {
+        console.log('📦 Processing order request:', JSON.stringify(body, null, 2));
+        
+        // Validate required fields
+        if (!body.qty) {
+          return json(400, { success: false, error: 'qty is required for order placement' });
+        }
+        
+        const payload: Record<string, unknown> = {
+          category: body.category ?? "linear",
+          symbol: body.symbol,
+          side: body.side,
+          orderType: body.orderType ?? "Market",
+          qty: String(body.qty),
+        };
+        if (body.price) payload.price = String(body.price);
+        if (body.positionIdx !== undefined) payload.positionIdx = body.positionIdx;
+        if (body.timeInForce) payload.timeInForce = body.timeInForce;
+        if (body.stopLoss) payload.stopLoss = String(body.stopLoss);
+        if (body.takeProfit) payload.takeProfit = String(body.takeProfit);
+
+        console.log('🔄 Sending to Bybit API:', JSON.stringify(payload, null, 2));
+        const r = await bybitRequest("/v5/order/create", "POST", {}, payload);
+        console.log('✅ Bybit API response:', JSON.stringify(r, null, 2));
+        return json(200, { success: true, orderId: r?.result?.orderId ?? null, result: r?.result ?? null });
       }
 
       // legacy: action=status

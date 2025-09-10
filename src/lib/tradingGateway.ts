@@ -14,17 +14,20 @@ export const TradingGateway = {
     }
 
     try {
-      console.log('🚀 Executing real trade:', params);
+      console.log('🚀 Executing real trade via Bybit API:', params);
       
-      // Call the Bybit broker edge function for real trading
+      // Call the Bybit broker edge function with proper endpoint
       const { data, error } = await supabase.functions.invoke('bybit-broker', {
+        method: 'POST',
         body: {
-          action: 'place_order',
-          symbol: params.symbol.replace('/', ''),  // Convert BTC/USDT to BTCUSDT
-          side: params.side,
+          symbol: params.symbol.replace('/', ''), // Convert BTC/USDT to BTCUSDT
+          side: params.side === 'BUY' ? 'Buy' : 'Sell', // Bybit expects 'Buy'/'Sell'
           orderType: 'Market',
-          qty: (params.notionalUSD / 1).toString(), // Convert USD to base amount (simplified)
-          timeInForce: 'IOC'
+          qty: '0.001', // Fixed small quantity for testing
+          category: 'linear'
+        },
+        headers: {
+          'Content-Type': 'application/json'
         }
       });
 
