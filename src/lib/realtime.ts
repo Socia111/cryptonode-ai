@@ -101,7 +101,13 @@ export function subscribeSignals(
         }
       })
     .subscribe((status) => {
-      console.log('[signals-realtime]', status);
+      if (status === 'SUBSCRIBED') {
+        console.log('[signals-realtime] Successfully subscribed to signals channel');
+      } else if (status === 'CHANNEL_ERROR') {
+        console.warn('[signals-realtime] Channel error - attempting reconnect...');
+      } else {
+        console.log('[signals-realtime]', status);
+      }
     });
 
   return channel;

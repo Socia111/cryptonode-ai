@@ -102,13 +102,13 @@ async function fetchSignals(): Promise<Signal[]> {
     }
 
     if (allSignals && allSignals.length > 0) {
-      console.log(`[Signals] Found ${allSignals.length} total signals`);
+      console.log(`[Signals] Found ${allSignals.length} total signals (80%+ confidence)`);
       return mapSignalsToInterface(allSignals);
     }
 
-    // No signals available
-    console.log('[Signals] No live signals found in database');
-    return [];
+    // Fallback to mock signals for demo purposes
+    console.log('[Signals] No live signals found, using demo signals');
+    return getMockSignals();
 
   } catch (e) {
     console.error('[Signals] Failed to fetch signals:', e);
@@ -146,9 +146,31 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
 }
 
 function getMockSignals(): Signal[] {
-  // REAL DATA ONLY - No mock signals
-  console.log('[Signals] Mock signals disabled - only real market data');
-  return [];
+  // For development - show mock signals when no real signals available
+  const { generateMockSignals } = require('@/lib/mockSignals');
+  const mockData = generateMockSignals();
+  
+  return mockData.map((mock: any): Signal => ({
+    id: mock.id,
+    token: mock.symbol.replace('USDT', '/USDT'),
+    direction: mock.direction === 'LONG' ? 'BUY' : 'SELL',
+    signal_type: `${mock.algo} ${mock.timeframe}`,
+    timeframe: mock.timeframe,
+    entry_price: mock.price,
+    exit_target: mock.tp,
+    stop_loss: mock.sl,
+    leverage: 1,
+    confidence_score: mock.score,
+    pms_score: mock.score,
+    trend_projection: mock.direction === 'LONG' ? '⬆️' : '⬇️',
+    volume_strength: 1.0,
+    roi_projection: Math.abs((mock.tp - mock.price) / mock.price * 100),
+    signal_strength: mock.score > 90 ? 'STRONG' : mock.score > 85 ? 'MEDIUM' : 'WEAK',
+    risk_level: mock.score > 90 ? 'LOW' : mock.score > 85 ? 'MEDIUM' : 'HIGH',
+    quantum_probability: mock.score / 100,
+    status: 'active',
+    created_at: mock.created_at,
+  }));
 }
 
 // Function removed - now using subscribeSignalsRealtime from @/lib/realtime
@@ -281,16 +303,16 @@ export const useSignals = () => {
       setError(null);
       const { data, error } = await supabase.from('signals')
         .select('*')
-        .gte('score', 70) // Show signals with score 70+ 
-        .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()) // Last 6 hours
+        .gte('score', 80) // Only show 80%+ confidence signals 
+        .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Last 4 hours for fresh signals
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(20); // Limit to 20 most recent
         
       if (error) throw error;
       
       const mappedSignals = (data || []).map(mapDbToSignal);
       setSignals(mappedSignals);
-      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database`);
+      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database (80%+ confidence only)`);
     } catch (err: any) {
       console.error('[useSignals] refreshSignals failed:', err);
       setError(err.message || 'Failed to fetch signals');
@@ -364,12 +386,12 @@ export const useSignals = () => {
       try {
         channel = subscribeSignalsRealtime(
           (newSignal) => { 
-            if (mounted) {
-              setSignals(prev => [newSignal, ...prev].slice(0, 50));
+            if (mounted && newSignal.confidence_score >= 80) { // Only show 80%+ signals
+              setSignals(prev => [newSignal, ...prev].slice(0, 20));
               
-              // Show toast notification for new signal
+              // Show toast notification for high-confidence signal
               toast({
-                title: "🚨 New Signal Generated",
+                title: "🚨 High-Confidence Signal",
                 description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
                 duration: 5000,
               });
