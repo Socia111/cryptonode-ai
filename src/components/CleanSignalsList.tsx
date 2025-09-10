@@ -185,7 +185,7 @@ const CleanSignalsList = () => {
                     <div className="flex items-center gap-4 ml-6">
                       <div className="text-right text-xs">
                         <p className="text-muted-foreground">Confidence</p>
-                        <p className="font-semibold text-primary">{confidence.toFixed(0)}%</p>
+                        <p className="font-semibold text-primary">{confidence.toFixed(1)}%</p>
                         <p className="text-muted-foreground mt-1">R:R</p>
                         <p className="font-medium">{riskReward.toFixed(1)}</p>
                       </div>
@@ -213,11 +213,17 @@ const CleanSignalsList = () => {
           </div>
         )}
         
-        {/* Status indicator */}
-        {FEATURES.AUTOTRADE_ENABLED && (
-          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-xs text-green-700 font-medium">
-              ✅ Live Trading Active - Real orders on Bybit
+        {/* Clear Trading Mode Status */}
+        {FEATURES.AUTOTRADE_ENABLED ? (
+          <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <p className="text-xs text-green-700 dark:text-green-400 font-medium">
+              ⚡ Live Trading Mode - Real orders on Bybit exchange
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">
+              📝 Paper Trading Mode - Simulation only, no real orders
             </p>
           </div>
         )}

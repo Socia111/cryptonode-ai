@@ -21,12 +21,11 @@ import {
 import CleanSignalsList from './CleanSignalsList';
 import AutoTradingToggle from './AutoTradingToggle';
 import PerformancePanel from './PerformancePanel';
-import DatabaseSetup from './DatabaseSetup';
 
 const TradingDashboard = () => {
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Enhanced Header */}
+      {/* Simplified Header */}
       <div className="glass-card p-6 border border-border/50">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -35,46 +34,18 @@ const TradingDashboard = () => {
             </h1>
             <p className="text-muted-foreground mt-1">Professional AI-Powered Trading Platform</p>
           </div>
+          
+          {/* System Health - Single Indicator */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 border border-success/20">
               <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-              <span className="text-sm text-success font-medium">Live Market Data</span>
+              <span className="text-sm text-success font-medium">All Systems Online</span>
             </div>
-            <Button variant="outline" size="sm" className="gap-2">
-              <Settings className="w-4 h-4" />
-              Configure
-            </Button>
           </div>
         </div>
 
-        {/* Status Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="surface-elevated p-4 rounded-lg border border-border/50 hover-scale">
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2 rounded-lg bg-success/10">
-                <Database className="h-5 w-5 text-success" />
-              </div>
-              <Badge variant="outline" className="bg-success/10 text-success border-success/20">
-                Online
-              </Badge>
-            </div>
-            <h3 className="font-semibold">Database</h3>
-            <p className="text-sm text-muted-foreground">All systems operational</p>
-          </div>
-
-          <div className="surface-elevated p-4 rounded-lg border border-border/50 hover-scale">
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Activity className="h-5 w-5 text-primary" />
-              </div>
-              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                Active
-              </Badge>
-            </div>
-            <h3 className="font-semibold">Strategy Engine</h3>
-            <p className="text-sm text-muted-foreground">Processing signals</p>
-          </div>
-
+        {/* Key Performance Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="surface-elevated p-4 rounded-lg border border-border/50 hover-scale">
             <div className="flex items-center justify-between mb-2">
               <div className="p-2 rounded-lg bg-chart-bullish/10">
@@ -96,13 +67,22 @@ const TradingDashboard = () => {
             <h3 className="font-semibold">Daily ROI</h3>
             <p className="text-sm text-muted-foreground">Performance today</p>
           </div>
+
+          <div className="surface-elevated p-4 rounded-lg border border-border/50 hover-scale">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Activity className="h-5 w-5 text-primary" />
+              </div>
+              <span className="text-2xl font-bold text-primary">2.5</span>
+            </div>
+            <h3 className="font-semibold">Avg R:R</h3>
+            <p className="text-sm text-muted-foreground">Risk:Reward ratio</p>
+          </div>
         </div>
       </div>
 
-      {/* Database Setup Section */}
-      <DatabaseSetup />
+      {/* Merged Strategy & Risk Settings */}
 
-      {/* Strategy Engine Performance */}
       <Card className="border border-primary/20 glow-primary animate-scale-in">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -111,17 +91,17 @@ const TradingDashboard = () => {
                 <Zap className="h-5 w-5 text-white" />
               </div>
               <div>
-                <CardTitle className="text-xl">AltradeX1 Strategy Engine</CardTitle>
-                <p className="text-sm text-muted-foreground">Advanced AI-powered analysis</p>
+                <CardTitle className="text-xl">Strategy Engine & Risk Management</CardTitle>
+                <p className="text-sm text-muted-foreground">Advanced AI analysis with risk controls</p>
               </div>
             </div>
             <Badge className="bg-gradient-to-r from-primary to-secondary text-white border-0">
-              ENGAGED
+              ACTIVE
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Performance Metrics */}
+          {/* Performance Overview */}
           <div className="grid grid-cols-3 gap-6">
             <div className="text-center">
               <div className="text-3xl font-bold text-chart-bearish mb-1">12.4%</div>
@@ -133,49 +113,63 @@ const TradingDashboard = () => {
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-warning mb-1">2.5</div>
-              <div className="text-sm text-muted-foreground">Avg RR</div>
+              <div className="text-sm text-muted-foreground">Avg R:R</div>
             </div>
           </div>
 
           <Separator />
 
-          {/* Strategy Settings */}
+          {/* Unified Strategy & Risk Settings */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold flex items-center gap-2">
                 <Settings className="w-4 h-4" />
-                Strategy Settings
+                Trading Configuration
               </h4>
+              <Button variant="outline" size="sm">Configure</Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <div>
                   <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium">Leverage: 5x</span>
-                    <span className="text-sm text-muted-foreground">Safe (1x)</span>
+                    <span className="text-sm font-medium">Position Size: 2%</span>
+                    <span className="text-sm text-muted-foreground">Per Trade</span>
                   </div>
-                  <Progress value={20} className="h-2" />
+                  <Progress value={40} className="h-2" />
                 </div>
 
                 <div>
                   <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium">Risk Per Trade: 2%</span>
-                    <span className="text-sm text-muted-foreground">Max Open Trades: 3</span>
+                    <span className="text-sm font-medium">Min Confidence: 80%</span>
+                    <span className="text-sm text-muted-foreground">Signal Threshold</span>
                   </div>
-                  <Progress value={40} className="h-2" />
+                  <Progress value={80} className="h-2" />
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div>
                   <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium">Min Confidence: 80%</span>
-                    <span className="text-sm text-muted-foreground">Auto Execute High-Confidence</span>
+                    <span className="text-sm font-medium">Max Positions: 3</span>
+                    <span className="text-sm text-muted-foreground">Concurrent Trades</span>
                   </div>
-                  <Progress value={80} className="h-2" />
+                  <Progress value={60} className="h-2" />
                 </div>
 
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-sm font-medium">Daily Loss Cap: 10%</span>
+                    <span className="text-sm text-muted-foreground">Risk Limit</span>
+                  </div>
+                  <Progress value={25} className="h-2" />
+                </div>
+              </div>
+            </div>
+
+            {/* Trading Mode & Features */}
+            <div className="pt-4 border-t border-border/50">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Deep Protect (ETH/BTC)</span>
                   <Badge variant="secondary">Enabled</Badge>

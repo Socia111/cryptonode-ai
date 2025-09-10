@@ -22,7 +22,7 @@ export function generateMockSignals(): MockSignal[] {
   return symbols.map((symbol, index) => {
     const direction = Math.random() > 0.5 ? 'LONG' : 'SHORT';
     const price = 50000 + Math.random() * 50000; // Mock price
-    const scoreBias = 80 + Math.random() * 15; // 80-95% confidence only
+    const scoreBias = 80 + Math.random() * 12; // 80-92% confidence, rounded to 1 decimal
     
     // Calculate realistic TP/SL based on direction
     const riskReward = 1.5 + Math.random() * 2; // 1.5-3.5 RR
@@ -41,7 +41,7 @@ export function generateMockSignals(): MockSignal[] {
       price: Number(price.toFixed(4)),
       tp: Number(tp.toFixed(4)),
       sl: Number(sl.toFixed(4)),
-      score: Number(scoreBias.toFixed(1)),
+      score: Math.round(scoreBias * 10) / 10, // Round to 1 decimal place
       timeframe: timeframes[Math.floor(Math.random() * timeframes.length)],
       algo: algorithms[Math.floor(Math.random() * algorithms.length)],
       created_at: new Date(Date.now() - Math.random() * 30 * 60 * 1000).toISOString() // Last 30 minutes
