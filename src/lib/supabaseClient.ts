@@ -1,50 +1,19 @@
 // Single Supabase client for the entire app
 import { createClient } from '@supabase/supabase-js';
-import { env } from './env';
 
-// Use validated environment variables
-const url = env.VITE_SUPABASE_URL;
-const key = env.VITE_SUPABASE_ANON_KEY;
+// Direct configuration - no env wrapper needed
+const supabaseUrl = 'https://codhlwjogfjywmjyjbbn.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0';
 
-// Create client with fallback handling
-let supabase: any;
+// Create Supabase client
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});
 
-try {
-  supabase = createClient(url, key, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-  });
-} catch (error) {
-  console.warn('[Supabase] Failed to create client, using mock:', error);
-  // Create a mock client for development
-  supabase = {
-    from: () => ({
-      select: () => ({ error: null, data: [] }),
-      insert: () => ({ error: null, data: [] }),
-      update: () => ({ error: null, data: [] }),
-      delete: () => ({ error: null, data: [] }),
-      gte: () => ({ 
-        order: () => ({ 
-          limit: () => ({ error: null, data: [] }) 
-        }) 
-      }),
-      order: () => ({ 
-        limit: () => ({ error: null, data: [] }) 
-      })
-    }),
-    functions: {
-      invoke: () => Promise.resolve({ data: null, error: null })
-    },
-    removeChannel: () => {},
-    channel: () => ({
-      on: () => ({ subscribe: () => {} })
-    })
-  };
-}
 
-export { supabase };
 
 // A tiny health check that *really* verifies connectivity + RLS
 export async function isSupabaseConfigured(): Promise<boolean> {
