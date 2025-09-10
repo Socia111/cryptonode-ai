@@ -1,69 +1,194 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Wifi, WifiOff, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { 
+  Wifi, 
+  WifiOff, 
+  DollarSign, 
+  TrendingUp, 
+  TrendingDown, 
+  Activity,
+  Zap,
+  Settings,
+  Database,
+  Shield,
+  Gauge,
+  Target
+} from 'lucide-react';
 import CleanSignalsList from './CleanSignalsList';
 import AutoTradingToggle from './AutoTradingToggle';
 import PerformancePanel from './PerformancePanel';
+import DatabaseSetup from './DatabaseSetup';
 
 const TradingDashboard = () => {
   return (
-    <div className="container mx-auto px-6 py-8 space-y-6">
-      {/* Top Status Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-primary/20">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Connection</p>
-                <div className="flex items-center gap-2">
-                  <Wifi className="h-4 w-4 text-green-500" />
-                  <span className="text-sm font-medium">Connected</span>
-                </div>
+    <div className="space-y-6 animate-fade-in">
+      {/* Enhanced Header */}
+      <div className="glass-card p-6 border border-border/50">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold brand-display bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+              AItradeX1 Advanced
+            </h1>
+            <p className="text-muted-foreground mt-1">Professional AI-Powered Trading Platform</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 border border-success/20">
+              <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
+              <span className="text-sm text-success font-medium">Live Market Data</span>
+            </div>
+            <Button variant="outline" size="sm" className="gap-2">
+              <Settings className="w-4 h-4" />
+              Configure
+            </Button>
+          </div>
+        </div>
+
+        {/* Status Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="surface-elevated p-4 rounded-lg border border-border/50 hover-scale">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 rounded-lg bg-success/10">
+                <Database className="h-5 w-5 text-success" />
               </div>
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                Bybit Live
+              <Badge variant="outline" className="bg-success/10 text-success border-success/20">
+                Online
               </Badge>
             </div>
-          </CardContent>
-        </Card>
+            <h3 className="font-semibold">Database</h3>
+            <p className="text-sm text-muted-foreground">All systems operational</p>
+          </div>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Balance</p>
-                <p className="text-lg font-semibold">$2,847.32</p>
+          <div className="surface-elevated p-4 rounded-lg border border-border/50 hover-scale">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Activity className="h-5 w-5 text-primary" />
               </div>
-              <DollarSign className="h-5 w-5 text-muted-foreground" />
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                Active
+              </Badge>
             </div>
-          </CardContent>
-        </Card>
+            <h3 className="font-semibold">Strategy Engine</h3>
+            <p className="text-sm text-muted-foreground">Processing signals</p>
+          </div>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">PnL Today</p>
-                <p className="text-lg font-semibold text-green-600">+$127.45</p>
+          <div className="surface-elevated p-4 rounded-lg border border-border/50 hover-scale">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 rounded-lg bg-chart-bullish/10">
+                <Target className="h-5 w-5 text-chart-bullish" />
               </div>
-              <TrendingUp className="h-5 w-5 text-green-500" />
+              <span className="text-2xl font-bold text-chart-bullish">76.8%</span>
             </div>
-          </CardContent>
-        </Card>
+            <h3 className="font-semibold">Win Rate</h3>
+            <p className="text-sm text-muted-foreground">Last 30 days</p>
+          </div>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Trades</p>
-                <p className="text-lg font-semibold">3</p>
+          <div className="surface-elevated p-4 rounded-lg border border-border/50 hover-scale">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 rounded-lg bg-warning/10">
+                <Gauge className="h-5 w-5 text-warning" />
               </div>
-              <Badge variant="secondary">Running</Badge>
+              <span className="text-2xl font-bold text-warning">12.4%</span>
             </div>
-          </CardContent>
-        </Card>
+            <h3 className="font-semibold">Daily ROI</h3>
+            <p className="text-sm text-muted-foreground">Performance today</p>
+          </div>
+        </div>
       </div>
+
+      {/* Database Setup Section */}
+      <DatabaseSetup />
+
+      {/* Strategy Engine Performance */}
+      <Card className="border border-primary/20 glow-primary animate-scale-in">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg gradient-primary">
+                <Zap className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-xl">AltradeX1 Strategy Engine</CardTitle>
+                <p className="text-sm text-muted-foreground">Advanced AI-powered analysis</p>
+              </div>
+            </div>
+            <Badge className="bg-gradient-to-r from-primary to-secondary text-white border-0">
+              ENGAGED
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Performance Metrics */}
+          <div className="grid grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-chart-bearish mb-1">12.4%</div>
+              <div className="text-sm text-muted-foreground">Daily ROI</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-chart-bullish mb-1">76.8%</div>
+              <div className="text-sm text-muted-foreground">Win Rate</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-warning mb-1">2.5</div>
+              <div className="text-sm text-muted-foreground">Avg RR</div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Strategy Settings */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                Strategy Settings
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-sm font-medium">Leverage: 5x</span>
+                    <span className="text-sm text-muted-foreground">Safe (1x)</span>
+                  </div>
+                  <Progress value={20} className="h-2" />
+                </div>
+
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-sm font-medium">Risk Per Trade: 2%</span>
+                    <span className="text-sm text-muted-foreground">Max Open Trades: 3</span>
+                  </div>
+                  <Progress value={40} className="h-2" />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-sm font-medium">Min Confidence: 80%</span>
+                    <span className="text-sm text-muted-foreground">Auto Execute High-Confidence</span>
+                  </div>
+                  <Progress value={80} className="h-2" />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Deep Protect (ETH/BTC)</span>
+                  <Badge variant="secondary">Enabled</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Compound Profits</span>
+                  <Badge variant="secondary">Active</Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Main Trading Interface */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
