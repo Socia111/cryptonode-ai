@@ -26,6 +26,12 @@ const queryClient = new QueryClient();
 function App() {
   useEffect(() => {
     (async () => {
+      console.log('[Boot] Starting app initialization...');
+      console.log('[Boot] Environment check:', {
+        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+        hasAnonKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY
+      });
+      
       const ok = await isSupabaseConfigured();
       console.info('[Boot] Using Supabase client @', import.meta.env.VITE_SUPABASE_URL, 'configured=', ok);
     })();
