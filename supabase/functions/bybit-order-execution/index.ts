@@ -93,19 +93,48 @@ async function bybit(
     payload: method === "POST" ? payload.substring(0, 200) : qs 
   });
 
-  const response = await fetch(url + qs, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      "X-BAPI-API-KEY": key,
-      "X-BAPI-TIMESTAMP": ts,
-      "X-BAPI-RECV-WINDOW": RECV,
-      "X-BAPI-SIGN": sig,
-    },
-    body: method === "POST" ? payload : undefined,
-  });
+  let response: Response;
+  let attempt = 0;
+  const maxRetries = 3;
+  const retryDelay = 1000; // 1 second
 
-  const text = await response.text();
+  while (attempt < maxRetries) {
+    try {
+      response = await fetch(url + qs, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "X-BAPI-API-KEY": key,
+          "X-BAPI-TIMESTAMP": ts,
+          "X-BAPI-RECV-WINDOW": RECV,
+          "X-BAPI-SIGN": sig,
+        },
+        body: method === "POST" ? payload : undefined,
+      });
+      
+      break; // If fetch succeeds, break out of retry loop
+    } catch (error) {
+      attempt++;
+      console.log(`🔄 Retry attempt ${attempt}/${maxRetries} for ${method} ${path}:`, error);
+      
+      if (attempt >= maxRetries) {
+        throw new Error(`Failed after ${maxRetries} attempts: ${error}`);
+      }
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+      
+      // Regenerate timestamp and signature for retry
+      const newTs = Date.now().toString();
+      const newPresign = newTs + key + RECV + queryString + payload;
+      sig = await sign(newPresign, secret);
+      
+      // Update headers with new timestamp and signature
+      continue;
+    }
+  }
+
+  const text = await response!.text();
   let data;
   try {
     data = JSON.parse(text);
@@ -114,22 +143,53 @@ async function bybit(
   }
 
   console.log(`📊 Bybit API Response:`, {
-    status: response.status,
+    status: response!.status,
     retCode: data.retCode,
     retMsg: data.retMsg,
     hasResult: !!data.result
   });
 
-  if (!response.ok) {
+  if (!response!.ok) {
+    // Handle specific HTTP errors
+    if (response!.status === 403) {
+      console.error("❌ Bybit API Authentication Error - Check API keys and permissions");
+    } else if (response!.status === 429) {
+      console.error("❌ Bybit API Rate Limit Exceeded");
+    }
+    
     throw new Response(
-      JSON.stringify({ ok: false, status: response.status, data }), 
-      { status: response.status }
+      JSON.stringify({ 
+        ok: false, 
+        status: response!.status, 
+        data,
+        error: `HTTP ${response!.status}: ${data.retMsg || 'Unknown error'}`
+      }), 
+      { status: response!.status }
     );
   }
   
   if (data.retCode !== 0) {
+    // Handle specific Bybit error codes
+    let errorMessage = data.retMsg || "Unknown Bybit API error";
+    
+    if (data.retCode === 10004) {
+      errorMessage = "Invalid signature - API key/secret mismatch";
+    } else if (data.retCode === 10003) {
+      errorMessage = "Invalid API key";
+    } else if (data.retCode === 10005) {
+      errorMessage = "Permission denied - insufficient API permissions";
+    }
+    
+    console.error(`❌ Bybit API Error (${data.retCode}):`, errorMessage);
+    
     throw new Response(
-      JSON.stringify({ ok: false, status: 400, data }), 
+      JSON.stringify({ 
+        ok: false, 
+        status: 400, 
+        data,
+        error: errorMessage,
+        retCode: data.retCode
+      }), 
       { status: 400 }
     );
   }

@@ -38,9 +38,9 @@ function buildQS(query: Record<string, unknown> = {}) {
 function readSecrets() {
   try {
     return {
-      apiKey: Deno.env.get("BYBIT_API_KEY") ?? "",
-      apiSecret: Deno.env.get("BYBIT_API_SECRET") ?? "",
-      baseUrl: Deno.env.get("BYBIT_BASE_URL") ?? "https://api.bybit.com",
+      apiKey: Deno.env.get("BYBIT_KEY") ?? "",
+      apiSecret: Deno.env.get("BYBIT_SECRET") ?? "",
+      baseUrl: Deno.env.get("BYBIT_BASE") ?? "https://api.bybit.com",
       recv: Deno.env.get("BYBIT_RECV_WINDOW") ?? "5000",
     };
   } catch {
