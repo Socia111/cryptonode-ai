@@ -61,7 +61,7 @@ const SignalsList = () => {
     if (!signals || signals.length === 0) return { top1: 85, top5: 80, top10: 75 };
     
     const sortedROIs = signals
-      .map(s => s.score || 0)
+      .map(s => s.confidence_score || 0)
       .sort((a, b) => b - a);
     
     return {
@@ -75,7 +75,7 @@ const SignalsList = () => {
   const prioritySignals = useMemo(() => {
     if (!signals) return [];
     return signals.filter(signal => {
-      const score = signal.score || 0;
+      const score = signal.confidence_score || 0;
       return score >= thresholds.top10;
     });
   }, [signals, thresholds]);
@@ -97,9 +97,9 @@ const SignalsList = () => {
       return;
     }
 
-    const side = signal.direction === 'LONG' ? 'BUY' : 'SELL';
+    const side = signal.direction;
     const res = await TradingGateway.execute({ 
-      symbol: signal.token || signal.symbol, 
+      symbol: signal.token, 
       side, 
       notionalUSD: parseFloat(orderSize)
     });
@@ -117,12 +117,12 @@ const SignalsList = () => {
     setIsExecutingOrder(true);
     try {
       console.log('🚀 Simulating trade execution:', {
-        token: signal.token || signal.symbol,
+        token: signal.token,
         direction: signal.direction,
-        entry_price: signal.price,
-        stop_loss: signal.sl,
-        exit_target: signal.tp,
-        confidence: signal.score,
+        entry_price: signal.entry_price,
+        stop_loss: signal.stop_loss,
+        exit_target: signal.exit_target,
+        confidence: signal.confidence_score,
         leverage: useLeverage ? leverage : 1
       });
 
@@ -131,7 +131,7 @@ const SignalsList = () => {
 
       toast({
         title: "Trade Executed (Simulated)",
-        description: `${signal.token || signal.symbol} ${signal.direction} - Simulated execution completed`,
+        description: `${signal.token} ${signal.direction} - Simulated execution completed`,
         variant: "default",
       });
 
@@ -231,7 +231,7 @@ const SignalsList = () => {
   };
 
   const getPriorityIndicator = (signal: any) => {
-    const score = signal.score || 0;
+    const score = signal.confidence_score || 0;
     if (score >= thresholds.top1) return '☄️';
     if (score >= thresholds.top5) return '☢️';
     if (score >= thresholds.top10) return '🦾';
@@ -239,7 +239,7 @@ const SignalsList = () => {
   };
 
   const getConfidenceIndicator = (signal: any) => {
-    const confidence = signal.score || 0;
+    const confidence = signal.confidence_score || 0;
     if (confidence >= 90) return '🔮';
     if (confidence >= 80) return '♥️';
     return '';
@@ -293,7 +293,7 @@ const SignalsList = () => {
             {/* Signals List */}
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {displayedSignals.map((signal) => {
-                const isBuy = signal.direction === 'LONG';
+                const isBuy = signal.direction === 'BUY';
                 const isExecuted = executedSignals.has(signal.id);
                 
                 return (
@@ -307,7 +307,7 @@ const SignalsList = () => {
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1">
                           <span className="font-semibold">
-                            {signal.symbol}
+                            {signal.token}
                           </span>
                           <Badge variant={isBuy ? "default" : "destructive"} className="text-xs">
                             {signal.direction}
@@ -323,10 +323,10 @@ const SignalsList = () => {
                         </div>
                         
                         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                          <div>Entry: ${signal.price?.toFixed(4)}</div>
-                          <div>Score: {(signal.score || 0).toFixed(1)}%</div>
-                          <div>SL: ${signal.sl?.toFixed(4)}</div>
-                          <div>TP: ${signal.tp?.toFixed(4)}</div>
+                          <div>Entry: ${signal.entry_price?.toFixed(4)}</div>
+                          <div>Score: {(signal.confidence_score || 0).toFixed(1)}%</div>
+                          <div>SL: ${signal.stop_loss?.toFixed(4)}</div>
+                          <div>TP: ${signal.exit_target?.toFixed(4)}</div>
                         </div>
                         
                         <div className="flex items-center space-x-2 text-xs text-muted-foreground mt-1">
