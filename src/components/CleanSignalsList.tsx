@@ -8,11 +8,13 @@ import { useToast } from '@/hooks/use-toast';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { FEATURES } from '@/config/featureFlags';
 import { AuthGuardedButton } from './AuthGuardedButton';
+import { TradingModal } from './TradingModal';
 
 const CleanSignalsList = () => {
   const { signals, loading, generateSignals } = useSignals();
   const { toast } = useToast();
   const [executingSignals, setExecutingSignals] = useState<Set<string>>(new Set());
+  const [selectedSignal, setSelectedSignal] = useState<any>(null);
 
   // Filter for high-confidence signals only (80%+)
   const filteredSignals = useMemo(() => {
@@ -25,7 +27,7 @@ const CleanSignalsList = () => {
       .slice(0, 8); // Limit to 8 signals max for clean UI
   }, [signals]);
 
-  const executeOrder = async (signal: any) => {
+  const executeOrder = (signal: any) => {
     if (!FEATURES.AUTOTRADE_ENABLED) {
       toast({
         title: "Trading disabled",
@@ -35,41 +37,7 @@ const CleanSignalsList = () => {
       return;
     }
 
-    setExecutingSignals(prev => new Set(prev).add(signal.id));
-    
-    try {
-      const side = signal.direction;
-      const res = await TradingGateway.execute({ 
-        symbol: signal.token, 
-        side, 
-        notionalUSD: 25 // Fixed $25 per trade for clean UI
-      });
-      
-      if (res.ok) {
-        toast({
-          title: "✅ Trade Executed",
-          description: `${signal.token} ${signal.direction} order placed`,
-        });
-      } else {
-        toast({
-          title: "❌ Trade Failed",
-          description: res.message || 'Failed to execute trade',
-          variant: "destructive",
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Execution Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setExecutingSignals(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(signal.id);
-        return newSet;
-      });
-    }
+    setSelectedSignal(signal);
   };
 
   const formatTimeAgo = (dateString: string) => {
@@ -229,6 +197,12 @@ const CleanSignalsList = () => {
           </div>
         )}
       </CardContent>
+      
+      <TradingModal
+        signal={selectedSignal}
+        isOpen={!!selectedSignal}
+        onClose={() => setSelectedSignal(null)}
+      />
     </Card>
   );
 };

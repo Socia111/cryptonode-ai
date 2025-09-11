@@ -4,7 +4,9 @@ import { FEATURES } from '@/config/featureFlags'
 export type ExecParams = {
   symbol: string
   side: 'BUY'|'SELL'
-  notionalUSD: number
+  notionalUSD?: number  // deprecated, use amountUSD
+  amountUSD?: number    // new: USD amount to trade
+  leverage?: number     // new: leverage (1-100x)
 }
 
 // Get the functions base URL dynamically from supabase client
@@ -52,12 +54,16 @@ export const TradingGateway = {
       };
       
       // Convert to Bybit signal format
+      const amount = params.amountUSD || params.notionalUSD || 25; // fallback to old param or default
+      const leverage = params.leverage || 1;
+      
       const bybitSignal = {
         symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT
         side: params.side === 'BUY' ? 'Buy' : 'Sell',
         orderType: 'Market',
-        qty: (params.notionalUSD * 0.001).toFixed(6), // Convert notional to quantity
-        timeInForce: 'IOC'
+        qty: (amount * 0.001).toFixed(6), // Convert notional to quantity
+        timeInForce: 'IOC',
+        leverage: leverage
       };
       
       const response = await fetch(`${functionsBase}/bybit-live-trading`, {
@@ -66,6 +72,10 @@ export const TradingGateway = {
         body: JSON.stringify({
           action: 'place_order',
           signal: bybitSignal,
+          params: {
+            amountUSD: amount,
+            leverage: leverage
+          },
           testMode: false // Set to true for paper trading
         })
       });
