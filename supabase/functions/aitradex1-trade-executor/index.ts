@@ -249,19 +249,18 @@ class BybitV5Client {
   // Get account position mode (OneWay vs Hedge)
   async getPositionMode(symbol: string, category: string): Promise<number> {
     try {
-      // First, try to get account info to check position mode
-      const accountData = await this.signedRequest('GET', '/v5/account/info', {})
-      
-      // For unified account, we need to check position mode specifically
-      if (category === 'linear') {
-        // Try to get position info for this symbol to determine mode
+      if (category !== 'linear') {
+        return 0; // Spot trading doesn't use position modes
+      }
+
+      // Method 1: Check if we have existing positions for this symbol
+      try {
         const positionData = await this.signedRequest('GET', '/v5/position/list', {
           category,
           symbol,
           limit: 1
         })
         
-        // If we get positions back, use their positionIdx
         if (positionData?.result?.list?.length > 0) {
           const positionIdx = Number(positionData.result.list[0].positionIdx) || 0
           structuredLog('info', 'Found existing position, using its positionIdx', { 
@@ -271,15 +270,45 @@ class BybitV5Client {
           })
           return positionIdx
         }
-        
-        // No existing positions - try both modes to see which works
-        // Default to One-Way mode (0) which is most common
-        structuredLog('info', 'No existing positions, defaulting to OneWay mode', { symbol })
-        return 0
+      } catch (posError) {
+        structuredLog('warn', 'Could not get position info', { error: posError.message })
       }
-      
-      // For spot trading, always return 0 (no position modes)
+
+      // Method 2: Check position mode setting via account info
+      try {
+        const accountData = await this.signedRequest('GET', '/v5/account/info', {})
+        
+        // For Unified Trading Account (UTA), check if hedge mode is enabled
+        if (accountData?.result?.unifiedMarginStatus === 1) {
+          // Try to get position mode setting
+          try {
+            const positionModeData = await this.signedRequest('GET', '/v5/position/switch-mode', {
+              category,
+              symbol
+            })
+            
+            if (positionModeData?.result?.list?.length > 0) {
+              const mode = positionModeData.result.list[0].mode
+              const isHedgeMode = mode === 1 || mode === '1'
+              structuredLog('info', 'Detected position mode from settings', { 
+                symbol, 
+                mode: isHedgeMode ? 'Hedge' : 'OneWay',
+                rawMode: mode
+              })
+              return isHedgeMode ? 1 : 0 // Hedge mode uses 1 for Buy positions
+            }
+          } catch (modeError) {
+            structuredLog('warn', 'Could not get position mode setting', { error: modeError.message })
+          }
+        }
+      } catch (accountError) {
+        structuredLog('warn', 'Could not get account info', { error: accountError.message })
+      }
+
+      // Method 3: Default fallback - OneWay mode is most common
+      structuredLog('info', 'No position mode detected, defaulting to OneWay', { symbol })
       return 0
+      
     } catch (error) {
       structuredLog('warn', 'Failed to determine position mode, defaulting to OneWay', { 
         symbol, 
@@ -497,36 +526,8 @@ serve(async (req) => {
 
         // For linear contracts, handle position mode correctly
         if (inst.category === 'linear') {
-          // Try to determine the correct position mode
-          let positionIdx = 0; // Default to OneWay mode
-          
-          try {
-            // Check if account has any existing positions to determine mode
-            const accountInfo = await engine.client!.signedRequest('GET', '/v5/account/info', {})
-            structuredLog('info', 'Account info retrieved', { 
-              accountType: accountInfo?.result?.accountType || 'unknown'
-            })
-            
-            // For unified accounts, we need to be more careful about position mode
-            // Try to get existing positions first
-            try {
-              const positionData = await engine.client!.signedRequest('GET', '/v5/position/list', {
-                category: 'linear',
-                symbol,
-                limit: 1
-              })
-              
-              if (positionData?.result?.list?.length > 0) {
-                positionIdx = Number(positionData.result.list[0].positionIdx) || 0
-                structuredLog('info', 'Using positionIdx from existing position', { positionIdx })
-              }
-            } catch (posError) {
-              structuredLog('warn', 'Could not get position info', { error: posError.message })
-            }
-          } catch (accountError) {
-            structuredLog('warn', 'Could not get account info', { error: accountError.message })
-          }
-          
+          // Use the improved position mode detection
+          const positionIdx = await engine.client!.getPositionMode(symbol, inst.category)
           orderData.positionIdx = positionIdx
           orderData.reduceOnly = false
           
@@ -547,27 +548,45 @@ serve(async (req) => {
           result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
         } catch (error) {
           lastError = error;
-          structuredLog('warn', 'First attempt failed, trying alternative position mode', { 
-            error: error.message,
-            originalPositionIdx: orderData.positionIdx 
-          })
           
-          // If it's a position mode error and we're in linear category, try the opposite mode
-          if (inst.category === 'linear' && error.message?.includes('position')) {
-            const alternativeIdx = orderData.positionIdx === 0 ? 1 : 0
-            orderData.positionIdx = alternativeIdx
+          // If it's a position mode error and we're in linear category, try alternative modes
+          if (inst.category === 'linear' && 
+              (error.message?.includes('position') || 
+               error.message?.includes('idx') || 
+               error.message?.includes('mode'))) {
             
-            try {
-              structuredLog('info', 'Retrying with alternative positionIdx', { 
-                symbol,
-                newPositionIdx: alternativeIdx
-              })
-              result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
-            } catch (secondError) {
-              // If both modes fail, throw the original error
-              structuredLog('error', 'Both position modes failed', {
+            structuredLog('warn', 'Position mode error, trying systematic retry', { 
+              error: error.message,
+              originalPositionIdx: orderData.positionIdx 
+            })
+            
+            // Try all possible position modes systematically
+            const modesToTry = orderData.positionIdx === 0 ? [1, 2] : [0]
+            let retrySuccess = false
+            
+            for (const modeIdx of modesToTry) {
+              try {
+                orderData.positionIdx = modeIdx
+                structuredLog('info', 'Retrying with positionIdx', { 
+                  symbol,
+                  positionIdx: modeIdx,
+                  mode: modeIdx === 0 ? 'OneWay' : 'Hedge'
+                })
+                result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+                retrySuccess = true
+                break
+              } catch (retryError) {
+                structuredLog('warn', 'Retry failed with positionIdx', {
+                  positionIdx: modeIdx,
+                  error: retryError.message
+                })
+              }
+            }
+            
+            if (!retrySuccess) {
+              structuredLog('error', 'All position modes failed', {
                 originalError: error.message,
-                secondError: secondError.message
+                triedModes: [orderData.positionIdx, ...modesToTry]
               })
               throw error
             }
