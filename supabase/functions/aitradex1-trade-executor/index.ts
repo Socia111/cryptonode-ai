@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts'
+import { sendAlert } from '../_shared/alerts.ts'
 
 const ALLOWED_ORIGINS = [
   'https://unireli.io',
@@ -891,6 +892,35 @@ serve(async (req) => {
       })
     }
 
+    if (action === '_test_alert') {
+      // Simple guard to avoid public spam
+      const auth = req.headers.get('authorization') ?? '';
+      if (!auth.startsWith('Bearer ')) {
+        return new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const meta = { 
+        env: Deno.env.get('BYBIT_BASE') || 'api.bybit.com', 
+        user: session?.user?.email ?? 'n/a',
+        timestamp: new Date().toISOString()
+      };
+      
+      const r = await sendAlert(supabase, {
+        event: 'ALERTS_SELF_TEST',
+        severity: 'warning',
+        title: 'Alerts Self-Test',
+        message: 'Fan-out, dedupe, and audit log check.',
+        meta
+      });
+      
+      return new Response(JSON.stringify(r), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     if (action === 'toggle') {
       const { error } = await supabase
         .from('trading_config')
@@ -898,6 +928,30 @@ serve(async (req) => {
         .eq('id', (await supabase.from('trading_config').select('id').single()).data.id)
 
       if (error) throw error
+
+      // Send alert for live trading toggle
+      const actor = {
+        id: session?.user?.id ?? 'unknown',
+        email: session?.user?.email ?? 'unknown'
+      };
+      
+      if (enabled) {
+        await sendAlert(supabase, {
+          event: 'LIVE_ENABLED',
+          severity: 'critical',
+          title: 'Live Trading ENABLED',
+          message: `Enabled by ${actor.email}. Safety gate passed.`,
+          meta: { actor, ip: req.headers.get('x-forwarded-for'), userAgent: req.headers.get('user-agent') }
+        });
+      } else {
+        await sendAlert(supabase, {
+          event: 'LIVE_DISABLED',
+          severity: 'warning',
+          title: 'Live Trading DISABLED',
+          message: `Disabled by ${actor.email}.`,
+          meta: { actor }
+        });
+      }
 
       return new Response(JSON.stringify({
         success: true,
@@ -922,6 +976,20 @@ serve(async (req) => {
           kill_switch_reason: 'Manual emergency stop',
           auto_trading_enabled: false
         })
+
+      // Send critical alert for emergency stop
+      const actor = {
+        id: session?.user?.id ?? 'unknown',
+        email: session?.user?.email ?? 'unknown'
+      };
+      
+      await sendAlert(supabase, {
+        event: 'EMERGENCY_STOP',
+        severity: 'critical',
+        title: 'Emergency Stop ACTIVATED',
+        message: 'Closing positions and pausing trading.',
+        meta: { actor, reason: 'manual' }
+      });
 
       return new Response(JSON.stringify({
         success: true,
@@ -976,7 +1044,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ 
       success: false, 
-      message: `Unknown action: ${action}. Available actions: status, toggle, emergency-stop, signal` 
+      message: `Unknown action: ${action}. Available actions: status, toggle, emergency-stop, signal, _test_alert` 
     }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
