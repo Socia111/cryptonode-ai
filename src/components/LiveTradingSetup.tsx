@@ -9,6 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import TradingDiagnostics from '@/components/TradingDiagnostics';
 import ManualAPITest from '@/components/ManualAPITest';
 import DirectBybitTest from '@/components/DirectBybitTest';
+import { Direct3CommasTest } from '@/components/Direct3CommasTest';
 
 const LiveTradingSetup = () => {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
@@ -86,7 +87,10 @@ const LiveTradingSetup = () => {
 
   return (
     <div className="space-y-6">
-      <DirectBybitTest />
+      <div className="grid gap-6 md:grid-cols-2">
+        <DirectBybitTest />
+        <Direct3CommasTest />
+      </div>
       
       <TradingDiagnostics />
       
