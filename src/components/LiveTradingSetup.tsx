@@ -8,6 +8,7 @@ import { TradingGateway } from '@/lib/tradingGateway';
 import { toast } from '@/hooks/use-toast';
 import TradingDiagnostics from '@/components/TradingDiagnostics';
 import ManualAPITest from '@/components/ManualAPITest';
+import DirectBybitTest from '@/components/DirectBybitTest';
 
 const LiveTradingSetup = () => {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
@@ -85,6 +86,8 @@ const LiveTradingSetup = () => {
 
   return (
     <div className="space-y-6">
+      <DirectBybitTest />
+      
       <TradingDiagnostics />
       
       <ManualAPITest />
