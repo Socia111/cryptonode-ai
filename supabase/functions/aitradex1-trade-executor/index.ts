@@ -248,68 +248,105 @@ class BybitV5Client {
 
   // Get account position mode (OneWay vs Hedge)
   async getPositionMode(symbol: string, category: string): Promise<number> {
+    console.log(`🔍 [Position Mode Detection] Starting for ${symbol} (${category})`);
+    
     try {
       if (category !== 'linear') {
+        console.log(`✅ [Position Mode] ${symbol}: Non-linear category, returning 0`);
         return 0; // Spot trading doesn't use position modes
       }
 
       // Method 1: Check if we have existing positions for this symbol
       try {
+        console.log(`🔍 [Position Mode] ${symbol}: Checking existing positions...`);
         const positionData = await this.signedRequest('GET', '/v5/position/list', {
           category,
           symbol,
-          limit: 1
+          limit: 10
         })
         
+        console.log(`📊 [Position Mode] ${symbol}: Position data:`, JSON.stringify(positionData, null, 2));
+        
         if (positionData?.result?.list?.length > 0) {
-          const positionIdx = Number(positionData.result.list[0].positionIdx) || 0
+          const position = positionData.result.list[0];
+          const positionIdx = Number(position.positionIdx);
+          
+          console.log(`✅ [Position Mode] ${symbol}: Found existing position with positionIdx=${positionIdx}`);
           structuredLog('info', 'Found existing position, using its positionIdx', { 
             symbol, 
             positionIdx,
+            positionDetails: position,
             mode: positionIdx === 0 ? 'OneWay' : 'Hedge'
           })
           return positionIdx
+        } else {
+          console.log(`ℹ️ [Position Mode] ${symbol}: No existing positions found`);
         }
       } catch (posError) {
+        console.log(`⚠️ [Position Mode] ${symbol}: Position check failed:`, posError.message);
         structuredLog('warn', 'Could not get position info', { error: posError.message })
       }
 
-      // Method 2: Check position mode setting via account info
+      // Method 2: Try to determine the account's default position mode
       try {
-        const accountData = await this.signedRequest('GET', '/v5/account/info', {})
+        console.log(`🔍 [Position Mode] ${symbol}: Checking account position mode settings...`);
         
-        // For Unified Trading Account (UTA), check if hedge mode is enabled
-        if (accountData?.result?.unifiedMarginStatus === 1) {
-          // Try to get position mode setting
-          try {
-            const positionModeData = await this.signedRequest('GET', '/v5/position/switch-mode', {
-              category,
-              symbol
-            })
+        // Check if we can get the position mode setting for this symbol
+        const switchModeReq = await this.signedRequest('GET', '/v5/position/switch-mode', {
+          category,
+          symbol
+        }).catch(e => {
+          console.log(`⚠️ [Position Mode] ${symbol}: Switch mode check failed:`, e.message);
+          return null;
+        });
+        
+        if (switchModeReq?.result?.list?.length > 0) {
+          const modeInfo = switchModeReq.result.list[0];
+          console.log(`📊 [Position Mode] ${symbol}: Mode info:`, JSON.stringify(modeInfo, null, 2));
+          
+          if (modeInfo.mode === 1 || modeInfo.mode === '1') {
+            // Hedge mode: Use positionIdx 1 for Buy, 2 for Sell
+            // Since we don't have the side here, we'll return a special value and handle it later
+            console.log(`✅ [Position Mode] ${symbol}: Account is in Hedge mode`);
             
-            if (positionModeData?.result?.list?.length > 0) {
-              const mode = positionModeData.result.list[0].mode
-              const isHedgeMode = mode === 1 || mode === '1'
-              structuredLog('info', 'Detected position mode from settings', { 
-                symbol, 
-                mode: isHedgeMode ? 'Hedge' : 'OneWay',
-                rawMode: mode
-              })
-              return isHedgeMode ? 1 : 0 // Hedge mode uses 1 for Buy positions
-            }
-          } catch (modeError) {
-            structuredLog('warn', 'Could not get position mode setting', { error: modeError.message })
+            structuredLog('info', 'Detected HEDGE mode from settings', { 
+              symbol, 
+              mode: 'Hedge',
+              note: 'Will determine specific positionIdx based on order side'
+            })
+            return -1; // Special value indicating hedge mode - we'll fix this in order execution
+          } else {
+            // One-way mode
+            console.log(`✅ [Position Mode] ${symbol}: Account is in OneWay mode`);
+            structuredLog('info', 'Detected ONE-WAY mode from settings', { 
+              symbol, 
+              mode: 'OneWay',
+              positionIdx: 0
+            })
+            return 0;
           }
         }
-      } catch (accountError) {
-        structuredLog('warn', 'Could not get account info', { error: accountError.message })
+      } catch (modeError) {
+        console.log(`⚠️ [Position Mode] ${symbol}: Mode settings check failed:`, modeError.message);
+        structuredLog('warn', 'Could not get position mode setting', { error: modeError.message })
       }
 
-      // Method 3: Default fallback - OneWay mode is most common
+      // Method 3: Check account info for overall configuration
+      try {
+        console.log(`🔍 [Position Mode] ${symbol}: Checking account info...`);
+        const accountData = await this.signedRequest('GET', '/v5/account/info', {})
+        console.log(`📊 [Position Mode] ${symbol}: Account data:`, JSON.stringify(accountData?.result, null, 2));
+      } catch (accountError) {
+        console.log(`⚠️ [Position Mode] ${symbol}: Account check failed:`, accountError.message);
+      }
+
+      // Method 4: Default fallback - OneWay mode (positionIdx = 0) is most common
+      console.log(`⚠️ [Position Mode] ${symbol}: All detection methods failed, defaulting to OneWay mode (positionIdx=0)`);
       structuredLog('info', 'No position mode detected, defaulting to OneWay', { symbol })
       return 0
       
     } catch (error) {
+      console.log(`❌ [Position Mode] ${symbol}: Error in position mode detection:`, error.message);
       structuredLog('warn', 'Failed to determine position mode, defaulting to OneWay', { 
         symbol, 
         category,
@@ -527,27 +564,44 @@ serve(async (req) => {
         // For linear contracts, handle position mode correctly
         if (inst.category === 'linear') {
           // Use the improved position mode detection
-          const positionIdx = await engine.client!.getPositionMode(symbol, inst.category)
+          let positionIdx = await engine.client!.getPositionMode(symbol, inst.category)
+          
+          // Handle special case where hedge mode was detected but we need to determine Buy/Sell positionIdx
+          if (positionIdx === -1) {
+            // Account is in hedge mode, determine correct positionIdx based on order side
+            positionIdx = orderData.side === 'Buy' ? 1 : 2;
+            console.log(`🔧 [Position Mode] ${symbol}: Hedge mode detected, using positionIdx=${positionIdx} for ${orderData.side} order`);
+          }
+          
           orderData.positionIdx = positionIdx
           orderData.reduceOnly = false
+          
+          console.log(`📋 [Position Configuration] ${symbol}: Set positionIdx=${positionIdx} (${positionIdx === 0 ? 'OneWay' : 'Hedge-' + orderData.side})`);
           
           structuredLog('info', 'Position configuration set', {
             symbol,
             category: inst.category,
             positionIdx,
-            mode: positionIdx === 0 ? 'OneWay' : 'Hedge'
+            side: orderData.side,
+            mode: positionIdx === 0 ? 'OneWay' : `Hedge-${orderData.side}`
           })
         }
 
-        // Execute the order with retry logic for position mode
+        // Execute the order with enhanced logging and retry logic
         let result;
         let lastError;
         
+        console.log(`🚀 [Order Execution] ${symbol}: Attempting order with data:`, JSON.stringify(orderData, null, 2));
+        
         // Try the detected position mode first
         try {
+          console.log(`🔄 [Order Execution] ${symbol}: Sending order to Bybit...`);
           result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+          console.log(`✅ [Order Execution] ${symbol}: Order successful:`, JSON.stringify(result, null, 2));
         } catch (error) {
           lastError = error;
+          console.log(`❌ [Order Execution] ${symbol}: Order failed:`, error.message);
+          console.log(`🔍 [Order Execution] ${symbol}: Full error details:`, JSON.stringify(error, null, 2));
           
           // If it's a position mode error and we're in linear category, try alternative modes
           if (inst.category === 'linear' && 
@@ -555,27 +609,49 @@ serve(async (req) => {
                error.message?.includes('idx') || 
                error.message?.includes('mode'))) {
             
+            console.log(`🔄 [Order Retry] ${symbol}: Position mode error detected, trying systematic retry`);
             structuredLog('warn', 'Position mode error, trying systematic retry', { 
               error: error.message,
               originalPositionIdx: orderData.positionIdx 
             })
             
             // Try all possible position modes systematically
-            const modesToTry = orderData.positionIdx === 0 ? [1, 2] : [0]
+            // For hedge mode: positionIdx 1 = Buy side, positionIdx 2 = Sell side
+            // For one-way mode: positionIdx 0
+            const originalIdx = orderData.positionIdx;
+            const isBuyOrder = orderData.side === 'Buy';
+            
+            // Smart retry logic based on order side
+            let modesToTry: number[];
+            if (originalIdx === 0) {
+              // Started with OneWay, try Hedge modes
+              modesToTry = isBuyOrder ? [1, 2] : [2, 1];
+            } else {
+              // Started with Hedge mode, try OneWay and other Hedge mode
+              modesToTry = [0, isBuyOrder ? 2 : 1];
+            }
             let retrySuccess = false
+            
+            console.log(`🔍 [Order Retry] ${symbol}: Will try positionIdx values: [${modesToTry.join(', ')}]`);
             
             for (const modeIdx of modesToTry) {
               try {
                 orderData.positionIdx = modeIdx
+                console.log(`🔄 [Order Retry] ${symbol}: Trying positionIdx=${modeIdx} (${modeIdx === 0 ? 'OneWay' : 'Hedge'})`);
+                
                 structuredLog('info', 'Retrying with positionIdx', { 
                   symbol,
                   positionIdx: modeIdx,
                   mode: modeIdx === 0 ? 'OneWay' : 'Hedge'
                 })
+                
                 result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+                console.log(`✅ [Order Retry] ${symbol}: Success with positionIdx=${modeIdx}!`);
+                console.log(`📊 [Order Retry] ${symbol}: Order result:`, JSON.stringify(result, null, 2));
                 retrySuccess = true
                 break
               } catch (retryError) {
+                console.log(`❌ [Order Retry] ${symbol}: Failed with positionIdx=${modeIdx}:`, retryError.message);
                 structuredLog('warn', 'Retry failed with positionIdx', {
                   positionIdx: modeIdx,
                   error: retryError.message
@@ -584,9 +660,11 @@ serve(async (req) => {
             }
             
             if (!retrySuccess) {
+              console.log(`💥 [Order Retry] ${symbol}: All position modes failed!`);
               structuredLog('error', 'All position modes failed', {
                 originalError: error.message,
-                triedModes: [orderData.positionIdx, ...modesToTry]
+                triedModes: [originalIdx, ...modesToTry],
+                symbol
               })
               throw error
             }
