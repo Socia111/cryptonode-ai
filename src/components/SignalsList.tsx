@@ -6,10 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw, Activity, Zap, AlertTriangle, Coins, Star, Filter } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw, Activity, Zap, AlertTriangle, Coins } from 'lucide-react';
 import { useSignals } from '@/hooks/useSignals';
-import { useRankedSignals } from '@/hooks/useRankedSignals';
-import { TopPicks } from '@/components/TopPicks';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { TradingGateway } from '@/lib/tradingGateway';
@@ -19,7 +17,6 @@ const SignalsList = () => {
   const { signals, loading, generateSignals } = useSignals();
   const { toast } = useToast();
   const [showAllSignals, setShowAllSignals] = useState(false);
-  const [showAllSpreads, setShowAllSpreads] = useState(false);
   const [orderSize, setOrderSize] = useState('10');
   const [leverage, setLeverage] = useState(1);
   const [useLeverage, setUseLeverage] = useState(false);
@@ -28,10 +25,6 @@ const SignalsList = () => {
   const [bulkExecuteMode, setBulkExecuteMode] = useState(false);
   const [executedSignals, setExecutedSignals] = useState(new Set());
   const [autoExecute, setAutoExecute] = useState(false);
-
-  // Use ranked signals with filtering
-  const rankedSignals = useRankedSignals(signals, showAllSpreads);
-  const topPicks = rankedSignals.slice(0, 3);
 
   const testBybitConnection = async () => {
     try {
@@ -78,18 +71,21 @@ const SignalsList = () => {
     };
   }, [signals]);
 
-  // Filter for priority signals (now using ranked signals)
+  // Filter for priority signals
   const prioritySignals = useMemo(() => {
-    if (!rankedSignals) return [];
-    return rankedSignals.filter(signal => signal.grade === 'A+' || signal.grade === 'A');
-  }, [rankedSignals]);
+    if (!signals) return [];
+    return signals.filter(signal => {
+      const score = signal.confidence_score || 0;
+      return score >= thresholds.top10;
+    });
+  }, [signals, thresholds]);
 
-  // Display signals (priority first by score, then all if requested)
+  // Display signals (priority first, then all if requested)
   const displayedSignals = useMemo(() => {
-    if (!rankedSignals) return [];
-    if (showAllSignals) return rankedSignals;
-    return rankedSignals.slice(0, 12); // Show top 12 by score
-  }, [rankedSignals, showAllSignals]);
+    if (!signals) return [];
+    if (showAllSignals) return signals;
+    return prioritySignals.slice(0, 10);
+  }, [signals, showAllSignals, prioritySignals]);
 
   const executeOrder = async (signal: any) => {
     if (!FEATURES.AUTOTRADE_ENABLED) {
@@ -273,17 +269,11 @@ const SignalsList = () => {
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Star className="w-5 h-5 text-primary" />
-            <span>⭐ Priority Signals (Score-Ranked)</span>
+            <Zap className="w-5 h-5 text-primary" />
+            <span>Live Trading Signals</span>
             <Badge variant="outline" className="text-xs">
-              {displayedSignals.length} ranked signals
+              {displayedSignals.length} signals
             </Badge>
-            {!showAllSpreads && (
-              <Badge variant="secondary" className="text-xs">
-                <Filter className="w-3 h-3 mr-1" />
-                Low spread only
-              </Badge>
-            )}
           </div>
           <div className="flex items-center space-x-2">
             <Button
@@ -306,39 +296,6 @@ const SignalsList = () => {
           </div>
         ) : (
           <>
-            {/* Top Picks Strip */}
-            {topPicks.length > 0 && (
-              <TopPicks 
-                items={topPicks} 
-                onExecute={executeOrder}
-                isExecuting={isExecutingOrder}
-              />
-            )}
-
-            {/* Filter Controls */}
-            <div className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg border">
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="show-all-spreads"
-                  checked={showAllSpreads}
-                  onCheckedChange={setShowAllSpreads}
-                />
-                <Label htmlFor="show-all-spreads" className="text-xs font-medium">
-                  Show high spread signals (&gt;20 bps)
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="show-all-signals"
-                  checked={showAllSignals}
-                  onCheckedChange={setShowAllSignals}
-                />
-                <Label htmlFor="show-all-signals" className="text-xs font-medium">
-                  Show all signals (not just top ranked)
-                </Label>
-              </div>
-            </div>
-
             {/* Signals List */}
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {displayedSignals.map((signal) => {
@@ -361,32 +318,19 @@ const SignalsList = () => {
                           <Badge variant={isBuy ? "default" : "destructive"} className="text-xs">
                             {signal.direction}
                           </Badge>
-                          <Badge 
-                            variant={
-                              signal.grade === 'A+' ? 'success' :
-                              signal.grade === 'A' ? 'default' :
-                              signal.grade === 'B' ? 'warning' : 'secondary'
-                            }
-                            className="text-xs font-bold"
-                          >
-                            {signal.grade}
-                          </Badge>
                           <Badge variant="outline" className="text-xs">
                             {signal.timeframe}
                           </Badge>
-                          <span className="text-xs opacity-60 ml-2">
-                            score {Math.round(signal.score)}%
+                          <span className="text-xs">
+                            {getPriorityIndicator(signal)}
+                            {getConfidenceIndicator(signal)}
+                            {getTimeframeIndicator(signal)}
                           </span>
-                          {signal.spread && signal.spread > 20 && (
-                            <Badge variant="warning" className="text-xs">
-                              {signal.spread.toFixed(1)} bps
-                            </Badge>
-                          )}
                         </div>
                         
                         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                           <div>Entry: ${signal.entry_price?.toFixed(4)}</div>
-                          <div>Edge: {signal.edgeScore?.toFixed(1)}%</div>
+                          <div>Score: {(signal.confidence_score || 0).toFixed(1)}%</div>
                           <div>SL: ${signal.stop_loss?.toFixed(4)}</div>
                           <div>TP: ${signal.exit_target?.toFixed(4)}</div>
                         </div>
