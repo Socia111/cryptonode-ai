@@ -126,7 +126,7 @@ export const ProductionControls = () => {
   };
 
   const handleSafetyGateConfirm = async () => {
-    if (passphrase.trim().toUpperCase() !== REQUIRED_PASSPHRASE) {
+    if (passphrase.trim() !== REQUIRED_PASSPHRASE) {
       toast({
         title: "Incorrect Passphrase",
         description: `Please type exactly: "${REQUIRED_PASSPHRASE}"`,
@@ -378,7 +378,7 @@ export const ProductionControls = () => {
             <Button 
               variant="destructive" 
               onClick={handleSafetyGateConfirm}
-              disabled={confirmationStep === 2 && passphrase !== REQUIRED_PASSPHRASE}
+              disabled={confirmationStep === 2 && passphrase.trim() !== REQUIRED_PASSPHRASE}
             >
               {confirmationStep === 2 ? 'ENABLE LIVE TRADING' : 'Continue'}
             </Button>
