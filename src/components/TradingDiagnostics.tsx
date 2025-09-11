@@ -33,16 +33,33 @@ const TradingDiagnostics = () => {
         diagnostics.errors.push(`Supabase connection failed: ${e}`);
       }
 
-      // Test 2: User authentication
+      // Test 2: User authentication and API keys
       try {
         const { data: { session } } = await supabase.auth.getSession();
         diagnostics.userAuth = !!session;
-        if (!session) diagnostics.errors.push('No active user session');
+        if (!session) {
+          diagnostics.errors.push('No active user session');
+        } else {
+          // Check for user-specific trading account credentials
+          const { data: accounts, error: accountError } = await supabase
+            .from('user_trading_accounts')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .eq('exchange', 'bybit')
+            .eq('is_active', true)
+            .limit(1);
+
+          if (accounts && accounts.length > 0) {
+            diagnostics.apiKeys = true;
+          } else {
+            diagnostics.errors.push('No Bybit trading account configured for this user');
+          }
+        }
       } catch (e) {
         diagnostics.errors.push(`Auth check failed: ${e}`);
       }
 
-      // Test 3: Edge function with auth
+      // Test 3: Edge function (optional system-level check)
       try {
         const { data, error } = await supabase.functions.invoke('debug-trading-status', {
           body: { action: 'env_check' }
@@ -52,9 +69,10 @@ const TradingDiagnostics = () => {
           diagnostics.errors.push(`Edge function error: ${error.message}`);
         } else {
           diagnostics.edgeFunctions = true;
-          diagnostics.apiKeys = data?.environment?.hasApiKey && data?.environment?.hasApiSecret;
-          if (!diagnostics.apiKeys) {
-            diagnostics.errors.push('Bybit API keys not configured in Supabase secrets');
+          // System-level API keys are optional if user has personal credentials
+          const hasSystemKeys = data?.environment?.hasApiKey && data?.environment?.hasApiSecret;
+          if (!diagnostics.apiKeys && !hasSystemKeys) {
+            diagnostics.errors.push('No API credentials found (neither user-specific nor system-wide)');
           }
         }
       } catch (e) {
@@ -84,12 +102,12 @@ const TradingDiagnostics = () => {
 
   const fixSuggestions = [
     {
-      issue: "Missing API Keys",
-      solution: "Add BYBIT_API_KEY and BYBIT_API_SECRET to Supabase Edge Function secrets",
+      issue: "Missing API Keys", 
+      solution: "Connect your Bybit account in the Live Setup tab",
       priority: "critical"
     },
     {
-      issue: "No User Session", 
+      issue: "No User Session",
       solution: "Sign in to your account first",
       priority: "high"
     },
