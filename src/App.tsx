@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
 import { isSupabaseConfigured } from '@/lib/supabaseClient';
 import Index from "./pages/Index";
+import Home from "./pages/Home";
 import Health from "./pages/Health";
 import AItradeX1Original from "./pages/AItradeX1Original";
 import X from "./pages/X";
@@ -43,9 +44,10 @@ function App() {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/health" element={<Health />} />
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/health" element={<Health />} />
             <Route path="/AITRADEX1ORIGINAL" element={<AItradeX1Original />} />
             <Route path="/X" element={<X />} />
             <Route path="/X1" element={<X1 />} />
