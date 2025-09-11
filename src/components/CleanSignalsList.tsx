@@ -7,6 +7,7 @@ import { useSignals } from '@/hooks/useSignals';
 import { useToast } from '@/hooks/use-toast';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { FEATURES } from '@/config/featureFlags';
+import { AuthGuardedButton } from './AuthGuardedButton';
 
 const CleanSignalsList = () => {
   const { signals, loading, generateSignals } = useSignals();
@@ -191,7 +192,7 @@ const CleanSignalsList = () => {
                       </div>
                       
                       <div className="text-center">
-                        <Button
+                        <AuthGuardedButton
                           size="sm"
                           variant={isLong ? "default" : "destructive"}
                           onClick={() => executeOrder(signal)}
@@ -199,7 +200,7 @@ const CleanSignalsList = () => {
                           className="min-w-[80px]"
                         >
                           {isExecuting ? 'Executing...' : 'Execute'}
-                        </Button>
+                        </AuthGuardedButton>
                         <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {formatTimeAgo(signal.created_at)}

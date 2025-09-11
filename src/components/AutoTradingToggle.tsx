@@ -1,19 +1,39 @@
 import { useEffect, useState } from 'react'
 import { AutomationAPI } from '@/lib/automation'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { AuthGuardedButton } from './AuthGuardedButton'
+import { supabase } from '@/integrations/supabase/client'
 
 export default function AutoTradingToggle() {
   const [loading, setLoading] = useState(true)
   const [enabled, setEnabled] = useState(false)
   const [mode, setMode] = useState<'paper'|'live'>('paper')
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
-    (async () => {
+    // Check auth status
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      setIsAuthenticated(!!session)
+    }
+    checkAuth()
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session)
+    })
+
+    // Load automation settings
+    const loadSettings = async () => {
       const s = await AutomationAPI.get()
       setEnabled(s.autoEnabled)
       setMode(s.mode)
       setLoading(false)
-    })()
+    }
+    loadSettings()
+
+    return () => subscription.unsubscribe()
   }, [])
 
   const onToggle = async () => {
@@ -62,7 +82,8 @@ export default function AutoTradingToggle() {
           <div className="text-sm text-muted-foreground">Auto-Execute Signals</div>
           <div className="text-base font-medium">{enabled ? 'Enabled' : 'Disabled'}</div>
         </div>
-        <button
+        
+        <AuthGuardedButton
           onClick={onToggle}
           disabled={loading}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
@@ -70,23 +91,38 @@ export default function AutoTradingToggle() {
                                : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}
         >
           {loading ? 'Please wait…' : enabled ? 'Disable' : 'Enable'}
-        </button>
+        </AuthGuardedButton>
       </div>
 
-      {/* Mode Selector - Only show paper for now */}
+      {/* Mode Selector */}
       <div className="pt-3 border-t border-border/50">
         <div className="text-xs text-muted-foreground mb-2">Trading Mode</div>
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => onMode('paper')}
-                  className={`px-3 py-2 rounded-md text-xs transition-colors
-                              ${mode==='paper' ? 'bg-blue-600 text-white' : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}>
+          <AuthGuardedButton 
+            onClick={() => onMode('paper')}
+            className={`px-3 py-2 rounded-md text-xs transition-colors
+                        ${mode==='paper' ? 'bg-blue-600 text-white' : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}
+          >
             📝 Paper Mode
-          </button>
-          <button className="px-3 py-2 rounded-md text-xs bg-muted/50 text-muted-foreground cursor-not-allowed opacity-50">
-            ⚡ Live (Coming Soon)
-          </button>
+          </AuthGuardedButton>
+          <AuthGuardedButton 
+            onClick={() => onMode('live')}
+            className={`px-3 py-2 rounded-md text-xs transition-colors
+                        ${mode==='live' ? 'bg-red-600 text-white' : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}
+          >
+            ⚡ Live Mode
+          </AuthGuardedButton>
         </div>
       </div>
+
+      {/* Authentication Warning */}
+      {!isAuthenticated && (
+        <div className="mt-3 p-2 bg-warning/10 border border-warning/20 rounded-lg">
+          <div className="text-xs text-warning">
+            ⚠️ Please sign in to enable auto trading
+          </div>
+        </div>
+      )}
 
       {/* Clear Status Message */}
       <div className="mt-3 text-xs">

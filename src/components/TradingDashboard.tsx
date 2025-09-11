@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,9 +26,21 @@ import PerformancePanel from './PerformancePanel';
 import LiveTradingSetup from './LiveTradingSetup';
 import TradingDiagnostics from './TradingDiagnostics';
 import { ProductionControls } from './ProductionControls';
+import { AutoTradingStatus } from './AutoTradingStatus';
+import { AutoTradingSetupGuide } from './AutoTradingSetupGuide';
 
 const TradingDashboard = () => {
   const [activeTab, setActiveTab] = useState('signals');
+
+  // Listen for tab switching events from setup guide
+  useEffect(() => {
+    const handleTabSwitch = (event: any) => {
+      setActiveTab(event.detail);
+    };
+    
+    window.addEventListener('switch-tab', handleTabSwitch);
+    return () => window.removeEventListener('switch-tab', handleTabSwitch);
+  }, []);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -119,7 +131,15 @@ const TradingDashboard = () => {
         </TabsList>
 
         <TabsContent value="signals" className="space-y-6">
-          <CleanSignalsList />
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <CleanSignalsList />
+            </div>
+            <div className="space-y-6">
+              <AutoTradingSetupGuide />
+              <AutoTradingStatus />
+            </div>
+          </div>
         </TabsContent>
         
         <TabsContent value="performance" className="space-y-6">

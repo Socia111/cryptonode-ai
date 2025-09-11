@@ -269,6 +269,9 @@ const Home = () => {
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Button variant="outline" asChild className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
+              <Link to="/auth">Sign In / Register</Link>
+            </Button>
+            <Button variant="outline" asChild className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
               <Link to="/trade">Live Trading</Link>
             </Button>
             <Button variant="outline" asChild className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
