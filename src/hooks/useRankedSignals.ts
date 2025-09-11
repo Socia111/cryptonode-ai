@@ -31,20 +31,22 @@ interface RankedSignal extends Signal {
 
 // Edge scoring helper (composite score)
 function calculateEdgeScore(signal: Signal): number {
-  const modelConfidence = signal.confidence_score / 100;
+  const modelConfidence = (signal.confidence_score || 0) / 100;
   
-  // Calculate risk-reward ratio
-  const rrRatio = signal.exit_target && signal.stop_loss && signal.entry_price
-    ? Math.abs(signal.exit_target - signal.entry_price) / Math.abs(signal.entry_price - signal.stop_loss)
-    : 2.0; // Default R:R
+  // Calculate risk-reward ratio - add safety checks
+  const entryPrice = signal.entry_price || 1;
+  const exitTarget = signal.exit_target || entryPrice * 1.05;
+  const stopLoss = signal.stop_loss || entryPrice * 0.95;
+  const rrRatio = Math.abs(exitTarget - entryPrice) / Math.abs(entryPrice - stopLoss);
   
-  // Symbol edge based on volume and timeframe
-  const symbolEdge = signal.volume_strength > 1.5 ? 1.0 : signal.volume_strength < 0.8 ? 0.7 : 0.85;
+  // Symbol edge based on volume and timeframe - add safety check
+  const volumeStrength = signal.volume_strength || 1.0;
+  const symbolEdge = volumeStrength > 1.5 ? 1.0 : volumeStrength < 0.8 ? 0.7 : 0.85;
   
-  // Penalties for low-liquidity or weird ticks
+  // Penalties for low-liquidity or weird ticks - add safety checks
   let liquidityPenalty = 1.0;
-  if (signal.volume_strength < 0.5) liquidityPenalty = 0.8;
-  if (signal.entry_price < 0.001 || signal.entry_price > 100000) liquidityPenalty *= 0.9;
+  if (volumeStrength < 0.5) liquidityPenalty = 0.8;
+  if (entryPrice < 0.001 || entryPrice > 100000) liquidityPenalty *= 0.9;
   
   // Blend the scores
   const compositeScore = (
@@ -59,7 +61,7 @@ function calculateEdgeScore(signal: Signal): number {
 // Calculate spread in basis points (mock implementation)
 function calculateSpreadBps(signal: Signal): number {
   // Mock spread calculation - in real implementation this would come from orderbook data
-  const priceLevel = signal.entry_price;
+  const priceLevel = signal.entry_price || 1;
   if (priceLevel < 1) return 25; // Higher spread for low-price tokens
   if (priceLevel > 1000) return 8; // Lower spread for high-price tokens
   return 15; // Default spread

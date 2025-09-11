@@ -105,9 +105,17 @@ export function subscribeSignals(
         console.log('[signals-realtime] Successfully subscribed to signals channel');
       } else if (status === 'CHANNEL_ERROR') {
         console.warn('[signals-realtime] Channel error:', err);
-        // Gracefully handle subscription errors - try to resubscribe later
+        // Gracefully handle subscription errors - disable realtime and use polling fallback
+        setTimeout(() => {
+          console.log('[signals-realtime] Attempting to resubscribe...');
+          try {
+            supabase.removeChannel(channel);
+          } catch (e) {
+            console.warn('Failed to remove channel:', e);
+          }
+        }, 5000);
       } else if (status === 'CLOSED') {
-        console.log('[signals-realtime] CLOSED');
+        console.log('[signals-realtime] Connection closed, will use polling fallback');
       } else {
         console.log('[signals-realtime]', status);
       }

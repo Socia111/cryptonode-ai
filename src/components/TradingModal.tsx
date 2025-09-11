@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { TradeControls } from './TradeControls';
 import { TradingGateway } from '@/lib/tradingGateway';
@@ -76,6 +77,9 @@ export const TradingModal: React.FC<TradingModalProps> = ({
           <DialogTitle>
             Execute Trade: {signal.token}
           </DialogTitle>
+          <DialogDescription>
+            Configure your trading parameters and execute the trade
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">

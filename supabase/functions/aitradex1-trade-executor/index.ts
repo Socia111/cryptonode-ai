@@ -441,17 +441,57 @@ serve(async (req) => {
           timeInForce: 'IOC'
         }
 
-        // Place the order directly
-        const engine = new AutoTradingEngine(supabase);
-        await engine.initializeClient();
-
-        // For linear contracts, add position index
+        // For linear contracts, handle position mode with fallback logic
         if (inst.category === 'linear') {
-          orderData.positionIdx = 0  // Use one-way mode
+          orderData.positionIdx = 0  // Default to one-way mode
           orderData.reduceOnly = false
+          console.log(`Initial position config for ${symbol}: positionIdx=0 (OneWay), side=${side}`);
         }
 
-        const result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+        // Execute order with position mode fallback
+        let result;
+        try {
+          console.log(`Attempting order execution for ${symbol}:`, orderData);
+          result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+          console.log(`✅ Order executed successfully on first attempt for ${symbol}`);
+        } catch (error) {
+          console.log(`❌ First attempt failed for ${symbol}: ${error.message}`);
+          
+          // If position mode error, try hedge mode for linear contracts
+          if (inst.category === 'linear' && error.message?.includes('position')) {
+            console.log(`🔄 Retrying ${symbol} with hedge mode position index...`);
+            
+            // Try hedge mode: positionIdx 1 for Buy, 2 for Sell
+            orderData.positionIdx = side === 'Buy' ? 1 : 2;
+            console.log(`Hedge mode attempt: positionIdx=${orderData.positionIdx} for ${side} order`);
+            
+            try {
+              result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+              console.log(`✅ Order executed successfully with hedge mode positionIdx=${orderData.positionIdx}`);
+            } catch (secondError) {
+              console.log(`❌ Hedge mode also failed for ${symbol}: ${secondError.message}`);
+              
+              // If hedge mode also fails, try the opposite hedge position
+              const fallbackIdx = side === 'Buy' ? 2 : 1;
+              orderData.positionIdx = fallbackIdx;
+              console.log(`🔄 Final attempt with fallback positionIdx=${fallbackIdx}`);
+              
+              try {
+                result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+                console.log(`✅ Order executed successfully with fallback positionIdx=${fallbackIdx}`);
+              } catch (finalError) {
+                console.log(`💥 All position modes failed for ${symbol}:`, {
+                  oneWay: 'position idx not match position mode',
+                  hedge1: secondError.message,
+                  hedge2: finalError.message
+                });
+                throw new Error(`All position modes failed. OneWay: position mismatch, Hedge(${side === 'Buy' ? 1 : 2}): ${secondError.message}, Hedge(${fallbackIdx}): ${finalError.message}`);
+              }
+            }
+          } else {
+            throw error;
+          }
+        }
         
         console.log('Order executed successfully:', { 
           symbol, 
