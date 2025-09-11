@@ -709,53 +709,6 @@ class AutoTradingEngine {
       return result;
     }
   }
-      const result = {
-        success: true,
-        signal_id: dbSignal.id,
-        order_id: dbOrder.id,
-        exchange_order_id: orderResult.result.orderId,
-        qty: qty,
-        entry_price: entryPrice,
-        liveAllowed: true
-      };
-
-      // Cache successful result (for 5 minutes)
-      if (idempotencyKey) {
-        idempotencyCache.set(idempotencyKey, result);
-        setTimeout(() => idempotencyCache.delete(idempotencyKey), 300000);
-      }
-
-      structuredLog('trade_execution_success', {
-        requestId,
-        signal_id: dbSignal.id,
-        order_id: dbOrder.id,
-        exchange_order_id: orderResult.result.orderId
-      });
-
-      return result;
-
-    } catch (error) {
-      const result = { 
-        success: false, 
-        reason: this.mapBybitError(error.message),
-        code: 'EXECUTION_ERROR'
-      };
-      
-      // Cache error results too (for 1 minute)
-      if (idempotencyKey) {
-        idempotencyCache.set(idempotencyKey, result);
-        setTimeout(() => idempotencyCache.delete(idempotencyKey), 60000);
-      }
-      
-      structuredLog('trade_execution_failed', {
-        requestId,
-        signal: signal,
-        error: error.message,
-        stack_trace: error.stack
-      });
-      return result;
-    }
-  }
 
   private mapBybitError(errorMessage: string): string {
     // Enhanced error mapping with user-friendly messages
