@@ -392,11 +392,26 @@ class AutoTradingEngine {
   async validateSignal(signal: TradingSignal): Promise<{ valid: boolean; reason?: string }> {
     // 1. Check whitelist - handle both formats (BTCUSDT and BTC/USDT)
     const normalizedSymbol = signal.symbol.replace('/', '')
-    const symbolInWhitelist = this.config.symbol_whitelist.includes(signal.symbol) || 
-                             this.config.symbol_whitelist.includes(normalizedSymbol)
     
-    if (!symbolInWhitelist) {
-      return { valid: false, reason: `Symbol ${signal.symbol} not in whitelist. Available: ${this.config.symbol_whitelist.join(', ')}` }
+    // Check environment variables for override
+    const allowAll = Deno.env.get('ALLOW_ALL_SYMBOLS') === 'true'
+    const envAllowedSymbols = Deno.env.get('ALLOWED_SYMBOLS')
+    
+    if (allowAll) {
+      // Skip whitelist check when ALLOW_ALL_SYMBOLS=true
+      structuredLog('symbol_whitelist_bypassed', { symbol: signal.symbol, mode: 'allow_all' })
+    } else {
+      // Use environment symbols if available, otherwise fall back to config
+      const symbolWhitelist = envAllowedSymbols 
+        ? envAllowedSymbols.split(',').map(s => s.trim().toUpperCase())
+        : (this.config.symbol_whitelist || [])
+      
+      const symbolInWhitelist = symbolWhitelist.includes(signal.symbol.toUpperCase()) || 
+                               symbolWhitelist.includes(normalizedSymbol.toUpperCase())
+      
+      if (!symbolInWhitelist) {
+        return { valid: false, reason: `Symbol ${signal.symbol} not whitelisted. Available: ${symbolWhitelist.join(', ')}` }
+      }
     }
 
     // 2. Check confidence and PMS thresholds
