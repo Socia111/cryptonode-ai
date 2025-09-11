@@ -148,3 +148,9 @@ verify_jwt = false
 
 [functions.crypto-scheduler]
 verify_jwt = false
+
+[functions.direct-bybit-test]
+verify_jwt = false
+
+[functions.direct-3commas-test]
+verify_jwt = false

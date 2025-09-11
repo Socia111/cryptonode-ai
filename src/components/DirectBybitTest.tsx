@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Zap, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const DirectBybitTest = () => {
   const [isRunning, setIsRunning] = useState(false);
@@ -17,14 +18,13 @@ const DirectBybitTest = () => {
     try {
       console.log('🚀 Running direct Bybit test...');
       
-      const response = await fetch('https://codhlwjogfjywmjyjbbn.functions.supabase.co/direct-bybit-test', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+      const { data, error } = await supabase.functions.invoke('direct-bybit-test', {
+        body: {}
       });
 
-      const data = await response.json();
+      if (error) {
+        throw new Error(error.message);
+      }
       setResult(data);
 
       if (data.success) {
