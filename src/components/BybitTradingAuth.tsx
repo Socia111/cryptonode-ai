@@ -65,47 +65,37 @@ const BybitTradingAuth = () => {
   };
 
   const authenticateWithBybit = async () => {
-    if (!credentials.apiKey || !credentials.apiSecret) {
-      toast.error('Please enter both API Key and Secret');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      toast.error("Sign in first");
       return;
     }
 
     setIsConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('bybit-authenticate', {
-        body: {
-          apiKey: credentials.apiKey,
-          apiSecret: credentials.apiSecret,
-          testnet: useTestnet
-        }
+      const { data, error } = await supabase.functions.invoke('connect-bybit', {
+        body: { accountType: useTestnet ? 'testnet' : 'mainnet' }
       });
 
-      if (error) {
-        console.error('Bybit auth error:', error);
-        throw new Error(error.message || 'Authentication failed');
+      if (error || !data?.ok) {
+        throw new Error(data?.error || error?.message || 'Connect failed');
       }
 
-      if (data?.success) {
-        setAuthState({
-          isAuthenticated: true,
-          accountType: useTestnet ? 'testnet' : 'mainnet',
-          balance: data.balance,
-          permissions: data.permissions,
-          riskSettings: data.riskSettings
-        });
-        
-        const network = useTestnet ? 'Testnet' : 'Mainnet';
-        toast.success(`🎉 Successfully authenticated with Bybit ${network}!`);
-        
-        // Clear credentials from state for security
-        setCredentials({ apiKey: '', apiSecret: '' });
-      } else {
-        throw new Error(data?.error || 'Authentication failed');
-      }
+      setAuthState({
+        isAuthenticated: true,
+        accountType: useTestnet ? 'testnet' : 'mainnet',
+        balance: null,
+        permissions: ['read', 'trade'],
+        riskSettings: null
+      });
+      
+      const network = useTestnet ? 'Testnet' : 'Mainnet';
+      toast.success(`🎉 Successfully connected to Bybit ${network}!`);
+      
     } catch (error: any) {
-      console.error('Bybit auth error:', error);
-      const errorMessage = error.message || 'Authentication failed';
-      toast.error(`Authentication failed: ${errorMessage}`);
+      console.error('Bybit connect error:', error);
+      const errorMessage = error.message || 'Connection failed';
+      toast.error(`Connection failed: ${errorMessage}`);
     } finally {
       setIsConnecting(false);
     }
@@ -185,37 +175,15 @@ const BybitTradingAuth = () => {
                 </Alert>
               )}
 
-              <div>
-                <Label htmlFor="apiKey">API Key</Label>
-                <Input
-                  id="apiKey"
-                  type="text"
-                  placeholder={`Enter your Bybit ${useTestnet ? 'Testnet' : 'Mainnet'} API Key`}
-                  value={credentials.apiKey}
-                  onChange={(e) => setCredentials(prev => ({ ...prev, apiKey: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="apiSecret">API Secret</Label>
-                <Input
-                  id="apiSecret"
-                  type="password"
-                  placeholder={`Enter your Bybit ${useTestnet ? 'Testnet' : 'Mainnet'} API Secret`}
-                  value={credentials.apiSecret}
-                  onChange={(e) => setCredentials(prev => ({ ...prev, apiSecret: e.target.value }))}
-                />
-              </div>
-
               <Button
                 onClick={authenticateWithBybit}
-                disabled={isConnecting || !credentials.apiKey || !credentials.apiSecret}
+                disabled={isConnecting}
                 className="w-full"
               >
                 {isConnecting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Authenticating...
+                    Connecting...
                   </>
                 ) : (
                   <>

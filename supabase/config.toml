@@ -1,5 +1,8 @@
 project_id = "codhlwjogfjywmjyjbbn"
 
+[functions.connect-bybit]
+verify_jwt = true
+
 [functions.aitradex1-trade-executor]
 verify_jwt = true
 
