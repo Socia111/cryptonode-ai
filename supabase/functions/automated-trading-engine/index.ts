@@ -614,8 +614,11 @@ class AutomatedTradingEngine {
   }
 
   private passesFilters(signal: any): boolean {
-    // Whitelist check
-    if (this.config.symbols_whitelist && this.config.symbols_whitelist.length > 0) {
+    // Symbol filter - allow all symbols by default unless specifically configured
+    const RAW_ALLOWED = (Deno.env.get('ALLOWED_SYMBOLS') ?? '').trim();
+    const ALLOW_ALL = RAW_ALLOWED === '' || RAW_ALLOWED === '*' || RAW_ALLOWED.toUpperCase() === 'ALL';
+    
+    if (!ALLOW_ALL && this.config.symbols_whitelist && this.config.symbols_whitelist.length > 0) {
       if (!this.config.symbols_whitelist.includes(signal.symbol)) {
         return false;
       }

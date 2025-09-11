@@ -390,29 +390,22 @@ class AutoTradingEngine {
   }
 
   async validateSignal(signal: TradingSignal): Promise<{ valid: boolean; reason?: string }> {
-    // 1. Check whitelist - handle both formats (BTCUSDT and BTC/USDT)
-    const normalizedSymbol = signal.symbol.replace('/', '')
+    // Symbol validation - allow all symbols by default unless specifically configured
+    const RAW_ALLOWED = (Deno.env.get('ALLOWED_SYMBOLS') ?? '').trim();
+    const ALLOW_ALL = RAW_ALLOWED === '' || RAW_ALLOWED === '*' || RAW_ALLOWED.toUpperCase() === 'ALL';
     
-    // Check symbol whitelist with wildcard support
-    const envAllowedSymbols = Deno.env.get('ALLOWED_SYMBOLS')
-    const allowedSymbols = envAllowedSymbols 
-      ? envAllowedSymbols.split(',').map(s => s.trim())
-      : (this.config.symbol_whitelist || [])
-    
-    // Check for wildcard or specific symbol
-    const isWildcard = allowedSymbols.includes('*')
-    const symbolInWhitelist = isWildcard || 
-                             allowedSymbols.includes(signal.symbol.toUpperCase()) || 
-                             allowedSymbols.includes(normalizedSymbol.toUpperCase())
-    
-    if (!symbolInWhitelist) {
-      const availableText = isWildcard ? '*' : allowedSymbols.join(', ')
-      return { valid: false, reason: `Symbol ${signal.symbol} not whitelisted. Available: ${availableText}` }
+    if (!ALLOW_ALL) {
+      const normalizedSymbol = signal.symbol.replace('/', '')
+      const allowedSymbols = RAW_ALLOWED.split(/[, \s\n]+/).filter(Boolean).map(s => s.toUpperCase())
+      const symbolAllowed = allowedSymbols.includes(signal.symbol.toUpperCase()) || 
+                           allowedSymbols.includes(normalizedSymbol.toUpperCase())
+      
+      if (!symbolAllowed) {
+        return { valid: false, reason: `Symbol blocked by config: ${signal.symbol}` }
+      }
     }
     
-    if (isWildcard) {
-      structuredLog('symbol_whitelist_bypassed', { symbol: signal.symbol, mode: 'wildcard' })
-    }
+    structuredLog('symbol_validation', { symbol: signal.symbol, allow_all: ALLOW_ALL })
 
     // 2. Check confidence and PMS thresholds
     if (signal.confidence_score < this.config.min_confidence_score) {

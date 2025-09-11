@@ -151,11 +151,22 @@ async function setTpSlOrder(
   return await bybitApiCall('/v5/position/trading-stop', 'POST', params, apiKey, apiSecret, isTestnet);
 }
 
-// Risk Management Constants
-const WHITELISTED_SYMBOLS = [
-  'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'ADAUSDT', 
-  'DOTUSDT', 'LINKUSDT', 'AVAXUSDT', 'MANAUSDT', 'CATIUSDT'
-];
+// Symbol validation - allow all symbols by default
+const RAW_ALLOWED = (Deno.env.get('ALLOWED_SYMBOLS') ?? '').trim();
+const ALLOW_ALL = RAW_ALLOWED === '' || RAW_ALLOWED === '*' || RAW_ALLOWED.toUpperCase() === 'ALL';
+
+function assertSymbolAllowed(symbol: string) {
+  if (ALLOW_ALL) return; // allow all when secret is *, ALL, or unset
+  const set = new Set(
+    RAW_ALLOWED.split(/[, \s\n]+/).filter(Boolean).map(s => s.toUpperCase())
+  );
+  if (!set.has(symbol.toUpperCase())) {
+    throw new Response(
+      JSON.stringify({ success: false, code: 'SYMBOL_BLOCKED', error: `Symbol blocked by config: ${symbol}` }),
+      { status: 403 }
+    );
+  }
+}
 const MIN_NOTIONAL_USD = 5;
 const MAX_SPREAD_BPS = 1000; // 10%
 const MAX_FUNDING_RATE = 0.0005; // 0.05% per 8h
@@ -249,6 +260,7 @@ serve(async (req) => {
     }
 
     console.log(`🚀 Bybit Live Trading - Action: ${action}, TestMode: ${isTestnet}`);
+    console.log('🔧 symbol gate:', { RAW_ALLOWED, ALLOW_ALL });
 
     let result;
 
@@ -266,10 +278,8 @@ serve(async (req) => {
           throw new Error('Signal data required for placing orders');
         }
 
-        // Risk validation
-        if (!WHITELISTED_SYMBOLS.includes(signal.symbol)) {
-          throw new Error(`Symbol ${signal.symbol} not whitelisted for trading`);
-        }
+        // Symbol validation
+        assertSymbolAllowed(signal.symbol);
 
         const notionalValue = parseFloat(signal.qty) * parseFloat(signal.price || '0');
         if (notionalValue < MIN_NOTIONAL_USD) {
@@ -339,7 +349,7 @@ serve(async (req) => {
               status: 'connected',
               testnet: isTestnet,
               live_trading_enabled: liveTrading,
-              whitelisted_symbols: WHITELISTED_SYMBOLS,
+              symbol_filter: ALLOW_ALL ? 'ALL_SYMBOLS' : RAW_ALLOWED,
               min_notional_usd: MIN_NOTIONAL_USD,
               timestamp: new Date().toISOString(),
               environment: {
@@ -411,8 +421,8 @@ serve(async (req) => {
     } else if (error.message.includes('timeout')) {
       userMessage = 'Request timeout - exchange may be busy';
       errorCode = 'TIMEOUT_ERROR';
-    } else if (error.message.includes('not whitelisted')) {
-      errorCode = 'SYMBOL_NOT_WHITELISTED';
+    } else if (error.message.includes('blocked by config')) {
+      errorCode = 'SYMBOL_BLOCKED';
     } else if (error.message.includes('minimum notional')) {
       errorCode = 'BELOW_MIN_NOTIONAL';
     }
