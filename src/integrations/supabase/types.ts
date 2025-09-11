@@ -4615,6 +4615,54 @@ export type Database = {
         }
         Relationships: []
       }
+      user_trading_accounts: {
+        Row: {
+          account_info: Json | null
+          account_type: string | null
+          api_key: string
+          api_secret: string
+          balance_info: Json | null
+          created_at: string
+          exchange: string
+          id: string
+          is_active: boolean
+          permissions: string[] | null
+          risk_settings: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_info?: Json | null
+          account_type?: string | null
+          api_key: string
+          api_secret: string
+          balance_info?: Json | null
+          created_at?: string
+          exchange: string
+          id?: string
+          is_active?: boolean
+          permissions?: string[] | null
+          risk_settings?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_info?: Json | null
+          account_type?: string | null
+          api_key?: string
+          api_secret?: string
+          balance_info?: Json | null
+          created_at?: string
+          exchange?: string
+          id?: string
+          is_active?: boolean
+          permissions?: string[] | null
+          risk_settings?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       watchlist_items: {
         Row: {
           created_at: string | null

@@ -37,16 +37,27 @@ const BybitTradingAuth = () => {
 
   const checkExistingAuth = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('bybit-auth-status');
-      if (data?.authenticated) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: accounts, error } = await supabase
+        .from('user_trading_accounts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('exchange', 'bybit')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+
+      if (accounts && !error) {
         setAuthState({
           isAuthenticated: true,
-          accountType: data.accountType,
-          balance: data.balance,
-          permissions: data.permissions,
-          riskSettings: data.riskSettings
+          accountType: accounts.account_type || 'testnet',
+          balance: accounts.balance_info,
+          permissions: accounts.permissions || [],
+          riskSettings: accounts.risk_settings
         });
-        setUseTestnet(data.accountType === 'testnet');
+        setUseTestnet(accounts.account_type === 'testnet');
       }
     } catch (error) {
       console.log('No existing Bybit auth found');
@@ -98,7 +109,14 @@ const BybitTradingAuth = () => {
 
   const disconnect = async () => {
     try {
-      await supabase.functions.invoke('bybit-disconnect');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('user_trading_accounts')
+          .update({ is_active: false })
+          .eq('user_id', user.id)
+          .eq('exchange', 'bybit');
+      }
       setAuthState({ isAuthenticated: false });
       toast.success('Disconnected from Bybit');
     } catch (error) {

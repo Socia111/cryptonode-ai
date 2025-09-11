@@ -30,13 +30,24 @@ const ThreeCommasAuth = () => {
 
   const checkExistingAuth = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('3commas-auth-status');
-      if (data?.authenticated) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: accounts, error } = await supabase
+        .from('user_trading_accounts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('exchange', '3commas')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+
+      if (accounts && !error) {
         setAuthState({
           isAuthenticated: true,
-          apiKey: data.apiKey,
-          accountInfo: data.accountInfo,
-          permissions: data.permissions
+          apiKey: accounts.api_key?.substring(0, 8) + '...',
+          accountInfo: accounts.account_info,
+          permissions: accounts.permissions || []
         });
       }
     } catch (error) {
@@ -86,7 +97,14 @@ const ThreeCommasAuth = () => {
 
   const disconnect = async () => {
     try {
-      await supabase.functions.invoke('3commas-disconnect');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('user_trading_accounts')
+          .update({ is_active: false })
+          .eq('user_id', user.id)
+          .eq('exchange', '3commas');
+      }
       setAuthState({ isAuthenticated: false });
       toast.success('Disconnected from 3Commas');
     } catch (error) {
