@@ -53,14 +53,11 @@ export const TradingGateway = {
       const amount = params.amountUSD || params.notionalUSD || 25; // fallback to old param or default
       const leverage = params.leverage || 1;
       
-      const bybitSignal = {
-        symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT
-        side: params.side === 'BUY' ? 'Buy' : 'Sell',
-        orderType: 'Market',
-        qty: (amount * 0.001).toFixed(6), // Convert notional to quantity
-        timeInForce: 'IOC',
-        leverage: leverage
-      };
+      // Ensure minimum order size to avoid "not enough for new order" error
+      const minAmount = 5; // Minimum $5 order
+      const finalAmount = Math.max(amount, minAmount);
+      
+      console.log(`Order details: ${params.symbol} ${params.side} $${finalAmount} (${leverage}x leverage)`);
       
       const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
@@ -69,7 +66,7 @@ export const TradingGateway = {
           action: 'place_order',
           symbol: params.symbol.replace('/', ''),
           side: params.side === 'BUY' ? 'Buy' : 'Sell',
-          amountUSD: amount,
+          amountUSD: finalAmount,
           leverage: leverage
         })
       });

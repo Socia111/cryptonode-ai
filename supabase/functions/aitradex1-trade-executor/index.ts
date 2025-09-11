@@ -482,69 +482,107 @@ serve(async (req) => {
       });
 
       try {
+        // Check if API credentials are configured
+        const apiKey = Deno.env.get('BYBIT_API_KEY');
+        const apiSecret = Deno.env.get('BYBIT_API_SECRET');
+        
+        if (!apiKey || !apiSecret) {
+          return json({
+            success: false,
+            message: 'Bybit API credentials not configured'
+          }, 400);
+        }
+
+        // Create Bybit client
+        const bybitClient = new BybitV5Client({
+          apiKey,
+          apiSecret,
+          testnet: false
+        });
+
         // Get instrument info and price
         const inst = await getInstrument(symbol);
         const price = await getMarkPrice(symbol);
         
-        // Calculate proper quantity
-        const { qty } = computeOrderQtyUSD(amountUSD, leverage || 1, price, inst);
+        // Calculate proper quantity with minimum order value
+        const targetAmountUSD = Math.max(amountUSD, 5); // Minimum $5 order
+        const leverageValue = Math.max(leverage || 1, 1);
+        
+        console.log(`Calculating order size: $${targetAmountUSD} with ${leverageValue}x leverage at price $${price}`);
+        
+        const { qty } = computeOrderQtyUSD(targetAmountUSD, leverageValue, price, inst);
         
         if (!qty || qty <= 0) {
           return json({
             success: false,
-            message: 'Size calculation failed'
+            message: `Size calculation failed: qty=${qty}, targetAmountUSD=${targetAmountUSD}, price=${price}`
           }, 400);
         }
 
-        // Create order data
-        const orderData: any = {
-          category: inst.category,
-          symbol,
-          side: side === 'Buy' ? 'Buy' : 'Sell',
-          orderType: 'Market',
-          qty: String(qty),
-          timeInForce: 'IOC'
-        }
+        console.log(`Calculated quantity: ${qty} contracts for ${symbol}`);
 
-        // For linear contracts, handle position mode with fallback logic
-        if (inst.category === 'linear') {
-          orderData.positionIdx = 0  // Default to one-way mode
-          orderData.reduceOnly = false
-          console.log(`Initial position config for ${symbol}: positionIdx=0 (OneWay), side=${side}`);
-        }
-
-        // Create engine instance with proper client
-        const bybitClient = new BybitV5Client({
-          apiKey: Deno.env.get('BYBIT_API_KEY')!,
-          apiSecret: Deno.env.get('BYBIT_API_SECRET')!,
-          testnet: false
-        });
-
+        // Create engine instance and execute order
         const engine = new AutoTradingEngine(bybitClient, supabase);
 
-        // Execute order with enhanced position mode handling
+        // Execute order with enhanced error handling
         let result;
         try {
-          console.log(`Attempting order execution for ${symbol}:`, orderData);
-          result = await engine.executeOrder(symbol, side, qty, leverage);
-          console.log(`✅ Order executed successfully for ${symbol}`);
+          result = await engine.executeOrder(symbol, side, qty, leverageValue);
+          console.log(`✅ Order executed successfully for ${symbol}:`, result);
         } catch (error) {
-          console.log(`❌ Order execution failed for ${symbol}: ${error.message}`);
+          console.error(`❌ Order execution failed for ${symbol}:`, error.message);
+          
+          // Log the failure
+          await engine.logExecution({
+            symbol,
+            side,
+            amount_usd: targetAmountUSD,
+            leverage: leverageValue,
+            status: 'failed',
+            error_message: error.message,
+            metadata: { 
+              calculated_qty: qty,
+              price,
+              instrument_info: inst,
+              error_details: error.message
+            }
+          });
+          
           throw error;
         }
         
-        console.log('Order executed successfully:', { 
-          symbol, 
-          side, 
-          qty, 
-          category: inst.category,
-          orderId: result?.result?.orderId 
+        // Log success
+        await engine.logExecution({
+          symbol,
+          side,
+          amount_usd: targetAmountUSD,
+          leverage: leverageValue,
+          status: 'success',
+          error_message: null,
+          metadata: { 
+            calculated_qty: qty,
+            price,
+            instrument_info: inst,
+            order_result: result,
+            order_id: result?.result?.orderId 
+          }
         });
 
         return json({
           success: true,
-          data: result
+          data: {
+            ...result,
+            order_details: {
+              symbol,
+              side,
+              quantity: qty,
+              price,
+              amount_usd: targetAmountUSD,
+              leverage: leverageValue
+            }
+          }
         });
+
       } catch (error) {
         console.error('Trade execution failed:', { 
           error: error.message, 
@@ -553,32 +591,6 @@ serve(async (req) => {
           amountUSD, 
           leverage 
         });
-
-        // Initialize engine for error logging if needed
-        let engine: AutoTradingEngine;
-        try {
-          const bybitClient = new BybitV5Client({
-            apiKey: Deno.env.get('BYBIT_API_KEY')!,
-            apiSecret: Deno.env.get('BYBIT_API_SECRET')!,
-            testnet: false
-          });
-          engine = new AutoTradingEngine(bybitClient, supabase);
-          
-          await engine.logExecution({
-            symbol,
-            side,
-            amount_usd: amountUSD,
-            leverage: leverage || 1,
-            status: 'failed',
-            error_message: error.message,
-            metadata: { 
-              error_details: error,
-              timestamp: new Date().toISOString()
-            }
-          });
-        } catch (logError) {
-          console.warn('Failed to log error execution:', logError.message);
-        }
 
         return json({
           success: false,
