@@ -49,15 +49,12 @@ export const TradingGateway = {
         'authorization': `Bearer ${sessionToken}`,
       };
       
-      // Convert to Bybit signal format
-      const amount = params.amountUSD || params.notionalUSD || 25; // fallback to old param or default
+      // Use simple, working approach - ensure minimum $5 order
+      const amount = params.amountUSD || params.notionalUSD || 5;
+      const finalAmount = Math.max(amount, 5); // Minimum $5 order
       const leverage = params.leverage || 1;
       
-      // Ensure minimum order size to avoid "not enough for new order" error
-      const minAmount = 5; // Minimum $5 order
-      const finalAmount = Math.max(amount, minAmount);
-      
-      console.log(`Order details: ${params.symbol} ${params.side} $${finalAmount} (${leverage}x leverage)`);
+      console.log(`🚀 Placing order: ${params.symbol} ${params.side} $${finalAmount} (${leverage}x leverage)`);
       
       const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',

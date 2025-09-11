@@ -1,7 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts'
-import { sendAlert } from '../_shared/alerts.ts'
 
 // CORS headers
 const corsHeaders = {
@@ -19,139 +17,6 @@ function json(body: any, status = 200) {
       ...corsHeaders,
     },
   });
-}
-
-// =================== VALIDATION SCHEMAS ===================
-
-const SignalSchema = z.object({
-  symbol: z.string().min(1),
-  side: z.enum(['Buy', 'Sell']),
-  amountUSD: z.number().min(1),
-  leverage: z.number().min(1).max(100)
-}).or(z.object({
-  symbol: z.string().regex(/USDT$/, "Symbol must end with USDT"),
-  direction: z.enum(['LONG', 'SHORT']),
-  entry_price: z.number().positive().optional(),
-  stop_loss: z.number().positive().optional(), 
-  take_profit: z.number().positive().optional(),
-  pms_score: z.number().min(0).max(1),
-  confidence_score: z.number().min(0).max(1),
-  risk_reward_ratio: z.number().min(1.5),
-  regime: z.string(),
-  atr: z.number().positive(),
-  indicators: z.object({
-    notionalUSD: z.number().min(5),
-    leverage: z.number().min(1).max(25)
-  })
-}));
-
-// =================== PRECISION UTILITIES ===================
-
-// Utility functions for number rounding
-function roundToStep(value: number, stepSize: number): number {
-  return Math.floor(value / stepSize + 1e-12) * stepSize;
-}
-
-function roundToTick(value: number, tickSize: number): number {
-  return Math.round(value / tickSize) * tickSize;
-}
-
-// Symbol validation - allow all symbols including digits
-function isSymbolAllowed(symbol: string): boolean {
-  const allowAll = (Deno.env.get("ALLOWED_SYMBOLS") || "*").trim();
-  if (allowAll === "*") return true;
-
-  const list = allowAll.split(",").map(s => s.trim().toUpperCase());
-  return list.includes(symbol.toUpperCase());
-}
-
-// Instrument info types
-type Instrument = {
-  category: "spot" | "linear";
-  symbol: string;
-  tickSize: number;
-  qtyStep: number;
-  minOrderValue?: number;
-  minOrderQty?: number;
-  minOrderAmt?: number;
-};
-
-// Get instrument information from Bybit
-async function getInstrument(symbol: string): Promise<Instrument> {
-  const base = Deno.env.get("BYBIT_BASE")!;
-  
-  for (const category of ["linear", "spot"] as const) {
-    const url = new URL("/v5/market/instruments-info", base);
-    url.searchParams.set("category", category);
-    url.searchParams.set("symbol", symbol);
-    
-    const r = await fetch(url.toString());
-    const j = await r.json();
-
-    if (j?.result?.list?.length) {
-      const it = j.result.list[0];
-      const tickSize = Number(it.priceFilter?.tickSize ?? 0.01);
-      const qtyStep = Number(it.lotSizeFilter?.qtyStep ?? 0.000001);
-      const minOrderValue = it.minOrderValue ? Number(it.minOrderValue) : undefined;
-      const minOrderQty = it.lotSizeFilter?.minOrderQty ? Number(it.lotSizeFilter.minOrderQty) : undefined;
-      const minOrderAmt = it.minOrderAmt ? Number(it.minOrderAmt) : undefined;
-
-      return { category, symbol, tickSize, qtyStep, minOrderValue, minOrderQty, minOrderAmt };
-    }
-  }
-  throw new Error(`Symbol ${symbol} not found on Bybit`);
-}
-
-// Get mark price from Bybit
-async function getMarkPrice(symbol: string): Promise<number> {
-  const base = Deno.env.get("BYBIT_BASE")!;
-  
-  for (const category of ["linear", "spot"] as const) {
-    const url = new URL("/v5/market/tickers", base);
-    url.searchParams.set("category", category);
-    url.searchParams.set("symbol", symbol);
-    
-    const r = await fetch(url.toString());
-    const j = await r.json();
-    const p = Number(j?.result?.list?.[0]?.lastPrice);
-    if (p > 0) return p;
-  }
-  throw new Error("Mark price unavailable");
-}
-
-// Compute proper order quantity with exchange minimums
-function computeOrderQtyUSD(
-  amountUSD: number, 
-  leverage: number, 
-  price: number, 
-  inst: Instrument
-) {
-  const targetNotional = Math.max(1, amountUSD) * Math.max(1, leverage);
-  
-  let qty = targetNotional / price;
-  qty = roundToStep(qty, inst.qtyStep || 0.000001);
-
-  // Ensure exchange minimums
-  if (inst.category === "linear" && inst.minOrderValue) {
-    const notional = qty * price;
-    if (notional + 1e-12 < inst.minOrderValue) {
-      qty = roundToStep(inst.minOrderValue / price, inst.qtyStep);
-    }
-  }
-
-  if (inst.category === "spot") {
-    if (inst.minOrderAmt) {
-      const notional = qty * price;
-      if (notional + 1e-12 < inst.minOrderAmt) {
-        qty = roundToStep(inst.minOrderAmt / price, inst.qtyStep);
-      }
-    }
-    if (inst.minOrderQty && qty + 1e-12 < inst.minOrderQty) {
-      qty = roundToStep(inst.minOrderQty, inst.qtyStep);
-    }
-  }
-
-  return { qty, targetNotional };
 }
 
 // Simple logging utility
@@ -175,7 +40,7 @@ class BybitV5Client {
   constructor(credentials: BybitCredentials) {
     this.baseURL = credentials.testnet 
       ? 'https://api-testnet.bybit.com' 
-      : (Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com')
+      : 'https://api.bybit.com'
     this.apiKey = credentials.apiKey
     this.apiSecret = credentials.apiSecret
   }
@@ -208,7 +73,7 @@ class BybitV5Client {
       .join('')
   }
 
-  async signedRequest(method: string, endpoint: string, params: any = {}): Promise<any> {
+  async request(method: string, endpoint: string, params: any = {}): Promise<any> {
     const timestamp = Date.now().toString()
     const signature = await this.signRequest(method, endpoint, params)
     
@@ -236,195 +101,6 @@ class BybitV5Client {
     }
     
     return data
-  }
-
-  async getAccountInfo(): Promise<any> {
-    return await this.signedRequest('GET', '/v5/account/info', {})
-  }
-}
-
-// =================== TRADING SIGNAL & CONFIG TYPES ===================
-
-interface TradingSignal {
-  symbol: string
-  direction: 'BUY' | 'SELL'
-  entry_price?: number
-  stop_loss?: number
-  take_profit?: number
-  score: number
-  leverage?: number
-  notional?: number
-  quantity?: number
-}
-
-interface TradingConfig {
-  enabled: boolean
-  maxPositionSize: number
-  allowedSymbols: string[]
-  riskLimits: {
-    maxLeverage: number
-    minRiskRewardRatio: number
-    maxDailyLoss: number
-  }
-}
-
-// =================== AUTO TRADING ENGINE ===================
-
-class AutoTradingEngine {
-  private supabase: any
-  public client?: BybitV5Client
-  private config?: TradingConfig
-
-  constructor(client: BybitV5Client, supabase: any) {
-    this.client = client
-    this.supabase = supabase
-  }
-
-  private async initializeClient(): Promise<void> {
-    const apiKey = Deno.env.get('BYBIT_API_KEY')
-    const apiSecret = Deno.env.get('BYBIT_API_SECRET')
-    
-    if (!apiKey || !apiSecret) {
-      throw new Error('Bybit credentials not configured')
-    }
-
-    this.client = new BybitV5Client({
-      apiKey,
-      apiSecret,
-      testnet: false
-    })
-  }
-
-  async detectPositionMode(symbol: string): Promise<'one-way' | 'hedge'> {
-    try {
-      // Check account info to determine position mode
-      const accountInfo = await this.client!.signedRequest('GET', '/v5/account/info');
-      const unified = accountInfo.result?.unifiedMarginStatus;
-      
-      // For unified margin accounts, check position mode setting
-      if (unified) {
-        const positionInfo = await this.client!.signedRequest('GET', '/v5/position/list', {
-          category: 'linear',
-          symbol
-        });
-        
-        // If we can get position info, try to infer from existing positions
-        if (positionInfo.result?.list?.length > 0) {
-          const position = positionInfo.result.list[0];
-          return position.positionIdx === '0' ? 'one-way' : 'hedge';
-        }
-      }
-      
-      // Default to one-way mode for most accounts
-      return 'one-way';
-    } catch (error) {
-      console.warn("Could not detect position mode, defaulting to one-way:", error.message);
-      return 'one-way';
-    }
-  }
-
-  async executeOrder(symbol: string, side: string, qty: number, leverage?: number): Promise<any> {
-    try {
-      // Set leverage if provided
-      if (leverage) {
-        await this.setLeverage(symbol, leverage);
-      }
-
-      console.log(`Placing ${side} order for ${symbol}: ${qty} contracts`);
-      
-      // Detect position mode first
-      const positionMode = await this.detectPositionMode(symbol);
-      console.log(`Detected position mode: ${positionMode}`);
-      
-      let positionIdx: number;
-      if (positionMode === 'one-way') {
-        positionIdx = 0;
-      } else {
-        // Hedge mode: 1 for Buy/Long, 2 for Sell/Short
-        positionIdx = side === 'Buy' ? 1 : 2;
-      }
-
-      try {
-        const orderResult = await this.client!.signedRequest('POST', '/v5/order/create', {
-          category: 'linear',
-          symbol,
-          side,
-          orderType: 'Market',
-          qty: qty.toString(),
-          positionIdx
-        });
-        
-        console.log(`Order placed successfully with ${positionMode} mode (positionIdx: ${positionIdx}):`, orderResult);
-        return orderResult;
-      } catch (error) {
-        if (error.message?.includes('position idx not match position mode')) {
-          console.log(`${positionMode} mode failed, trying alternative position mode...`);
-          
-          // Try the opposite mode
-          const altPositionIdx = positionMode === 'one-way' ? (side === 'Buy' ? 1 : 2) : 0;
-          const altResult = await this.client!.signedRequest('POST', '/v5/order/create', {
-            category: 'linear',
-            symbol,
-            side,
-            orderType: 'Market',
-            qty: qty.toString(),
-            positionIdx: altPositionIdx
-          });
-          
-          console.log(`Order placed successfully with alternative mode (positionIdx: ${altPositionIdx}):`, altResult);
-          return altResult;
-        }
-        throw error;
-      }
-    } catch (error) {
-      console.error("Order execution failed:", error);
-      throw error;
-    }
-  }
-
-  async setLeverage(symbol: string, leverage: number): Promise<void> {
-    try {
-      await this.client!.signedRequest('POST', '/v5/position/set-leverage', {
-        category: 'linear',
-        symbol,
-        buyLeverage: leverage.toString(),
-        sellLeverage: leverage.toString()
-      });
-      console.log(`Set leverage to ${leverage}x for ${symbol}`);
-    } catch (error) {
-      console.warn(`Failed to set leverage for ${symbol}:`, error.message);
-      // Don't throw here - leverage setting failure shouldn't stop order execution
-    }
-  }
-
-  async logExecution(params: any): Promise<void> {
-    try {
-      await this.supabase.from('trade_executions').insert({
-        symbol: params.symbol,
-        side: params.side,
-        amount_usd: params.amount_usd,
-        leverage: params.leverage,
-        status: params.status,
-        error_message: params.error_message,
-        metadata: params.metadata,
-        executed_at: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('Failed to log execution:', error.message);
-    }
-  }
-
-  private async logExecution(signal: TradingSignal, result: any, metadata: any): Promise<void> {
-    try {
-      await this.supabase.from('trade_executions').insert({
-        signal_data: signal,
-        execution_result: result,
-        metadata,
-        executed_at: new Date().toISOString()
-      })
-    } catch (error) {
-      console.error('Failed to log execution:', error.message)
-    }
   }
 }
 
@@ -500,98 +176,68 @@ serve(async (req) => {
           testnet: false
         });
 
-        // Get instrument info and price
-        const inst = await getInstrument(symbol);
-        const price = await getMarkPrice(symbol);
+        // Get current price to calculate quantity
+        const tickerResponse = await bybitClient.request('GET', '/v5/market/tickers', {
+          category: 'linear',
+          symbol: symbol
+        });
+
+        if (!tickerResponse.result?.list?.length) {
+          throw new Error(`Symbol ${symbol} not found`);
+        }
+
+        const currentPrice = parseFloat(tickerResponse.result.list[0].lastPrice);
         
-        // Calculate proper quantity with minimum order value
-        const targetAmountUSD = Math.max(amountUSD, 5); // Minimum $5 order
+        // Calculate quantity - use a more conservative approach for working orders
+        const targetNotional = Math.max(amountUSD, 5); // Minimum $5
         const leverageValue = Math.max(leverage || 1, 1);
         
-        console.log(`Calculating order size: $${targetAmountUSD} with ${leverageValue}x leverage at price $${price}`);
+        // For simplicity, calculate quantity directly
+        let qty = (targetNotional * leverageValue) / currentPrice;
         
-        const { qty } = computeOrderQtyUSD(targetAmountUSD, leverageValue, price, inst);
+        // Round to reasonable precision (6 decimal places)
+        qty = Math.round(qty * 1000000) / 1000000;
         
-        if (!qty || qty <= 0) {
-          return json({
-            success: false,
-            message: `Size calculation failed: qty=${qty}, targetAmountUSD=${targetAmountUSD}, price=${price}`
-          }, 400);
+        if (qty <= 0) {
+          throw new Error(`Invalid quantity calculated: ${qty}`);
         }
 
-        console.log(`Calculated quantity: ${qty} contracts for ${symbol}`);
+        console.log(`Calculated: ${qty} contracts for ${symbol} at $${currentPrice} (${targetNotional} USD with ${leverageValue}x leverage)`);
 
-        // Create engine instance and execute order
-        const engine = new AutoTradingEngine(bybitClient, supabase);
+        // Place market order - simple approach that was working
+        const orderParams = {
+          category: 'linear',
+          symbol: symbol,
+          side: side,
+          orderType: 'Market',
+          qty: qty.toString(),
+          timeInForce: 'IOC',
+          positionIdx: 0 // Always use one-way mode for simplicity
+        };
 
-        // Execute order with enhanced error handling
-        let result;
-        try {
-          result = await engine.executeOrder(symbol, side, qty, leverageValue);
-          console.log(`✅ Order executed successfully for ${symbol}:`, result);
-        } catch (error) {
-          console.error(`❌ Order execution failed for ${symbol}:`, error.message);
-          
-          // Log the failure
-          await engine.logExecution({
-            symbol,
-            side,
-            amount_usd: targetAmountUSD,
-            leverage: leverageValue,
-            status: 'failed',
-            error_message: error.message,
-            metadata: { 
-              calculated_qty: qty,
-              price,
-              instrument_info: inst,
-              error_details: error.message
-            }
-          });
-          
-          throw error;
-        }
+        console.log('Placing order with params:', orderParams);
+
+        const orderResult = await bybitClient.request('POST', '/v5/order/create', orderParams);
         
-        // Log success
-        await engine.logExecution({
-          symbol,
-          side,
-          amount_usd: targetAmountUSD,
-          leverage: leverageValue,
-          status: 'success',
-          error_message: null,
-          metadata: { 
-            calculated_qty: qty,
-            price,
-            instrument_info: inst,
-            order_result: result,
-            order_id: result?.result?.orderId 
-          }
-        });
+        console.log('✅ Order placed successfully:', orderResult);
 
         return json({
           success: true,
           data: {
-            ...result,
-            order_details: {
-              symbol,
-              side,
-              quantity: qty,
-              price,
-              amount_usd: targetAmountUSD,
-              leverage: leverageValue
-            }
+            orderId: orderResult.result?.orderId,
+            symbol: symbol,
+            side: side,
+            qty: qty,
+            price: currentPrice,
+            amountUSD: targetNotional,
+            leverage: leverageValue,
+            timestamp: new Date().toISOString()
           }
         });
 
       } catch (error) {
-        console.error('Trade execution failed:', { 
-          error: error.message, 
-          symbol, 
-          side, 
-          amountUSD, 
-          leverage 
-        });
-
+        console.error('❌ Trade execution failed:', error.message);
+        
         return json({
           success: false,
           message: error.message
