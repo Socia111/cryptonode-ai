@@ -303,43 +303,57 @@ serve(async (req) => {
           timeInForce: 'IOC'
         }
 
-        // For linear contracts, use one-way mode (0) by default - most compatible
+        // For linear contracts, use a simpler approach to avoid position mode issues
         if (inst.category === 'linear') {
-          orderData.positionIdx = 0
-          orderData.reduceOnly = false
-          
-          structuredLog('info', 'Using OneWay position mode', {
+          // Start with no positionIdx and let the API determine the mode
+          // This works better for most account types
+          structuredLog('info', 'Using adaptive position mode for linear contract', {
             symbol,
-            category: inst.category,
-            positionIdx: 0
+            category: inst.category
           })
+          
+          orderData.reduceOnly = false
         }
 
-        // Execute the order with position mode fallback
+        // Execute the order with comprehensive fallback logic
         let result;
         
+        // Try different approaches in order of likelihood to succeed
+        const attemptOrder = async (approach: string, orderConfig: any) => {
+          structuredLog('info', `Attempting order with ${approach}`, orderConfig)
+          return await client.signedRequest('POST', '/v5/order/create', orderConfig)
+        }
+        
         try {
-          result = await client.signedRequest('POST', '/v5/order/create', orderData)
-        } catch (error) {
-          // If position mode error on linear, try hedge mode
-          if (inst.category === 'linear' && 
-              (error.message?.includes('position') || error.message?.includes('idx'))) {
-            structuredLog('warn', 'OneWay failed, trying Hedge mode', { 
-              error: error.message
-            })
-            
-            orderData.positionIdx = 1
+          // Attempt 1: Without positionIdx (let API decide)
+          const orderWithoutPos = { ...orderData }
+          result = await attemptOrder('auto position mode', orderWithoutPos)
+        } catch (error1) {
+          try {
+            // Attempt 2: With positionIdx = 0 (OneWay mode)
+            const orderOneWay = { ...orderData, positionIdx: 0 }
+            result = await attemptOrder('OneWay mode (0)', orderOneWay)
+          } catch (error2) {
             try {
-              result = await client.signedRequest('POST', '/v5/order/create', orderData)
-            } catch (secondError) {
-              structuredLog('error', 'Both position modes failed', {
-                oneWayError: error.message,
-                hedgeError: secondError.message
-              })
-              throw new Error(`Order failed: ${error.message}`)
+              // Attempt 3: With positionIdx = 1 (Hedge mode)
+              const orderHedge = { ...orderData, positionIdx: 1 }
+              result = await attemptOrder('Hedge mode (1)', orderHedge)
+            } catch (error3) {
+              try {
+                // Attempt 4: With positionIdx = 2 (some accounts use this)
+                const orderMode2 = { ...orderData, positionIdx: 2 }
+                result = await attemptOrder('Mode 2', orderMode2)
+              } catch (error4) {
+                // All attempts failed
+                structuredLog('error', 'All order attempts failed', {
+                  autoMode: error1.message,
+                  oneWayMode: error2.message,
+                  hedgeMode: error3.message,
+                  mode2: error4.message
+                })
+                throw new Error(`Order failed after all attempts. Last error: ${error3.message}`)
+              }
             }
-          } else {
-            throw error
           }
         }
 
