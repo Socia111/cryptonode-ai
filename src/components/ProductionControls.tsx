@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Shield, AlertTriangle, Activity, Zap, Ban, Lock, DollarSign } from 'lucide-react';
 import { FEATURES } from '@/config/featureFlags';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export const ProductionControls = () => {
   const [isLiveMode, setIsLiveMode] = useState(false);
@@ -23,22 +24,66 @@ export const ProductionControls = () => {
 
   const REQUIRED_PASSPHRASE = 'ENABLE LIVE TRADING';
 
-  const handleEmergencyStop = () => {
-    if (confirm('🚨 EMERGENCY STOP: This will immediately disable all live trading. Continue?')) {
-      // This would normally update the LIVE_TRADING_ENABLED secret
-      console.log('🔴 EMERGENCY STOP ACTIVATED');
-      setIsLiveMode(false);
+  // Audit logging function
+  const logTradingModeChange = async (action: string, fromMode: string, toMode: string, metadata: any = {}) => {
+    try {
+      await supabase.functions.invoke('log-security-event', {
+        body: {
+          action,
+          session_data: {
+            from_mode: fromMode,
+            to_mode: toMode,
+            timestamp: new Date().toISOString(),
+            user_agent: navigator.userAgent,
+            ip_address: 'client_side', // Will be overridden server-side
+            safety_gate_completed: toMode === 'live',
+            ...metadata
+          },
+          severity: toMode === 'live' ? 'critical' : 'info'
+        }
+      });
+    } catch (error) {
+      console.warn('Failed to log trading mode change:', error);
     }
   };
 
-  const handleModeToggle = (enabled: boolean) => {
+  const handleEmergencyStop = async () => {
+    if (confirm('🚨 EMERGENCY STOP: This will immediately disable all live trading. Continue?')) {
+      const previousMode = isLiveMode ? 'live' : 'paper';
+      console.log('🔴 EMERGENCY STOP ACTIVATED');
+      setIsLiveMode(false);
+      
+      // Log emergency stop
+      await logTradingModeChange(
+        'emergency_stop_activated',
+        previousMode,
+        'paper',
+        { trigger: 'emergency_button', immediate_stop: true }
+      );
+      
+      toast({
+        title: "🚨 EMERGENCY STOP ACTIVATED",
+        description: "All trading has been disabled immediately",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleModeToggle = async (enabled: boolean) => {
     if (enabled) {
       // Opening the safety gate for live trading
       setShowSafetyGate(true);
       setPassphrase('');
       setConfirmationStep(0);
     } else {
-      // Disabling live trading - no confirmation needed
+      // Disabling live trading - log and confirm
+      await logTradingModeChange(
+        'live_trading_disabled',
+        'live',
+        'paper',
+        { trigger: 'manual_toggle', safety_gate_bypassed: false }
+      );
+      
       setIsLiveMode(false);
       console.log('📋 PAPER trading mode activated');
       toast({
@@ -49,7 +94,7 @@ export const ProductionControls = () => {
     }
   };
 
-  const handleSafetyGateConfirm = () => {
+  const handleSafetyGateConfirm = async () => {
     if (passphrase !== REQUIRED_PASSPHRASE) {
       toast({
         title: "Incorrect Passphrase",
@@ -64,7 +109,19 @@ export const ProductionControls = () => {
       return;
     }
 
-    // Final confirmation - enable live trading
+    // Final confirmation - enable live trading with full audit trail
+    await logTradingModeChange(
+      'live_trading_enabled',
+      'paper',
+      'live',
+      {
+        trigger: 'safety_gate_completion',
+        passphrase_verified: true,
+        confirmation_steps_completed: 3,
+        gate_completion_time: new Date().toISOString()
+      }
+    );
+
     setIsLiveMode(true);
     setShowSafetyGate(false);
     setPassphrase('');
@@ -214,6 +271,7 @@ export const ProductionControls = () => {
           <p>✅ Max spread: 10%</p>
           <p>✅ Daily loss limit: -1.5%</p>
           <p>✅ Risk/Reward ratio: ≥2:1</p>
+          <p>🔍 All mode changes logged for audit</p>
         </div>
       </CardContent>
 
