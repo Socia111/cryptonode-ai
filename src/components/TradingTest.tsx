@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { TradingGateway } from '@/lib/tradingGateway';
+import { testTradeExecutor, testMockTrade } from '@/lib/testTrading';
 
 export const TradingTest: React.FC = () => {
   const [isTesting, setIsTesting] = useState(false);
@@ -16,11 +16,11 @@ export const TradingTest: React.FC = () => {
     try {
       console.log('🧪 Testing trade executor connection...');
       
-      const result = await TradingGateway.testConnection();
+      const result = await testTradeExecutor();
       
       setTestResults(result);
       
-      if (result.ok) {
+      if (result.success) {
         toast({
           title: "✅ Connection Test Passed",
           description: "Trade executor is working correctly",
@@ -51,16 +51,11 @@ export const TradingTest: React.FC = () => {
     try {
       console.log('🧪 Testing mock trade execution...');
       
-      const result = await TradingGateway.execute({
-        symbol: 'BTCUSDT',
-        side: 'BUY',
-        amountUSD: 5,
-        leverage: 1
-      });
+      const result = await testMockTrade();
       
       setTestResults(result);
       
-      if (result.ok) {
+      if (result.success) {
         toast({
           title: "✅ Mock Trade Successful",
           description: "Trade execution is working correctly",
@@ -69,7 +64,7 @@ export const TradingTest: React.FC = () => {
       } else {
         toast({
           title: "❌ Mock Trade Failed",
-          description: result.message || "Trade failed",
+          description: result.error || "Trade failed",
           variant: "destructive",
         });
       }
