@@ -6,8 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw, Activity, Zap, AlertTriangle, Coins } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw, Activity, Zap, AlertTriangle, Coins, Filter } from 'lucide-react';
 import { useSignals } from '@/hooks/useSignals';
+import { useRankedSignals } from '@/hooks/useRankedSignals';
+import { TopPicks } from '@/components/TopPicks';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { TradingGateway } from '@/lib/tradingGateway';
@@ -25,6 +27,12 @@ const SignalsList = () => {
   const [bulkExecuteMode, setBulkExecuteMode] = useState(false);
   const [executedSignals, setExecutedSignals] = useState(new Set());
   const [autoExecute, setAutoExecute] = useState(false);
+  const [sortMode, setSortMode] = useState<'priority' | 'time'>('priority');
+  const [showSpreadFilter, setShowSpreadFilter] = useState(false);
+
+  // Use ranked signals with ⭐ Priority (score) as default
+  const ranked = useRankedSignals(signals, showAllSignals);
+  const topPicks = ranked.slice(0, 3);
 
   const testBybitConnection = async () => {
     try {
@@ -71,21 +79,19 @@ const SignalsList = () => {
     };
   }, [signals]);
 
-  // Filter for priority signals
-  const prioritySignals = useMemo(() => {
-    if (!signals) return [];
-    return signals.filter(signal => {
-      const score = signal.confidence_score || 0;
-      return score >= thresholds.top10;
-    });
-  }, [signals, thresholds]);
-
-  // Display signals (priority first, then all if requested)
+  // Display signals based on sort mode
   const displayedSignals = useMemo(() => {
-    if (!signals) return [];
-    if (showAllSignals) return signals;
-    return prioritySignals.slice(0, 10);
-  }, [signals, showAllSignals, prioritySignals]);
+    if (!ranked) return [];
+    
+    let sortedSignals = [...ranked];
+    
+    if (sortMode === 'time') {
+      sortedSignals.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+    // Priority sort is already applied in useRankedSignals
+    
+    return sortedSignals.slice(0, showAllSignals ? sortedSignals.length : 10);
+  }, [ranked, sortMode, showAllSignals]);
 
   const executeOrder = async (signal: any) => {
     if (!FEATURES.AUTOTRADE_ENABLED) {
@@ -159,12 +165,12 @@ const SignalsList = () => {
   useEffect(() => {
     if (!FEATURES.AUTOTRADE_ENABLED) return;
     
-    if (autoExecute && prioritySignals.length > 0 && !isExecutingOrder) {
-      // Execute all priority signals that haven't been executed yet
-      const newSignals = prioritySignals.filter(signal => !executedSignals.has(signal.id));
+    if (autoExecute && ranked.length > 0 && !isExecutingOrder) {
+      // Execute all high-quality signals that haven't been executed yet
+      const newSignals = ranked.filter(signal => signal.grade === 'A+' || signal.grade === 'A').filter(signal => !executedSignals.has(signal.id));
       
       if (newSignals.length > 0) {
-        console.log(`🤖 Auto-executing ${newSignals.length} new priority signals...`);
+        console.log(`🤖 Auto-executing ${newSignals.length} new A+/A grade signals...`);
         
         // Execute signals one by one with delays
         const executeSequentially = async () => {
@@ -180,7 +186,7 @@ const SignalsList = () => {
         executeSequentially();
       }
     }
-  }, [prioritySignals, autoExecute, orderSize]);
+  }, [ranked, autoExecute, orderSize]);
 
   const executeAll = async () => {
     if (!FEATURES.AUTOTRADE_ENABLED) {
@@ -265,31 +271,74 @@ const SignalsList = () => {
   };
 
   return (
-    <Card className="glass-card">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Zap className="w-5 h-5 text-primary" />
-            <span>Live Trading Signals</span>
-            <Badge variant="outline" className="text-xs">
-              {displayedSignals.length} signals
-            </Badge>
+    <div className="space-y-4">
+      {/* Top Picks Strip */}
+      {topPicks.length > 0 && <TopPicks items={topPicks} />}
+      
+      {/* Main Signals Card */}
+      <Card className="glass-card">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Zap className="w-5 h-5 text-primary" />
+              <span>Live Trading Signals</span>
+              <Badge variant="outline" className="text-xs">
+                {displayedSignals.length} signals
+              </Badge>
+            </div>
+            <div className="flex items-center space-x-2">
+              {/* Sort Mode Selector */}
+              <Select value={sortMode} onValueChange={(value) => setSortMode(value as 'priority' | 'time')}>
+                <SelectTrigger className="w-32 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="priority">⭐ Priority (score)</SelectItem>
+                  <SelectItem value="time">🕒 Time</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Button
+                onClick={generateSignals}
+                variant="outline"
+                size="sm"
+                disabled={loading}
+              >
+                <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+                {loading ? 'Scanning...' : 'Refresh'}
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Filter Controls */}
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="show-all"
+                  checked={showAllSignals}
+                  onCheckedChange={setShowAllSignals}
+                />
+                <Label htmlFor="show-all" className="text-xs">
+                  Show all signals
+                </Label>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                <Label className="text-xs">
+                  Spread filter: {showAllSignals ? 'OFF' : 'ON'} (hide &gt;20bps)
+                </Label>
+              </div>
+            </div>
+            
+            <div className="text-xs text-muted-foreground">
+              Showing {sortMode === 'priority' ? 'highest-scored' : 'newest'} signals first
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              onClick={generateSignals}
-              variant="outline"
-              size="sm"
-              disabled={loading}
-            >
-              <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? 'Scanning...' : 'Refresh'}
-            </Button>
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {loading ? (
+          
+          {loading ? (
           <div className="text-center py-8">
             <Activity className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
             <p className="text-sm text-muted-foreground">Scanning markets for trading opportunities...</p>
@@ -318,21 +367,29 @@ const SignalsList = () => {
                           <Badge variant={isBuy ? "default" : "destructive"} className="text-xs">
                             {signal.direction}
                           </Badge>
+                          <Badge 
+                            variant={
+                              signal.grade === 'A+' ? 'default' :
+                              signal.grade === 'A' ? 'secondary' :
+                              signal.grade === 'B' ? 'outline' : 'destructive'
+                            } 
+                            className="text-xs"
+                          >
+                            {signal.grade}
+                          </Badge>
                           <Badge variant="outline" className="text-xs">
                             {signal.timeframe}
                           </Badge>
-                          <span className="text-xs">
-                            {getPriorityIndicator(signal)}
-                            {getConfidenceIndicator(signal)}
-                            {getTimeframeIndicator(signal)}
+                          <span className="text-xs opacity-60 ml-2">
+                            score {(signal.score * 100).toFixed(0)}%
                           </span>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                           <div>Entry: ${signal.entry_price?.toFixed(4)}</div>
-                          <div>Score: {(signal.confidence_score || 0).toFixed(1)}%</div>
+                          <div>Edge Score: {(signal.score * 100).toFixed(0)}%</div>
                           <div>SL: ${signal.stop_loss?.toFixed(4)}</div>
-                          <div>TP: ${signal.exit_target?.toFixed(4)}</div>
+                          <div>TP: ${signal.exit_target?.toFixed(4)} | Spread: {signal.spreadBps}bps</div>
                         </div>
                         
                         <div className="flex items-center space-x-2 text-xs text-muted-foreground mt-1">
@@ -495,8 +552,9 @@ const SignalsList = () => {
             </div>
           </>
         )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
