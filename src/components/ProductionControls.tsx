@@ -126,7 +126,7 @@ export const ProductionControls = () => {
   };
 
   const handleSafetyGateConfirm = async () => {
-    if (passphrase !== REQUIRED_PASSPHRASE) {
+    if (passphrase.trim().toUpperCase() !== REQUIRED_PASSPHRASE) {
       toast({
         title: "Incorrect Passphrase",
         description: `Please type exactly: "${REQUIRED_PASSPHRASE}"`,

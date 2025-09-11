@@ -38,13 +38,18 @@ export const TradingGateway = {
       const functionsBase = getFunctionsBaseUrl();
       const sessionToken = await getSessionToken();
       
+      if (!sessionToken) {
+        return { 
+          ok: false, 
+          code: 'AUTH_REQUIRED', 
+          message: 'Please sign in to execute trades' 
+        };
+      }
+      
       const headers: Record<string, string> = {
         'content-type': 'application/json',
+        'authorization': `Bearer ${sessionToken}`,
       };
-      
-      if (sessionToken) {
-        headers['authorization'] = `Bearer ${sessionToken}`;
-      }
       
       // Convert to Bybit signal format
       const bybitSignal = {
