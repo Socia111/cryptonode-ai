@@ -393,25 +393,25 @@ class AutoTradingEngine {
     // 1. Check whitelist - handle both formats (BTCUSDT and BTC/USDT)
     const normalizedSymbol = signal.symbol.replace('/', '')
     
-    // Check environment variables for override
-    const allowAll = Deno.env.get('ALLOW_ALL_SYMBOLS') === 'true'
+    // Check symbol whitelist with wildcard support
     const envAllowedSymbols = Deno.env.get('ALLOWED_SYMBOLS')
+    const allowedSymbols = envAllowedSymbols 
+      ? envAllowedSymbols.split(',').map(s => s.trim())
+      : (this.config.symbol_whitelist || [])
     
-    if (allowAll) {
-      // Skip whitelist check when ALLOW_ALL_SYMBOLS=true
-      structuredLog('symbol_whitelist_bypassed', { symbol: signal.symbol, mode: 'allow_all' })
-    } else {
-      // Use environment symbols if available, otherwise fall back to config
-      const symbolWhitelist = envAllowedSymbols 
-        ? envAllowedSymbols.split(',').map(s => s.trim().toUpperCase())
-        : (this.config.symbol_whitelist || [])
-      
-      const symbolInWhitelist = symbolWhitelist.includes(signal.symbol.toUpperCase()) || 
-                               symbolWhitelist.includes(normalizedSymbol.toUpperCase())
-      
-      if (!symbolInWhitelist) {
-        return { valid: false, reason: `Symbol ${signal.symbol} not whitelisted. Available: ${symbolWhitelist.join(', ')}` }
-      }
+    // Check for wildcard or specific symbol
+    const isWildcard = allowedSymbols.includes('*')
+    const symbolInWhitelist = isWildcard || 
+                             allowedSymbols.includes(signal.symbol.toUpperCase()) || 
+                             allowedSymbols.includes(normalizedSymbol.toUpperCase())
+    
+    if (!symbolInWhitelist) {
+      const availableText = isWildcard ? '*' : allowedSymbols.join(', ')
+      return { valid: false, reason: `Symbol ${signal.symbol} not whitelisted. Available: ${availableText}` }
+    }
+    
+    if (isWildcard) {
+      structuredLog('symbol_whitelist_bypassed', { symbol: signal.symbol, mode: 'wildcard' })
     }
 
     // 2. Check confidence and PMS thresholds
