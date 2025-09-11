@@ -24,7 +24,7 @@ import CleanSignalsList from './CleanSignalsList';
 import AutoTradingToggle from './AutoTradingToggle';
 import PerformancePanel from './PerformancePanel';
 import LiveTradingSetup from './LiveTradingSetup';
-import { TradingDiagnostics } from './TradingDiagnostics';
+import TradingDiagnostics from './TradingDiagnostics';
 import { ProductionControls } from './ProductionControls';
 
 const TradingDashboard = () => {

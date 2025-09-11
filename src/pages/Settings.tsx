@@ -1,5 +1,5 @@
 import MainLayout from '@/layouts/MainLayout';
-import { TradingDiagnostics } from '@/components/TradingDiagnostics';
+import TradingDiagnostics from '@/components/TradingDiagnostics';
 import { TradingConnectionTest } from '@/components/TradingConnectionTest';
 import { ProductionControls } from '@/components/ProductionControls';
 import { TestnetTradeTest } from '@/components/TestnetTradeTest';

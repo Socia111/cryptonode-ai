@@ -6,6 +6,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Settings, Zap, BarChart3, TrendingUp, ExternalLink, AlertTriangle, TestTube, Loader2 } from 'lucide-react';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { toast } from '@/hooks/use-toast';
+import TradingDiagnostics from '@/components/TradingDiagnostics';
+import ManualAPITest from '@/components/ManualAPITest';
 
 const LiveTradingSetup = () => {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
@@ -83,6 +85,10 @@ const LiveTradingSetup = () => {
 
   return (
     <div className="space-y-6">
+      <TradingDiagnostics />
+      
+      <ManualAPITest />
+      
       {/* Header */}
       <Card>
         <CardHeader>

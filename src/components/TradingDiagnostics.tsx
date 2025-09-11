@@ -1,263 +1,192 @@
 import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { Loader2, AlertTriangle, CheckCircle, XCircle, Wrench } from 'lucide-react';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-interface DiagnosticResult {
-  name: string;
-  status: 'success' | 'error' | 'warning';
-  message: string;
-  details?: any;
-}
-
-export const TradingDiagnostics = () => {
+const TradingDiagnostics = () => {
   const [isRunning, setIsRunning] = useState(false);
-  const [results, setResults] = useState<DiagnosticResult[]>([]);
-  const { toast } = useToast();
+  const [results, setResults] = useState<any>(null);
 
   const runDiagnostics = async () => {
     setIsRunning(true);
-    setResults([]);
+    setResults(null);
     
-    const diagnostics: DiagnosticResult[] = [];
-
     try {
-      // Test 1: Edge function reachability
+      const diagnostics = {
+        supabaseConnection: false,
+        userAuth: false,
+        apiKeys: false,
+        edgeFunctions: false,
+        bybitReachable: false,
+        errors: [] as string[]
+      };
+
+      // Test 1: Supabase connection
       try {
-        const functionsBase = import.meta.env.VITE_SUPABASE_URL?.replace('.supabase.co', '.functions.supabase.co');
-        const response = await fetch(`${functionsBase}/api-diagnostics`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({})
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          diagnostics.push({
-            name: 'API Diagnostics',
-            status: 'success',
-            message: 'Edge function is reachable',
-            details: data
-          });
-        } else {
-          diagnostics.push({
-            name: 'API Diagnostics',
-            status: 'error',
-            message: `HTTP ${response.status}: ${response.statusText}`
-          });
-        }
-      } catch (error) {
-        diagnostics.push({
-          name: 'API Diagnostics',
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Network error'
-        });
+        const { data, error } = await supabase.from('signals').select('count').limit(1);
+        diagnostics.supabaseConnection = !error;
+        if (error) diagnostics.errors.push(`Supabase: ${error.message}`);
+      } catch (e) {
+        diagnostics.errors.push(`Supabase connection failed: ${e}`);
       }
 
-      // Test 2: Authentication status
+      // Test 2: User authentication
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          diagnostics.push({
-            name: 'Authentication',
-            status: 'success',
-            message: 'User session active',
-            details: { userId: session.user?.id, email: session.user?.email }
-          });
-        } else {
-          diagnostics.push({
-            name: 'Authentication',
-            status: 'warning',
-            message: 'No active session - some functions may require login'
-          });
-        }
-      } catch (error) {
-        diagnostics.push({
-          name: 'Authentication',
-          status: 'error',
-          message: 'Failed to check auth status'
-        });
+        diagnostics.userAuth = !!session;
+        if (!session) diagnostics.errors.push('No active user session');
+      } catch (e) {
+        diagnostics.errors.push(`Auth check failed: ${e}`);
       }
 
-      // Test 3: Trading executor connectivity
+      // Test 3: Edge function with auth
       try {
-        const functionsBase = import.meta.env.VITE_SUPABASE_URL?.replace('.supabase.co', '.functions.supabase.co');
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        const headers: Record<string, string> = {
-          'content-type': 'application/json',
-        };
-        
-        if (session?.access_token) {
-          headers['authorization'] = `Bearer ${session.access_token}`;
-        }
-        
-        const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ action: 'status' })
+        const { data, error } = await supabase.functions.invoke('debug-trading-status', {
+          body: { action: 'env_check' }
         });
         
-        if (response.ok) {
-          const data = await response.json();
-          let message = 'Executor is responding correctly';
-          
-          // Enhanced status reporting
-          if (data.config) {
-            const configStatus = data.config.auto_trading_enabled ? 'enabled' : 'disabled';
-            message += ` (auto-trading ${configStatus})`;
-          }
-          
-          diagnostics.push({
-            name: 'Trading Executor',
-            status: 'success',
-            message,
-            details: data
-          });
+        if (error) {
+          diagnostics.errors.push(`Edge function error: ${error.message}`);
         } else {
-          let message = `HTTP ${response.status}: ${response.statusText}`;
-          
-          // Map specific error codes
-          if (response.status === 401 || response.status === 403) {
-            message = 'Authentication required or insufficient permissions';
-          } else if (response.status === 404) {
-            message = 'Executor endpoint not found - check deployment';
-          } else if (response.status >= 500) {
-            message = 'Server error - check function logs';
+          diagnostics.edgeFunctions = true;
+          diagnostics.apiKeys = data?.environment?.hasApiKey && data?.environment?.hasApiSecret;
+          if (!diagnostics.apiKeys) {
+            diagnostics.errors.push('Bybit API keys not configured in Supabase secrets');
           }
-          
-          diagnostics.push({
-            name: 'Trading Executor',
-            status: 'error',
-            message
-          });
         }
-      } catch (error) {
-        diagnostics.push({
-          name: 'Trading Executor',
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Connection failed'
-        });
+      } catch (e) {
+        diagnostics.errors.push(`Edge function test failed: ${e}`);
       }
 
-      // Test 4: Environment variables
-      const requiredVars = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
-      const missingVars = requiredVars.filter(varName => !import.meta.env[varName]);
+      // Test 4: Direct Bybit API test (public endpoint)
+      try {
+        const response = await fetch('https://api.bybit.com/v5/market/time');
+        diagnostics.bybitReachable = response.ok;
+        if (!response.ok) {
+          diagnostics.errors.push(`Bybit API unreachable: ${response.status}`);
+        }
+      } catch (e) {
+        diagnostics.errors.push(`Bybit connectivity failed: ${e}`);
+      }
+
+      setResults(diagnostics);
       
-      if (missingVars.length === 0) {
-        diagnostics.push({
-          name: 'Environment Variables',
-          status: 'success',
-          message: 'All required environment variables are set'
-        });
-      } else {
-        diagnostics.push({
-          name: 'Environment Variables',
-          status: 'error',
-          message: `Missing variables: ${missingVars.join(', ')}`
-        });
-      }
-
     } catch (error) {
-      diagnostics.push({
-        name: 'General',
-        status: 'error',
-        message: 'Unexpected error during diagnostics'
-      });
-    }
-
-    setResults(diagnostics);
-    setIsRunning(false);
-
-    // Show summary toast
-    const successCount = diagnostics.filter(d => d.status === 'success').length;
-    const errorCount = diagnostics.filter(d => d.status === 'error').length;
-    
-    toast({
-      title: "Diagnostics Complete",
-      description: `${successCount} passed, ${errorCount} failed`,
-      variant: errorCount === 0 ? "default" : "destructive"
-    });
-  };
-
-  const getStatusIcon = (status: DiagnosticResult['status']) => {
-    switch (status) {
-      case 'success':
-        return <CheckCircle2 className="h-5 w-5 text-green-500" />;
-      case 'error':
-        return <XCircle className="h-5 w-5 text-red-500" />;
-      case 'warning':
-        return <AlertCircle className="h-5 w-5 text-yellow-500" />;
+      toast.error(`Diagnostics failed: ${error}`);
+      setResults({ errors: [`Critical error: ${error}`] });
+    } finally {
+      setIsRunning(false);
     }
   };
 
-  const getStatusBadgeVariant = (status: DiagnosticResult['status']) => {
-    switch (status) {
-      case 'success':
-        return 'default';
-      case 'error':
-        return 'destructive';
-      case 'warning':
-        return 'secondary';
+  const fixSuggestions = [
+    {
+      issue: "Missing API Keys",
+      solution: "Add BYBIT_API_KEY and BYBIT_API_SECRET to Supabase Edge Function secrets",
+      priority: "critical"
+    },
+    {
+      issue: "No User Session", 
+      solution: "Sign in to your account first",
+      priority: "high"
+    },
+    {
+      issue: "Bybit Unreachable",
+      solution: "Check internet connection or Bybit service status",
+      priority: "medium"
     }
-  };
+  ];
+
+  const StatusIcon = ({ status }: { status: boolean }) => 
+    status ? <CheckCircle className="h-4 w-4 text-green-500" /> : <XCircle className="h-4 w-4 text-red-500" />;
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center gap-2">
+          <Wrench className="h-5 w-5" />
           Trading System Diagnostics
-          <Button 
-            onClick={runDiagnostics} 
-            disabled={isRunning}
-            size="sm"
-          >
-            {isRunning ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Running...
-              </>
-            ) : (
-              'Run Diagnostics'
-            )}
-          </Button>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {results.map((result, index) => (
-          <div key={index} className="flex items-start gap-3 p-3 border rounded-lg">
-            {getStatusIcon(result.status)}
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-medium">{result.name}</h4>
-                <Badge variant={getStatusBadgeVariant(result.status)}>
-                  {result.status.toUpperCase()}
-                </Badge>
+        <Button 
+          onClick={runDiagnostics}
+          disabled={isRunning}
+          className="w-full"
+        >
+          {isRunning ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Running Diagnostics...
+            </>
+          ) : (
+            'Run Full Diagnostics'
+          )}
+        </Button>
+
+        {results && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span>Supabase Connection</span>
+                <StatusIcon status={results.supabaseConnection} />
               </div>
-              <p className="text-sm text-muted-foreground mb-2">{result.message}</p>
-              {result.details && (
-                <details className="text-xs">
-                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                    Show details
-                  </summary>
-                  <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto">
-                    {JSON.stringify(result.details, null, 2)}
-                  </pre>
-                </details>
-              )}
+              <div className="flex items-center justify-between">
+                <span>User Authentication</span>
+                <StatusIcon status={results.userAuth} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Edge Functions</span>
+                <StatusIcon status={results.edgeFunctions} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span>API Keys Configured</span>
+                <StatusIcon status={results.apiKeys} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Bybit Reachable</span>
+                <StatusIcon status={results.bybitReachable} />
+              </div>
+            </div>
+
+            {results.errors?.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-semibold text-red-600 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Issues Found
+                </h4>
+                <div className="space-y-1">
+                  {results.errors.map((error: string, i: number) => (
+                    <div key={i} className="text-sm bg-red-50 p-2 rounded text-red-700">
+                      {error}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <h4 className="font-semibold">Quick Fixes</h4>
+              {fixSuggestions.map((fix, i) => (
+                <div key={i} className="p-3 border rounded-lg">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium">{fix.issue}</span>
+                    <Badge variant={fix.priority === 'critical' ? 'destructive' : 'secondary'}>
+                      {fix.priority}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{fix.solution}</p>
+                </div>
+              ))}
             </div>
           </div>
-        ))}
-        
-        {results.length === 0 && !isRunning && (
-          <p className="text-center text-muted-foreground py-8">
-            Click "Run Diagnostics" to test the trading system connectivity
-          </p>
         )}
       </CardContent>
     </Card>
   );
 };
+
+export default TradingDiagnostics;
