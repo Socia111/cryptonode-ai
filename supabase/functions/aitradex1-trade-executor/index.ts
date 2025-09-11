@@ -52,9 +52,8 @@ function roundToStep(value: number, stepSize: number): number {
   return Math.floor(value / stepSize + 1e-12) * stepSize;
 }
 
-function roundToTick(price: number, tick: string | number): number {
-  const tickSize = Number(tick);
-  return Math.round(price / tickSize) * tickSize;
+function roundToTick(value: number, tickSize: number): number {
+  return Math.round(value / tickSize) * tickSize;
 }
 
 // Symbol validation - allow all symbols including digits
@@ -350,13 +349,6 @@ class AutoTradingEngine {
       throw new Error('Trading client not initialized')
     }
 
-    // Validate minimum notional
-    const minNotional = 1;
-    const notional = signal.amountUSD * signal.leverage;
-    if (notional < minNotional) {
-      throw new Error(`Order notional $${notional.toFixed(2)} < $${minNotional}`);
-    }
-
     // Validate signal
     if (!isSymbolAllowed(signal.symbol)) {
       throw new Error(`Symbol ${signal.symbol} not whitelisted`)
@@ -366,164 +358,45 @@ class AutoTradingEngine {
     const inst = await getInstrument(signal.symbol)
     const price = await getMarkPrice(signal.symbol)
     
-    const orderQty = computeOrderQtyUSD(
-      signal.amountUSD, 
-      signal.leverage, 
+    const { qty } = computeOrderQtyUSD(
+      signal.notional || 10, 
+      signal.leverage || 1, 
       price, 
       inst
     )
 
-    if (!orderQty || orderQty <= 0) {
+    if (!qty || qty <= 0) {
       throw new Error('Invalid quantity calculation')
     }
 
-    // Extract TP/SL from signal and round to tick size
-    const { takeProfit, stopLoss } = signal.prices || {};
-    const tickSize = inst.tickSize;
-    const roundedTP = takeProfit ? roundToTick(takeProfit, tickSize) : null;
-    const roundedSL = stopLoss ? roundToTick(stopLoss, tickSize) : null;
-    
-    console.log(`🎯 TP/SL: ${roundedTP ? `TP=${roundedTP}` : 'No TP'}, ${roundedSL ? `SL=${roundedSL}` : 'No SL'} (tick=${tickSize})`);
-
-    // For linear contracts, handle position mode and TP/SL
-    let positionIdx = 0;
-    if (inst.category === 'linear') {
-      positionIdx = await this.client.getPositionMode(signal.symbol, inst.category);
-    }
-
-    // Build order data with proper TP/SL
+    // Place order
     const orderData: any = {
       category: inst.category,
       symbol: signal.symbol,
       side: signal.direction === 'BUY' ? 'Buy' : 'Sell',
       orderType: 'Market',
-      qty: String(orderQty),
+      qty: String(qty),
       timeInForce: 'IOC'
     }
 
-    // Add position-specific fields for linear
+    // For linear contracts, we need to handle position mode correctly
     if (inst.category === 'linear') {
-      orderData.positionIdx = positionIdx;
-      orderData.reduceOnly = false;
-
-      // Add TP/SL if provided - properly formatted for Bybit v5
-      if (roundedTP || roundedSL) {
-        orderData.tpslMode = positionIdx === 0 ? 'Full' : 'Partial';
-        if (roundedTP) {
-          orderData.takeProfit = String(roundedTP);
-          orderData.tpTriggerBy = 'LastPrice';
-        }
-        if (roundedSL) {
-          orderData.stopLoss = String(roundedSL);
-          orderData.slTriggerBy = 'LastPrice';
-        }
-      }
+      // Get the appropriate positionIdx based on account mode
+      const positionIdx = await this.client.getPositionMode(signal.symbol, inst.category)
+      orderData.positionIdx = positionIdx
+      orderData.reduceOnly = false
     }
 
-    try {
-      // First attempt with TP/SL inline
-      const result = await this.client.signedRequest('POST', '/v5/order/create', orderData);
-      
-      // Check if TP/SL were actually attached in the response
-      const needAttachTpsl = inst.category === 'linear' && 
-        (roundedTP || roundedSL) && 
-        (!result?.result?.takeProfit || !result?.result?.stopLoss);
+    const result = await this.client.signedRequest('POST', '/v5/order/create', orderData)
+    
+    // Log to database
+    await this.logExecution(signal, result, {
+      calculatedQty: qty,
+      instrumentInfo: inst,
+      markPrice: price
+    })
 
-      if (needAttachTpsl) {
-        console.log('🔄 Order successful but TP/SL missing, setting via position/trading-stop...');
-        try {
-          const tpslData: any = {
-            category: 'linear',
-            symbol: signal.symbol,
-            positionIdx,
-            tpslMode: positionIdx === 0 ? 'Full' : 'Partial'
-          };
-          
-          if (roundedTP) {
-            tpslData.takeProfit = String(roundedTP);
-            tpslData.tpTriggerBy = 'LastPrice';
-          }
-          if (roundedSL) {
-            tpslData.stopLoss = String(roundedSL);
-            tpslData.slTriggerBy = 'LastPrice';
-          }
-          
-          await this.client.signedRequest('POST', '/v5/position/trading-stop', tpslData);
-          console.log('✅ TP/SL attached to position successfully');
-        } catch (tpslError) {
-          console.warn('⚠️ Failed to attach TP/SL to position:', tpslError);
-        }
-      }
-      
-      console.log('✅ Order executed successfully:', result);
-      
-      // Log to database
-      await this.logExecution(signal, result, {
-        calculatedQty: orderQty,
-        instrumentInfo: inst,
-        markPrice: price,
-        tpslAttached: !needAttachTpsl,
-        tpslSetSeparately: needAttachTpsl
-      });
-
-      return result;
-
-    } catch (error: any) {
-      // Check if TP/SL caused the failure
-      if ((roundedTP || roundedSL) && /TP|SL|takeProfit|stopLoss|price/i.test(error.message || '')) {
-        console.log('🔄 TP/SL rejected on order create, placing order first then setting TP/SL...');
-        
-        // Place order without TP/SL
-        const noTpslOrder = { ...orderData };
-        delete noTpslOrder.takeProfit;
-        delete noTpslOrder.stopLoss;
-        delete noTpslOrder.tpslMode;
-        delete noTpslOrder.tpTriggerBy;
-        delete noTpslOrder.slTriggerBy;
-        
-        const placed = await this.client.signedRequest('POST', '/v5/order/create', noTpslOrder);
-        console.log('✅ Order placed without TP/SL:', placed);
-        
-        // Now set TP/SL on the position
-        if (inst.category === 'linear' && (roundedTP || roundedSL)) {
-          try {
-            const tpslData: any = {
-              category: 'linear',
-              symbol: signal.symbol,
-              positionIdx,
-              tpslMode: positionIdx === 0 ? 'Full' : 'Partial'
-            };
-            
-            if (roundedTP) {
-              tpslData.takeProfit = String(roundedTP);
-              tpslData.tpTriggerBy = 'LastPrice';
-            }
-            if (roundedSL) {
-              tpslData.stopLoss = String(roundedSL);
-              tpslData.slTriggerBy = 'LastPrice';
-            }
-            
-            await this.client.signedRequest('POST', '/v5/position/trading-stop', tpslData);
-            console.log('✅ TP/SL set on position successfully');
-          } catch (tpslError) {
-            console.warn('⚠️ Failed to set TP/SL on position:', tpslError);
-          }
-        }
-        
-        // Log to database
-        await this.logExecution(signal, placed, {
-          calculatedQty: orderQty,
-          instrumentInfo: inst,
-          markPrice: price,
-          tpslAttached: false,
-          tpslSetSeparately: true
-        });
-
-        return placed;
-      } else {
-        throw error;
-      }
-    }
+    return result
   }
 
   private async logExecution(signal: TradingSignal, result: any, metadata: any): Promise<void> {

@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { FEATURES } from '@/config/featureFlags';
 import { AuthGuardedButton } from './AuthGuardedButton';
-import TradingModal from './TradingModal';
+import { TradingModal } from './TradingModal';
 
 const CleanSignalsList = () => {
   const { signals, loading, generateSignals } = useSignals();
