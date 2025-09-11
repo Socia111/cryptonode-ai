@@ -66,17 +66,17 @@ export const TradingGateway = {
         leverage: leverage
       };
       
-      const response = await fetch(`${functionsBase}/bybit-live-trading`, {
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           action: 'place_order',
-          signal: bybitSignal,
-          params: {
+          signal: {
+            symbol: params.symbol.replace('/', ''),
+            side: params.side === 'BUY' ? 'Buy' : 'Sell',
             amountUSD: amount,
             leverage: leverage
-          },
-          testMode: false // Set to true for paper trading
+          }
         })
       });
 
