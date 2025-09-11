@@ -52,8 +52,9 @@ function roundToStep(value: number, stepSize: number): number {
   return Math.floor(value / stepSize + 1e-12) * stepSize;
 }
 
-function roundToTick(value: number, tickSize: number): number {
-  return Math.round(value / tickSize) * tickSize;
+function roundToTick(price: number, tick: string | number): number {
+  const tickSize = Number(tick);
+  return Math.round(price / tickSize) * tickSize;
 }
 
 // Symbol validation - allow all symbols including digits
@@ -376,11 +377,21 @@ class AutoTradingEngine {
       throw new Error('Invalid quantity calculation')
     }
 
-    // Extract TP/SL from signal
+    // Extract TP/SL from signal and round to tick size
     const { takeProfit, stopLoss } = signal.prices || {};
-    console.log(`🎯 TP/SL: ${takeProfit ? `TP=${takeProfit}` : 'No TP'}, ${stopLoss ? `SL=${stopLoss}` : 'No SL'}`);
+    const tickSize = inst.tickSize;
+    const roundedTP = takeProfit ? roundToTick(takeProfit, tickSize) : null;
+    const roundedSL = stopLoss ? roundToTick(stopLoss, tickSize) : null;
+    
+    console.log(`🎯 TP/SL: ${roundedTP ? `TP=${roundedTP}` : 'No TP'}, ${roundedSL ? `SL=${roundedSL}` : 'No SL'} (tick=${tickSize})`);
 
-    // Place order with TP/SL
+    // For linear contracts, handle position mode and TP/SL
+    let positionIdx = 0;
+    if (inst.category === 'linear') {
+      positionIdx = await this.client.getPositionMode(signal.symbol, inst.category);
+    }
+
+    // Build order data with proper TP/SL
     const orderData: any = {
       category: inst.category,
       symbol: signal.symbol,
@@ -390,21 +401,20 @@ class AutoTradingEngine {
       timeInForce: 'IOC'
     }
 
-    // For linear contracts, handle position mode and TP/SL
+    // Add position-specific fields for linear
     if (inst.category === 'linear') {
-      const positionIdx = await this.client.getPositionMode(signal.symbol, inst.category)
-      orderData.positionIdx = positionIdx
-      orderData.reduceOnly = false
+      orderData.positionIdx = positionIdx;
+      orderData.reduceOnly = false;
 
-      // Add TP/SL if provided
-      if (takeProfit || stopLoss) {
-        orderData.tpslMode = 'Full';
-        if (takeProfit) {
-          orderData.takeProfit = takeProfit.toString();
+      // Add TP/SL if provided - properly formatted for Bybit v5
+      if (roundedTP || roundedSL) {
+        orderData.tpslMode = positionIdx === 0 ? 'Full' : 'Partial';
+        if (roundedTP) {
+          orderData.takeProfit = String(roundedTP);
           orderData.tpTriggerBy = 'LastPrice';
         }
-        if (stopLoss) {
-          orderData.stopLoss = stopLoss.toString();
+        if (roundedSL) {
+          orderData.stopLoss = String(roundedSL);
           orderData.slTriggerBy = 'LastPrice';
         }
       }
@@ -412,23 +422,56 @@ class AutoTradingEngine {
 
     try {
       // First attempt with TP/SL inline
-      const result = await this.client.signedRequest('POST', '/v5/order/create', orderData)
-      console.log('✅ Order with TP/SL executed successfully:', result);
+      const result = await this.client.signedRequest('POST', '/v5/order/create', orderData);
+      
+      // Check if TP/SL were actually attached in the response
+      const needAttachTpsl = inst.category === 'linear' && 
+        (roundedTP || roundedSL) && 
+        (!result?.result?.takeProfit || !result?.result?.stopLoss);
+
+      if (needAttachTpsl) {
+        console.log('🔄 Order successful but TP/SL missing, setting via position/trading-stop...');
+        try {
+          const tpslData: any = {
+            category: 'linear',
+            symbol: signal.symbol,
+            positionIdx,
+            tpslMode: positionIdx === 0 ? 'Full' : 'Partial'
+          };
+          
+          if (roundedTP) {
+            tpslData.takeProfit = String(roundedTP);
+            tpslData.tpTriggerBy = 'LastPrice';
+          }
+          if (roundedSL) {
+            tpslData.stopLoss = String(roundedSL);
+            tpslData.slTriggerBy = 'LastPrice';
+          }
+          
+          await this.client.signedRequest('POST', '/v5/position/trading-stop', tpslData);
+          console.log('✅ TP/SL attached to position successfully');
+        } catch (tpslError) {
+          console.warn('⚠️ Failed to attach TP/SL to position:', tpslError);
+        }
+      }
+      
+      console.log('✅ Order executed successfully:', result);
       
       // Log to database
       await this.logExecution(signal, result, {
         calculatedQty: orderQty,
         instrumentInfo: inst,
         markPrice: price,
-        tpslAttached: true
-      })
+        tpslAttached: !needAttachTpsl,
+        tpslSetSeparately: needAttachTpsl
+      });
 
       return result;
 
     } catch (error: any) {
       // Check if TP/SL caused the failure
-      if ((takeProfit || stopLoss) && /TP|SL|takeProfit|stopLoss/i.test(error.message || '')) {
-        console.log('🔄 TP/SL rejected, placing order without TP/SL first...');
+      if ((roundedTP || roundedSL) && /TP|SL|takeProfit|stopLoss|price/i.test(error.message || '')) {
+        console.log('🔄 TP/SL rejected on order create, placing order first then setting TP/SL...');
         
         // Place order without TP/SL
         const noTpslOrder = { ...orderData };
@@ -442,29 +485,29 @@ class AutoTradingEngine {
         console.log('✅ Order placed without TP/SL:', placed);
         
         // Now set TP/SL on the position
-        try {
-          if (takeProfit || stopLoss) {
+        if (inst.category === 'linear' && (roundedTP || roundedSL)) {
+          try {
             const tpslData: any = {
               category: 'linear',
               symbol: signal.symbol,
-              positionIdx: orderData.positionIdx,
-              tpslMode: 'Full'
+              positionIdx,
+              tpslMode: positionIdx === 0 ? 'Full' : 'Partial'
             };
             
-            if (takeProfit) {
-              tpslData.takeProfit = takeProfit.toString();
+            if (roundedTP) {
+              tpslData.takeProfit = String(roundedTP);
               tpslData.tpTriggerBy = 'LastPrice';
             }
-            if (stopLoss) {
-              tpslData.stopLoss = stopLoss.toString();
+            if (roundedSL) {
+              tpslData.stopLoss = String(roundedSL);
               tpslData.slTriggerBy = 'LastPrice';
             }
             
-            await this.client.signedRequest('POST', '/v5/position/set-trading-stop', tpslData);
+            await this.client.signedRequest('POST', '/v5/position/trading-stop', tpslData);
             console.log('✅ TP/SL set on position successfully');
+          } catch (tpslError) {
+            console.warn('⚠️ Failed to set TP/SL on position:', tpslError);
           }
-        } catch (tpslError) {
-          console.warn('⚠️ Failed to set TP/SL on position:', tpslError);
         }
         
         // Log to database
@@ -474,7 +517,7 @@ class AutoTradingEngine {
           markPrice: price,
           tpslAttached: false,
           tpslSetSeparately: true
-        })
+        });
 
         return placed;
       } else {
