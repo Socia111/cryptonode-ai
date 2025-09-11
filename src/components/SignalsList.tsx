@@ -10,6 +10,8 @@ import { TrendingUp, TrendingDown, Clock, Target, Volume2, RefreshCw, Activity, 
 import { useSignals } from '@/hooks/useSignals';
 import { useRankedSignals } from '@/hooks/useRankedSignals';
 import { TopPicks } from '@/components/TopPicks';
+import TradingModal from './TradingModal';
+import AutoTradeSettings from './AutoTradeSettings';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { TradingGateway } from '@/lib/tradingGateway';
@@ -28,6 +30,7 @@ const SignalsList = () => {
   const [bulkExecuteMode, setBulkExecuteMode] = useState(false);
   const [executedSignals, setExecutedSignals] = useState(new Set());
   const [autoExecute, setAutoExecute] = useState(false);
+  const [selectedSignal, setSelectedSignal] = useState(null);
 
   // Use ranked signals with filtering
   const rankedSignals = useRankedSignals(signals, showAllSpreads);
@@ -310,10 +313,13 @@ const SignalsList = () => {
             {topPicks.length > 0 && (
               <TopPicks 
                 items={topPicks} 
-                onExecute={executeOrder}
+                onExecute={(signal) => setSelectedSignal(signal)}
                 isExecuting={isExecutingOrder}
               />
             )}
+
+            {/* Auto-Trade Settings */}
+            <AutoTradeSettings />
 
             {/* Filter Controls */}
             <div className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg border">
@@ -407,10 +413,10 @@ const SignalsList = () => {
                           size="sm"
                           variant={isBuy ? "default" : "destructive"}
                           className="text-xs"
-                          onClick={() => executeOrder(signal)}
-                          disabled={isExecutingOrder || !FEATURES.AUTOTRADE_ENABLED || isExecuted}
+                          onClick={() => setSelectedSignal(signal)}
+                          disabled={isExecutingOrder || isExecuted}
                         >
-                          {isExecutingOrder ? 'Executing...' : FEATURES.AUTOTRADE_ENABLED ? 'Execute Trade' : 'Disabled'}
+                          {isExecutingOrder ? 'Executing...' : 'Execute Trade'}
                         </Button>
                       </div>
                     </div>
@@ -551,6 +557,13 @@ const SignalsList = () => {
             </div>
           </>
         )}
+
+        {/* Trading Modal */}
+        <TradingModal
+          signal={selectedSignal}
+          isOpen={!!selectedSignal}
+          onClose={() => setSelectedSignal(null)}
+        />
       </CardContent>
     </Card>
   );

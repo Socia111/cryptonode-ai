@@ -7,6 +7,11 @@ export type ExecParams = {
   notionalUSD?: number  // deprecated, use amountUSD
   amountUSD?: number    // new: USD amount to trade
   leverage?: number     // new: leverage (1-100x)
+  prices?: {
+    entry?: number
+    takeProfit?: number
+    stopLoss?: number
+  }
 }
 
 // Get the functions base URL using the hardcoded Supabase URL
@@ -66,11 +71,12 @@ export const TradingGateway = {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          action: 'place_order',
+          action: 'signal',
           symbol: params.symbol.replace('/', ''),
           side: params.side === 'BUY' ? 'Buy' : 'Sell',
           amountUSD: amount,
-          leverage: leverage
+          leverage: leverage,
+          prices: params.prices
         })
       });
 

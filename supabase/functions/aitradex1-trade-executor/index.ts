@@ -349,6 +349,13 @@ class AutoTradingEngine {
       throw new Error('Trading client not initialized')
     }
 
+    // Validate minimum notional
+    const minNotional = 1;
+    const notional = signal.amountUSD * signal.leverage;
+    if (notional < minNotional) {
+      throw new Error(`Order notional $${notional.toFixed(2)} < $${minNotional}`);
+    }
+
     // Validate signal
     if (!isSymbolAllowed(signal.symbol)) {
       throw new Error(`Symbol ${signal.symbol} not whitelisted`)
@@ -358,45 +365,122 @@ class AutoTradingEngine {
     const inst = await getInstrument(signal.symbol)
     const price = await getMarkPrice(signal.symbol)
     
-    const { qty } = computeOrderQtyUSD(
-      signal.notional || 10, 
-      signal.leverage || 1, 
+    const orderQty = computeOrderQtyUSD(
+      signal.amountUSD, 
+      signal.leverage, 
       price, 
       inst
     )
 
-    if (!qty || qty <= 0) {
+    if (!orderQty || orderQty <= 0) {
       throw new Error('Invalid quantity calculation')
     }
 
-    // Place order
+    // Extract TP/SL from signal
+    const { takeProfit, stopLoss } = signal.prices || {};
+    console.log(`🎯 TP/SL: ${takeProfit ? `TP=${takeProfit}` : 'No TP'}, ${stopLoss ? `SL=${stopLoss}` : 'No SL'}`);
+
+    // Place order with TP/SL
     const orderData: any = {
       category: inst.category,
       symbol: signal.symbol,
       side: signal.direction === 'BUY' ? 'Buy' : 'Sell',
       orderType: 'Market',
-      qty: String(qty),
+      qty: String(orderQty),
       timeInForce: 'IOC'
     }
 
-    // For linear contracts, we need to handle position mode correctly
+    // For linear contracts, handle position mode and TP/SL
     if (inst.category === 'linear') {
-      // Get the appropriate positionIdx based on account mode
       const positionIdx = await this.client.getPositionMode(signal.symbol, inst.category)
       orderData.positionIdx = positionIdx
       orderData.reduceOnly = false
+
+      // Add TP/SL if provided
+      if (takeProfit || stopLoss) {
+        orderData.tpslMode = 'Full';
+        if (takeProfit) {
+          orderData.takeProfit = takeProfit.toString();
+          orderData.tpTriggerBy = 'LastPrice';
+        }
+        if (stopLoss) {
+          orderData.stopLoss = stopLoss.toString();
+          orderData.slTriggerBy = 'LastPrice';
+        }
+      }
     }
 
-    const result = await this.client.signedRequest('POST', '/v5/order/create', orderData)
-    
-    // Log to database
-    await this.logExecution(signal, result, {
-      calculatedQty: qty,
-      instrumentInfo: inst,
-      markPrice: price
-    })
+    try {
+      // First attempt with TP/SL inline
+      const result = await this.client.signedRequest('POST', '/v5/order/create', orderData)
+      console.log('✅ Order with TP/SL executed successfully:', result);
+      
+      // Log to database
+      await this.logExecution(signal, result, {
+        calculatedQty: orderQty,
+        instrumentInfo: inst,
+        markPrice: price,
+        tpslAttached: true
+      })
 
-    return result
+      return result;
+
+    } catch (error: any) {
+      // Check if TP/SL caused the failure
+      if ((takeProfit || stopLoss) && /TP|SL|takeProfit|stopLoss/i.test(error.message || '')) {
+        console.log('🔄 TP/SL rejected, placing order without TP/SL first...');
+        
+        // Place order without TP/SL
+        const noTpslOrder = { ...orderData };
+        delete noTpslOrder.takeProfit;
+        delete noTpslOrder.stopLoss;
+        delete noTpslOrder.tpslMode;
+        delete noTpslOrder.tpTriggerBy;
+        delete noTpslOrder.slTriggerBy;
+        
+        const placed = await this.client.signedRequest('POST', '/v5/order/create', noTpslOrder);
+        console.log('✅ Order placed without TP/SL:', placed);
+        
+        // Now set TP/SL on the position
+        try {
+          if (takeProfit || stopLoss) {
+            const tpslData: any = {
+              category: 'linear',
+              symbol: signal.symbol,
+              positionIdx: orderData.positionIdx,
+              tpslMode: 'Full'
+            };
+            
+            if (takeProfit) {
+              tpslData.takeProfit = takeProfit.toString();
+              tpslData.tpTriggerBy = 'LastPrice';
+            }
+            if (stopLoss) {
+              tpslData.stopLoss = stopLoss.toString();
+              tpslData.slTriggerBy = 'LastPrice';
+            }
+            
+            await this.client.signedRequest('POST', '/v5/position/set-trading-stop', tpslData);
+            console.log('✅ TP/SL set on position successfully');
+          }
+        } catch (tpslError) {
+          console.warn('⚠️ Failed to set TP/SL on position:', tpslError);
+        }
+        
+        // Log to database
+        await this.logExecution(signal, placed, {
+          calculatedQty: orderQty,
+          instrumentInfo: inst,
+          markPrice: price,
+          tpslAttached: false,
+          tpslSetSeparately: true
+        })
+
+        return placed;
+      } else {
+        throw error;
+      }
+    }
   }
 
   private async logExecution(signal: TradingSignal, result: any, metadata: any): Promise<void> {
