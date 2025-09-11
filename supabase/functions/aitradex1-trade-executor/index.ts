@@ -245,6 +245,28 @@ class BybitV5Client {
     
     return data
   }
+
+  // Get account position mode (OneWay vs Hedge)
+  async getPositionMode(symbol: string, category: string): Promise<number> {
+    try {
+      const data = await this.signedRequest('GET', '/v5/position/list', {
+        category,
+        symbol
+      })
+      
+      // If we have existing positions, check their positionIdx
+      if (data?.result?.list?.length > 0) {
+        const position = data.result.list[0]
+        return Number(position.positionIdx) || 0
+      }
+      
+      // Default to One-Way mode (0) if no positions
+      return 0
+    } catch (error) {
+      structuredLog('warn', 'Failed to get position mode, defaulting to 0', { error: error.message })
+      return 0
+    }
+  }
 }
 
 // =================== TRADING SIGNAL & CONFIG TYPES ===================
@@ -326,7 +348,7 @@ class AutoTradingEngine {
     }
 
     // Place order
-    const orderData = {
+    const orderData: any = {
       category: inst.category,
       symbol: signal.symbol,
       side: signal.direction === 'BUY' ? 'Buy' : 'Sell',
@@ -335,9 +357,12 @@ class AutoTradingEngine {
       timeInForce: 'IOC'
     }
 
+    // For linear contracts, we need to handle position mode correctly
     if (inst.category === 'linear') {
-      (orderData as any).positionIdx = 0
-      ;(orderData as any).reduceOnly = false
+      // Get the appropriate positionIdx based on account mode
+      const positionIdx = await this.client.getPositionMode(signal.symbol, inst.category)
+      orderData.positionIdx = positionIdx
+      orderData.reduceOnly = false
     }
 
     const result = await this.client.signedRequest('POST', '/v5/order/create', orderData)
@@ -434,16 +459,39 @@ serve(async (req) => {
           }, 400);
         }
 
-        // Initialize trading engine and execute
-        const engine = new AutoTradingEngine(supabase);
-        const result = await engine.executeSignal({
+        // Create order data
+        const orderData: any = {
+          category: inst.category,
           symbol,
-          direction: side.toLowerCase() === 'buy' ? 'BUY' : 'SELL',
-          entry_price: price,
-          score: 0.8,
-          leverage: leverage || 1,
-          notional: amountUSD,
-          quantity: qty
+          side: side === 'Buy' ? 'Buy' : 'Sell',
+          orderType: 'Market',
+          qty: String(qty),
+          timeInForce: 'IOC'
+        }
+
+        // For linear contracts, handle position mode correctly
+        if (inst.category === 'linear') {
+          // Initialize trading engine and client
+          const engine = new AutoTradingEngine(supabase);
+          await engine.initializeClient();
+          
+          const positionIdx = await engine.client!.getPositionMode(symbol, inst.category)
+          orderData.positionIdx = positionIdx
+          orderData.reduceOnly = false
+        }
+
+        // Initialize trading engine and execute the order
+        const engine = new AutoTradingEngine(supabase);
+        await engine.initializeClient();
+        const result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+
+        structuredLog('info', 'Order executed successfully', { 
+          symbol, 
+          side, 
+          qty, 
+          category: inst.category, 
+          positionIdx: orderData.positionIdx,
+          orderId: result?.result?.orderId 
         });
 
         return json({
@@ -451,7 +499,13 @@ serve(async (req) => {
           data: result
         });
       } catch (error) {
-        structuredLog('error', 'Trade execution failed', { error: error.message });
+        structuredLog('error', 'Trade execution failed', { 
+          error: error.message, 
+          symbol, 
+          side, 
+          amountUSD, 
+          leverage 
+        });
         return json({
           success: false,
           message: error.message

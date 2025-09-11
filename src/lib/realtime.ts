@@ -105,7 +105,7 @@ export function subscribeSignals(
         console.log('[signals-realtime] Successfully subscribed to signals channel');
       } else if (status === 'CHANNEL_ERROR') {
         console.warn('[signals-realtime] Channel error:', err);
-        // Don't spam logs, just handle gracefully
+        // Gracefully handle subscription errors - try to resubscribe later
       } else if (status === 'CLOSED') {
         console.log('[signals-realtime] CLOSED');
       } else {
