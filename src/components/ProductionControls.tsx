@@ -102,10 +102,25 @@ export const ProductionControls = () => {
 
   const handleModeToggle = async (enabled: boolean) => {
     if (enabled) {
-      // Opening the safety gate for live trading
-      setShowSafetyGate(true);
-      setPassphrase('');
-      setConfirmationStep(0);
+      // Switching to live mode
+      if (FEATURES.SAFETY_GATE) {
+        setShowSafetyGate(true);
+        setPassphrase('');
+        setConfirmationStep(0);
+      } else {
+        await logTradingModeChange(
+          'live_trading_enabled',
+          'paper',
+          'live',
+          { trigger: 'direct_toggle', safety_gate_bypassed: true }
+        );
+        setIsLiveMode(true);
+        toast({
+          title: "⚠️ LIVE TRADING ENABLED",
+          description: "Real money trades are now active",
+          variant: "destructive"
+        });
+      }
     } else {
       // Disabling live trading - log and confirm
       await logTradingModeChange(
@@ -307,6 +322,7 @@ export const ProductionControls = () => {
       </CardContent>
 
       {/* Safety Gate Modal */}
+      {FEATURES.SAFETY_GATE && (
       <Dialog open={showSafetyGate} onOpenChange={setShowSafetyGate}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -385,6 +401,7 @@ export const ProductionControls = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
     </Card>
   );
 };

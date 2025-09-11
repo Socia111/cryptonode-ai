@@ -65,6 +65,11 @@ const BybitTradingAuth = () => {
   };
 
   const authenticateWithBybit = async () => {
+    if (!credentials.apiKey || !credentials.apiSecret) {
+      toast.error("Please enter both API key and secret");
+      return;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       toast.error("Sign in first");
@@ -73,20 +78,39 @@ const BybitTradingAuth = () => {
 
     setIsConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('connect-bybit', {
-        body: { accountType: useTestnet ? 'testnet' : 'mainnet' }
+      const { data, error } = await supabase.functions.invoke('bybit-authenticate', {
+        body: {
+          apiKey: credentials.apiKey.trim(),
+          apiSecret: credentials.apiSecret.trim(),
+          isTestnet: useTestnet
+        }
       });
 
-      if (error || !data?.ok) {
-        throw new Error(data?.error || error?.message || 'Connect failed');
+      if (error || !data?.success) {
+        throw new Error(data?.message || error?.message || 'Authentication failed');
+      }
+
+      // Save connection state to database
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('user_trading_accounts').upsert({
+          user_id: user.id,
+          exchange: 'bybit',
+          account_type: useTestnet ? 'testnet' : 'mainnet',
+          is_active: true,
+          connected_at: new Date().toISOString(),
+          balance_info: data.balance,
+          permissions: data.permissions || ['read', 'trade'],
+          risk_settings: data.riskSettings
+        }, { onConflict: 'user_id,exchange' });
       }
 
       setAuthState({
         isAuthenticated: true,
         accountType: useTestnet ? 'testnet' : 'mainnet',
-        balance: null,
-        permissions: ['read', 'trade'],
-        riskSettings: null
+        balance: data.balance,
+        permissions: data.permissions || ['read', 'trade'],
+        riskSettings: data.riskSettings
       });
       
       const network = useTestnet ? 'Testnet' : 'Mainnet';
@@ -152,6 +176,29 @@ const BybitTradingAuth = () => {
             </Alert>
 
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="apiKey">API Key</Label>
+                  <Input
+                    id="apiKey"
+                    type="password"
+                    placeholder="Enter Bybit API Key"
+                    value={credentials.apiKey}
+                    onChange={(e) => setCredentials(prev => ({ ...prev, apiKey: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="apiSecret">API Secret</Label>
+                  <Input
+                    id="apiSecret"
+                    type="password"
+                    placeholder="Enter Bybit API Secret"
+                    value={credentials.apiSecret}
+                    onChange={(e) => setCredentials(prev => ({ ...prev, apiSecret: e.target.value }))}
+                  />
+                </div>
+              </div>
+
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <Label>Trading Environment</Label>
@@ -177,7 +224,7 @@ const BybitTradingAuth = () => {
 
               <Button
                 onClick={authenticateWithBybit}
-                disabled={isConnecting}
+                disabled={isConnecting || !credentials.apiKey || !credentials.apiSecret}
                 className="w-full"
               >
                 {isConnecting ? (
