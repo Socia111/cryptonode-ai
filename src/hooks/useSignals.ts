@@ -403,13 +403,8 @@ export const useSignals = () => {
             }
           },
         );
-        
-        if (!channel) {
-          console.warn('[signals] Failed to setup realtime, will rely on polling');
-        }
       } catch (e) {
-        console.warn('[signals] realtime subscribe failed, will use polling only', e);
-        // Continue with polling fallback
+        console.warn('[signals] realtime subscribe failed, fallback to polling', e);
       }
 
       pollId = window.setInterval(() => {
@@ -423,13 +418,7 @@ export const useSignals = () => {
 
     return () => {
       mounted = false;
-      if (channel) {
-        try {
-          supabase.removeChannel(channel);
-        } catch (e) {
-          console.warn('Failed to remove realtime channel:', e);
-        }
-      }
+      if (channel) supabase.removeChannel(channel);
       if (pollId) clearInterval(pollId);
     };
   }, []);
