@@ -1,19 +1,11 @@
 import React from 'react';
-import { Search, Bell, User, Wallet, ArrowUpRight, ArrowDownLeft, LogOut, Shield, Menu } from 'lucide-react';
+import { Search, Bell, ArrowUpRight, ArrowDownLeft, Menu } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import LivePrice from '@/components/LivePrice';
+import UserMenu from '@/components/UserMenu';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface TopNavigationProps {
@@ -21,7 +13,6 @@ interface TopNavigationProps {
 }
 
 const TopNavigation: React.FC<TopNavigationProps> = ({ onMobileMenuToggle }) => {
-  const userInitials = 'U';
   const { toast } = useToast();
 
   return (
@@ -124,39 +115,7 @@ const TopNavigation: React.FC<TopNavigationProps> = ({ onMobileMenuToggle }) => 
           </div>
 
           {/* User Profile */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative w-8 h-8 lg:w-9 lg:h-9 rounded-full">
-                <Avatar className="w-8 h-8 lg:w-9 lg:h-9">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs lg:text-sm">
-                    {userInitials}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="flex items-center gap-2">
-                <Shield className="w-4 h-4" />
-                <span className="truncate">User</span>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Wallet className="w-4 h-4 mr-2" />
-                Portfolio
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                Theme
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <UserMenu />
         </div>
       </div>
     </header>

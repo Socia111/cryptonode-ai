@@ -80,9 +80,12 @@ const BybitTradingAuth = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Bybit auth error:', error);
+        throw new Error(error.message || 'Authentication failed');
+      }
 
-      if (data.success) {
+      if (data?.success) {
         setAuthState({
           isAuthenticated: true,
           accountType: useTestnet ? 'testnet' : 'mainnet',
@@ -97,11 +100,12 @@ const BybitTradingAuth = () => {
         // Clear credentials from state for security
         setCredentials({ apiKey: '', apiSecret: '' });
       } else {
-        throw new Error(data.error || 'Authentication failed');
+        throw new Error(data?.error || 'Authentication failed');
       }
     } catch (error: any) {
       console.error('Bybit auth error:', error);
-      toast.error(`Authentication failed: ${error.message}`);
+      const errorMessage = error.message || 'Authentication failed';
+      toast.error(`Authentication failed: ${errorMessage}`);
     } finally {
       setIsConnecting(false);
     }
