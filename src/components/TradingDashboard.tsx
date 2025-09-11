@@ -20,7 +20,7 @@ import {
   Target,
   BarChart3
 } from 'lucide-react';
-import CleanSignalsList from './CleanSignalsList';
+import SignalsList from './SignalsList';
 import AutoTradingToggle from './AutoTradingToggle';
 import PerformancePanel from './PerformancePanel';
 import LiveTradingSetup from './LiveTradingSetup';
@@ -133,7 +133,7 @@ const TradingDashboard = () => {
         <TabsContent value="signals" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              <CleanSignalsList />
+              <SignalsList />
             </div>
             <div className="space-y-6">
               <AutoTradingSetupGuide />
