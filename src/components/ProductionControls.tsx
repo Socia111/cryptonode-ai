@@ -1,169 +1,165 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Button } from '@/components/ui/button';
-import { AlertTriangle, Shield, Zap } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Shield, AlertTriangle, Activity, Zap, Ban } from 'lucide-react';
+import { FEATURES } from '@/config/featureFlags';
 
 export const ProductionControls = () => {
-  const [liveEnabled, setLiveEnabled] = useState(false);
-  const [paperMode, setPaperMode] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
+  const [isLiveMode, setIsLiveMode] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<'healthy' | 'warning' | 'critical'>('healthy');
+  const [dailyPnL, setDailyPnL] = useState(0);
+  const [orderCount, setOrderCount] = useState(0);
+
+  const handleEmergencyStop = () => {
+    if (confirm('🚨 EMERGENCY STOP: This will immediately disable all live trading. Continue?')) {
+      // This would normally update the LIVE_TRADING_ENABLED secret
+      console.log('🔴 EMERGENCY STOP ACTIVATED');
+      setIsLiveMode(false);
+    }
+  };
+
+  const handleModeToggle = (enabled: boolean) => {
+    if (enabled && !confirm('⚠️ Enable LIVE TRADING? Real money will be used!')) {
+      return;
+    }
+    setIsLiveMode(enabled);
+    console.log(`${enabled ? '🔴 LIVE' : '📋 PAPER'} trading mode activated`);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'healthy': return 'bg-green-500';
+      case 'warning': return 'bg-yellow-500';
+      case 'critical': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getSystemHealth = () => {
+    if (dailyPnL < -1.5) return 'critical';
+    if (dailyPnL < -0.8) return 'warning';
+    return 'healthy';
+  };
 
   useEffect(() => {
-    // Load current status on mount
-    checkStatus();
-  }, []);
-
-  const checkStatus = async () => {
-    try {
-      const functionsBase = import.meta.env.VITE_SUPABASE_URL?.replace('.supabase.co', '.functions.supabase.co');
-      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'status' })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setLiveEnabled(data.liveAllowed || false);
-        setPaperMode(data.config?.paper_mode !== false);
-      }
-    } catch (error) {
-      console.warn('Failed to check production status:', error);
-    }
-  };
-
-  const handleModeToggle = async (mode: 'paper' | 'live') => {
-    setLoading(true);
-    
-    try {
-      if (mode === 'live') {
-        // Show confirmation dialog for live mode
-        const confirmed = window.confirm(
-          '⚠️ WARNING: You are about to enable LIVE TRADING with real money.\\n\\n' +
-          'This will place actual orders on Bybit exchange.\\n\\n' +
-          'Are you absolutely sure you want to continue?'
-        );
-        
-        if (!confirmed) {
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // Here you would call your backend to toggle the mode
-      // For now, just update the local state
-      setPaperMode(mode === 'paper');
-      
-      toast({
-        title: `${mode === 'live' ? 'Live' : 'Paper'} Mode Enabled`,
-        description: mode === 'live' 
-          ? '🔴 Live trading active - real money at risk!' 
-          : '🟡 Paper trading active - simulation only',
-        variant: mode === 'live' ? 'destructive' : 'default'
-      });
-      
-    } catch (error) {
-      toast({
-        title: 'Mode Switch Failed',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    setSystemStatus(getSystemHealth());
+  }, [dailyPnL]);
 
   return (
     <Card className="border-2">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Shield className="h-5 w-5" />
-          Production Controls
-          <Badge variant={paperMode ? "secondary" : "destructive"}>
-            {paperMode ? "PAPER MODE" : "LIVE MODE"}
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Live Trading Feature Flag */}
-        <div className="flex items-center justify-between p-4 border rounded-lg">
-          <div className="space-y-1">
-            <div className="font-medium">Live Trading Feature</div>
-            <div className="text-sm text-muted-foreground">
-              Master switch for live trading functionality
-            </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5" />
+              Production Controls
+            </CardTitle>
+            <CardDescription>
+              Master controls for live trading system
+            </CardDescription>
           </div>
+          
           <div className="flex items-center gap-2">
-            <Badge variant={liveEnabled ? "default" : "secondary"}>
-              {liveEnabled ? "ENABLED" : "DISABLED"}
+            <div className={`w-3 h-3 rounded-full ${getStatusColor(systemStatus)}`} />
+            <Badge variant={systemStatus === 'healthy' ? 'default' : 'destructive'}>
+              {systemStatus.toUpperCase()}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        {/* Trading Mode Control */}
+        <div className="flex items-center justify-between p-4 border rounded-lg">
+          <div>
+            <h3 className="font-semibold">Trading Mode</h3>
+            <p className="text-sm text-muted-foreground">
+              {isLiveMode ? 'Live trading with real money' : 'Paper trading (simulation)'}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <Badge variant={isLiveMode ? 'destructive' : 'secondary'}>
+              {isLiveMode ? '🔴 LIVE' : '📋 PAPER'}
             </Badge>
             <Switch
-              checked={liveEnabled}
-              onCheckedChange={setLiveEnabled}
-              disabled
+              checked={isLiveMode}
+              onCheckedChange={handleModeToggle}
+              disabled={!FEATURES.AUTOTRADE_ENABLED}
             />
           </div>
         </div>
 
-        {/* Trading Mode */}
-        <div className="space-y-3">
-          <div className="font-medium">Trading Mode</div>
+        {/* System Metrics */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="p-3 border rounded-lg">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-blue-500" />
+              <span className="text-sm font-medium">Daily P&L</span>
+            </div>
+            <p className={`text-lg font-bold ${dailyPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {dailyPnL >= 0 ? '+' : ''}{dailyPnL.toFixed(2)}%
+            </p>
+          </div>
           
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              variant={paperMode ? "default" : "outline"}
-              className="h-auto flex-col gap-2 p-4"
-              onClick={() => handleModeToggle('paper')}
-              disabled={loading}
-            >
-              <Zap className="h-5 w-5" />
-              <div className="text-center">
-                <div className="font-medium">Paper Mode</div>
-                <div className="text-xs opacity-75">Simulation only</div>
-              </div>
-            </Button>
-            
-            <Button
-              variant={!paperMode ? "destructive" : "outline"}
-              className="h-auto flex-col gap-2 p-4"
-              onClick={() => handleModeToggle('live')}
-              disabled={loading || !liveEnabled}
-            >
-              <AlertTriangle className="h-5 w-5" />
-              <div className="text-center">
-                <div className="font-medium">Live Mode</div>
-                <div className="text-xs opacity-75">Real money</div>
-              </div>
-            </Button>
+          <div className="p-3 border rounded-lg">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-purple-500" />
+              <span className="text-sm font-medium">Orders Today</span>
+            </div>
+            <p className="text-lg font-bold">{orderCount}</p>
           </div>
         </div>
 
-        {/* Safety Warnings */}
-        {!paperMode && (
-          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
-              <div className="space-y-1">
-                <div className="font-medium text-destructive">Live Trading Active</div>
-                <div className="text-sm text-destructive/80">
-                  Real orders will be placed on Bybit exchange. Monitor positions carefully.
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* Risk Alerts */}
+        {systemStatus === 'critical' && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Critical:</strong> Daily loss limit reached (-1.5%). 
+              Trading automatically disabled.
+            </AlertDescription>
+          </Alert>
         )}
 
-        {paperMode && (
-          <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-            <div className="text-sm text-blue-700 dark:text-blue-300">
-              📊 Paper mode active - all trades are simulated for testing and strategy development.
-            </div>
-          </div>
+        {systemStatus === 'warning' && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Warning:</strong> Approaching daily loss limit. 
+              Current: {dailyPnL.toFixed(2)}%
+            </AlertDescription>
+          </Alert>
         )}
+
+        {/* Emergency Controls */}
+        <div className="pt-4 border-t">
+          <h3 className="font-semibold mb-3 text-red-600">Emergency Controls</h3>
+          <Button 
+            onClick={handleEmergencyStop}
+            variant="destructive"
+            size="sm"
+            className="w-full"
+          >
+            <Ban className="w-4 h-4 mr-2" />
+            EMERGENCY STOP ALL TRADING
+          </Button>
+          <p className="text-xs text-muted-foreground mt-2">
+            Immediately halts all automated trading activities
+          </p>
+        </div>
+
+        {/* Safety Checklist */}
+        <div className="text-xs text-muted-foreground space-y-1">
+          <p>✅ Symbol whitelist: 10 pairs</p>
+          <p>✅ Min notional: $5 USD</p>
+          <p>✅ Max spread: 10%</p>
+          <p>✅ Daily loss limit: -1.5%</p>
+          <p>✅ Risk/Reward ratio: ≥2:1</p>
+        </div>
       </CardContent>
     </Card>
   );

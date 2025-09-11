@@ -150,26 +150,81 @@ async function setTpSlOrder(
   return await bybitApiCall('/v5/position/trading-stop', 'POST', params, apiKey, apiSecret, isTestnet);
 }
 
+// Risk Management Constants
+const WHITELISTED_SYMBOLS = [
+  'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'ADAUSDT', 
+  'DOTUSDT', 'LINKUSDT', 'AVAXUSDT', 'MANAUSDT', 'CATIUSDT'
+];
+const MIN_NOTIONAL_USD = 5;
+const MAX_SPREAD_BPS = 1000; // 10%
+const MAX_FUNDING_RATE = 0.0005; // 0.05% per 8h
+const DEFAULT_ATR_SL_MULTIPLIER = 1.3;
+const DEFAULT_ATR_TP_MULTIPLIER = 2.6;
+const DAILY_LOSS_LIMIT_PERCENT = -1.5;
+
+// Error code mapping for clean user feedback
+const ERROR_CODES = {
+  10003: 'Invalid API key',
+  10004: 'Invalid signature - check API credentials',
+  10005: 'Permission denied - enable Trade permission in Bybit',
+  110001: 'Invalid price precision',
+  110003: 'Invalid quantity precision', 
+  110025: 'Below minimum notional amount',
+  110026: 'Max leverage exceeded',
+  130021: 'Order price out of valid range'
+};
+
+function getCleanErrorMessage(retCode: number, retMsg: string): string {
+  return ERROR_CODES[retCode] || retMsg || 'Unknown error';
+}
+
+// Precision handling
+function roundToTickSize(price: number, tickSize: string = '0.01'): string {
+  const tick = parseFloat(tickSize);
+  return (Math.round(price / tick) * tick).toFixed(tickSize.split('.')[1]?.length || 2);
+}
+
+function roundToQtyStep(qty: number, qtyStep: string = '0.001'): string {
+  const step = parseFloat(qtyStep);
+  return (Math.round(qty / step) * step).toFixed(qtyStep.split('.')[1]?.length || 3);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { action, signal, testMode = true, ...params } = await req.json();
+    const { action, signal, testMode = true, idempotencyKey, ...params } = await req.json();
     
-    // Get API credentials from environment
+    // Get environment variables
     const apiKey = Deno.env.get('BYBIT_API_KEY');
     const apiSecret = Deno.env.get('BYBIT_API_SECRET');
-    const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || testMode;
+    const liveTrading = Deno.env.get('LIVE_TRADING_ENABLED') === 'true';
+    const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || testMode || !liveTrading;
     
     if (!apiKey || !apiSecret) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Bybit API credentials not configured' 
+          error: 'Bybit API credentials not configured',
+          code: 'MISSING_CREDENTIALS'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Master kill switch check
+    if (!liveTrading && action === 'place_order') {
+      console.log('🔒 Live trading disabled via LIVE_TRADING_ENABLED secret');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Live trading is currently disabled',
+          code: 'LIVE_TRADING_DISABLED',
+          testMode: true
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -190,8 +245,24 @@ serve(async (req) => {
         if (!signal) {
           throw new Error('Signal data required for placing orders');
         }
+
+        // Risk validation
+        if (!WHITELISTED_SYMBOLS.includes(signal.symbol)) {
+          throw new Error(`Symbol ${signal.symbol} not whitelisted for trading`);
+        }
+
+        const notionalValue = parseFloat(signal.qty) * parseFloat(signal.price || '0');
+        if (notionalValue < MIN_NOTIONAL_USD) {
+          throw new Error(`Order below minimum notional of $${MIN_NOTIONAL_USD}`);
+        }
+
+        // Add precision rounding
+        if (signal.price) signal.price = roundToTickSize(parseFloat(signal.price));
+        signal.qty = roundToQtyStep(parseFloat(signal.qty));
+        if (signal.stopLoss) signal.stopLoss = roundToTickSize(parseFloat(signal.stopLoss));
+        if (signal.takeProfit) signal.takeProfit = roundToTickSize(parseFloat(signal.takeProfit));
         
-        console.log('📋 Placing order with signal:', signal);
+        console.log('📋 Placing order with signal:', { ...signal, idempotencyKey });
         result = await placeOrder(signal, apiKey, apiSecret, isTestnet);
         
         // Set TP/SL if provided and order was successful
@@ -243,6 +314,9 @@ serve(async (req) => {
           result: {
             status: 'connected',
             testnet: isTestnet,
+            live_trading_enabled: liveTrading,
+            whitelisted_symbols: WHITELISTED_SYMBOLS,
+            min_notional_usd: MIN_NOTIONAL_USD,
             timestamp: new Date().toISOString()
           }
         };
@@ -253,14 +327,17 @@ serve(async (req) => {
     }
 
     const success = result.retCode === 0;
+    const cleanMessage = success ? result.retMsg : getCleanErrorMessage(result.retCode, result.retMsg);
     
     return new Response(
       JSON.stringify({
         success,
         data: result.result,
-        message: result.retMsg,
+        message: cleanMessage,
         retCode: result.retCode,
-        testMode: isTestnet
+        testMode: isTestnet,
+        live_trading_enabled: liveTrading,
+        ...(idempotencyKey && { idempotencyKey })
       }),
       { 
         status: success ? 200 : 400,
@@ -271,10 +348,27 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Bybit Live Trading Error:', error);
     
+    // Map common errors to user-friendly messages
+    let userMessage = error.message;
+    let errorCode = 'UNKNOWN_ERROR';
+    
+    if (error.message.includes('fetch')) {
+      userMessage = 'Network error - please try again';
+      errorCode = 'NETWORK_ERROR';
+    } else if (error.message.includes('timeout')) {
+      userMessage = 'Request timeout - exchange may be busy';
+      errorCode = 'TIMEOUT_ERROR';
+    } else if (error.message.includes('not whitelisted')) {
+      errorCode = 'SYMBOL_NOT_WHITELISTED';
+    } else if (error.message.includes('minimum notional')) {
+      errorCode = 'BELOW_MIN_NOTIONAL';
+    }
+    
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message,
+        error: userMessage,
+        code: errorCode,
         timestamp: new Date().toISOString()
       }),
       { 

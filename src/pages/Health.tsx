@@ -12,11 +12,13 @@ interface TestResult {
 }
 
 interface HealthResults {
-  config: TestResult;
-  realtime: TestResult;
-  auth: TestResult;
-  signalGeneration: TestResult;
+  bybitApi: TestResult;
+  canaryOrder: TestResult;
+  tradingViewWebhook: TestResult;
+  positions: TestResult;
+  balance: TestResult;
   timestamp: string;
+  overall: { passed: boolean; score: string };
 }
 
 const Health = () => {
@@ -27,7 +29,7 @@ const Health = () => {
     setLoading(true);
     try {
       console.log('🏥 [Health] Running system health check...');
-      const testResults = await smokeTests.runAll();
+      const testResults = await smokeTests.runProductionSuite();
       setResults(testResults);
     } catch (error) {
       console.error('🏥 [Health] Failed to run tests:', error);
@@ -56,7 +58,7 @@ const Health = () => {
     );
   };
 
-  const allPassed = results ? [results.config, results.realtime, results.signalGeneration].every(r => r.success) : false;
+  const allPassed = results ? results.overall.passed : false;
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -99,24 +101,24 @@ const Health = () => {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    {getStatusIcon(results.config.success)}
-                    <span>Database Connection</span>
+                    {getStatusIcon(results.bybitApi.success)}
+                    <span>Bybit API Connection</span>
                   </div>
-                  {getStatusBadge(results.config.success)}
+                  {getStatusBadge(results.bybitApi.success)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">
-                    Tests Supabase connectivity and RLS policies
+                    Tests Bybit trading API connectivity and authentication
                   </p>
-                  {results.config.success ? (
+                  {results.bybitApi.success ? (
                     <p className="text-sm text-success">
-                      ✓ Connected successfully ({results.config.rows || 0} test records)
+                      ✓ Connected successfully ({results.bybitApi.testnet ? 'TESTNET' : 'MAINNET'})
                     </p>
                   ) : (
                     <p className="text-sm text-destructive">
-                      ✗ {results.config.error || 'Connection failed'}
+                      ✗ {results.bybitApi.error || 'Connection failed'}
                     </p>
                   )}
                 </div>
@@ -127,52 +129,24 @@ const Health = () => {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    {getStatusIcon(results.realtime.success)}
-                    <span>Realtime Connection</span>
+                    {getStatusIcon(results.canaryOrder.success)}
+                    <span>Order Execution</span>
                   </div>
-                  {getStatusBadge(results.realtime.success)}
+                  {getStatusBadge(results.canaryOrder.success)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">
-                    Tests WebSocket connectivity and presence tracking
+                    Tests order placement and execution pipeline
                   </p>
-                  {results.realtime.success ? (
+                  {results.canaryOrder.success ? (
                     <p className="text-sm text-success">
-                      ✓ Realtime connection established
-                    </p>
-                  ) : (
-                    <p className="text-sm text-destructive">
-                      ✗ {results.realtime.error || 'Realtime connection failed'}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    {getStatusIcon(results.auth.success)}
-                    <span>Authentication</span>
-                  </div>
-                  {getStatusBadge(results.auth.success)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    Tests auth session and user management
-                  </p>
-                  {results.auth.success ? (
-                    <p className="text-sm text-success">
-                      ✓ Auth session active (User: {results.auth.user_id?.slice(0, 8)}...)
+                      ✓ Order system operational
                     </p>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      ⚪ No active session (authentication not required)
+                      ⚪ {results.canaryOrder.message || 'System in paper mode'}
                     </p>
                   )}
                 </div>
@@ -183,24 +157,52 @@ const Health = () => {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    {getStatusIcon(results.signalGeneration.success)}
-                    <span>Edge Functions</span>
+                    {getStatusIcon(results.positions.success)}
+                    <span>Position Management</span>
                   </div>
-                  {getStatusBadge(results.signalGeneration.success)}
+                  {getStatusBadge(results.positions.success)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">
-                    Tests signal generation and edge function connectivity
+                    Tests position fetching and account management
                   </p>
-                  {results.signalGeneration.success ? (
+                  {results.positions.success ? (
                     <p className="text-sm text-success">
-                      ✓ Function invocation successful
+                      ✓ Position data accessible ({results.positions.positionCount} positions)
                     </p>
                   ) : (
                     <p className="text-sm text-destructive">
-                      ✗ {results.signalGeneration.error || 'Function invocation failed'}
+                      ✗ {results.positions.error || 'Position data unavailable'}
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    {getStatusIcon(results.balance.success)}
+                    <span>Account Balance</span>
+                  </div>
+                  {getStatusBadge(results.balance.success)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Tests account balance and funding status
+                  </p>
+                  {results.balance.success ? (
+                    <p className="text-sm text-success">
+                      ✓ Balance: ${results.balance.usdtBalance?.toFixed(2) || '0.00'} USDT
+                    </p>
+                  ) : (
+                    <p className="text-sm text-destructive">
+                      ✗ {results.balance.error || 'Balance data unavailable'}
                     </p>
                   )}
                 </div>
@@ -235,8 +237,9 @@ const Health = () => {
           </Card>
         )}
 
-        <div className="text-center text-sm text-muted-foreground">
-          <p>For manual testing, open browser console and run: <code>window.__smokeTests.runAll()</code></p>
+        <div className="text-center text-sm text-muted-foreground space-y-2">
+          <p>For manual testing, open browser console and run: <code>window.__smokeTests.runProductionSuite()</code></p>
+          <p className="text-xs">Overall Score: <strong>{results.overall.score}</strong> - {results.overall.passed ? '✅ PASSED' : '❌ FAILED'}</p>
         </div>
       </div>
     </div>

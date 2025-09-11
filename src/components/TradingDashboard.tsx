@@ -25,6 +25,7 @@ import AutoTradingToggle from './AutoTradingToggle';
 import PerformancePanel from './PerformancePanel';
 import LiveTradingSetup from './LiveTradingSetup';
 import { TradingDiagnostics } from './TradingDiagnostics';
+import { ProductionControls } from './ProductionControls';
 
 const TradingDashboard = () => {
   const [activeTab, setActiveTab] = useState('signals');
@@ -94,7 +95,7 @@ const TradingDashboard = () => {
 
       {/* Main Tabs Interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="signals" className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4" />
             Signals
@@ -106,6 +107,10 @@ const TradingDashboard = () => {
           <TabsTrigger value="setup" className="flex items-center gap-2">
             <Zap className="w-4 h-4" />
             Live Setup
+          </TabsTrigger>
+          <TabsTrigger value="controls" className="flex items-center gap-2">
+            <Shield className="w-4 h-4" />
+            Controls
           </TabsTrigger>
           <TabsTrigger value="diagnostics" className="flex items-center gap-2">
             <Activity className="w-4 h-4" />
@@ -123,6 +128,10 @@ const TradingDashboard = () => {
         
         <TabsContent value="setup" className="space-y-6">
           <LiveTradingSetup />
+        </TabsContent>
+        
+        <TabsContent value="controls" className="space-y-6">
+          <ProductionControls />
         </TabsContent>
         
         <TabsContent value="diagnostics" className="space-y-6">

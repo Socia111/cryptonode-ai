@@ -3,30 +3,55 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Settings, Zap, BarChart3, TrendingUp, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Settings, Zap, BarChart3, TrendingUp, ExternalLink, AlertTriangle, TestTube, Loader2 } from 'lucide-react';
 import { TradingGateway } from '@/lib/tradingGateway';
+import { toast } from '@/hooks/use-toast';
 
 const LiveTradingSetup = () => {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [balance, setBalance] = useState<any>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const testConnection = async () => {
+    setIsConnecting(true);
     setConnectionStatus('connecting');
     try {
-      const result = await TradingGateway.testConnection();
-      if (result.ok) {
+      // Import smoke tests
+      const { smokeTests } = await import('@/lib/smokeTests');
+      const result = await smokeTests.quickConnectionTest();
+      
+      if (result.success) {
+        const mode = result.live_trading_enabled ? "🔴 LIVE" : "📋 PAPER";
+        const network = result.testMode ? "TESTNET" : "MAINNET";
+        toast({
+          title: "Connection Successful",
+          description: `Connected to trading system (${mode} - ${network})`,
+        });
         setConnectionStatus('connected');
+        
         // Also fetch balance
         const balanceResult = await TradingGateway.getBalance();
         if (balanceResult.ok) {
           setBalance(balanceResult.data);
         }
       } else {
+        toast({
+          title: "Connection Failed",
+          description: result.error || "Unknown error",
+          variant: "destructive",
+        });
         setConnectionStatus('disconnected');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Connection test failed:', error);
+      toast({
+        title: "Connection Error",
+        description: error.message || "Unknown error",
+        variant: "destructive",
+      });
       setConnectionStatus('disconnected');
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -113,13 +138,33 @@ const LiveTradingSetup = () => {
 
               {method.id === 'bybit-direct' && (
                 <div className="space-y-3">
-                  <Button 
-                    onClick={testConnection} 
-                    disabled={connectionStatus === 'connecting'}
-                    className="w-full"
-                  >
-                    {connectionStatus === 'connecting' ? 'Testing Connection...' : 'Test Bybit Connection'}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={testConnection} 
+                      disabled={isConnecting}
+                      className="flex-1"
+                    >
+                      {isConnecting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Testing...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-4 h-4 mr-2" />
+                          Test Connection
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => (window as any).__smokeTests?.runProductionSuite?.().then(console.log)}
+                      variant="outline"
+                      disabled={isConnecting}
+                    >
+                      <TestTube className="w-4 h-4" />
+                    </Button>
+                  </div>
                   
                   {connectionStatus === 'connected' && balance && (
                     <div className="p-3 bg-muted rounded-lg">
