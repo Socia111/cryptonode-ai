@@ -387,9 +387,10 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse request
-    const { action, ...requestBody } = await req.json();
+    const requestBody = await req.json();
+    const { action, symbol, side, amountUSD, leverage } = requestBody;
     
-    structuredLog('info', 'Trade executor called', { action });
+    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
 
     // Handle status requests
     if (action === 'status') {
@@ -404,8 +405,6 @@ serve(async (req) => {
 
     // Handle place order requests
     if (action === 'place_order' || action === 'signal') {
-      const { symbol, side, amountUSD, leverage } = requestBody;
-      
       if (!symbol || !side || !amountUSD) {
         return json({
           success: false,

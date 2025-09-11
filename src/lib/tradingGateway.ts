@@ -67,12 +67,10 @@ export const TradingGateway = {
         headers,
         body: JSON.stringify({
           action: 'place_order',
-          signal: {
-            symbol: params.symbol.replace('/', ''),
-            side: params.side === 'BUY' ? 'Buy' : 'Sell',
-            amountUSD: amount,
-            leverage: leverage
-          }
+          symbol: params.symbol.replace('/', ''),
+          side: params.side === 'BUY' ? 'Buy' : 'Sell',
+          amountUSD: amount,
+          leverage: leverage
         })
       });
 
