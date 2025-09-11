@@ -24,9 +24,10 @@ export const ProductionControls = () => {
 
   const REQUIRED_PASSPHRASE = 'ENABLE LIVE TRADING';
 
-  // Audit logging function
+  // Audit logging function with webhook alerts
   const logTradingModeChange = async (action: string, fromMode: string, toMode: string, metadata: any = {}) => {
     try {
+      // Log to security audit
       await supabase.functions.invoke('log-security-event', {
         body: {
           action,
@@ -42,6 +43,36 @@ export const ProductionControls = () => {
           severity: toMode === 'live' ? 'critical' : 'info'
         }
       });
+
+      // Send webhook alerts for critical events
+      if (action.includes('live_trading_enabled') || action.includes('emergency_stop')) {
+        const alertData = {
+          event: action.toUpperCase(),
+          title: action.includes('live_trading_enabled') ? 'Live Trading ENABLED' : 
+                 action.includes('emergency_stop') ? 'Emergency Stop ACTIVATED' : 'Trading Mode Changed',
+          message: action.includes('live_trading_enabled') ? 
+            `Live trading was enabled via safety gate confirmation.` :
+            action.includes('emergency_stop') ? 
+            `Emergency stop activated - all trading halted immediately.` :
+            `Trading mode changed: ${action}`,
+          severity: 'critical' as const,
+          meta: {
+            from_mode: fromMode,
+            to_mode: toMode,
+            ...metadata
+          }
+        };
+
+        const alertResponse = await supabase.functions.invoke('webhook-alerts', {
+          body: alertData
+        });
+
+        if (alertResponse.error) {
+          console.warn('Failed to send webhook alert:', alertResponse.error);
+        } else {
+          console.log('✅ Webhook alert sent for:', action);
+        }
+      }
     } catch (error) {
       console.warn('Failed to log trading mode change:', error);
     }
