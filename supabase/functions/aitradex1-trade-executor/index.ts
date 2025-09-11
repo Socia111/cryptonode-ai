@@ -709,18 +709,6 @@ class AutoTradingEngine {
       return result;
     }
   }
-            tpTriggerBy: 'LastPrice',
-            slTriggerBy: 'LastPrice'
-          })
-        } catch (error) {
-          structuredLog('sl_tp_set_failed', {
-            requestId,
-            order_id: dbOrder.id,
-            error: error.message
-          });
-        }
-      }
-
       const result = {
         success: true,
         signal_id: dbSignal.id,
