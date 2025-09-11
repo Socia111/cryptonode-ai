@@ -26,7 +26,7 @@ interface RankedSignal extends Signal {
   grade: 'A+' | 'A' | 'B' | 'C';
   score: number;
   edgeScore: number;
-  spreadBps?: number;
+  spreadBps: number;
 }
 
 // Edge scoring helper (composite score)
@@ -76,28 +76,42 @@ function getGrade(score: number): 'A+' | 'A' | 'B' | 'C' {
 
 export function useRankedSignals(signals: Signal[], showAll: boolean = false): RankedSignal[] {
   return useMemo(() => {
-    if (!signals || signals.length === 0) return [];
-    
-    // Add ranking data to each signal
-    const rankedSignals: RankedSignal[] = signals.map(signal => {
-      const edgeScore = calculateEdgeScore(signal);
-      const spreadBps = calculateSpreadBps(signal);
-      
-      return {
-        ...signal,
-        score: edgeScore,
-        edgeScore,
-        spreadBps,
-        grade: getGrade(edgeScore)
-      };
-    });
-    
-    // Apply spread filter (hide signals with spread > 20 bps unless showAll is true)
+    if (!signals || !Array.isArray(signals)) {
+      return [];
+    }
+
+    const processedSignals = signals
+      .filter(signal => signal && typeof signal === 'object')
+      .map(signal => {
+        try {
+          const edgeScore = calculateEdgeScore(signal);
+          const spreadBps = calculateSpreadBps(signal);
+          const grade = getGrade(edgeScore);
+          
+          return {
+            ...signal,
+            grade,
+            score: edgeScore,
+            edgeScore,
+            spreadBps
+          };
+        } catch (error) {
+          console.warn('[useRankedSignals] Error processing signal:', error, signal);
+          return null;
+        }
+      })
+      .filter((signal): signal is RankedSignal => signal !== null);
+
+    // Filter by spread if showAll is false
     const filteredSignals = showAll 
-      ? rankedSignals 
-      : rankedSignals.filter(signal => (signal.spreadBps || 0) <= 20);
-    
-    // Sort by composite score (⭐ Priority score as default)
-    return filteredSignals.sort((a, b) => b.score - a.score);
+      ? processedSignals 
+      : processedSignals.filter(signal => 
+          typeof signal.spreadBps === 'number' && signal.spreadBps <= 20
+        );
+
+    // Sort by score descending
+    return filteredSignals
+      .filter(signal => typeof signal.score === 'number')
+      .sort((a, b) => b.score - a.score);
   }, [signals, showAll]);
 }

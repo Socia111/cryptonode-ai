@@ -22,106 +22,113 @@ export type Signal = {
   created_at: string;
 };
 
+function mapPayloadToSignal(rawSignal: any): Signal {
+  if (!rawSignal) {
+    throw new Error('Invalid signal payload');
+  }
+
+  return {
+    id: String(rawSignal.id || ''),
+    token: rawSignal.symbol?.replace('USDT', '/USDT') || 'UNKNOWN/USDT',
+    direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
+    signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe || '1h'}`,
+    timeframe: rawSignal.timeframe || '1h',
+    entry_price: Number(rawSignal.price || rawSignal.entry_price || 0),
+    exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
+    stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
+    leverage: Number(rawSignal.leverage || 1),
+    confidence_score: Number(rawSignal.score || rawSignal.confidence_score || 0),
+    pms_score: Number(rawSignal.score || rawSignal.pms_score || 0),
+    trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
+    volume_strength: Number(rawSignal.volume_strength || 1.0),
+    roi_projection: rawSignal.tp && rawSignal.price ? 
+      Math.abs((Number(rawSignal.tp) - Number(rawSignal.price)) / Number(rawSignal.price) * 100) : 10,
+    signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
+    risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
+    quantum_probability: Number(rawSignal.score || rawSignal.quantum_probability || 0) / 100,
+    status: 'active',
+    created_at: rawSignal.created_at || new Date().toISOString(),
+  };
+}
+
 export function subscribeSignals(
   onInsert: (signal: Signal) => void,
   onUpdate: (signal: Signal) => void,
 ) {
-  const channel = supabase
-    .channel('signals-realtime')
-    .on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'signals' },
-      (payload) => {
-        if (payload.new) {
-          try {
-            const rawSignal = payload.new;
-            const mappedSignal: Signal = {
-              id: rawSignal.id.toString(),
-              token: rawSignal.symbol?.replace('USDT', '/USDT') || 'UNKNOWN/USDT',
-              direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
-              signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
-              timeframe: rawSignal.timeframe || '1h',
-              entry_price: Number(rawSignal.price || 0),
-              exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
-              stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
-              leverage: 1,
-              confidence_score: Number(rawSignal.score || 0),
-              pms_score: Number(rawSignal.score || 0),
-              trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
-              volume_strength: 1.0,
-              roi_projection: rawSignal.tp && rawSignal.price ? 
-                Math.abs((Number(rawSignal.tp) - Number(rawSignal.price)) / Number(rawSignal.price) * 100) : 10,
-              signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
-              risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
-              quantum_probability: Number(rawSignal.score || 0) / 100,
-              status: 'active',
-              created_at: rawSignal.created_at || new Date().toISOString(),
-            };
-            
-            console.log('New signal received:', mappedSignal);
-            onInsert(mappedSignal);
-          } catch (error) {
-            console.error('Error mapping new signal:', error);
+  let channel: any = null;
+  let retryCount = 0;
+  const maxRetries = 3;
+  
+  const setupSubscription = () => {
+    try {
+      console.log('[Realtime] Setting up signals subscription...');
+      
+      channel = supabase
+        .channel('signals_channel')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'signals'
+          },
+          (payload) => {
+            console.log('[Realtime] New signal received:', payload);
+            try {
+              const signal = mapPayloadToSignal(payload.new);
+              onInsert(signal);
+            } catch (error) {
+              console.error('[Realtime] Error mapping INSERT payload:', error);
+            }
           }
-        }
-      })
-    .on('postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'signals' },
-      (payload) => {
-        if (payload.new) {
-          try {
-            const rawSignal = payload.new;
-            const mappedSignal: Signal = {
-              id: rawSignal.id.toString(),
-              token: rawSignal.symbol?.replace('USDT', '/USDT') || 'UNKNOWN/USDT',
-              direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
-              signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
-              timeframe: rawSignal.timeframe || '1h',
-              entry_price: Number(rawSignal.price || 0),
-              exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
-              stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
-              leverage: 1,
-              confidence_score: Number(rawSignal.score || 0),
-              pms_score: Number(rawSignal.score || 0),
-              trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
-              volume_strength: 1.0,
-              roi_projection: rawSignal.tp && rawSignal.price ? 
-                Math.abs((Number(rawSignal.tp) - Number(rawSignal.price)) / Number(rawSignal.price) * 100) : 10,
-              signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
-              risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
-              quantum_probability: Number(rawSignal.score || 0) / 100,
-              status: 'active',
-              created_at: rawSignal.created_at || new Date().toISOString(),
-            };
-            
-            console.log('Signal updated:', mappedSignal);
-            onUpdate(mappedSignal);
-          } catch (error) {
-            console.error('Error mapping updated signal:', error);
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'signals'
+          },
+          (payload) => {
+            console.log('[Realtime] Signal updated:', payload);
+            try {
+              const signal = mapPayloadToSignal(payload.new);
+              onUpdate(signal);
+            } catch (error) {
+              console.error('[Realtime] Error mapping UPDATE payload:', error);
+            }
           }
-        }
-      })
-    .subscribe((status, err) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('[signals-realtime] Successfully subscribed to signals channel');
-      } else if (status === 'CHANNEL_ERROR') {
-        console.warn('[signals-realtime] Channel error:', err);
-        // Gracefully handle subscription errors - disable realtime and use polling fallback
-        setTimeout(() => {
-          console.log('[signals-realtime] Attempting to resubscribe...');
-          try {
-            supabase.removeChannel(channel);
-          } catch (e) {
-            console.warn('Failed to remove channel:', e);
+        )
+        .subscribe((status) => {
+          console.log('[Realtime] Subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('[Realtime] Successfully subscribed to signals');
+            retryCount = 0; // Reset retry count on success
+          } else if (status === 'CLOSED') {
+            console.warn('[Realtime] Signals subscription closed');
+            if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`[Realtime] Retrying subscription (${retryCount}/${maxRetries})...`);
+              setTimeout(() => setupSubscription(), 2000 * retryCount);
+            }
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('[Realtime] Signals subscription error');
+            if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`[Realtime] Retrying after error (${retryCount}/${maxRetries})...`);
+              setTimeout(() => setupSubscription(), 3000 * retryCount);
+            }
           }
-        }, 5000);
-      } else if (status === 'CLOSED') {
-        console.log('[signals-realtime] Connection closed, will use polling fallback');
-      } else {
-        console.log('[signals-realtime]', status);
-      }
-    });
+        });
 
-  return channel;
+      return channel;
+    } catch (error) {
+      console.error('[Realtime] Failed to setup subscription:', error);
+      return null;
+    }
+  };
+
+  return setupSubscription();
 }
 
 // Convenience wrapper for strategy signals (legacy support)

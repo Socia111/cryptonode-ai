@@ -272,10 +272,11 @@ interface TradingConfig {
 
 class AutoTradingEngine {
   private supabase: any
-  private client?: BybitV5Client
+  public client?: BybitV5Client
   private config?: TradingConfig
 
-  constructor(supabase: any) {
+  constructor(client: BybitV5Client, supabase: any) {
+    this.client = client
     this.supabase = supabase
   }
 
@@ -294,59 +295,123 @@ class AutoTradingEngine {
     })
   }
 
-  async executeSignal(signal: TradingSignal): Promise<any> {
-    await this.initializeClient()
-    
-    if (!this.client) {
-      throw new Error('Trading client not initialized')
+  async detectPositionMode(symbol: string): Promise<'one-way' | 'hedge'> {
+    try {
+      // Check account info to determine position mode
+      const accountInfo = await this.client!.signedRequest('GET', '/v5/account/info');
+      const unified = accountInfo.result?.unifiedMarginStatus;
+      
+      // For unified margin accounts, check position mode setting
+      if (unified) {
+        const positionInfo = await this.client!.signedRequest('GET', '/v5/position/list', {
+          category: 'linear',
+          symbol
+        });
+        
+        // If we can get position info, try to infer from existing positions
+        if (positionInfo.result?.list?.length > 0) {
+          const position = positionInfo.result.list[0];
+          return position.positionIdx === '0' ? 'one-way' : 'hedge';
+        }
+      }
+      
+      // Default to one-way mode for most accounts
+      return 'one-way';
+    } catch (error) {
+      console.warn("Could not detect position mode, defaulting to one-way:", error.message);
+      return 'one-way';
     }
+  }
 
-    // Validate signal
-    if (!isSymbolAllowed(signal.symbol)) {
-      throw new Error(`Symbol ${signal.symbol} not whitelisted`)
+  async executeOrder(symbol: string, side: string, qty: number, leverage?: number): Promise<any> {
+    try {
+      // Set leverage if provided
+      if (leverage) {
+        await this.setLeverage(symbol, leverage);
+      }
+
+      console.log(`Placing ${side} order for ${symbol}: ${qty} contracts`);
+      
+      // Detect position mode first
+      const positionMode = await this.detectPositionMode(symbol);
+      console.log(`Detected position mode: ${positionMode}`);
+      
+      let positionIdx: number;
+      if (positionMode === 'one-way') {
+        positionIdx = 0;
+      } else {
+        // Hedge mode: 1 for Buy/Long, 2 for Sell/Short
+        positionIdx = side === 'Buy' ? 1 : 2;
+      }
+
+      try {
+        const orderResult = await this.client!.signedRequest('POST', '/v5/order/create', {
+          category: 'linear',
+          symbol,
+          side,
+          orderType: 'Market',
+          qty: qty.toString(),
+          positionIdx
+        });
+        
+        console.log(`Order placed successfully with ${positionMode} mode (positionIdx: ${positionIdx}):`, orderResult);
+        return orderResult;
+      } catch (error) {
+        if (error.message?.includes('position idx not match position mode')) {
+          console.log(`${positionMode} mode failed, trying alternative position mode...`);
+          
+          // Try the opposite mode
+          const altPositionIdx = positionMode === 'one-way' ? (side === 'Buy' ? 1 : 2) : 0;
+          const altResult = await this.client!.signedRequest('POST', '/v5/order/create', {
+            category: 'linear',
+            symbol,
+            side,
+            orderType: 'Market',
+            qty: qty.toString(),
+            positionIdx: altPositionIdx
+          });
+          
+          console.log(`Order placed successfully with alternative mode (positionIdx: ${altPositionIdx}):`, altResult);
+          return altResult;
+        }
+        throw error;
+      }
+    } catch (error) {
+      console.error("Order execution failed:", error);
+      throw error;
     }
+  }
 
-    // Get instrument info and calculate proper size
-    const inst = await getInstrument(signal.symbol)
-    const price = await getMarkPrice(signal.symbol)
-    
-    const { qty } = computeOrderQtyUSD(
-      signal.notional || 10, 
-      signal.leverage || 1, 
-      price, 
-      inst
-    )
-
-    if (!qty || qty <= 0) {
-      throw new Error('Invalid quantity calculation')
+  async setLeverage(symbol: string, leverage: number): Promise<void> {
+    try {
+      await this.client!.signedRequest('POST', '/v5/position/set-leverage', {
+        category: 'linear',
+        symbol,
+        buyLeverage: leverage.toString(),
+        sellLeverage: leverage.toString()
+      });
+      console.log(`Set leverage to ${leverage}x for ${symbol}`);
+    } catch (error) {
+      console.warn(`Failed to set leverage for ${symbol}:`, error.message);
+      // Don't throw here - leverage setting failure shouldn't stop order execution
     }
+  }
 
-    // Place order
-    const orderData: any = {
-      category: inst.category,
-      symbol: signal.symbol,
-      side: signal.direction === 'BUY' ? 'Buy' : 'Sell',
-      orderType: 'Market',
-      qty: String(qty),
-      timeInForce: 'IOC'
+  async logExecution(params: any): Promise<void> {
+    try {
+      await this.supabase.from('trade_executions').insert({
+        symbol: params.symbol,
+        side: params.side,
+        amount_usd: params.amount_usd,
+        leverage: params.leverage,
+        status: params.status,
+        error_message: params.error_message,
+        metadata: params.metadata,
+        executed_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Failed to log execution:', error.message);
     }
-
-    // For linear contracts, add position index
-    if (inst.category === 'linear') {
-      orderData.positionIdx = 0  // Use one-way mode
-      orderData.reduceOnly = false
-    }
-
-    const result = await this.client.signedRequest('POST', '/v5/order/create', orderData)
-    
-    // Log to database
-    await this.logExecution(signal, result, {
-      calculatedQty: qty,
-      instrumentInfo: inst,
-      markPrice: price
-    })
-
-    return result
   }
 
   private async logExecution(signal: TradingSignal, result: any, metadata: any): Promise<void> {
@@ -448,49 +513,24 @@ serve(async (req) => {
           console.log(`Initial position config for ${symbol}: positionIdx=0 (OneWay), side=${side}`);
         }
 
-        // Execute order with position mode fallback
+        // Create engine instance with proper client
+        const bybitClient = new BybitV5Client({
+          apiKey: Deno.env.get('BYBIT_API_KEY')!,
+          apiSecret: Deno.env.get('BYBIT_API_SECRET')!,
+          testnet: false
+        });
+
+        const engine = new AutoTradingEngine(bybitClient, supabase);
+
+        // Execute order with enhanced position mode handling
         let result;
         try {
           console.log(`Attempting order execution for ${symbol}:`, orderData);
-          result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
-          console.log(`✅ Order executed successfully on first attempt for ${symbol}`);
+          result = await engine.executeOrder(symbol, side, qty, leverage);
+          console.log(`✅ Order executed successfully for ${symbol}`);
         } catch (error) {
-          console.log(`❌ First attempt failed for ${symbol}: ${error.message}`);
-          
-          // If position mode error, try hedge mode for linear contracts
-          if (inst.category === 'linear' && error.message?.includes('position')) {
-            console.log(`🔄 Retrying ${symbol} with hedge mode position index...`);
-            
-            // Try hedge mode: positionIdx 1 for Buy, 2 for Sell
-            orderData.positionIdx = side === 'Buy' ? 1 : 2;
-            console.log(`Hedge mode attempt: positionIdx=${orderData.positionIdx} for ${side} order`);
-            
-            try {
-              result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
-              console.log(`✅ Order executed successfully with hedge mode positionIdx=${orderData.positionIdx}`);
-            } catch (secondError) {
-              console.log(`❌ Hedge mode also failed for ${symbol}: ${secondError.message}`);
-              
-              // If hedge mode also fails, try the opposite hedge position
-              const fallbackIdx = side === 'Buy' ? 2 : 1;
-              orderData.positionIdx = fallbackIdx;
-              console.log(`🔄 Final attempt with fallback positionIdx=${fallbackIdx}`);
-              
-              try {
-                result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
-                console.log(`✅ Order executed successfully with fallback positionIdx=${fallbackIdx}`);
-              } catch (finalError) {
-                console.log(`💥 All position modes failed for ${symbol}:`, {
-                  oneWay: 'position idx not match position mode',
-                  hedge1: secondError.message,
-                  hedge2: finalError.message
-                });
-                throw new Error(`All position modes failed. OneWay: position mismatch, Hedge(${side === 'Buy' ? 1 : 2}): ${secondError.message}, Hedge(${fallbackIdx}): ${finalError.message}`);
-              }
-            }
-          } else {
-            throw error;
-          }
+          console.log(`❌ Order execution failed for ${symbol}: ${error.message}`);
+          throw error;
         }
         
         console.log('Order executed successfully:', { 
@@ -513,6 +553,33 @@ serve(async (req) => {
           amountUSD, 
           leverage 
         });
+
+        // Initialize engine for error logging if needed
+        let engine: AutoTradingEngine;
+        try {
+          const bybitClient = new BybitV5Client({
+            apiKey: Deno.env.get('BYBIT_API_KEY')!,
+            apiSecret: Deno.env.get('BYBIT_API_SECRET')!,
+            testnet: false
+          });
+          engine = new AutoTradingEngine(bybitClient, supabase);
+          
+          await engine.logExecution({
+            symbol,
+            side,
+            amount_usd: amountUSD,
+            leverage: leverage || 1,
+            status: 'failed',
+            error_message: error.message,
+            metadata: { 
+              error_details: error,
+              timestamp: new Date().toISOString()
+            }
+          });
+        } catch (logError) {
+          console.warn('Failed to log error execution:', logError.message);
+        }
+
         return json({
           success: false,
           message: error.message
