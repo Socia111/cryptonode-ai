@@ -4,14 +4,24 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shield, AlertTriangle, Activity, Zap, Ban } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Shield, AlertTriangle, Activity, Zap, Ban, Lock, DollarSign } from 'lucide-react';
 import { FEATURES } from '@/config/featureFlags';
+import { useToast } from '@/hooks/use-toast';
 
 export const ProductionControls = () => {
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [systemStatus, setSystemStatus] = useState<'healthy' | 'warning' | 'critical'>('healthy');
   const [dailyPnL, setDailyPnL] = useState(0);
   const [orderCount, setOrderCount] = useState(0);
+  const [showSafetyGate, setShowSafetyGate] = useState(false);
+  const [passphrase, setPassphrase] = useState('');
+  const [confirmationStep, setConfirmationStep] = useState(0);
+  const { toast } = useToast();
+
+  const REQUIRED_PASSPHRASE = 'ENABLE LIVE TRADING';
 
   const handleEmergencyStop = () => {
     if (confirm('🚨 EMERGENCY STOP: This will immediately disable all live trading. Continue?')) {
@@ -22,11 +32,56 @@ export const ProductionControls = () => {
   };
 
   const handleModeToggle = (enabled: boolean) => {
-    if (enabled && !confirm('⚠️ Enable LIVE TRADING? Real money will be used!')) {
+    if (enabled) {
+      // Opening the safety gate for live trading
+      setShowSafetyGate(true);
+      setPassphrase('');
+      setConfirmationStep(0);
+    } else {
+      // Disabling live trading - no confirmation needed
+      setIsLiveMode(false);
+      console.log('📋 PAPER trading mode activated');
+      toast({
+        title: "Paper Trading Enabled",
+        description: "All trades are now simulated",
+        variant: "default"
+      });
+    }
+  };
+
+  const handleSafetyGateConfirm = () => {
+    if (passphrase !== REQUIRED_PASSPHRASE) {
+      toast({
+        title: "Incorrect Passphrase",
+        description: `Please type exactly: "${REQUIRED_PASSPHRASE}"`,
+        variant: "destructive"
+      });
       return;
     }
-    setIsLiveMode(enabled);
-    console.log(`${enabled ? '🔴 LIVE' : '📋 PAPER'} trading mode activated`);
+
+    if (confirmationStep < 2) {
+      setConfirmationStep(confirmationStep + 1);
+      return;
+    }
+
+    // Final confirmation - enable live trading
+    setIsLiveMode(true);
+    setShowSafetyGate(false);
+    setPassphrase('');
+    setConfirmationStep(0);
+    
+    console.log('🔴 LIVE trading mode activated');
+    toast({
+      title: "⚠️ LIVE TRADING ENABLED",
+      description: "Real money trades are now active",
+      variant: "destructive"
+    });
+  };
+
+  const closeSafetyGate = () => {
+    setShowSafetyGate(false);
+    setPassphrase('');
+    setConfirmationStep(0);
   };
 
   const getStatusColor = (status: string) => {
@@ -161,6 +216,86 @@ export const ProductionControls = () => {
           <p>✅ Risk/Reward ratio: ≥2:1</p>
         </div>
       </CardContent>
+
+      {/* Safety Gate Modal */}
+      <Dialog open={showSafetyGate} onOpenChange={setShowSafetyGate}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Lock className="h-5 w-5" />
+              Live Trading Safety Gate
+            </DialogTitle>
+            <DialogDescription>
+              You are about to enable live trading with real money. Please confirm you understand the risks.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {confirmationStep === 0 && (
+              <Alert variant="destructive">
+                <DollarSign className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>WARNING:</strong> Live trading will use real money. 
+                  Losses can exceed your initial investment. Only enable if you fully understand the risks.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {confirmationStep === 1 && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Confirm:</strong> You have tested the system thoroughly on testnet and dry-run mode, 
+                  and are ready to proceed with live trading.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {confirmationStep === 2 && (
+              <div className="space-y-3">
+                <Alert variant="destructive">
+                  <Ban className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>FINAL WARNING:</strong> This action cannot be undone automatically. 
+                    Live trades will be placed immediately when signals are generated.
+                  </AlertDescription>
+                </Alert>
+                
+                <div>
+                  <Label htmlFor="passphrase">
+                    Type the exact phrase to confirm: <code className="bg-muted px-1 rounded text-sm">{REQUIRED_PASSPHRASE}</code>
+                  </Label>
+                  <Input
+                    id="passphrase"
+                    value={passphrase}
+                    onChange={(e) => setPassphrase(e.target.value)}
+                    placeholder="Type the passphrase exactly..."
+                    className="mt-2"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="text-sm text-muted-foreground">
+              <p>Step {confirmationStep + 1} of 3</p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex justify-between">
+            <Button variant="outline" onClick={closeSafetyGate}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleSafetyGateConfirm}
+              disabled={confirmationStep === 2 && passphrase !== REQUIRED_PASSPHRASE}
+            >
+              {confirmationStep === 2 ? 'ENABLE LIVE TRADING' : 'Continue'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
