@@ -154,3 +154,9 @@ verify_jwt = false
 
 [functions.direct-3commas-test]
 verify_jwt = false
+
+[functions.3commas-authenticate]
+verify_jwt = true
+
+[functions.bybit-authenticate]
+verify_jwt = true
