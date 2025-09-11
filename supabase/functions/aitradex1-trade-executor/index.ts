@@ -154,17 +154,9 @@ function computeOrderQtyUSD(
   return { qty, targetNotional };
 }
 
-// =================== STRUCTURED LOGGING ===================
-
-const structuredLog = (event: string, data: Record<string, any> = {}) => {
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    event,
-    requestId: data.requestId || crypto.randomUUID(),
-    ...data
-  };
-  console.log(JSON.stringify(logEntry));
-  return logEntry.requestId;
+// Simple logging utility
+const log = (message: string, data?: any) => {
+  console.log(message, data || '');
 };
 
 // =================== BYBIT V5 API INTEGRATION ===================
@@ -246,48 +238,8 @@ class BybitV5Client {
     return data
   }
 
-  // Get account position mode (OneWay vs Hedge)
-  async getPositionMode(symbol: string, category: string): Promise<number> {
-    try {
-      // First, try to get account info to check position mode
-      const accountData = await this.signedRequest('GET', '/v5/account/info', {})
-      
-      // For unified account, we need to check position mode specifically
-      if (category === 'linear') {
-        // Try to get position info for this symbol to determine mode
-        const positionData = await this.signedRequest('GET', '/v5/position/list', {
-          category,
-          symbol,
-          limit: 1
-        })
-        
-        // If we get positions back, use their positionIdx
-        if (positionData?.result?.list?.length > 0) {
-          const positionIdx = Number(positionData.result.list[0].positionIdx) || 0
-          structuredLog('info', 'Found existing position, using its positionIdx', { 
-            symbol, 
-            positionIdx,
-            mode: positionIdx === 0 ? 'OneWay' : 'Hedge'
-          })
-          return positionIdx
-        }
-        
-        // No existing positions - try both modes to see which works
-        // Default to One-Way mode (0) which is most common
-        structuredLog('info', 'No existing positions, defaulting to OneWay mode', { symbol })
-        return 0
-      }
-      
-      // For spot trading, always return 0 (no position modes)
-      return 0
-    } catch (error) {
-      structuredLog('warn', 'Failed to determine position mode, defaulting to OneWay', { 
-        symbol, 
-        category,
-        error: error.message 
-      })
-      return 0
-    }
+  async getAccountInfo(): Promise<any> {
+    return await this.signedRequest('GET', '/v5/account/info', {})
   }
 }
 
@@ -379,11 +331,9 @@ class AutoTradingEngine {
       timeInForce: 'IOC'
     }
 
-    // For linear contracts, we need to handle position mode correctly
+    // For linear contracts, add position index
     if (inst.category === 'linear') {
-      // Get the appropriate positionIdx based on account mode
-      const positionIdx = await this.client.getPositionMode(signal.symbol, inst.category)
-      orderData.positionIdx = positionIdx
+      orderData.positionIdx = 0  // Use one-way mode
       orderData.reduceOnly = false
     }
 
@@ -408,7 +358,7 @@ class AutoTradingEngine {
         executed_at: new Date().toISOString()
       })
     } catch (error) {
-      structuredLog('error', 'Failed to log execution', { error: error.message })
+      console.error('Failed to log execution:', error.message)
     }
   }
 }
@@ -437,7 +387,7 @@ serve(async (req) => {
     const requestBody = await req.json();
     const { action, symbol, side, amountUSD, leverage } = requestBody;
     
-    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
+    console.log('Trade executor called:', { action, symbol, side, amountUSD, leverage });
 
     // Handle status requests
     if (action === 'status') {
@@ -459,7 +409,7 @@ serve(async (req) => {
         }, 400);
       }
 
-      structuredLog('info', 'Trade execution request', {
+      console.log('Trade execution request:', {
         symbol,
         side,
         amountUSD,
@@ -491,97 +441,23 @@ serve(async (req) => {
           timeInForce: 'IOC'
         }
 
-        // Initialize trading engine and client once
+        // Place the order directly
         const engine = new AutoTradingEngine(supabase);
         await engine.initializeClient();
 
-        // For linear contracts, handle position mode correctly
+        // For linear contracts, add position index
         if (inst.category === 'linear') {
-          // Try to determine the correct position mode
-          let positionIdx = 0; // Default to OneWay mode
-          
-          try {
-            // Check if account has any existing positions to determine mode
-            const accountInfo = await engine.client!.signedRequest('GET', '/v5/account/info', {})
-            structuredLog('info', 'Account info retrieved', { 
-              accountType: accountInfo?.result?.accountType || 'unknown'
-            })
-            
-            // For unified accounts, we need to be more careful about position mode
-            // Try to get existing positions first
-            try {
-              const positionData = await engine.client!.signedRequest('GET', '/v5/position/list', {
-                category: 'linear',
-                symbol,
-                limit: 1
-              })
-              
-              if (positionData?.result?.list?.length > 0) {
-                positionIdx = Number(positionData.result.list[0].positionIdx) || 0
-                structuredLog('info', 'Using positionIdx from existing position', { positionIdx })
-              }
-            } catch (posError) {
-              structuredLog('warn', 'Could not get position info', { error: posError.message })
-            }
-          } catch (accountError) {
-            structuredLog('warn', 'Could not get account info', { error: accountError.message })
-          }
-          
-          orderData.positionIdx = positionIdx
+          orderData.positionIdx = 0  // Use one-way mode
           orderData.reduceOnly = false
-          
-          structuredLog('info', 'Position configuration set', {
-            symbol,
-            category: inst.category,
-            positionIdx,
-            mode: positionIdx === 0 ? 'OneWay' : 'Hedge'
-          })
         }
 
-        // Execute the order with retry logic for position mode
-        let result;
-        let lastError;
+        const result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
         
-        // Try the detected position mode first
-        try {
-          result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
-        } catch (error) {
-          lastError = error;
-          structuredLog('warn', 'First attempt failed, trying alternative position mode', { 
-            error: error.message,
-            originalPositionIdx: orderData.positionIdx 
-          })
-          
-          // If it's a position mode error and we're in linear category, try the opposite mode
-          if (inst.category === 'linear' && error.message?.includes('position')) {
-            const alternativeIdx = orderData.positionIdx === 0 ? 1 : 0
-            orderData.positionIdx = alternativeIdx
-            
-            try {
-              structuredLog('info', 'Retrying with alternative positionIdx', { 
-                symbol,
-                newPositionIdx: alternativeIdx
-              })
-              result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
-            } catch (secondError) {
-              // If both modes fail, throw the original error
-              structuredLog('error', 'Both position modes failed', {
-                originalError: error.message,
-                secondError: secondError.message
-              })
-              throw error
-            }
-          } else {
-            throw error
-          }
-        }
-
-        structuredLog('info', 'Order executed successfully', { 
+        console.log('Order executed successfully:', { 
           symbol, 
           side, 
           qty, 
-          category: inst.category, 
-          positionIdx: orderData.positionIdx,
+          category: inst.category,
           orderId: result?.result?.orderId 
         });
 
@@ -590,7 +466,7 @@ serve(async (req) => {
           data: result
         });
       } catch (error) {
-        structuredLog('error', 'Trade execution failed', { 
+        console.error('Trade execution failed:', { 
           error: error.message, 
           symbol, 
           side, 
@@ -611,7 +487,7 @@ serve(async (req) => {
     }, 400);
 
   } catch (error) {
-    structuredLog('error', 'Execution error', { error: error.message });
+    console.error('Execution error:', error.message);
     
     return json({
       success: false,
