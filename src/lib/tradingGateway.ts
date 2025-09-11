@@ -33,7 +33,7 @@ export const TradingGateway = {
     }
 
     try {
-      console.log('🚀 Executing trade:', params);
+      console.log('🚀 Executing live trade via Bybit API:', params);
       
       const functionsBase = getFunctionsBaseUrl();
       const sessionToken = await getSessionToken();
@@ -42,35 +42,26 @@ export const TradingGateway = {
         'content-type': 'application/json',
       };
       
-      // Add authorization header if we have a session token
       if (sessionToken) {
         headers['authorization'] = `Bearer ${sessionToken}`;
       }
       
-      const idempotencyKey = `web-${params.symbol}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Convert to Bybit signal format
+      const bybitSignal = {
+        symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT
+        side: params.side === 'BUY' ? 'Buy' : 'Sell',
+        orderType: 'Market',
+        qty: (params.notionalUSD * 0.001).toFixed(6), // Convert notional to quantity
+        timeInForce: 'IOC'
+      };
       
-      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
+      const response = await fetch(`${functionsBase}/bybit-live-trading`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          action: 'signal',
-          idempotencyKey,
-          signal: {
-            symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT for Bybit
-            direction: params.side === 'BUY' ? 'LONG' : 'SHORT',
-            entry_price: 0, // Will be determined by market price
-            stop_loss: 0, // Will be calculated based on risk
-            take_profit: 0, // Will be calculated based on profit target
-            confidence_score: 85, // Default confidence for manual trades
-            pms_score: 0.8, // Default PMS score for manual trades
-            risk_reward_ratio: 2.0, // Default RR ratio
-            regime: 'trending', // Default regime
-            atr: 0.01, // Default ATR
-            indicators: {
-              notionalUSD: params.notionalUSD,
-              leverage: 3
-            }
-          }
+          action: 'place_order',
+          signal: bybitSignal,
+          testMode: false // Set to true for paper trading
         })
       });
 
@@ -88,16 +79,72 @@ export const TradingGateway = {
       
       if (!data.success) {
         console.error('❌ Trade execution failed:', data);
-        const errorMessage = data?.reason || data?.message || 'Unknown error';
+        const errorMessage = data?.error || data?.message || 'Unknown error';
         return { ok: false, code: 'TRADE_FAILED', message: errorMessage };
       }
 
       console.log('✅ Live trade executed successfully:', data);
-      return { ok: true, data: data.result || data };
+      return { ok: true, data: data.data || data };
       
     } catch (error: any) {
       console.error('❌ Trading gateway error:', error);
       return { ok: false, code: 'NETWORK_ERROR', message: error.message };
+    }
+  },
+
+  async getPositions() {
+    try {
+      const functionsBase = getFunctionsBaseUrl();
+      const sessionToken = await getSessionToken();
+      
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+      };
+      
+      if (sessionToken) {
+        headers['authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const response = await fetch(`${functionsBase}/bybit-live-trading`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'positions' })
+      });
+
+      const data = await response.json();
+      return { ok: data.success, data: data.data };
+      
+    } catch (error: any) {
+      console.error('❌ Error fetching positions:', error);
+      return { ok: false, error: error.message };
+    }
+  },
+
+  async getBalance() {
+    try {
+      const functionsBase = getFunctionsBaseUrl();
+      const sessionToken = await getSessionToken();
+      
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+      };
+      
+      if (sessionToken) {
+        headers['authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const response = await fetch(`${functionsBase}/bybit-live-trading`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'balance' })
+      });
+
+      const data = await response.json();
+      return { ok: data.success, data: data.data };
+      
+    } catch (error: any) {
+      console.error('❌ Error fetching balance:', error);
+      return { ok: false, error: error.message };
     }
   },
 

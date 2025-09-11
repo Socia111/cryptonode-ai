@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Wifi, 
   WifiOff, 
@@ -16,13 +17,18 @@ import {
   Database,
   Shield,
   Gauge,
-  Target
+  Target,
+  BarChart3
 } from 'lucide-react';
 import CleanSignalsList from './CleanSignalsList';
 import AutoTradingToggle from './AutoTradingToggle';
 import PerformancePanel from './PerformancePanel';
+import LiveTradingSetup from './LiveTradingSetup';
+import { TradingDiagnostics } from './TradingDiagnostics';
 
 const TradingDashboard = () => {
+  const [activeTab, setActiveTab] = useState('signals');
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Simplified Header */}
@@ -81,122 +87,48 @@ const TradingDashboard = () => {
         </div>
       </div>
 
-      {/* Merged Strategy & Risk Settings */}
-
-      <Card className="border border-primary/20 glow-primary animate-scale-in">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg gradient-primary">
-                <Zap className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <CardTitle className="text-xl">Strategy Engine & Risk Management</CardTitle>
-                <p className="text-sm text-muted-foreground">Advanced AI analysis with risk controls</p>
-              </div>
-            </div>
-            <Badge className="bg-gradient-to-r from-primary to-secondary text-white border-0">
-              ACTIVE
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Performance Overview */}
-          <div className="grid grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-chart-bearish mb-1">12.4%</div>
-              <div className="text-sm text-muted-foreground">Daily ROI</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-chart-bullish mb-1">76.8%</div>
-              <div className="text-sm text-muted-foreground">Win Rate</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-warning mb-1">2.5</div>
-              <div className="text-sm text-muted-foreground">Avg R:R</div>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Unified Strategy & Risk Settings */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold flex items-center gap-2">
-                <Settings className="w-4 h-4" />
-                Trading Configuration
-              </h4>
-              <Button variant="outline" size="sm">Configure</Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium">Position Size: 2%</span>
-                    <span className="text-sm text-muted-foreground">Per Trade</span>
-                  </div>
-                  <Progress value={40} className="h-2" />
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium">Min Confidence: 80%</span>
-                    <span className="text-sm text-muted-foreground">Signal Threshold</span>
-                  </div>
-                  <Progress value={80} className="h-2" />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium">Max Positions: 3</span>
-                    <span className="text-sm text-muted-foreground">Concurrent Trades</span>
-                  </div>
-                  <Progress value={60} className="h-2" />
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium">Daily Loss Cap: 10%</span>
-                    <span className="text-sm text-muted-foreground">Risk Limit</span>
-                  </div>
-                  <Progress value={25} className="h-2" />
-                </div>
-              </div>
-            </div>
-
-            {/* Trading Mode & Features */}
-            <div className="pt-4 border-t border-border/50">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Deep Protect (ETH/BTC)</span>
-                  <Badge variant="secondary">Enabled</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Compound Profits</span>
-                  <Badge variant="secondary">Active</Badge>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Main Trading Interface */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel - Live Signals */}
-        <div className="lg:col-span-2">
-          <CleanSignalsList />
-        </div>
-
-        {/* Right Panel - Controls & Performance */}
-        <div className="space-y-6">
-          <AutoTradingToggle />
-          <PerformancePanel />
-        </div>
+      {/* Trading Mode Toggle */}
+      <div className="flex justify-center mb-6">
+        <AutoTradingToggle />
       </div>
+
+      {/* Main Tabs Interface */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="signals" className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            Signals
+          </TabsTrigger>
+          <TabsTrigger value="performance" className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Performance
+          </TabsTrigger>
+          <TabsTrigger value="setup" className="flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            Live Setup
+          </TabsTrigger>
+          <TabsTrigger value="diagnostics" className="flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            Diagnostics
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="signals" className="space-y-6">
+          <CleanSignalsList />
+        </TabsContent>
+        
+        <TabsContent value="performance" className="space-y-6">
+          <PerformancePanel />
+        </TabsContent>
+        
+        <TabsContent value="setup" className="space-y-6">
+          <LiveTradingSetup />
+        </TabsContent>
+        
+        <TabsContent value="diagnostics" className="space-y-6">
+          <TradingDiagnostics />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

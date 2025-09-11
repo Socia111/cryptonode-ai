@@ -1,12 +1,42 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, TrendingDown, Activity, AlertTriangle, X } from 'lucide-react';
+import { TradingGateway } from '@/lib/tradingGateway';
 
 const PerformancePanel = () => {
+  const [realPositions, setRealPositions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch real positions from Bybit
+  const fetchPositions = async () => {
+    setLoading(true);
+    try {
+      const result = await TradingGateway.getPositions();
+      if (result.ok && result.data?.list) {
+        // Filter only positions with size > 0
+        const activePositions = result.data.list.filter((pos: any) => 
+          parseFloat(pos.size) > 0
+        );
+        setRealPositions(activePositions);
+      }
+    } catch (error) {
+      console.error('Error fetching positions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPositions();
+    // Refresh positions every 30 seconds
+    const interval = setInterval(fetchPositions, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // DEMO MODE: No real trades - this is mock data for UI demonstration
-  const activeTrades: any[] = []; // Replace with real Bybit positions API integration
+  const activeTrades: any[] = realPositions.length > 0 ? realPositions : [];
 
   return (
     <div className="space-y-6">
