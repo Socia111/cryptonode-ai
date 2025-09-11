@@ -14,9 +14,11 @@ serve(async (req) => {
   }
 
   try {
-    // Get environment variables - these should be available as secrets in Supabase
-    const bybitApiKey = Deno.env.get('BYBIT_API_KEY');
-    const bybitApiSecret = Deno.env.get('BYBIT_API_SECRET');
+    // Standardized environment variables with fallbacks
+    const bybitApiKey = Deno.env.get('BYBIT_API_KEY') ?? Deno.env.get('BYBIT_KEY');
+    const bybitApiSecret = Deno.env.get('BYBIT_API_SECRET') ?? Deno.env.get('BYBIT_SECRET');
+    const baseUrl = Deno.env.get('BYBIT_BASE') ?? 'https://api-testnet.bybit.com';
+    const liveTrading = Deno.env.get('LIVE_TRADING_ENABLED') === 'true';
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -26,7 +28,7 @@ serve(async (req) => {
     console.log('  - BYBIT_API_KEY length:', bybitApiKey?.length);
     console.log('  - BYBIT_API_SECRET length:', bybitApiSecret?.length);
 
-    // Check environment variables
+    // Enhanced environment status
     const envStatus = {
       hasApiKey: !!bybitApiKey && bybitApiKey.length > 0,
       apiKeyLength: bybitApiKey?.length || 0,
@@ -35,24 +37,36 @@ serve(async (req) => {
       apiSecretLength: bybitApiSecret?.length || 0,
       hasSupabaseUrl: !!supabaseUrl,
       hasSupabaseKey: !!supabaseServiceKey,
-      rawApiKey: bybitApiKey, // Show actual value for debugging
-      rawApiSecret: bybitApiSecret ? `${bybitApiSecret.substring(0, 6)}...` : 'None'
+      baseUrl: baseUrl,
+      liveTrading: liveTrading,
+      isTestnet: baseUrl.includes('testnet'),
+      configurationStatus: (!bybitApiKey || !bybitApiSecret) ? 'MISSING_CREDENTIALS' : 'CONFIGURED'
     };
 
-    // Test Bybit API connectivity (simple server time check)
-    let bybitStatus = { connected: false, error: null };
+    // Test Bybit API connectivity using configured base URL
+    let bybitStatus = { connected: false, error: null, baseUrl: baseUrl };
     try {
-      const response = await fetch('https://api.bybit.com/v5/market/time');
+      const response = await fetch(`${baseUrl}/v5/market/time`);
       if (response.ok) {
         const data = await response.json();
-        bybitStatus = { connected: true, serverTime: data.result?.timeSecond };
+        bybitStatus = { 
+          connected: true, 
+          serverTime: data.result?.timeSecond,
+          baseUrl: baseUrl,
+          environment: baseUrl.includes('testnet') ? 'testnet' : 'mainnet'
+        };
       } else {
-        bybitStatus = { connected: false, error: `HTTP ${response.status}` };
+        bybitStatus = { 
+          connected: false, 
+          error: `HTTP ${response.status}`,
+          baseUrl: baseUrl 
+        };
       }
     } catch (error) {
       bybitStatus = { 
         connected: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        baseUrl: baseUrl
       };
     }
 

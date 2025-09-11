@@ -57,11 +57,12 @@ async function bybitApiCall(
   params: any = {}, 
   apiKey: string, 
   apiSecret: string,
-  isTestnet: boolean = false
+  isTestnet: boolean = false,
+  customBaseUrl?: string
 ): Promise<BybitResponse> {
-  const baseUrl = isTestnet 
+  const baseUrl = customBaseUrl || (isTestnet 
     ? 'https://api-testnet.bybit.com' 
-    : 'https://api.bybit.com';
+    : 'https://api.bybit.com');
     
   const timestamp = Date.now().toString();
   const recv_window = '5000';
@@ -197,21 +198,40 @@ serve(async (req) => {
   try {
     const { action, signal, testMode = true, idempotencyKey, ...params } = await req.json();
     
-    // Get environment variables
-    const apiKey = Deno.env.get('BYBIT_API_KEY');
-    const apiSecret = Deno.env.get('BYBIT_API_SECRET');
+    // Standardized environment variables with fallbacks
+    const apiKey = Deno.env.get('BYBIT_API_KEY') ?? Deno.env.get('BYBIT_KEY');
+    const apiSecret = Deno.env.get('BYBIT_API_SECRET') ?? Deno.env.get('BYBIT_SECRET');
+    const baseUrl = Deno.env.get('BYBIT_BASE') ?? 'https://api-testnet.bybit.com';
     const liveTrading = Deno.env.get('LIVE_TRADING_ENABLED') === 'true';
-    const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || testMode || !liveTrading;
+    const isTestnet = baseUrl.includes('testnet') || testMode || !liveTrading;
     
+    console.log('🔧 Environment Check:');
+    console.log('- API Key present:', !!apiKey, apiKey ? `(${apiKey.length} chars)` : '');
+    console.log('- API Secret present:', !!apiSecret, apiSecret ? `(${apiSecret.length} chars)` : '');
+    console.log('- Base URL:', baseUrl);
+    console.log('- Live Trading:', liveTrading);
+    console.log('- Is Testnet:', isTestnet);
+    
+    // Validate credentials with detailed diagnostics
     if (!apiKey || !apiSecret) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Bybit API credentials not configured',
-          code: 'MISSING_CREDENTIALS'
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error('❌ Missing API credentials');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Missing Bybit API credentials. Please configure BYBIT_API_KEY and BYBIT_API_SECRET in Supabase Edge Function secrets.',
+        code: 'MISSING_CREDENTIALS',
+        diagnostics: {
+          hasApiKey: !!apiKey,
+          hasApiSecret: !!apiSecret,
+          baseUrl: baseUrl,
+          liveTrading: liveTrading,
+          isTestnet: isTestnet,
+          configurationHelp: 'Go to Supabase Dashboard → Functions → Secrets to add BYBIT_API_KEY and BYBIT_API_SECRET'
+        },
+        action: action
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     // Master kill switch check
@@ -307,19 +327,52 @@ serve(async (req) => {
         break;
         
       case 'status':
-        // Health check endpoint
-        result = {
-          retCode: 0,
-          retMsg: 'OK',
-          result: {
-            status: 'connected',
-            testnet: isTestnet,
-            live_trading_enabled: liveTrading,
-            whitelisted_symbols: WHITELISTED_SYMBOLS,
-            min_notional_usd: MIN_NOTIONAL_USD,
-            timestamp: new Date().toISOString()
-          }
-        };
+        // Enhanced status check with API connectivity test
+        try {
+          const serverTimeResponse = await fetch(`${baseUrl}/v5/market/time`);
+          const serverTimeData = await serverTimeResponse.json();
+          
+          result = {
+            retCode: 0,
+            retMsg: 'OK',
+            result: {
+              status: 'connected',
+              testnet: isTestnet,
+              live_trading_enabled: liveTrading,
+              whitelisted_symbols: WHITELISTED_SYMBOLS,
+              min_notional_usd: MIN_NOTIONAL_USD,
+              timestamp: new Date().toISOString(),
+              environment: {
+                hasApiKey: !!apiKey,
+                hasApiSecret: !!apiSecret,
+                baseUrl: baseUrl,
+                liveTrading: liveTrading,
+                isTestnet: isTestnet
+              },
+              connectivity: {
+                bybitServerTime: serverTimeData.result?.timeSecond || null,
+                connected: serverTimeResponse.ok,
+                bybitStatus: serverTimeData.retMsg || 'Unknown'
+              }
+            }
+          };
+        } catch (connectError) {
+          result = {
+            retCode: 1,
+            retMsg: `Connectivity Error: ${connectError.message}`,
+            result: {
+              status: 'connectivity_error',
+              error: `Cannot connect to Bybit API: ${connectError.message}`,
+              environment: {
+                hasApiKey: !!apiKey,
+                hasApiSecret: !!apiSecret,
+                baseUrl: baseUrl,
+                liveTrading: liveTrading,
+                isTestnet: isTestnet
+              }
+            }
+          };
+        }
         break;
         
       default:
