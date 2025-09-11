@@ -22,8 +22,6 @@ import Automation from "./pages/Automation";
 import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import AuthGuard from "./components/AuthGuard";
-
 const queryClient = new QueryClient();
 
 function App() {
@@ -48,21 +46,21 @@ function App() {
         <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/" element={<AuthGuard><Index /></AuthGuard>} />
-          <Route path="/home" element={<AuthGuard><Home /></AuthGuard>} />
-          <Route path="/health" element={<AuthGuard><Health /></AuthGuard>} />
-            <Route path="/AITRADEX1ORIGINAL" element={<AuthGuard><AItradeX1Original /></AuthGuard>} />
-            <Route path="/X" element={<AuthGuard><X /></AuthGuard>} />
-            <Route path="/X1" element={<AuthGuard><X1 /></AuthGuard>} />
-            <Route path="/X2" element={<AuthGuard><X2 /></AuthGuard>} />
-            <Route path="/trade" element={<AuthGuard><Trade /></AuthGuard>} />
-            <Route path="/portfolio" element={<AuthGuard><Portfolio /></AuthGuard>} />
-            <Route path="/signals" element={<AuthGuard><Signals /></AuthGuard>} />
-            <Route path="/markets" element={<AuthGuard><Markets /></AuthGuard>} />
-            <Route path="/backtests" element={<AuthGuard><Backtests /></AuthGuard>} />
-            <Route path="/automation" element={<AuthGuard><Automation /></AuthGuard>} />
-            <Route path="/alerts" element={<AuthGuard><Alerts /></AuthGuard>} />
-            <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
+          <Route path="/" element={<Index />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/health" element={<Health />} />
+            <Route path="/AITRADEX1ORIGINAL" element={<AItradeX1Original />} />
+            <Route path="/X" element={<X />} />
+            <Route path="/X1" element={<X1 />} />
+            <Route path="/X2" element={<X2 />} />
+            <Route path="/trade" element={<Trade />} />
+            <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/signals" element={<Signals />} />
+            <Route path="/markets" element={<Markets />} />
+            <Route path="/backtests" element={<Backtests />} />
+            <Route path="/automation" element={<Automation />} />
+            <Route path="/alerts" element={<Alerts />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
