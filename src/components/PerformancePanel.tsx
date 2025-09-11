@@ -5,36 +5,8 @@ import { Button } from '@/components/ui/button';
 import { TrendingUp, TrendingDown, Activity, AlertTriangle, X } from 'lucide-react';
 
 const PerformancePanel = () => {
-  // Mock data for active trades
-  const activeTrades = [
-    {
-      id: 1,
-      symbol: 'BTCUSDT',
-      direction: 'LONG',
-      entry: 42500,
-      current: 42750,
-      pnl: 25.50,
-      pnlPercent: 0.59
-    },
-    {
-      id: 2,
-      symbol: 'ETHUSDT',
-      direction: 'SHORT',
-      entry: 2650,
-      current: 2625,
-      pnl: 18.75,
-      pnlPercent: 0.94
-    },
-    {
-      id: 3,
-      symbol: 'SOLUSDT',
-      direction: 'LONG',
-      entry: 145.20,
-      current: 143.80,
-      pnl: -12.25,
-      pnlPercent: -0.96
-    }
-  ];
+  // DEMO MODE: No real trades - this is mock data for UI demonstration
+  const activeTrades: any[] = []; // Replace with real Bybit positions API integration
 
   return (
     <div className="space-y-6">
