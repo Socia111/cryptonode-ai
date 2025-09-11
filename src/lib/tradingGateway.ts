@@ -9,13 +9,9 @@ export type ExecParams = {
   leverage?: number     // new: leverage (1-100x)
 }
 
-// Get the functions base URL dynamically from supabase client
+// Get the functions base URL using the hardcoded Supabase URL
 function getFunctionsBaseUrl(): string {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  if (!supabaseUrl) {
-    throw new Error('VITE_SUPABASE_URL environment variable is not set');
-  }
-  return supabaseUrl.replace('.supabase.co', '.functions.supabase.co');
+  return 'https://codhlwjogfjywmjyjbbn.functions.supabase.co';
 }
 
 async function getSessionToken(): Promise<string | null> {
