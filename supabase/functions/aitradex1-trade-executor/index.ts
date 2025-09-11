@@ -408,10 +408,7 @@ interface TradingConfig {
 // Idempotency cache for preventing duplicate orders
 const idempotencyCache = new Map<string, any>();
 
-// Helper function to round to exchange step size
-function roundToStep(value: number, stepSize: number): number {
-  return Math.floor(value / stepSize) * stepSize;
-}
+// Idempotency cache for preventing duplicate orders
 
 class AutoTradingEngine {
   private supabase: any
