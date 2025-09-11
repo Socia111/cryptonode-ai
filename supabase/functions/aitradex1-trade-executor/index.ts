@@ -709,45 +709,6 @@ class AutoTradingEngine {
       return result;
     }
   }
-
-      structuredLog('order_result', {
-        requestId,
-        retCode: orderResult.retCode || 0,
-        retMsg: orderResult.retMsg || 'success',
-        exchange_order_id: orderResult.result?.orderId,
-        symbol: signal.symbol
-      });
-
-      // 10. Store order in database
-      const { data: dbOrder, error: orderError } = await this.supabase
-        .from('trading_orders')
-        .insert({
-          signal_id: dbSignal.id,
-          exchange_order_id: orderResult.result.orderId,
-          client_order_id: orderResult.result.orderLinkId,
-          exchange: 'bybit',
-          symbol: signal.symbol,
-          side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
-          order_type: this.config.maker_only ? 'Limit' : 'Market',
-          qty: parseFloat(qty.toString()),
-          price: this.config.maker_only ? entryPrice : null,
-          time_in_force: this.config.maker_only ? 'PostOnly' : 'GTC',
-          leverage: this.config.default_leverage,
-          status: 'new',
-          raw_response: orderResult
-        })
-        .select()
-        .single()
-
-      if (orderError) throw orderError
-
-      // 11. Set stop loss and take profit with proper precision
-      if (orderResult.result.orderId && signal.stop_loss && signal.take_profit) {
-        try {
-          await this.bybit.setTradingStop({
-            symbol: signal.symbol,
-            stopLoss: toTick(signal.stop_loss, instrumentMeta.tickSize).toString(),
-            takeProfit: toTick(signal.take_profit, instrumentMeta.tickSize).toString(),
             tpTriggerBy: 'LastPrice',
             slTriggerBy: 'LastPrice'
           })
