@@ -49,9 +49,10 @@ export const TradingGateway = {
         'authorization': `Bearer ${sessionToken}`,
       };
       
-      // Convert to Bybit signal format
-      const amount = params.amountUSD || params.notionalUSD || 25; // fallback to old param or default
-      const leverage = params.leverage || 1;
+      // Ensure minimum $5 order size (Bybit requirement)
+      const baseAmount = params.amountUSD || params.notionalUSD || 5;
+      const amount = Math.max(baseAmount, 5); // Minimum $5
+      const leverage = Math.max(params.leverage || 1, 1);
       
       const bybitSignal = {
         symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT
