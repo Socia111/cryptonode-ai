@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { TestTube, CheckCircle2, XCircle, AlertTriangle, Loader2, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,6 +24,7 @@ export const TestnetTradeTest = () => {
   const [testSymbol, setTestSymbol] = useState('BTCUSDT');
   const [testAmount, setTestAmount] = useState('10');
   const [testSide, setTestSide] = useState<'Buy' | 'Sell'>('Buy');
+  const [dryRunMode, setDryRunMode] = useState(false);
   const { toast } = useToast();
 
   const runFullTestSequence = async () => {
@@ -50,14 +52,17 @@ export const TestnetTradeTest = () => {
       const balanceResult = await testAccountBalance();
       results.push(balanceResult);
 
-      // Test 3: Small test trade (only if testnet)
-      if (statusResult.data?.isTestnet) {
+      // Test 3: Order validation or actual trade
+      if (dryRunMode) {
+        const dryRunResult = await testOrderValidation();
+        results.push(dryRunResult);
+      } else if (statusResult.data?.isTestnet) {
         const tradeResult = await testSmallTrade();
         results.push(tradeResult);
       } else {
         results.push({
           success: false,
-          error: "NOT ON TESTNET - Live trading test skipped for safety",
+          error: "NOT ON TESTNET - Live trading test skipped for safety. Use Dry-Run Mode instead.",
           timestamp: new Date().toISOString()
         });
       }
@@ -135,6 +140,50 @@ export const TestnetTradeTest = () => {
     }
   };
 
+  const testOrderValidation = async (): Promise<TestResult> => {
+    try {
+      const signal = {
+        symbol: testSymbol,
+        side: testSide,
+        orderType: 'Market' as const,
+        qty: testAmount,
+        timeInForce: 'IOC' as const
+      };
+
+      // Dry-run: validate order parameters without executing
+      const { data, error } = await supabase.functions.invoke('bybit-live-trading', {
+        body: { 
+          action: 'validate_order', 
+          signal,
+          dryRun: true,
+          idempotencyKey: `dryrun-${Date.now()}`
+        }
+      });
+
+      if (error) throw error;
+
+      return {
+        success: data.success,
+        data: {
+          symbol: signal.symbol,
+          side: signal.side,
+          qty: signal.qty,
+          validated: true,
+          precision: data.data?.precision,
+          minNotional: data.data?.minNotional,
+          estimatedCost: data.data?.estimatedCost
+        },
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Order validation failed",
+        timestamp: new Date().toISOString()
+      };
+    }
+  };
+
   const testSmallTrade = async (): Promise<TestResult> => {
     try {
       const signal = {
@@ -197,10 +246,35 @@ export const TestnetTradeTest = () => {
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Safety First:</strong> This will only execute trades on Bybit Testnet. 
-            Ensure BYBIT_BASE is set to testnet URL and LIVE_TRADING_ENABLED is false.
+            <strong>{dryRunMode ? 'Dry-Run Mode:' : 'Safety First:'}</strong> 
+            {dryRunMode 
+              ? ' Order validation only - no actual trades will be placed on any environment.'
+              : ' This will only execute trades on Bybit Testnet. Ensure BYBIT_BASE is set to testnet URL and LIVE_TRADING_ENABLED is false.'
+            }
           </AlertDescription>
         </Alert>
+
+        {/* Mode Toggle */}
+        <div className="flex items-center justify-between p-4 border rounded-lg">
+          <div>
+            <h3 className="font-semibold">Test Mode</h3>
+            <p className="text-sm text-muted-foreground">
+              {dryRunMode 
+                ? 'Validate orders without execution (safe for mainnet keys)'
+                : 'Execute real trades (testnet only)'
+              }
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge variant={dryRunMode ? 'secondary' : 'default'}>
+              {dryRunMode ? '🧪 DRY-RUN' : '🔄 EXECUTE'}
+            </Badge>
+            <Switch
+              checked={dryRunMode}
+              onCheckedChange={setDryRunMode}
+            />
+          </div>
+        </div>
 
         {/* Test Configuration */}
         <div className="grid grid-cols-3 gap-4">
@@ -248,16 +322,17 @@ export const TestnetTradeTest = () => {
           disabled={isLoading}
           className="w-full"
           size="lg"
+          variant={dryRunMode ? "secondary" : "default"}
         >
           {isLoading ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Running Tests...
+              Running {dryRunMode ? 'Validation' : 'Tests'}...
             </>
           ) : (
             <>
               <TestTube className="h-4 w-4 mr-2" />
-              Run Full Testnet Test
+              {dryRunMode ? 'Validate Orders (Dry-Run)' : 'Run Full Testnet Test'}
             </>
           )}
         </Button>
@@ -268,7 +343,7 @@ export const TestnetTradeTest = () => {
             <h3 className="font-semibold">Test Results</h3>
             
             {testResults.map((result, index) => {
-              const testNames = ['Bybit Connection', 'Account Balance', 'Test Trade'];
+              const testNames = ['Bybit Connection', 'Account Balance', dryRunMode ? 'Order Validation' : 'Test Trade'];
               return (
                 <div key={index} className="flex items-start gap-3 p-3 border rounded-lg">
                   {getTestIcon(result)}
@@ -295,7 +370,15 @@ export const TestnetTradeTest = () => {
                             <p>💸 Available: {result.data.availableBalance}</p>
                           </>
                         )}
-                        {index === 2 && (
+                        {index === 2 && result.data.validated && (
+                          <>
+                            <p>✅ Order: {result.data.side} {result.data.qty} {result.data.symbol}</p>
+                            <p>📏 Precision: {result.data.precision || 'Valid'}</p>
+                            <p>💵 Min Notional: ${result.data.minNotional || '5'}</p>
+                            <p>💰 Est. Cost: ${result.data.estimatedCost || 'N/A'}</p>
+                          </>
+                        )}
+                        {index === 2 && !result.data.validated && (
                           <>
                             <p>📋 Order ID: {result.data.orderId}</p>
                             <p>🎯 {result.data.side} {result.data.qty} {result.data.symbol}</p>
