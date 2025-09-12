@@ -323,17 +323,16 @@ serve(async (req) => {
           takeProfitPercent: ((side === 'Buy' ? takeProfit - price : price - takeProfit) / price * 100).toFixed(2) + '%'
         });
 
-        // Create order data with automatic TP/SL
+        // =================== MARKET ENTRY ORDER (NO TP/SL YET) ===================
+        // Create clean market order without TP/SL (Bybit doesn't support TP/SL in market orders)
         const orderData: any = {
           category: inst.category,
           symbol,
           side: side === 'Buy' ? 'Buy' : 'Sell',
           orderType: 'Market',
           qty: String(qty),
-          timeInForce: 'IOC',
-          // Always attach stop loss and take profit for risk management
-          stopLoss: String(stopLoss),
-          takeProfit: String(takeProfit)
+          timeInForce: 'IOC'
+          // NOTE: TP/SL will be set as separate conditional orders after position opens
         }
 
         // For linear contracts, always open new positions (not reduce-only)
@@ -394,18 +393,88 @@ serve(async (req) => {
           }
         }
 
-        structuredLog('info', 'Order executed successfully', { 
+        structuredLog('info', 'Main order executed successfully', { 
           symbol, 
           side, 
           qty, 
           category: inst.category, 
-          positionIdx: orderData.positionIdx,
           orderId: result?.result?.orderId 
         });
 
+        // =================== AUTOMATIC TP/SL PLACEMENT ===================
+        // Place stop loss and take profit as separate conditional orders
+        let slOrderId = null;
+        let tpOrderId = null;
+        
+        try {
+          // Wait a moment for position to be established
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Place Stop Loss Order (Conditional Order)
+          const stopLossOrder = {
+            category: inst.category,
+            symbol,
+            side: side === 'Buy' ? 'Sell' : 'Buy', // Opposite side to close position
+            orderType: 'Market', // Market order when triggered
+            qty: String(qty),
+            triggerPrice: String(stopLoss),
+            triggerBy: 'LastPrice',
+            reduceOnly: true, // This is correct for closing orders
+            timeInForce: 'IOC'
+          };
+          
+          const slResult = await client.signedRequest('POST', '/v5/order/create', stopLossOrder);
+          slOrderId = slResult?.result?.orderId;
+          
+          structuredLog('info', 'Stop loss order placed', {
+            orderId: slOrderId,
+            triggerPrice: stopLoss,
+            side: stopLossOrder.side
+          });
+          
+          // Place Take Profit Order (Conditional Order)
+          const takeProfitOrder = {
+            category: inst.category,
+            symbol,
+            side: side === 'Buy' ? 'Sell' : 'Buy', // Opposite side to close position
+            orderType: 'Market', // Market order when triggered
+            qty: String(qty),
+            triggerPrice: String(takeProfit),
+            triggerBy: 'LastPrice',
+            reduceOnly: true, // This is correct for closing orders
+            timeInForce: 'IOC'
+          };
+          
+          const tpResult = await client.signedRequest('POST', '/v5/order/create', takeProfitOrder);
+          tpOrderId = tpResult?.result?.orderId;
+          
+          structuredLog('info', 'Take profit order placed', {
+            orderId: tpOrderId,
+            triggerPrice: takeProfit,
+            side: takeProfitOrder.side
+          });
+          
+        } catch (tpslError: any) {
+          structuredLog('warning', 'TP/SL placement failed', {
+            error: tpslError.message,
+            mainOrderSuccess: true
+          });
+          // Don't fail the main trade if TP/SL fails - the main order succeeded
+        }
+
         return json({
           success: true,
-          data: result
+          data: {
+            mainOrder: result,
+            stopLossOrderId: slOrderId,
+            takeProfitOrderId: tpOrderId,
+            riskManagement: {
+              entryPrice: price,
+              stopLoss,
+              takeProfit,
+              riskRewardRatio: '2:1'
+            }
+          }
         });
       } catch (error) {
         structuredLog('error', 'Trade execution failed', { 

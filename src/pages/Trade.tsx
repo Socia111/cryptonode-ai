@@ -3,9 +3,11 @@ import MainLayout from '../layouts/MainLayout';
 import TradingPanel from '../components/TradingPanel';
 import TradingChart from '../components/TradingChart';
 import { SignalFeed } from '@/components/SignalFeed';
+import { TradingFixTest } from '@/components/TradingFixTest';
 import { useSignals } from '@/hooks/useSignals';
 import LivePrice from '../components/LivePrice';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrendingUp, Zap, Target } from 'lucide-react';
 
 const Trade = () => {
@@ -40,12 +42,25 @@ const Trade = () => {
           </div>
         </div>
 
-        {/* Signals */}
-        {loading ? (
-          <div className="py-10 text-center opacity-70">Loading…</div>
-        ) : (
-          <SignalFeed signals={signals as any} />
-        )}
+        {/* Trading Tabs */}
+        <Tabs defaultValue="signals" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="signals">🎯 Live Signals</TabsTrigger>
+            <TabsTrigger value="test">🔧 System Test</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="signals" className="mt-6">
+            {loading ? (
+              <div className="py-10 text-center opacity-70">Loading…</div>
+            ) : (
+              <SignalFeed signals={signals as any} />
+            )}
+          </TabsContent>
+          
+          <TabsContent value="test" className="mt-6">
+            <TradingFixTest />
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
   );
