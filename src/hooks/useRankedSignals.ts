@@ -4,10 +4,11 @@ import { UISignal, compositeScore, gradeFromComposite } from '@/lib/signalScorin
 type Options = {
   hideWideSpreads?: boolean;  // if true, hide spread > 20 bps
   maxSpreadBps?: number;      // default 20
+  hide1MinSignals?: boolean;  // if true, hide 1-minute timeframe signals
 };
 
 export function useRankedSignals(signals: UISignal[], opts?: Options) {
-  const { hideWideSpreads = true, maxSpreadBps = 20 } = opts ?? {};
+  const { hideWideSpreads = true, maxSpreadBps = 20, hide1MinSignals = false } = opts ?? {};
 
   return useMemo(() => {
     const mapped = (signals || []).map((s) => {
@@ -16,9 +17,17 @@ export function useRankedSignals(signals: UISignal[], opts?: Options) {
       return { ...s, _score: score, _grade: grade } as UISignal & { _score: number; _grade: ReturnType<typeof gradeFromComposite> };
     });
 
-    const filtered = hideWideSpreads
+    let filtered = hideWideSpreads
       ? mapped.filter(s => (s.spread_bps ?? 0) <= maxSpreadBps)
       : mapped;
+
+    // Filter out 1-minute signals if requested
+    if (hide1MinSignals) {
+      filtered = filtered.filter(s => {
+        const timeframe = s.timeframe?.toLowerCase() || '';
+        return !timeframe.includes('1m') && !timeframe.includes('1min');
+      });
+    }
 
     // ⭐ Priority (score) sort by default; most recent tie-breaker if timestamps exist
     filtered.sort((a, b) => {
@@ -30,5 +39,5 @@ export function useRankedSignals(signals: UISignal[], opts?: Options) {
     });
 
     return filtered;
-  }, [signals, hideWideSpreads, maxSpreadBps]);
+  }, [signals, hideWideSpreads, maxSpreadBps, hide1MinSignals]);
 }

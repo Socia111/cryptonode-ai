@@ -29,8 +29,11 @@ const SignalsList = () => {
   const [executedSignals, setExecutedSignals] = useState(new Set());
   const [autoExecute, setAutoExecute] = useState(false);
 
-  // Use ranked signals with filtering
-  const rankedSignals = useRankedSignals(signals, { hideWideSpreads: !showAllSpreads });
+  // Use ranked signals with filtering - hide 1min signals unless showing all
+  const rankedSignals = useRankedSignals(signals, { 
+    hideWideSpreads: !showAllSpreads,
+    hide1MinSignals: !showAllSignals 
+  });
   const topPicks = rankedSignals.slice(0, 3);
 
   const testBybitConnection = async () => {
@@ -78,10 +81,15 @@ const SignalsList = () => {
     };
   }, [signals]);
 
-  // Filter for priority signals (now using ranked signals)
+  // Filter for priority signals (now using ranked signals) - exclude 1min signals
   const prioritySignals = useMemo(() => {
     if (!rankedSignals) return [];
-    return rankedSignals.filter(signal => signal.grade === 'A+' || signal.grade === 'A');
+    return rankedSignals.filter(signal => {
+      const isHighGrade = signal.grade === 'A+' || signal.grade === 'A';
+      const timeframe = signal.timeframe?.toLowerCase() || '';
+      const is1Min = timeframe.includes('1m') || timeframe.includes('1min');
+      return isHighGrade && !is1Min;
+    });
   }, [rankedSignals]);
 
   // Display signals (priority first by score, then all if requested)

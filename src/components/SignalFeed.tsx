@@ -13,7 +13,7 @@ import type { UISignal } from '@/lib/signalScoring';
 export function SignalFeed({ signals }: { signals: UISignal[] }) {
   const { toast } = useToast();
   const [hideWide, setHideWide] = React.useState(true);
-  const ranked = useRankedSignals(signals, { hideWideSpreads: hideWide, maxSpreadBps: 20 });
+  const ranked = useRankedSignals(signals, { hideWideSpreads: hideWide, maxSpreadBps: 20, hide1MinSignals: true });
   const topPicks = ranked.slice(0,3);
 
   // Auto mode: trades only A+/A
@@ -24,7 +24,12 @@ export function SignalFeed({ signals }: { signals: UISignal[] }) {
   // Auto-exec on new A+/A signals (no backend change; uses TradingGateway)
   React.useEffect(() => {
     if (!autoMode) return;
-    const top = ranked.filter(s => s._grade === 'A+' || s._grade === 'A');
+    const top = ranked.filter(s => {
+      const isHighGrade = s._grade === 'A+' || s._grade === 'A';
+      const timeframe = s.timeframe?.toLowerCase() || '';
+      const is1Min = timeframe.includes('1m') || timeframe.includes('1min');
+      return isHighGrade && !is1Min; // Exclude 1-minute signals from auto trading
+    });
     // Take first 1–2 that are not being executed (super conservative)
     const pick = top[0];
     if (!pick || executingId) return;
