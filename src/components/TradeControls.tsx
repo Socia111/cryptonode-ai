@@ -18,13 +18,13 @@ export function TradeControls({
 }) {
 
   const { toast } = useToast();
-  const [amountUSD, setAmountUSD] = React.useState<number>(10); // min $1 default to $10
+  const [amountUSD, setAmountUSD] = React.useState<number>(25); // min $10 default to $25
   const [lev, setLev] = React.useState<number>(5);
 
   React.useEffect(() => {
     const a = localStorage.getItem('trade.amountUSD');
     const l = localStorage.getItem('trade.leverage');
-    if (a) setAmountUSD(Math.max(1, Number(a)));
+    if (a) setAmountUSD(Math.max(10, Number(a)));
     if (l) setLev(Math.min(100, Math.max(1, Number(l))));
   }, []);
 
@@ -33,7 +33,7 @@ export function TradeControls({
     localStorage.setItem('trade.leverage', String(lev));
   }, [amountUSD, lev]);
 
-  const minNotional = 1;
+  const minNotional = 10;
   const belowMin = amountUSD < minNotional;
   const notional = amountUSD * lev;
   const qty = markPrice ? notional / markPrice : undefined;
@@ -43,25 +43,25 @@ export function TradeControls({
       toast({ title: 'Amount too low', description: `Minimum is $${minNotional}`, variant: 'destructive' });
       return;
     }
-    await onExecute({ amountUSD, leverage: lev });
+    await onExecute({ amountUSD: Math.max(amountUSD, minNotional), leverage: lev });
   };
 
-  const quicks = [1, 5, 10, 25, 50, 100];
+  const quicks = [10, 25, 50, 100, 250, 500];
 
   return (
     <div className="space-y-3">
       <div>
         <div className="flex items-center justify-between mb-1">
           <label className="text-xs font-medium">Amount (USD)</label>
-          {belowMin && <span className="text-xs text-destructive">Min ${minNotional}</span>}
+          {belowMin && <span className="text-xs text-destructive">Min $${minNotional}</span>}
         </div>
         <div className="flex gap-2">
           <input
             type="number"
-            min={1}
+            min={10}
             step="1"
             value={amountUSD}
-            onChange={(e) => setAmountUSD(Math.max(1, Number(e.target.value)))}
+            onChange={(e) => setAmountUSD(Math.max(10, Number(e.target.value)))}
             className="flex-1 h-9 rounded-md border px-2 text-sm"
           />
           <div className="flex gap-1">

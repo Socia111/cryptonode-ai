@@ -180,7 +180,8 @@ function computeOrderQtyUSD(
   price: number, 
   inst: Instrument
 ) {
-  const targetNotional = Math.max(5, amountUSD) * Math.max(1, leverage);
+  // Use higher minimum for safety - many tokens require $10-20 minimum
+  const targetNotional = Math.max(10, amountUSD) * Math.max(1, leverage);
   
   let qty = targetNotional / price;
   qty = roundToStep(qty, inst.qtyStep || 0.000001);
@@ -249,8 +250,8 @@ serve(async (req) => {
         }, 400);
       }
 
-      // Ensure minimum $5 order size to avoid "ab not enough" errors
-      const minOrderSize = 5
+      // Ensure minimum $10 order size to avoid exchange minimum errors
+      const minOrderSize = 10
       const finalAmountUSD = Math.max(amountUSD, minOrderSize)
 
       structuredLog('info', 'Trade execution request', {
@@ -303,16 +304,19 @@ serve(async (req) => {
           timeInForce: 'IOC'
         }
 
-        // For linear contracts, use a simpler approach to avoid position mode issues
+        // For linear contracts, always open new positions (not reduce-only)
         if (inst.category === 'linear') {
-          // Start with no positionIdx and let the API determine the mode
-          // This works better for most account types
-          structuredLog('info', 'Using adaptive position mode for linear contract', {
+          structuredLog('info', 'Setting up linear contract order', {
             symbol,
-            category: inst.category
+            category: inst.category,
+            side: orderData.side
           })
           
+          // Force new position, not reduce-only
           orderData.reduceOnly = false
+          
+          // Important: Remove any position constraints to let API handle mode
+          // This avoids "position idx not match position mode" errors
         }
 
         // Execute the order with comprehensive fallback logic
@@ -325,9 +329,10 @@ serve(async (req) => {
         }
         
         try {
-          // Attempt 1: Without positionIdx (let API decide)
-          const orderWithoutPos = { ...orderData }
-          result = await attemptOrder('auto position mode', orderWithoutPos)
+          // Attempt 1: Clean order without position constraints (most likely to work)
+          const cleanOrder = { ...orderData }
+          delete cleanOrder.positionIdx // Remove any position index
+          result = await attemptOrder('clean order (no position idx)', cleanOrder)
         } catch (error1) {
           try {
             // Attempt 2: With positionIdx = 0 (OneWay mode)
@@ -335,23 +340,23 @@ serve(async (req) => {
             result = await attemptOrder('OneWay mode (0)', orderOneWay)
           } catch (error2) {
             try {
-              // Attempt 3: With positionIdx = 1 (Hedge mode)
-              const orderHedge = { ...orderData, positionIdx: 1 }
-              result = await attemptOrder('Hedge mode (1)', orderHedge)
+              // Attempt 3: With positionIdx = 1 (Buy hedge mode)
+              const orderHedgeBuy = { ...orderData, positionIdx: 1 }
+              result = await attemptOrder('Hedge Buy mode (1)', orderHedgeBuy)
             } catch (error3) {
               try {
-                // Attempt 4: With positionIdx = 2 (some accounts use this)
-                const orderMode2 = { ...orderData, positionIdx: 2 }
-                result = await attemptOrder('Mode 2', orderMode2)
+                // Attempt 4: With positionIdx = 2 (Sell hedge mode)
+                const orderHedgeSell = { ...orderData, positionIdx: 2 }
+                result = await attemptOrder('Hedge Sell mode (2)', orderHedgeSell)
               } catch (error4) {
-                // All attempts failed
+                // Log all failures for debugging
                 structuredLog('error', 'All order attempts failed', {
-                  autoMode: error1.message,
+                  cleanOrder: error1.message,
                   oneWayMode: error2.message,
-                  hedgeMode: error3.message,
-                  mode2: error4.message
+                  hedgeBuyMode: error3.message,
+                  hedgeSellMode: error4.message
                 })
-                throw new Error(`Order failed after all attempts. Last error: ${error3.message}`)
+                throw new Error(`Order failed after all attempts. Last error: ${error4.message}`)
               }
             }
           }

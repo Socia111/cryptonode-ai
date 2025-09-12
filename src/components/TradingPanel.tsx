@@ -47,7 +47,7 @@ const TradingPanel = () => {
       const res = await TradingGateway.execute({ 
         symbol: signal.symbol, 
         side, 
-        notionalUSD: settings.quantity 
+        amountUSD: Math.max(25, settings.quantity)
       });
       
       if (!res.ok && res.code === 'DISABLED') {

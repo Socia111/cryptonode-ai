@@ -69,7 +69,7 @@ export const TradingConnectionTest = () => {
       const result = await TradingGateway.execute({
         symbol: 'BTCUSDT',
         side: 'BUY',
-        notionalUSD: 10
+        amountUSD: 25
       });
       
       if (result.ok) {

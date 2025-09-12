@@ -77,7 +77,7 @@ class TradeQueue {
       const result = await TradingGateway.execute({
         symbol: trade.symbol,
         side: trade.side,
-        notionalUSD: trade.notionalUSD
+        amountUSD: Math.max(25, trade.notionalUSD || 25)
       });
 
       if (result.ok) {

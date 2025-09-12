@@ -20,7 +20,7 @@ const SignalsList = () => {
   const { toast } = useToast();
   const [showAllSignals, setShowAllSignals] = useState(false);
   const [showAllSpreads, setShowAllSpreads] = useState(false);
-  const [orderSize, setOrderSize] = useState('10');
+  const [orderSize, setOrderSize] = useState('25');
   const [leverage, setLeverage] = useState(1);
   const [useLeverage, setUseLeverage] = useState(false);
   const [debugInfo, setDebugInfo] = useState(null);
@@ -102,10 +102,11 @@ const SignalsList = () => {
     }
 
     const side = signal.direction;
+    const orderAmount = Math.max(25, parseFloat(orderSize)); // Ensure minimum $25
     const res = await TradingGateway.execute({ 
       symbol: signal.token, 
       side, 
-      notionalUSD: parseFloat(orderSize)
+      amountUSD: orderAmount
     });
     
     if (!res.ok && res.code === 'DISABLED') {

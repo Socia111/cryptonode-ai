@@ -49,9 +49,9 @@ export const TradingGateway = {
         'authorization': `Bearer ${sessionToken}`,
       };
       
-      // Ensure minimum $5 order size (Bybit requirement)
-      const baseAmount = params.amountUSD || params.notionalUSD || 5;
-      const amount = Math.max(baseAmount, 5); // Minimum $5
+      // Ensure minimum $10 order size (updated from $5 due to exchange requirements)
+      const baseAmount = params.amountUSD || params.notionalUSD || 10;
+      const amount = Math.max(baseAmount, 10); // Minimum $10
       const leverage = Math.max(params.leverage || 1, 1);
       
       const bybitSignal = {
