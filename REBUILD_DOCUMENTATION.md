@@ -1,7 +1,19 @@
-# AItradeX1 Complete Rebuild Documentation
+# AItradeX1 Trading System - Complete Rebuild Documentation
 
-## 🚀 Project Overview
-AItradeX1 is a comprehensive cryptocurrency trading platform with real-time signal generation, automated trading, portfolio management, and advanced analytics capabilities.
+## 🚀 Quick Rebuild Command
+
+Use `/rebuild` in the chat interface to automatically reconstruct this exact system state from GitHub.
+
+## 📋 System Overview
+
+**AItradeX1** is a comprehensive cryptocurrency trading platform with real-time signals, automated execution, and advanced market analysis.
+
+### Current Status: ✅ PRODUCTION READY
+- 144+ Edge Functions Deployed
+- Real-time signals operational (80%+ confidence)
+- Live trading with Bybit integration
+- All safety systems active
+- Mobile-responsive design
 
 ## 📋 Core Technologies Stack
 
