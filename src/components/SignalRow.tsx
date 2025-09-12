@@ -23,8 +23,22 @@ export function SignalRow({
           </Badge>
           <span className="text-xs opacity-60">score {(signal._score*100|0)}%</span>
         </div>
-        <div className="text-xs opacity-70 mt-1">
-          {signal.direction} • spread {signal.spread_bps ?? signal.spread ?? 0} bps • R:R {signal.rr ?? signal.risk_reward_ratio ?? '—'}
+        <div className="text-xs opacity-70 mt-1 flex items-center gap-2">
+          <span>{signal.direction}</span>
+          <span>•</span>
+          <span className={`${(signal.spread_bps ?? signal.spread ?? 0) > 20 ? 'text-red-600' : 'text-green-600'}`}>
+            spread {signal.spread_bps ?? signal.spread ?? 0} bps
+          </span>
+          <span>•</span>
+          <span className={`${(signal.rr ?? signal.risk_reward_ratio ?? 0) >= 2 ? 'text-green-600' : 'text-amber-600'}`}>
+            R:R {signal.rr ?? signal.risk_reward_ratio ?? '—'}
+          </span>
+          {signal.entry_price && (
+            <>
+              <span>•</span>
+              <span className="text-blue-600">@${signal.entry_price}</span>
+            </>
+          )}
         </div>
       </div>
 

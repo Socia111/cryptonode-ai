@@ -294,14 +294,46 @@ serve(async (req) => {
           leverage: leverage || 1
         })
 
-        // Create order data
+        // =================== PROFIT-OPTIMIZED RISK MANAGEMENT ===================
+        
+        // Calculate tight stop loss and take profit (2:1 R:R minimum)
+        const stopLossPercent = 0.02; // 2% stop loss
+        const takeProfitPercent = 0.04; // 4% take profit (2:1 R:R)
+        
+        let stopLoss: number;
+        let takeProfit: number;
+        
+        if (side === 'Buy') {
+          stopLoss = price * (1 - stopLossPercent); // 2% below entry
+          takeProfit = price * (1 + takeProfitPercent); // 4% above entry
+        } else {
+          stopLoss = price * (1 + stopLossPercent); // 2% above entry for short
+          takeProfit = price * (1 - takeProfitPercent); // 4% below entry for short
+        }
+        
+        // Round prices to tick size
+        stopLoss = roundToStep(stopLoss, inst.tickSize);
+        takeProfit = roundToStep(takeProfit, inst.tickSize);
+        
+        structuredLog('info', 'Risk management prices calculated', {
+          entryPrice: price,
+          stopLoss,
+          takeProfit,
+          stopLossPercent: ((side === 'Buy' ? price - stopLoss : stopLoss - price) / price * 100).toFixed(2) + '%',
+          takeProfitPercent: ((side === 'Buy' ? takeProfit - price : price - takeProfit) / price * 100).toFixed(2) + '%'
+        });
+
+        // Create order data with automatic TP/SL
         const orderData: any = {
           category: inst.category,
           symbol,
           side: side === 'Buy' ? 'Buy' : 'Sell',
           orderType: 'Market',
           qty: String(qty),
-          timeInForce: 'IOC'
+          timeInForce: 'IOC',
+          // Always attach stop loss and take profit for risk management
+          stopLoss: String(stopLoss),
+          takeProfit: String(takeProfit)
         }
 
         // For linear contracts, always open new positions (not reduce-only)

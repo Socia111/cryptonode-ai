@@ -72,10 +72,24 @@ export function TradeControls({
         </div>
       </div>
 
-      <div className="rounded-md bg-muted p-2 text-xs">
-        Leverage: <b>{lev}x</b> • Est. Notional: <b>${notional.toFixed(2)}</b>
-        {markPrice && qty !== undefined && (
-          <> • Est. Qty: <b>{qty.toFixed(6)}</b> {symbol.replace('USDT','')}</>
+      <div className="rounded-md bg-muted p-2 text-xs space-y-1">
+        <div>
+          Leverage: <b>{lev}x</b> • Est. Notional: <b>${notional.toFixed(2)}</b>
+          {markPrice && qty !== undefined && (
+            <> • Est. Qty: <b>{qty.toFixed(6)}</b> {symbol.replace('USDT','')}</>
+          )}
+        </div>
+        {markPrice && (
+          <div className="text-[10px] opacity-80 border-t pt-1 mt-1">
+            <div className="flex justify-between">
+              <span>Entry: <b>${markPrice.toFixed(4)}</b></span>
+              <span className="text-green-600">TP: <b>${(markPrice * (side === 'Buy' ? 1.04 : 0.96)).toFixed(4)}</b> (+4%)</span>
+              <span className="text-red-600">SL: <b>${(markPrice * (side === 'Buy' ? 0.98 : 1.02)).toFixed(4)}</b> (-2%)</span>
+            </div>
+            <div className="text-center mt-1 text-emerald-600">
+              <b>Auto Risk Management: 2:1 R:R</b>
+            </div>
+          </div>
         )}
       </div>
 

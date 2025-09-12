@@ -21,20 +21,39 @@ export function SignalFeed({ signals }: { signals: UISignal[] }) {
   const [executingId, setExecutingId] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<UISignal & { _score: number; _grade: any } | null>(null);
 
-  // Auto-exec on new A+/A signals (no backend change; uses TradingGateway)
+  // =================== PROFIT-OPTIMIZED AUTO-TRADING ===================
+  // Auto-exec on ONLY A+/A signals with additional quality filters
   React.useEffect(() => {
     if (!autoMode) return;
-    const top = ranked.filter(s => {
+    
+    const profitableSignals = ranked.filter(s => {
+      // Grade filter: Only A+ and A grades
       const isHighGrade = s._grade === 'A+' || s._grade === 'A';
+      
+      // Timeframe filter: Exclude 1-minute signals (too noisy)
       const timeframe = s.timeframe?.toLowerCase() || '';
       const is1Min = timeframe.includes('1m') || timeframe.includes('1min');
-      return isHighGrade && !is1Min; // Exclude 1-minute signals from auto trading
+      
+      // Spread filter: Skip wide spreads that eat profit
+      const spread = s.spread_bps || 0;
+      const spreadOk = spread <= 20; // Max 20 bps spread
+      
+      // Risk:Reward filter: Only trade signals with good R:R
+      const rr = s.rr || s.risk_reward_ratio || 0;
+      const rrOk = rr >= 2.0; // Minimum 2:1 R:R
+      
+      // Score filter: Only trade high-confidence signals
+      const score = s._score || 0;
+      const scoreOk = score >= 0.8; // Minimum 80% composite score
+      
+      return isHighGrade && !is1Min && spreadOk && rrOk && scoreOk;
     });
-    // Take first 1–2 that are not being executed (super conservative)
-    const pick = top[0];
+    
+    // Take first profitable signal that's not being executed (super conservative)
+    const pick = profitableSignals[0];
     if (!pick || executingId) return;
 
-    // open trade modal for confirmation OR fire direct small order:
+    // Open trade modal for confirmation
     setSelected(pick);
   }, [ranked, autoMode, executingId]);
 
@@ -78,6 +97,19 @@ export function SignalFeed({ signals }: { signals: UISignal[] }) {
           </label>
         </div>
       </div>
+
+      {/* Profit optimization banner */}
+      {autoMode && (
+        <div className="rounded-lg bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950 dark:to-green-950 border border-emerald-200 dark:border-emerald-800 p-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-emerald-800 dark:text-emerald-200">
+            <span className="text-emerald-600">🎯</span>
+            Profit-Optimized Auto Trading Active
+          </div>
+          <div className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
+            Only A+/A signals • Max 20 bps spread • Min 2:1 R:R • Auto SL: -2% / TP: +4%
+          </div>
+        </div>
+      )}
 
       {/* Top Picks */}
       <TopPicks
