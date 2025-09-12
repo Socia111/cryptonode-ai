@@ -226,7 +226,7 @@ serve(async (req) => {
 
     // Parse request
     const requestBody = await req.json();
-    const { action, symbol, side, amountUSD, leverage } = requestBody;
+    const { action, symbol, side, amountUSD, leverage, scalpMode } = requestBody;
     
     structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
 
@@ -250,8 +250,8 @@ serve(async (req) => {
         }, 400);
       }
 
-      // Ensure minimum $10 order size to avoid exchange minimum errors
-      const minOrderSize = 10
+      // For scalping, use smaller minimum order size
+      const minOrderSize = scalpMode ? 5 : 10
       const finalAmountUSD = Math.max(amountUSD, minOrderSize)
 
       structuredLog('info', 'Trade execution request', {
@@ -277,8 +277,9 @@ serve(async (req) => {
         const inst = await getInstrument(symbol);
         const price = await getMarkPrice(symbol);
         
-        // Calculate proper quantity
-        const { qty } = computeOrderQtyUSD(finalAmountUSD, leverage || 1, price, inst);
+        // Calculate proper quantity - smaller for scalping to avoid balance issues
+        const scaledLeverage = isScalping ? Math.min(leverage || 10, 25) : (leverage || 1);
+        const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst);
         
         if (!qty || qty <= 0) {
           return json({
@@ -291,14 +292,17 @@ serve(async (req) => {
           finalAmount: finalAmountUSD,
           price,
           qty,
-          leverage: leverage || 1
+          leverage: scaledLeverage,
+          mode: isScalping ? 'scalping' : 'normal'
         })
 
-        // =================== PROFIT-OPTIMIZED RISK MANAGEMENT ===================
+        // =================== SCALPING VS NORMAL RISK MANAGEMENT ===================
         
-        // Calculate tight stop loss and take profit (2:1 R:R minimum)
-        const stopLossPercent = 0.02; // 2% stop loss
-        const takeProfitPercent = 0.04; // 4% take profit (2:1 R:R)
+        const isScalping = scalpMode === true;
+        
+        // Micro TP/SL for scalping or normal 2:1 R:R
+        const stopLossPercent = isScalping ? 0.002 : 0.02;  // Scalp: 0.2% | Normal: 2%
+        const takeProfitPercent = isScalping ? 0.003 : 0.04; // Scalp: 0.3% | Normal: 4%
         
         let stopLoss: number;
         let takeProfit: number;
@@ -319,8 +323,9 @@ serve(async (req) => {
           entryPrice: price,
           stopLoss,
           takeProfit,
-          stopLossPercent: ((side === 'Buy' ? price - stopLoss : stopLoss - price) / price * 100).toFixed(2) + '%',
-          takeProfitPercent: ((side === 'Buy' ? takeProfit - price : price - takeProfit) / price * 100).toFixed(2) + '%'
+          mode: isScalping ? 'scalping' : 'normal',
+          stopLossPercent: ((side === 'Buy' ? price - stopLoss : stopLoss - price) / price * 100).toFixed(3) + '%',
+          takeProfitPercent: ((side === 'Buy' ? takeProfit - price : price - takeProfit) / price * 100).toFixed(3) + '%'
         });
 
         // =================== MARKET ENTRY ORDER (NO TP/SL YET) ===================
