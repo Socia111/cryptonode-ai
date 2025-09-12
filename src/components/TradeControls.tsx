@@ -1,145 +1,104 @@
-import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
-import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
+import * as React from 'react';
+import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
+import { useToast } from '@/components/ui/use-toast';
 
-type Props = {
-  symbol: string;             // e.g. "BTCUSDT"
-  side: "Buy" | "Sell";       // from the signal row
-  markPrice?: number;         // optional, to preview notional
-  onExecute: (p: { amountUSD: number; leverage: number }) => Promise<void>;
+export function TradeControls({
+  symbol,
+  side,
+  markPrice,
+  onExecute,
+  isExecuting = false,
+}: {
+  symbol: string;
+  side: 'Buy'|'Sell';
+  markPrice?: number;
+  onExecute: (p: { amountUSD: number; leverage: number }) => Promise<void>|void;
   isExecuting?: boolean;
-};
+}) {
 
-export const TradeControls: React.FC<Props> = ({ 
-  symbol, 
-  side, 
-  markPrice, 
-  onExecute, 
-  isExecuting = false 
-}) => {
   const { toast } = useToast();
-  const [amountUSD, setAmountUSD] = React.useState<number>(25);  // default $25
-  const [leverage, setLeverage] = React.useState<number>(5);     // default 5x
+  const [amountUSD, setAmountUSD] = React.useState<number>(10); // min $1 default to $10
+  const [lev, setLev] = React.useState<number>(5);
 
-  // Persist between sessions (nice touch)
   React.useEffect(() => {
-    const a = localStorage.getItem("trade.amountUSD");
-    const l = localStorage.getItem("trade.leverage");
-    if (a) setAmountUSD(Number(a));
-    if (l) setLeverage(Math.min(100, Math.max(1, Number(l))));
+    const a = localStorage.getItem('trade.amountUSD');
+    const l = localStorage.getItem('trade.leverage');
+    if (a) setAmountUSD(Math.max(1, Number(a)));
+    if (l) setLev(Math.min(100, Math.max(1, Number(l))));
   }, []);
-  
+
   React.useEffect(() => {
-    localStorage.setItem("trade.amountUSD", String(amountUSD));
-    localStorage.setItem("trade.leverage", String(leverage));
-  }, [amountUSD, leverage]);
+    localStorage.setItem('trade.amountUSD', String(amountUSD));
+    localStorage.setItem('trade.leverage', String(lev));
+  }, [amountUSD, lev]);
 
-  const minNotional = 5; // Bybit default floor for many USDT pairs; backend still enforces.
+  const minNotional = 1;
   const belowMin = amountUSD < minNotional;
+  const notional = amountUSD * lev;
+  const qty = markPrice ? notional / markPrice : undefined;
 
-  const positionNotional = amountUSD * leverage; // rough preview
-  const qtyPreview = markPrice ? (positionNotional / markPrice) : undefined;
-
-  const quicks = [5, 10, 25, 50, 100, 250];
-
-  const handleExecute = async () => {
-    if (amountUSD <= 0 || Number.isNaN(amountUSD)) {
-      toast({ 
-        title: "Amount required", 
-        description: "Enter a valid USD amount.", 
-        variant: "destructive" 
-      });
+  const go = async () => {
+    if (belowMin) {
+      toast({ title: 'Amount too low', description: `Minimum is $${minNotional}`, variant: 'destructive' });
       return;
     }
-    if (leverage < 1 || leverage > 100) {
-      toast({ 
-        title: "Leverage out of range", 
-        description: "Choose 1x–100x.", 
-        variant: "destructive" 
-      });
-      return;
-    }
-    await onExecute({ amountUSD, leverage });
+    await onExecute({ amountUSD, leverage: lev });
   };
 
+  const quicks = [1, 5, 10, 25, 50, 100];
+
   return (
-    <div className="space-y-4">
-      {/* Amount */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Amount (USD)</span>
-          {belowMin && <Badge variant="destructive">Min ${minNotional}</Badge>}
+    <div className="space-y-3">
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-xs font-medium">Amount (USD)</label>
+          {belowMin && <span className="text-xs text-destructive">Min ${minNotional}</span>}
         </div>
         <div className="flex gap-2">
-          <Input
+          <input
             type="number"
             min={1}
             step="1"
-            inputMode="decimal"
             value={amountUSD}
-            onChange={(e) => setAmountUSD(Number(e.target.value))}
-            className="flex-1"
+            onChange={(e) => setAmountUSD(Math.max(1, Number(e.target.value)))}
+            className="flex-1 h-9 rounded-md border px-2 text-sm"
           />
-          <div className="flex flex-wrap gap-1">
+          <div className="flex gap-1">
             {quicks.map(v => (
-              <Button 
-                key={v} 
-                type="button" 
-                variant="secondary" 
-                size="sm" 
-                onClick={() => setAmountUSD(v)}
-                className="px-2 text-xs"
-              >
-                ${v}
-              </Button>
+              <Button key={v} variant="outline" size="sm" onClick={() => setAmountUSD(v)}>${v}</Button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Preview */}
-      <div className="text-xs text-muted-foreground space-y-1">
-        <div>Leverage: <span className="font-medium">{leverage}x</span> • Est. Notional: <span className="font-medium">${positionNotional.toFixed(2)}</span></div>
-        {markPrice && qtyPreview !== undefined && (
-          <div>Est. Qty: <span className="font-medium">{qtyPreview.toFixed(6)}</span> {symbol.replace("USDT","")}</div>
+      <div className="rounded-md bg-muted p-2 text-xs">
+        Leverage: <b>{lev}x</b> • Est. Notional: <b>${notional.toFixed(2)}</b>
+        {markPrice && qty !== undefined && (
+          <> • Est. Qty: <b>{qty.toFixed(6)}</b> {symbol.replace('USDT','')}</>
         )}
       </div>
 
-      {/* Sticky bottom slider (mobile-friendly) */}
-      <div className="sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-3 -mx-6 mt-4">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm font-medium">Leverage</span>
-          <Badge variant="secondary">{leverage}x</Badge>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-xs font-medium">Leverage</label>
+          <span className="text-xs">{lev}x</span>
         </div>
-        <div className="px-1">
-          <Slider
-            min={1}
-            max={100}
-            step={1}
-            value={[leverage]}
-            onValueChange={(v) => setLeverage(Math.min(100, Math.max(1, v[0])))}
-            className="w-full"
-          />
-          <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-            <span>1x</span><span>25x</span><span>50x</span><span>75x</span><span>100x</span>
-          </div>
+        <Slider
+          value={[lev]}
+          min={1}
+          max={100}
+          step={1}
+          onValueChange={(v) => setLev(Math.min(100, Math.max(1, v[0])))}
+        />
+        <div className="flex justify-between text-[10px] opacity-70 mt-1">
+          <span>1x</span><span>25x</span><span>50x</span><span>75x</span><span>100x</span>
         </div>
-
-        <Button 
-          className="w-full mt-3" 
-          onClick={handleExecute}
-          disabled={isExecuting || belowMin}
-        >
-          {isExecuting ? (
-            "Executing..."
-          ) : (
-            `${side === "Buy" ? "Buy / Long" : "Sell / Short"} ${symbol}`
-          )}
-        </Button>
       </div>
+
+      <Button disabled={isExecuting} onClick={go} className={side === 'Buy' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}>
+        {isExecuting ? 'Executing…' : `${side === 'Buy' ? 'Buy / Long' : 'Sell / Short'} ${symbol}`}
+      </Button>
     </div>
   );
-};
+}

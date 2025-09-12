@@ -30,7 +30,7 @@ const SignalsList = () => {
   const [autoExecute, setAutoExecute] = useState(false);
 
   // Use ranked signals with filtering
-  const rankedSignals = useRankedSignals(signals, showAllSpreads);
+  const rankedSignals = useRankedSignals(signals, { hideWideSpreads: !showAllSpreads });
   const topPicks = rankedSignals.slice(0, 3);
 
   const testBybitConnection = async () => {
@@ -310,8 +310,10 @@ const SignalsList = () => {
             {topPicks.length > 0 && (
               <TopPicks 
                 items={topPicks} 
-                onExecute={executeOrder}
-                isExecuting={isExecutingOrder}
+                onClick={(id) => {
+                  const signal = rankedSignals.find(s => s.id === id);
+                  if (signal) executeOrder(signal);
+                }}
               />
             )}
 

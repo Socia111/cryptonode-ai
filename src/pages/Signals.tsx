@@ -1,12 +1,13 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
-import SignalsList from '../components/SignalsList';
-import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
-import TradePlanGenerator from '../components/TradePlanGenerator';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Zap, Target, Activity } from 'lucide-react';
+import { SignalFeed } from '@/components/SignalFeed';
+import { useSignals } from '@/hooks/useSignals';
+import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 
 const Signals = () => {
+  const { signals, loading, generateSignals } = useSignals();
+
   return (
     <MainLayout>
       <div className="container mx-auto px-6 py-8 space-y-8">
@@ -20,15 +21,19 @@ const Signals = () => {
           </p>
         </div>
 
-
-        {/* Strategy Panel */}
-        <AItradeX1StrategyPanel />
-
-        {/* Trade Plan Generator */}
-        <TradePlanGenerator />
-
-        {/* Signals List */}
-        <SignalsList />
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Signal Feed</h2>
+          <Button onClick={generateSignals} disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Generate New Signals
+          </Button>
+        </div>
+        
+        {loading ? (
+          <div className="py-10 text-center opacity-70">Loading…</div>
+        ) : (
+          <SignalFeed signals={signals as any} />
+        )}
       </div>
     </MainLayout>
   );

@@ -2,12 +2,15 @@ import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import TradingPanel from '../components/TradingPanel';
 import TradingChart from '../components/TradingChart';
-import SignalsList from '../components/SignalsList';
+import { SignalFeed } from '@/components/SignalFeed';
+import { useSignals } from '@/hooks/useSignals';
 import LivePrice from '../components/LivePrice';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, Zap, Target } from 'lucide-react';
 
 const Trade = () => {
+  const { signals, loading } = useSignals();
+
   return (
     <MainLayout>
       <div className="container mx-auto px-6 py-8 space-y-8">
@@ -38,7 +41,11 @@ const Trade = () => {
         </div>
 
         {/* Signals */}
-        <SignalsList />
+        {loading ? (
+          <div className="py-10 text-center opacity-70">Loading…</div>
+        ) : (
+          <SignalFeed signals={signals as any} />
+        )}
       </div>
     </MainLayout>
   );
