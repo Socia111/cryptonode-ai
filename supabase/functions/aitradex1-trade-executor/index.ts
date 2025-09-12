@@ -181,9 +181,9 @@ function computeOrderQtyUSD(
   inst: Instrument,
   isScalping = false
 ) {
-  // Enhanced quantity calculation with better scalping support
-  const notional = amountUSD * leverage;
-  let qty = notional / price;
+  // Calculate total exposure: amountUSD * leverage (e.g., $1 * 5x = $5 exposure)
+  const targetNotional = amountUSD * leverage;
+  let qty = targetNotional / price;
   
   // Round to tick size
   qty = roundToStep(qty, inst.qtyStep || 0.000001);
@@ -193,8 +193,10 @@ function computeOrderQtyUSD(
     // For scalping, try to use smaller quantities if possible
     const minScalpQty = Math.max(inst.minOrderQty || 0.001, 0.001);
     qty = Math.max(qty, minScalpQty);
-    // Cap scalping orders to prevent balance issues
-    qty = Math.min(qty, 0.05); // Even smaller cap for micro trades
+    // Cap scalping orders to prevent balance issues - based on total exposure
+    if (targetNotional <= 25) {
+      qty = Math.min(qty, 0.05); // Smaller cap for micro trades
+    }
   } else {
     // Normal minimum enforcement
     qty = Math.max(qty, inst.minOrderQty || 0.001);
@@ -209,21 +211,11 @@ function computeOrderQtyUSD(
     }
   }
 
-  console.log('💰 Quantity calculation:', {
-    amountUSD,
-    leverage,
-    price,
-    notional,
-    calculatedQty: qty,
-    minOrderQty: inst.minOrderQty,
-    qtyStep: inst.qtyStep,
-    isScalping
-  });
-
+  // For spot trading, handle minimum order amount
   if (inst.category === "spot") {
     if (inst.minOrderAmt) {
-      const notional = qty * price;
-      if (notional < inst.minOrderAmt) {
+      const spotNotional = qty * price;
+      if (spotNotional < inst.minOrderAmt) {
         qty = Math.max(qty, roundToStep(inst.minOrderAmt / price, inst.qtyStep));
       }
     }
@@ -232,11 +224,16 @@ function computeOrderQtyUSD(
     }
   }
 
-  // For scalping, cap the qty to avoid balance issues
-  const maxScalpQty = 0.1; // Max 0.1 units for scalping
-  if (targetNotional <= 25) { // If this looks like a scalp trade
-    qty = Math.min(qty, maxScalpQty);
-  }
+  console.log('💰 Quantity calculation:', {
+    amountUSD,
+    leverage,
+    price,
+    targetNotional,
+    calculatedQty: qty,
+    minOrderQty: inst.minOrderQty,
+    qtyStep: inst.qtyStep,
+    isScalping
+  });
 
   return { qty, targetNotional };
 }
