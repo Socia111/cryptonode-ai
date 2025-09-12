@@ -285,6 +285,10 @@ serve(async (req) => {
         const inst = await getInstrument(symbol);
         const price = await getMarkPrice(symbol);
         
+        // =================== SCALPING VS NORMAL RISK MANAGEMENT ===================
+        
+        const isScalping = scalpMode === true;
+        
         // Calculate proper quantity - smaller for scalping to avoid balance issues
         const scaledLeverage = isScalping ? Math.min(leverage || 10, 25) : (leverage || 1);
         const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst);
@@ -303,10 +307,6 @@ serve(async (req) => {
           leverage: scaledLeverage,
           mode: isScalping ? 'scalping' : 'normal'
         })
-
-        // =================== SCALPING VS NORMAL RISK MANAGEMENT ===================
-        
-        const isScalping = scalpMode === true;
         
         // Micro TP/SL for scalping with better risk-reward
         const stopLossPercent = isScalping ? 0.0015 : 0.02;  // Scalp: 0.15% | Normal: 2%
