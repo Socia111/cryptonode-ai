@@ -22,6 +22,7 @@ import Automation from "./pages/Automation";
 import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import { RebuildConsole } from "./components/RebuildConsole";
 const queryClient = new QueryClient();
 
 function App() {
@@ -35,6 +36,11 @@ function App() {
       
       const ok = await isSupabaseConfigured();
       console.info('[Boot] Using Supabase client @', import.meta.env.VITE_SUPABASE_URL, 'configured=', ok);
+      
+      // Check for /rebuild command
+      if (window.location.pathname === '/rebuild' || window.location.search.includes('rebuild=true')) {
+        console.log('🚀 [Rebuild] Rebuild command detected');
+      }
     })();
   }, []);
 
@@ -61,6 +67,7 @@ function App() {
             <Route path="/automation" element={<Automation />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/rebuild" element={<RebuildConsole />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
