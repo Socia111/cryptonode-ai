@@ -180,30 +180,38 @@ function computeOrderQtyUSD(
   price: number, 
   inst: Instrument
 ) {
-  // Use higher minimum for safety - many tokens require $10-20 minimum
-  const targetNotional = Math.max(10, amountUSD) * Math.max(1, leverage);
+  // For very small scalping orders, use minimal notional
+  const minNotional = Math.max(1, amountUSD); // Absolute minimum $1
+  const targetNotional = minNotional * Math.max(1, leverage);
   
   let qty = targetNotional / price;
   qty = roundToStep(qty, inst.qtyStep || 0.000001);
 
-  // Ensure exchange minimums
+  // For scalping, use minimal exchange requirements
   if (inst.category === "linear" && inst.minOrderValue) {
     const notional = qty * price;
-    if (notional + 1e-12 < inst.minOrderValue) {
-      qty = roundToStep(inst.minOrderValue / price, inst.qtyStep);
+    if (notional < inst.minOrderValue) {
+      // For scalping, try to meet minimum but keep it small
+      qty = Math.max(qty, roundToStep(inst.minOrderValue / price, inst.qtyStep));
     }
   }
 
   if (inst.category === "spot") {
     if (inst.minOrderAmt) {
       const notional = qty * price;
-      if (notional + 1e-12 < inst.minOrderAmt) {
-        qty = roundToStep(inst.minOrderAmt / price, inst.qtyStep);
+      if (notional < inst.minOrderAmt) {
+        qty = Math.max(qty, roundToStep(inst.minOrderAmt / price, inst.qtyStep));
       }
     }
-    if (inst.minOrderQty && qty + 1e-12 < inst.minOrderQty) {
-      qty = roundToStep(inst.minOrderQty, inst.qtyStep);
+    if (inst.minOrderQty && qty < inst.minOrderQty) {
+      qty = Math.max(qty, roundToStep(inst.minOrderQty, inst.qtyStep));
     }
+  }
+
+  // For scalping, cap the qty to avoid balance issues
+  const maxScalpQty = 0.1; // Max 0.1 units for scalping
+  if (targetNotional <= 25) { // If this looks like a scalp trade
+    qty = Math.min(qty, maxScalpQty);
   }
 
   return { qty, targetNotional };
@@ -250,8 +258,8 @@ serve(async (req) => {
         }, 400);
       }
 
-      // For scalping, use smaller minimum order size
-      const minOrderSize = scalpMode ? 5 : 10
+      // For scalping, use very small minimum order size to avoid balance issues
+      const minOrderSize = scalpMode ? 1 : 5  // Scalp: $1 min | Normal: $5 min
       const finalAmountUSD = Math.max(amountUSD, minOrderSize)
 
       structuredLog('info', 'Trade execution request', {
@@ -300,9 +308,10 @@ serve(async (req) => {
         
         const isScalping = scalpMode === true;
         
-        // Micro TP/SL for scalping or normal 2:1 R:R
-        const stopLossPercent = isScalping ? 0.002 : 0.02;  // Scalp: 0.2% | Normal: 2%
-        const takeProfitPercent = isScalping ? 0.003 : 0.04; // Scalp: 0.3% | Normal: 4%
+        // Micro TP/SL for scalping with better risk-reward
+        const stopLossPercent = isScalping ? 0.0015 : 0.02;  // Scalp: 0.15% | Normal: 2%
+        const takeProfitPercent = isScalping ? 0.005 : 0.04; // Scalp: 0.5% | Normal: 4%
+        // This gives 3.33:1 R:R for scalping (0.5%:0.15%)
         
         let stopLoss: number;
         let takeProfit: number;

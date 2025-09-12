@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/components/ui/use-toast';
+import { BalanceChecker } from './BalanceChecker';
 
 export function TradeControls({
   symbol,
@@ -40,8 +41,9 @@ export function TradeControls({
   const qty = markPrice ? notional / markPrice : undefined;
 
   const go = async () => {
-    if (belowMin) {
-      toast({ title: 'Amount too low', description: `Minimum is $${minNotional}`, variant: 'destructive' });
+    const minNotional = scalpMode ? 1 : 5;
+    if (amountUSD < minNotional) {
+      toast({ title: 'Amount too low', description: `Minimum is $${minNotional} for ${scalpMode ? 'scalping' : 'normal trading'}`, variant: 'destructive' });
       return;
     }
     await onExecute({ amountUSD: Math.max(amountUSD, minNotional), leverage: lev, scalpMode });
@@ -59,10 +61,10 @@ export function TradeControls({
         <div className="flex gap-2">
           <input
             type="number"
-            min={10}
+            min={scalpMode ? 1 : 5}
             step="1"
             value={amountUSD}
-            onChange={(e) => setAmountUSD(Math.max(10, Number(e.target.value)))}
+            onChange={(e) => setAmountUSD(Math.max(scalpMode ? 1 : 5, Number(e.target.value)))}
             className="flex-1 h-9 rounded-md border px-2 text-sm"
           />
           <div className="flex gap-1">
@@ -99,16 +101,16 @@ export function TradeControls({
               <div className="flex justify-between">
                 <span>Entry: <b>${markPrice.toFixed(4)}</b></span>
                 <span className="text-green-600">
-                  TP: <b>${(markPrice * (side === 'Buy' ? (scalpMode ? 1.003 : 1.04) : (scalpMode ? 0.997 : 0.96))).toFixed(4)}</b> 
-                  ({scalpMode ? '+0.3%' : '+4%'})
+                  TP: <b>${(markPrice * (side === 'Buy' ? (scalpMode ? 1.005 : 1.04) : (scalpMode ? 0.995 : 0.96))).toFixed(4)}</b> 
+                  ({scalpMode ? '+0.5%' : '+4%'})
                 </span>
                 <span className="text-red-600">
-                  SL: <b>${(markPrice * (side === 'Buy' ? (scalpMode ? 0.998 : 0.98) : (scalpMode ? 1.002 : 1.02))).toFixed(4)}</b> 
-                  ({scalpMode ? '-0.2%' : '-2%'})
+                  SL: <b>${(markPrice * (side === 'Buy' ? (scalpMode ? 0.9985 : 0.98) : (scalpMode ? 1.0015 : 1.02))).toFixed(4)}</b> 
+                  ({scalpMode ? '-0.15%' : '-2%'})
                 </span>
               </div>
               <div className="text-center mt-1 text-emerald-600">
-                <b>{scalpMode ? '🎯 Scalping: High Win Rate Strategy' : 'Auto Risk Management: 2:1 R:R'}</b>
+                <b>{scalpMode ? '🎯 Scalping: 3.3:1 R:R (0.5%:0.15%)' : 'Auto Risk Management: 2:1 R:R'}</b>
               </div>
             </div>
           )}
@@ -136,6 +138,8 @@ export function TradeControls({
           )}
         </div>
       </div>
+      
+      <BalanceChecker />
 
       <Button disabled={isExecuting} onClick={go} className={side === 'Buy' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}>
         {isExecuting ? 'Executing…' : `${side === 'Buy' ? 'Buy / Long' : 'Sell / Short'} ${symbol}`}
