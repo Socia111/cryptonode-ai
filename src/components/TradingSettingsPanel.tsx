@@ -31,7 +31,8 @@ export function TradingSettingsPanel() {
       defaultTPPercent: 4,
       useScalpingMode: false,
       orderType: 'limit',
-      maxLeverage: 25
+      maxLeverage: 25,
+      excludeInnovationZone: true
     });
     toast({
       title: "Settings Reset",
@@ -86,6 +87,15 @@ export function TradingSettingsPanel() {
               onCheckedChange={(checked) => handleUpdate({ useScalpingMode: checked })}
             />
             <Label htmlFor="scalpingMode">Enable Scalping Mode (0.5% TP / 0.15% SL)</Label>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="excludeInnovationZone"
+              checked={settings.excludeInnovationZone}
+              onCheckedChange={(checked) => handleUpdate({ excludeInnovationZone: checked })}
+            />
+            <Label htmlFor="excludeInnovationZone">Exclude Innovation Zone Pairs (Higher fees & risk)</Label>
           </div>
         </div>
 

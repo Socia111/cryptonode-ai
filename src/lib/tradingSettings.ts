@@ -5,6 +5,7 @@ export interface TradingSettings {
   useScalpingMode: boolean;
   orderType: 'market' | 'limit';
   maxLeverage: number;
+  excludeInnovationZone: boolean;
 }
 
 const DEFAULT_SETTINGS: TradingSettings = {
@@ -12,7 +13,8 @@ const DEFAULT_SETTINGS: TradingSettings = {
   defaultTPPercent: 4,   // 4% take profit  
   useScalpingMode: false,
   orderType: 'limit',
-  maxLeverage: 25
+  maxLeverage: 25,
+  excludeInnovationZone: true  // Exclude high-fee Innovation Zone pairs by default
 };
 
 const STORAGE_KEY = 'aitradex1_trading_settings';
