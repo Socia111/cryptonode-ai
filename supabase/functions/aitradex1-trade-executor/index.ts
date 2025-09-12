@@ -279,9 +279,9 @@ serve(async (req) => {
         }, 400);
       }
 
-      // For scalping, use very small minimum order size to avoid balance issues
-      const minOrderSize = scalpMode ? 1 : 5  // Scalp: $1 min | Normal: $5 min
-      const finalAmountUSD = Math.max(amountUSD, minOrderSize)
+  // For scalping, use very small minimum order size to avoid balance issues
+  const minOrderSize = scalpMode ? 1 : 5  // Scalp: $1 min | Normal: $5 min
+  const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
 
       structuredLog('info', 'Trade execution request', {
         symbol,
@@ -297,7 +297,14 @@ serve(async (req) => {
         const apiSecret = Deno.env.get('BYBIT_API_SECRET')
         
         if (!apiKey || !apiSecret) {
-          throw new Error('Bybit credentials not configured')
+          structuredLog('error', 'Missing Bybit credentials', {
+            hasApiKey: !!apiKey,
+            hasApiSecret: !!apiSecret
+          });
+          return json({
+            success: false,
+            error: 'Bybit API credentials not configured. Please set BYBIT_API_KEY and BYBIT_API_SECRET in edge function secrets.'
+          }, 400);
         }
 
         const client = new BybitV5Client(apiKey, apiSecret)
@@ -589,17 +596,18 @@ serve(async (req) => {
             }
           }
         });
-      } catch (error) {
+      } catch (error: any) {
         structuredLog('error', 'Trade execution failed', { 
           error: error.message, 
           symbol, 
           side, 
-          amountUSD, 
-          leverage 
+          amountUSD: finalAmountUSD, 
+          leverage: scaledLeverage 
         });
         return json({
           success: false,
-          message: error.message
+          error: error.message || 'Trade execution failed',
+          details: error.stack || 'No additional details'
         }, 500);
       }
     }

@@ -5,6 +5,7 @@ import TradingChart from '../components/TradingChart';
 import { SignalFeed } from '@/components/SignalFeed';
 import { TradingFixTest } from '@/components/TradingFixTest';
 import { TradingTest } from '@/components/TradingTest';
+import { TradeExecutionTest } from '@/components/TradeExecutionTest';
 import { useSignals } from '@/hooks/useSignals';
 import LivePrice from '../components/LivePrice';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,10 +46,11 @@ const Trade = () => {
 
         {/* Trading Tabs */}
         <Tabs defaultValue="signals" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="signals">🎯 Live Signals</TabsTrigger>
             <TabsTrigger value="test">🔧 System Test</TabsTrigger>
             <TabsTrigger value="trading-test">🧪 Trading Test</TabsTrigger>
+            <TabsTrigger value="execution-test">⚡ Live Test</TabsTrigger>
           </TabsList>
           
           <TabsContent value="signals" className="mt-6">
@@ -65,6 +67,10 @@ const Trade = () => {
           
           <TabsContent value="trading-test" className="mt-6">
             <TradingTest />
+          </TabsContent>
+          
+          <TabsContent value="execution-test" className="mt-6">
+            <TradeExecutionTest />
           </TabsContent>
         </Tabs>
       </div>

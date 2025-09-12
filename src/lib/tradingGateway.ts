@@ -66,7 +66,8 @@ export const TradingGateway = {
         amountUSD: amount,
         leverage,
         scalpMode: isScalping,
-        minAmount
+        minAmount,
+        functionsBase
       });
       
       const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
@@ -94,10 +95,22 @@ export const TradingGateway = {
 
       const data = await response.json();
       
+      // Log the full response for debugging
+      console.log('📊 Trade executor response:', {
+        status: response.status,
+        data,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
       if (!data.success) {
         console.error('❌ Trade execution failed:', data);
         const errorMessage = data?.error || data?.message || 'Unknown error';
-        return { ok: false, code: 'TRADE_FAILED', message: errorMessage };
+        return { 
+          ok: false, 
+          code: 'TRADE_FAILED', 
+          message: errorMessage,
+          details: data?.details || 'No additional details'
+        };
       }
 
       console.log('✅ Live trade executed successfully:', data);
