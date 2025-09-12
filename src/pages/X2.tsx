@@ -11,8 +11,11 @@ import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
 import DatabaseSetup from '../components/DatabaseSetup';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Zap, Target, Activity, TrendingUp } from 'lucide-react';
+import { useSignals } from '@/hooks/useSignals';
 
 const X2 = () => {
+  // Initialize API connection for live data
+  const { signals, loading } = useSignals();
   return (
     <MainLayout>
       <div className="container mx-auto px-6 py-8 space-y-8">
