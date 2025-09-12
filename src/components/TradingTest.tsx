@@ -1,119 +1,237 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { testTradeExecutor, testMockTrade } from '@/lib/testTrading';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/use-toast';
+import { TradingGateway } from '@/lib/tradingGateway';
+import { TestTube, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
-export const TradingTest: React.FC = () => {
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResults, setTestResults] = useState<any>(null);
+interface TestResult {
+  test: string;
+  status: 'running' | 'passed' | 'failed';
+  message?: string;
+  data?: any;
+}
+
+export function TradingTest() {
   const { toast } = useToast();
+  const [isRunning, setIsRunning] = useState(false);
+  const [results, setResults] = useState<TestResult[]>([]);
 
-  const runConnectionTest = async () => {
-    setIsTesting(true);
-    setTestResults(null);
-    
+  const runTests = async () => {
+    setIsRunning(true);
+    setResults([]);
+
+    const tests: TestResult[] = [
+      { test: 'Connection Test', status: 'running' },
+      { test: 'Balance Check', status: 'running' },
+      { test: 'Scalp Mode Order ($1)', status: 'running' },
+      { test: 'Normal Mode Order ($5)', status: 'running' },
+      { test: 'Symbol Format Test', status: 'running' }
+    ];
+
+    setResults([...tests]);
+
+    // Test 1: Connection
     try {
-      console.log('🧪 Testing trade executor connection...');
-      
-      const result = await testTradeExecutor();
-      
-      setTestResults(result);
-      
-      if (result.success) {
-        toast({
-          title: "✅ Connection Test Passed",
-          description: "Trade executor is working correctly",
-          variant: "default",
-        });
-      } else {
-        toast({
-          title: "❌ Connection Test Failed",
-          description: result.error || "Connection failed",
-          variant: "destructive",
-        });
-      }
+      const connection = await TradingGateway.testConnection();
+      tests[0] = {
+        test: 'Connection Test',
+        status: connection.ok ? 'passed' : 'failed',
+        message: connection.ok ? 'API connection successful' : 'API connection failed',
+        data: connection
+      };
+      setResults([...tests]);
     } catch (error: any) {
-      setTestResults({ ok: false, error: error.message });
-      toast({
-        title: "❌ Test Error",
-        description: error.message || "Test failed",
-        variant: "destructive",
+      tests[0] = {
+        test: 'Connection Test',
+        status: 'failed',
+        message: error.message
+      };
+      setResults([...tests]);
+    }
+
+    // Test 2: Balance
+    try {
+      const balance = await TradingGateway.getBalance();
+      tests[1] = {
+        test: 'Balance Check',
+        status: balance.ok ? 'passed' : 'failed',
+        message: balance.ok ? `Balance: $${balance.data?.availableBalance || 'N/A'}` : 'Balance check failed',
+        data: balance.data
+      };
+      setResults([...tests]);
+    } catch (error: any) {
+      tests[1] = {
+        test: 'Balance Check',
+        status: 'failed',
+        message: error.message
+      };
+      setResults([...tests]);
+    }
+
+    // Test 3: Scalp Mode Test Order
+    try {
+      const scalpTest = await TradingGateway.execute({
+        symbol: 'BTCUSDT',
+        side: 'BUY',
+        amountUSD: 1,
+        leverage: 10,
+        scalpMode: true
       });
-    } finally {
-      setIsTesting(false);
+      
+      tests[2] = {
+        test: 'Scalp Mode Order ($1)',
+        status: scalpTest.ok ? 'passed' : 'failed',
+        message: scalpTest.ok ? 'Scalp order validated' : scalpTest.message || 'Scalp order failed',
+        data: scalpTest.data
+      };
+      setResults([...tests]);
+    } catch (error: any) {
+      tests[2] = {
+        test: 'Scalp Mode Order ($1)',
+        status: 'failed',
+        message: error.message
+      };
+      setResults([...tests]);
+    }
+
+    // Test 4: Normal Mode Test Order
+    try {
+      const normalTest = await TradingGateway.execute({
+        symbol: 'BTCUSDT',
+        side: 'BUY',
+        amountUSD: 5,
+        leverage: 5,
+        scalpMode: false
+      });
+      
+      tests[3] = {
+        test: 'Normal Mode Order ($5)',
+        status: normalTest.ok ? 'passed' : 'failed',
+        message: normalTest.ok ? 'Normal order validated' : normalTest.message || 'Normal order failed',
+        data: normalTest.data
+      };
+      setResults([...tests]);
+    } catch (error: any) {
+      tests[3] = {
+        test: 'Normal Mode Order ($5)',
+        status: 'failed',
+        message: error.message
+      };
+      setResults([...tests]);
+    }
+
+    // Test 5: Symbol Format Test
+    try {
+      const symbolTest = await TradingGateway.execute({
+        symbol: 'BTC/USDT', // Test with slash format
+        side: 'BUY',
+        amountUSD: 2,
+        leverage: 5,
+        scalpMode: true
+      });
+      
+      tests[4] = {
+        test: 'Symbol Format Test',
+        status: symbolTest.ok ? 'passed' : 'failed',
+        message: symbolTest.ok ? 'Symbol format handled correctly' : symbolTest.message || 'Symbol format failed',
+        data: symbolTest.data
+      };
+      setResults([...tests]);
+    } catch (error: any) {
+      tests[4] = {
+        test: 'Symbol Format Test',
+        status: 'failed',
+        message: error.message
+      };
+      setResults([...tests]);
+    }
+
+    setIsRunning(false);
+    
+    const passedTests = tests.filter(t => t.status === 'passed').length;
+    const totalTests = tests.length;
+    
+    toast({
+      title: 'Trading Tests Complete',
+      description: `${passedTests}/${totalTests} tests passed`,
+      variant: passedTests === totalTests ? 'default' : 'destructive'
+    });
+  };
+
+  const getStatusIcon = (status: TestResult['status']) => {
+    switch (status) {
+      case 'running':
+        return <AlertCircle className="w-4 h-4 text-yellow-500 animate-pulse" />;
+      case 'passed':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'failed':
+        return <XCircle className="w-4 h-4 text-red-500" />;
     }
   };
 
-  const runMockTrade = async () => {
-    setIsTesting(true);
-    
-    try {
-      console.log('🧪 Testing mock trade execution...');
-      
-      const result = await testMockTrade();
-      
-      setTestResults(result);
-      
-      if (result.success) {
-        toast({
-          title: "✅ Mock Trade Successful",
-          description: "Trade execution is working correctly",
-          variant: "default",
-        });
-      } else {
-        toast({
-          title: "❌ Mock Trade Failed",
-          description: result.error || "Trade failed",
-          variant: "destructive",
-        });
-      }
-    } catch (error: any) {
-      setTestResults({ ok: false, error: error.message });
-      toast({
-        title: "❌ Trade Test Error",
-        description: error.message || "Test failed",
-        variant: "destructive",
-      });
-    } finally {
-      setIsTesting(false);
+  const getStatusBadge = (status: TestResult['status']) => {
+    switch (status) {
+      case 'running':
+        return <Badge variant="secondary">Running...</Badge>;
+      case 'passed':
+        return <Badge className="bg-green-500 hover:bg-green-600">Passed</Badge>;
+      case 'failed':
+        return <Badge variant="destructive">Failed</Badge>;
     }
   };
 
   return (
-    <Card className="w-full max-w-md">
+    <Card>
       <CardHeader>
-        <CardTitle>🧪 Trading System Test</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <TestTube className="w-5 h-5" />
+          Trading System Tests
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Button 
-            onClick={runConnectionTest}
-            disabled={isTesting}
-            className="w-full"
-            variant="outline"
-          >
-            {isTesting ? "Testing..." : "Test Connection"}
-          </Button>
-          
-          <Button 
-            onClick={runMockTrade}
-            disabled={isTesting}
-            className="w-full"
-            variant="default"
-          >
-            {isTesting ? "Testing..." : "Test Mock Trade"}
-          </Button>
-        </div>
-        
-        {testResults && (
-          <div className="mt-4 p-3 border rounded text-xs">
-            <pre className="whitespace-pre-wrap">
-              {JSON.stringify(testResults, null, 2)}
-            </pre>
+        <Button onClick={runTests} disabled={isRunning} className="w-full">
+          {isRunning ? 'Running Tests...' : 'Run All Tests'}
+        </Button>
+
+        {results.length > 0 && (
+          <div className="space-y-3">
+            {results.map((result, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between p-3 border rounded-lg"
+              >
+                <div className="flex items-center gap-3">
+                  {getStatusIcon(result.status)}
+                  <div>
+                    <div className="font-medium">{result.test}</div>
+                    {result.message && (
+                      <div className="text-sm text-muted-foreground">
+                        {result.message}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {getStatusBadge(result.status)}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {results.length > 0 && !isRunning && (
+          <div className="mt-4 p-3 bg-muted rounded-lg">
+            <div className="text-sm">
+              <strong>Summary:</strong> {results.filter(r => r.status === 'passed').length}/{results.length} tests passed
+            </div>
+            {results.some(r => r.status === 'failed') && (
+              <div className="text-sm text-red-600 mt-1">
+                Check failed tests and ensure proper API configuration.
+              </div>
+            )}
           </div>
         )}
       </CardContent>
     </Card>
   );
-};
+}

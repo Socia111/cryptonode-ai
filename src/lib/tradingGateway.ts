@@ -7,6 +7,7 @@ export type ExecParams = {
   notionalUSD?: number  // deprecated, use amountUSD
   amountUSD?: number    // new: USD amount to trade
   leverage?: number     // new: leverage (1-100x)
+  scalpMode?: boolean   // new: scalping mode for micro trades
 }
 
 // Get the functions base URL using the hardcoded Supabase URL
@@ -49,29 +50,35 @@ export const TradingGateway = {
         'authorization': `Bearer ${sessionToken}`,
       };
       
-      // Ensure minimum $10 order size (updated from $5 due to exchange requirements)
-      const baseAmount = params.amountUSD || params.notionalUSD || 10;
-      const amount = Math.max(baseAmount, 10); // Minimum $10
+      // Dynamic minimum based on scalp mode
+      const isScalping = params.scalpMode === true;
+      const baseAmount = params.amountUSD || params.notionalUSD;
+      const minAmount = isScalping ? 1 : 5; // $1 for scalping, $5 for normal
+      const amount = Math.max(baseAmount || minAmount, minAmount);
       const leverage = Math.max(params.leverage || 1, 1);
       
-      const bybitSignal = {
-        symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT
-        side: params.side === 'BUY' ? 'Buy' : 'Sell',
-        orderType: 'Market',
-        qty: (amount * 0.001).toFixed(6), // Convert notional to quantity
-        timeInForce: 'IOC',
-        leverage: leverage
-      };
+      // Clean symbol format - remove any slashes or spaces
+      const cleanSymbol = params.symbol.replace(/[\/\s]/g, '');
+      
+      console.log('🔧 Trade execution params:', {
+        symbol: cleanSymbol,
+        side: params.side,
+        amountUSD: amount,
+        leverage,
+        scalpMode: isScalping,
+        minAmount
+      });
       
       const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           action: 'place_order',
-          symbol: params.symbol.replace('/', ''),
+          symbol: cleanSymbol,
           side: params.side === 'BUY' ? 'Buy' : 'Sell',
           amountUSD: amount,
-          leverage: leverage
+          leverage: leverage,
+          scalpMode: isScalping
         })
       });
 

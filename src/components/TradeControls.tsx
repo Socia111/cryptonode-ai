@@ -26,16 +26,19 @@ export function TradeControls({
   React.useEffect(() => {
     const a = localStorage.getItem('trade.amountUSD');
     const l = localStorage.getItem('trade.leverage');
-    if (a) setAmountUSD(Math.max(10, Number(a)));
+    const s = localStorage.getItem('trade.scalpMode');
+    if (a) setAmountUSD(Math.max(1, Number(a))); // Allow $1 minimum
     if (l) setLev(Math.min(100, Math.max(1, Number(l))));
+    if (s) setScalpMode(s === 'true');
   }, []);
 
   React.useEffect(() => {
     localStorage.setItem('trade.amountUSD', String(amountUSD));
     localStorage.setItem('trade.leverage', String(lev));
-  }, [amountUSD, lev]);
+    localStorage.setItem('trade.scalpMode', String(scalpMode));
+  }, [amountUSD, lev, scalpMode]);
 
-  const minNotional = 10;
+  const minNotional = scalpMode ? 1 : 5;
   const belowMin = amountUSD < minNotional;
   const notional = amountUSD * lev;
   const qty = markPrice ? notional / markPrice : undefined;

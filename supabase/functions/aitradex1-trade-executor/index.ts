@@ -173,28 +173,52 @@ async function getMarkPrice(symbol: string): Promise<number> {
   throw new Error("Mark price unavailable");
 }
 
-// Compute proper order quantity with exchange minimums
+// Enhanced order quantity calculation with scalping support
 function computeOrderQtyUSD(
   amountUSD: number, 
   leverage: number, 
   price: number, 
-  inst: Instrument
+  inst: Instrument,
+  isScalping = false
 ) {
-  // For very small scalping orders, use minimal notional
-  const minNotional = Math.max(1, amountUSD); // Absolute minimum $1
-  const targetNotional = minNotional * Math.max(1, leverage);
+  // Enhanced quantity calculation with better scalping support
+  const notional = amountUSD * leverage;
+  let qty = notional / price;
   
-  let qty = targetNotional / price;
+  // Round to tick size
   qty = roundToStep(qty, inst.qtyStep || 0.000001);
-
-  // For scalping, use minimal exchange requirements
+  
+  // Handle minimum quantity with special scalping logic
+  if (isScalping) {
+    // For scalping, try to use smaller quantities if possible
+    const minScalpQty = Math.max(inst.minOrderQty || 0.001, 0.001);
+    qty = Math.max(qty, minScalpQty);
+    // Cap scalping orders to prevent balance issues
+    qty = Math.min(qty, 0.05); // Even smaller cap for micro trades
+  } else {
+    // Normal minimum enforcement
+    qty = Math.max(qty, inst.minOrderQty || 0.001);
+  }
+  
+  // For linear contracts, check minimum order value
   if (inst.category === "linear" && inst.minOrderValue) {
-    const notional = qty * price;
-    if (notional < inst.minOrderValue) {
-      // For scalping, try to meet minimum but keep it small
-      qty = Math.max(qty, roundToStep(inst.minOrderValue / price, inst.qtyStep));
+    const calculatedNotional = qty * price;
+    if (calculatedNotional < inst.minOrderValue && !isScalping) {
+      // For normal trades, ensure minimum value is met
+      qty = Math.max(qty, roundToStep(inst.minOrderValue / price, inst.qtyStep || 0.000001));
     }
   }
+
+  console.log('💰 Quantity calculation:', {
+    amountUSD,
+    leverage,
+    price,
+    notional,
+    calculatedQty: qty,
+    minOrderQty: inst.minOrderQty,
+    qtyStep: inst.qtyStep,
+    isScalping
+  });
 
   if (inst.category === "spot") {
     if (inst.minOrderAmt) {
@@ -289,15 +313,31 @@ serve(async (req) => {
         
         const isScalping = scalpMode === true;
         
-        // Calculate proper quantity - smaller for scalping to avoid balance issues
+        // Calculate proper quantity with scalping support
         const scaledLeverage = isScalping ? Math.min(leverage || 10, 25) : (leverage || 1);
-        const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst);
+        const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
         
-        if (!qty || qty <= 0) {
-          return json({
-            success: false,
-            message: `Size calculation failed. Amount: ${finalAmountUSD}, Price: ${price}, Qty: ${qty}`
-          }, 400);
+        // Enhanced validation with better error messages
+        if (qty <= 0) {
+          structuredLog('error', { 
+            event: 'Invalid quantity calculated', 
+            qty, 
+            amountUSD: finalAmountUSD, 
+            leverage: scaledLeverage, 
+            price,
+            isScalping 
+          });
+          return json({ success: false, error: `Invalid quantity calculated: ${qty}. Try increasing amount or adjusting leverage.` }, 400);
+        }
+        
+        if (qty < inst.minOrderQty && !isScalping) {
+          structuredLog('error', { 
+            event: 'Quantity below minimum', 
+            qty, 
+            minOrderQty: inst.minOrderQty,
+            isScalping 
+          });
+          return json({ success: false, error: `Quantity ${qty} below minimum ${inst.minOrderQty}. Increase your trade amount to at least $${Math.ceil((inst.minOrderQty * price) / scaledLeverage)}.` }, 400);
         }
 
         structuredLog('info', 'Order size calculated', {
@@ -373,39 +413,101 @@ serve(async (req) => {
           return await client.signedRequest('POST', '/v5/order/create', orderConfig)
         }
         
+        // Enhanced order placement with better error handling
+        let orderResult = null;
+        let lastError = null;
+        
+        const baseOrder = {
+          category: inst.category,
+          symbol,
+          side: side === 'Buy' ? 'Buy' : 'Sell',
+          orderType: 'Market',
+          qty: String(qty),
+          timeInForce: 'IOC'
+        };
+        
+        // Try clean order first (recommended approach)
+        structuredLog('info', { event: 'Attempting clean order (no position idx)' });
         try {
-          // Attempt 1: Clean order without position constraints (most likely to work)
-          const cleanOrder = { ...orderData }
-          delete cleanOrder.positionIdx // Remove any position index
-          result = await attemptOrder('clean order (no position idx)', cleanOrder)
-        } catch (error1) {
+          orderResult = await client.signedRequest('POST', '/v5/order/create', baseOrder);
+          
+          if (orderResult?.retCode === 0) {
+            structuredLog('info', { event: 'Order placed successfully', orderId: orderResult.result?.orderId });
+          } else {
+            throw new Error(orderResult?.retMsg || 'Clean order failed');
+          }
+        } catch (cleanError: any) {
+          lastError = cleanError;
+          structuredLog('warning', { event: 'Clean order failed, trying with position modes', error: cleanError.message });
+          
+          // Try OneWay mode (positionIdx=0)
+          structuredLog('info', { event: 'Attempting order with OneWay mode (0)' });
           try {
-            // Attempt 2: With positionIdx = 0 (OneWay mode)
-            const orderOneWay = { ...orderData, positionIdx: 0 }
-            result = await attemptOrder('OneWay mode (0)', orderOneWay)
-          } catch (error2) {
+            orderResult = await client.signedRequest('POST', '/v5/order/create', {
+              ...baseOrder,
+              positionIdx: 0
+            });
+            
+            if (orderResult?.retCode === 0) {
+              structuredLog('info', { event: 'OneWay order successful', orderId: orderResult.result?.orderId });
+            } else {
+              throw new Error(orderResult?.retMsg || 'OneWay order failed');
+            }
+          } catch (oneWayError: any) {
+            lastError = oneWayError;
+            structuredLog('warning', { event: 'OneWay mode failed, trying hedge modes', error: oneWayError.message });
+            
+            // Try Hedge Buy mode (positionIdx=1)
+            structuredLog('info', { event: 'Attempting order with Hedge Buy mode (1)' });
             try {
-              // Attempt 3: With positionIdx = 1 (Buy hedge mode)
-              const orderHedgeBuy = { ...orderData, positionIdx: 1 }
-              result = await attemptOrder('Hedge Buy mode (1)', orderHedgeBuy)
-            } catch (error3) {
+              orderResult = await client.signedRequest('POST', '/v5/order/create', {
+                ...baseOrder,
+                positionIdx: 1
+              });
+              
+              if (orderResult?.retCode === 0) {
+                structuredLog('info', { event: 'Hedge Buy order successful', orderId: orderResult.result?.orderId });
+              } else {
+                throw new Error(orderResult?.retMsg || 'Hedge Buy order failed');
+              }
+            } catch (hedgeBuyError: any) {
+              lastError = hedgeBuyError;
+              
+              // Try Hedge Sell mode (positionIdx=2)
+              structuredLog('info', { event: 'Attempting order with Hedge Sell mode (2)' });
               try {
-                // Attempt 4: With positionIdx = 2 (Sell hedge mode)
-                const orderHedgeSell = { ...orderData, positionIdx: 2 }
-                result = await attemptOrder('Hedge Sell mode (2)', orderHedgeSell)
-              } catch (error4) {
-                // Log all failures for debugging
-                structuredLog('error', 'All order attempts failed', {
-                  cleanOrder: error1.message,
-                  oneWayMode: error2.message,
-                  hedgeBuyMode: error3.message,
-                  hedgeSellMode: error4.message
-                })
-                throw new Error(`Order failed after all attempts. Last error: ${error4.message}`)
+                orderResult = await client.signedRequest('POST', '/v5/order/create', {
+                  ...baseOrder,
+                  positionIdx: 2
+                });
+                
+                if (orderResult?.retCode === 0) {
+                  structuredLog('info', { event: 'Hedge Sell order successful', orderId: orderResult.result?.orderId });
+                } else {
+                  throw new Error(orderResult?.retMsg || 'Hedge Sell order failed');
+                }
+              } catch (hedgeSellError: any) {
+                structuredLog('error', { 
+                  event: 'All order placement attempts failed',
+                  finalError: hedgeSellError.message,
+                  qty: qty.toString(),
+                  symbol,
+                  side,
+                  amountUSD: finalAmountUSD,
+                  leverage: scaledLeverage,
+                  isScalping
+                });
+                
+                return json({ 
+                  success: false, 
+                  error: `Order placement failed: ${hedgeSellError.message}. Please check your account balance and try a smaller amount.` 
+                }, 400);
               }
             }
           }
         }
+        
+        result = orderResult;
 
         structuredLog('info', 'Main order executed successfully', { 
           symbol, 
