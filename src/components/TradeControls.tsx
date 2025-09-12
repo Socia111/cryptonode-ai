@@ -3,33 +3,41 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/components/ui/use-toast';
 import { BalanceChecker } from './BalanceChecker';
+import { tradingSettings } from '@/lib/tradingSettings';
 
 export function TradeControls({
   symbol,
   side,
   markPrice,
+  entryPrice,
   onExecute,
   isExecuting = false,
 }: {
   symbol: string;
   side: 'Buy'|'Sell';
   markPrice?: number;
-  onExecute: (p: { amountUSD: number; leverage: number; scalpMode?: boolean }) => Promise<void>|void;
+  entryPrice?: number;
+  onExecute: (p: { amountUSD: number; leverage: number; scalpMode?: boolean; entryPrice?: number }) => Promise<void>|void;
   isExecuting?: boolean;
 }) {
 
   const { toast } = useToast();
-  const [amountUSD, setAmountUSD] = React.useState<number>(5); // Smaller amounts for scalping
-  const [lev, setLev] = React.useState<number>(10); // Default to 10x for scalping
-  const [scalpMode, setScalpMode] = React.useState<boolean>(true); // Enable scalp mode by default
+  const [amountUSD, setAmountUSD] = React.useState<number>(5);
+  const [lev, setLev] = React.useState<number>(10);
+  const [scalpMode, setScalpMode] = React.useState<boolean>(true);
+  const [globalSettings, setGlobalSettings] = React.useState(tradingSettings.getSettings());
 
   React.useEffect(() => {
     const a = localStorage.getItem('trade.amountUSD');
     const l = localStorage.getItem('trade.leverage');
     const s = localStorage.getItem('trade.scalpMode');
-    if (a) setAmountUSD(Math.max(1, Number(a))); // Allow $1 minimum
-    if (l) setLev(Math.min(100, Math.max(1, Number(l))));
+    if (a) setAmountUSD(Math.max(1, Number(a)));
+    if (l) setLev(Math.min(globalSettings.maxLeverage, Math.max(1, Number(l))));
     if (s) setScalpMode(s === 'true');
+    
+    // Subscribe to global settings changes
+    const unsubscribe = tradingSettings.subscribe(setGlobalSettings);
+    return unsubscribe;
   }, []);
 
   React.useEffect(() => {
@@ -41,7 +49,14 @@ export function TradeControls({
   const minNotional = scalpMode ? 1 : 5;
   const belowMin = amountUSD < minNotional;
   const notional = amountUSD * lev;
-  const qty = markPrice ? notional / markPrice : undefined;
+  const displayPrice = entryPrice || markPrice;
+  const qty = displayPrice ? notional / displayPrice : undefined;
+  
+  // Calculate TP/SL using global settings
+  const riskPrices = React.useMemo(() => {
+    if (!displayPrice) return null;
+    return tradingSettings.calculateRiskPrices(displayPrice, side);
+  }, [displayPrice, side, globalSettings]);
 
   const go = async () => {
     const minNotional = scalpMode ? 1 : 5;
@@ -49,7 +64,16 @@ export function TradeControls({
       toast({ title: 'Amount too low', description: `Minimum is $${minNotional} for ${scalpMode ? 'scalping' : 'normal trading'}`, variant: 'destructive' });
       return;
     }
-    await onExecute({ amountUSD: Math.max(amountUSD, minNotional), leverage: lev, scalpMode });
+    
+    // Use signal entry price for limit orders
+    const tradeParams = { 
+      amountUSD: Math.max(amountUSD, minNotional), 
+      leverage: lev, 
+      scalpMode,
+      entryPrice: entryPrice || markPrice // Use signal entry price if available
+    };
+    
+    await onExecute(tradeParams);
   };
 
   const quicks = scalpMode ? [1, 2, 5, 10, 20] : [10, 25, 50, 100, 250, 500]; // Smaller amounts for scalping
@@ -99,21 +123,22 @@ export function TradeControls({
               <> • Est. Qty: <b>{qty.toFixed(6)}</b> {symbol.replace('USDT','')}</>
             )}
           </div>
-          {markPrice && (
+          {displayPrice && riskPrices && (
             <div className="text-[10px] opacity-80 border-t pt-1 mt-1">
               <div className="flex justify-between">
-                <span>Entry: <b>${markPrice.toFixed(4)}</b></span>
+                <span>Entry: <b>${displayPrice.toFixed(4)}</b> {entryPrice ? '(Limit)' : '(Market)'}</span>
                 <span className="text-green-600">
-                  TP: <b>${(markPrice * (side === 'Buy' ? (scalpMode ? 1.005 : 1.04) : (scalpMode ? 0.995 : 0.96))).toFixed(4)}</b> 
-                  ({scalpMode ? '+0.5%' : '+4%'})
+                  TP: <b>${riskPrices.takeProfit.toFixed(4)}</b> 
+                  (+{globalSettings.useScalpingMode ? '0.5%' : `${globalSettings.defaultTPPercent}%`})
                 </span>
                 <span className="text-red-600">
-                  SL: <b>${(markPrice * (side === 'Buy' ? (scalpMode ? 0.9985 : 0.98) : (scalpMode ? 1.0015 : 1.02))).toFixed(4)}</b> 
-                  ({scalpMode ? '-0.15%' : '-2%'})
+                  SL: <b>${riskPrices.stopLoss.toFixed(4)}</b> 
+                  (-{globalSettings.useScalpingMode ? '0.15%' : `${globalSettings.defaultSLPercent}%`})
                 </span>
               </div>
               <div className="text-center mt-1 text-emerald-600">
-                <b>{scalpMode ? '🎯 Scalping: 3.3:1 R:R (0.5%:0.15%)' : 'Auto Risk Management: 2:1 R:R'}</b>
+                <b>Risk/Reward: {(globalSettings.defaultTPPercent / globalSettings.defaultSLPercent).toFixed(1)}:1 
+                {globalSettings.orderType === 'limit' ? ' • Limit Orders' : ' • Market Orders'}</b>
               </div>
             </div>
           )}
@@ -128,17 +153,16 @@ export function TradeControls({
         <Slider
           value={[lev]}
           min={1}
-          max={scalpMode ? 25 : 100}
+          max={Math.min(globalSettings.maxLeverage, scalpMode ? 25 : 100)}
           step={1}
-          onValueChange={(v) => setLev(Math.min(scalpMode ? 25 : 100, Math.max(1, v[0])))}
+          onValueChange={(v) => setLev(Math.min(globalSettings.maxLeverage, Math.max(1, v[0])))}
         />
         <div className="flex justify-between text-[10px] opacity-70 mt-1">
           <span>1x</span>
-          {scalpMode ? (
-            <><span>10x</span><span>15x</span><span>20x</span><span>25x</span></>
-          ) : (
-            <><span>25x</span><span>50x</span><span>75x</span><span>100x</span></>
-          )}
+          <span>{Math.floor(globalSettings.maxLeverage * 0.25)}x</span>
+          <span>{Math.floor(globalSettings.maxLeverage * 0.5)}x</span>
+          <span>{Math.floor(globalSettings.maxLeverage * 0.75)}x</span>
+          <span>{globalSettings.maxLeverage}x</span>
         </div>
       </div>
       

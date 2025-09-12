@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
-import { FEATURES } from '@/config/featureFlags'
+import { FEATURES } from '@/config/featureFlags';
+import { tradingSettings } from './tradingSettings';
 
 export type ExecParams = {
   symbol: string
@@ -8,6 +9,9 @@ export type ExecParams = {
   amountUSD?: number    // new: USD amount to trade
   leverage?: number     // new: leverage (1-100x)
   scalpMode?: boolean   // new: scalping mode for micro trades
+  entryPrice?: number   // signal entry price for limit orders
+  stopLoss?: number     // custom stop loss price
+  takeProfit?: number   // custom take profit price
 }
 
 // Get the functions base URL using the hardcoded Supabase URL
@@ -70,6 +74,26 @@ export const TradingGateway = {
         functionsBase
       });
       
+      // Get global trading settings
+      const globalSettings = tradingSettings.getSettings();
+      
+      // Use provided entry price or signal entry price for limit orders
+      const entryPrice = params.entryPrice;
+      const orderType = entryPrice ? 'limit' : globalSettings.orderType;
+      
+      // Calculate SL/TP using global settings if not provided
+      let stopLoss = params.stopLoss;
+      let takeProfit = params.takeProfit;
+      
+      if (entryPrice && (!stopLoss || !takeProfit)) {
+        const riskPrices = tradingSettings.calculateRiskPrices(
+          entryPrice, 
+          params.side === 'BUY' ? 'Buy' : 'Sell'
+        );
+        stopLoss = stopLoss || riskPrices.stopLoss;
+        takeProfit = takeProfit || riskPrices.takeProfit;
+      }
+
       const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
         headers,
@@ -79,7 +103,11 @@ export const TradingGateway = {
           side: params.side === 'BUY' ? 'Buy' : 'Sell',
           amountUSD: amount,
           leverage: leverage,
-          scalpMode: isScalping
+          scalpMode: isScalping,
+          orderType,
+          entryPrice,
+          stopLoss,
+          takeProfit
         })
       });
 
