@@ -15,6 +15,7 @@ export type ExecParams = {
   orderType?: 'Market' | 'Limit'  // order type
   price?: number        // limit price (required for limit orders)
   timeInForce?: 'GTC' | 'IOC' | 'FOK' | 'PostOnly' | 'ImmediateOrCancel'
+  meta?: Record<string, any>  // optional metadata
 }
 
 // Get the functions base URL using the hardcoded Supabase URL
@@ -39,7 +40,7 @@ export const TradingGateway = {
     }
 
     try {
-      console.log('🚀 Executing live trade via Bybit API:', params);
+      console.log('🧭 TradingGateway.execute IN:', params);
       
       const functionsBase = getFunctionsBaseUrl();
       const sessionToken = await getSessionToken();
@@ -127,23 +128,29 @@ export const TradingGateway = {
         });
       }
 
+      const body = {
+        action: 'place_order',
+        symbol: cleanSymbol,
+        side: params.side === 'BUY' ? 'Buy' : 'Sell',
+        amountUSD: amount,
+        leverage: leverage,
+        scalpMode: isScalping,
+        // 👇 Forward all order execution parameters
+        orderType,
+        price: limitPrice,
+        timeInForce,
+        entryPrice,
+        stopLoss,
+        takeProfit,
+        meta: params.meta || {}
+      };
+      
+      console.log('📤 Request body to edge function:', body);
+
       const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          action: 'place_order',
-          symbol: cleanSymbol,
-          side: params.side === 'BUY' ? 'Buy' : 'Sell',
-          amountUSD: amount,
-          leverage: leverage,
-          scalpMode: isScalping,
-          orderType,
-          price: limitPrice,
-          timeInForce,
-          entryPrice,
-          stopLoss,
-          takeProfit
-        })
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {
@@ -158,12 +165,13 @@ export const TradingGateway = {
 
       const data = await response.json();
       
-      // Log the full response for debugging
-      console.log('📊 Trade executor response:', {
-        status: response.status,
-        data,
-        headers: Object.fromEntries(response.headers.entries())
-      });
+      // Enhanced response logging
+      const out = { 
+        ok: response.ok && data?.success !== false, 
+        status: response.status, 
+        ...data 
+      };
+      console.log('🧭 TradingGateway.execute OUT:', out);
       
       // Enhanced SL/TP confirmation logging
       if (data.success && data.data) {
