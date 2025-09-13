@@ -350,6 +350,13 @@ serve(async (req) => {
         const client = new BybitV5Client(apiKey, apiSecret)
 
         // STEP 1: Check account balance before placing orders
+        // Initialize variables at the start to ensure they're always defined
+        let scaledLeverage = Number(leverage) || 25; // Default to 25x leverage
+        let isScalping = false;
+        let qty = 0;
+        let inst: any = null;
+        let price = 0;
+        
         try {
           structuredLog('info', 'Checking account balance before trade execution', { symbol });
           const balanceResponse = await client.signedRequest('GET', '/v5/account/wallet-balance', {
@@ -403,16 +410,17 @@ serve(async (req) => {
         }
 
         // Get instrument info and price
-        const inst = await getInstrument(symbol);
-        const price = await getMarkPrice(symbol);
+        inst = await getInstrument(symbol);
+        price = await getMarkPrice(symbol);
         
         // =================== SCALPING VS NORMAL RISK MANAGEMENT ===================
         
-        const isScalping = scalpMode === true;
+        isScalping = scalpMode === true;
         
-        // Calculate proper quantity with 25x leverage by default
-        const scaledLeverage = leverage || 25; // Default to 25x leverage
-        const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
+        // Calculate proper quantity using already initialized scaledLeverage
+        scaledLeverage = Number(leverage) || scaledLeverage; // Update if provided, keep default otherwise
+        const result = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
+        qty = result.qty;
         
         // Enhanced validation with better error messages
         if (qty <= 0) {
