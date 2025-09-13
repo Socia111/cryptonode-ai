@@ -6,11 +6,6 @@ export interface TradingSettings {
   orderType: 'market' | 'limit';
   maxLeverage: number;
   excludeInnovationZone: boolean;
-  // New Auto Pilot settings
-  defaultSLPct: number;   // 0.0075 = 0.75%
-  defaultTPPct: number;   // 0.015  = 1.50%
-  scalpSLPct: number;     // 0.0035 = 0.35%
-  scalpTPPct: number;     // 0.007  = 0.70%
 }
 
 const DEFAULT_SETTINGS: TradingSettings = {
@@ -19,12 +14,7 @@ const DEFAULT_SETTINGS: TradingSettings = {
   useScalpingMode: false,
   orderType: 'limit',
   maxLeverage: 100,
-  excludeInnovationZone: true,  // Exclude high-fee Innovation Zone pairs by default
-  // Auto Pilot defaults
-  defaultSLPct: 0.0075,  // 0.75%
-  defaultTPPct: 0.015,   // 1.50%
-  scalpSLPct: 0.0035,    // 0.35%
-  scalpTPPct: 0.007,     // 0.70%
+  excludeInnovationZone: true  // Exclude high-fee Innovation Zone pairs by default
 };
 
 const STORAGE_KEY = 'aitradex1_trading_settings';
@@ -104,30 +94,3 @@ class TradingSettingsStore {
 }
 
 export const tradingSettings = new TradingSettingsStore();
-
-// Helper function to calculate TP/SL from entry price
-export function calcRiskFromEntry(
-  entry: number,
-  side: 'Buy'|'Sell',
-  useScalp: boolean,
-  overrides?: { sl?: number; tp?: number }
-) {
-  const s = tradingSettings.getSettings();
-  const slPct = useScalp ? s.scalpSLPct : s.defaultSLPct;
-  const tpPct = useScalp ? s.scalpTPPct : s.defaultTPPct;
-
-  if (overrides?.sl && overrides?.tp) {
-    return { sl: overrides.sl, tp: overrides.tp };
-  }
-  if (side === 'Buy') {
-    return {
-      sl: overrides?.sl ?? +(entry * (1 - slPct)).toFixed(8),
-      tp: overrides?.tp ?? +(entry * (1 + tpPct)).toFixed(8),
-    };
-  }
-  // Sell/Short
-  return {
-    sl: overrides?.sl ?? +(entry * (1 + slPct)).toFixed(8),
-    tp: overrides?.tp ?? +(entry * (1 - tpPct)).toFixed(8),
-  };
-}

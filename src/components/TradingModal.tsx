@@ -14,8 +14,6 @@ interface Signal {
   token: string;
   direction: 'BUY' | 'SELL';
   entry_price?: number;
-  take_profit?: number;
-  stop_loss?: number;
   score: number;
 }
 
@@ -41,12 +39,9 @@ export const TradingModal: React.FC<TradingModalProps> = ({
     try {
       const res = await TradingGateway.execute({
         symbol: signal.token,
-        side: signal.direction === 'BUY' ? 'Buy' : 'Sell',
+        side: signal.direction,
         amountUSD,
-        leverage,
-        uiEntry: signal.entry_price,
-        uiTP: signal.take_profit,
-        uiSL: signal.stop_loss
+        leverage
       });
       
       if (res.ok) {

@@ -11,15 +11,11 @@ import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
 import DatabaseSetup from '../components/DatabaseSetup';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Zap, Target, Activity, TrendingUp } from 'lucide-react';
-import { GlobalTradeBar } from '../components/GlobalTradeBar';
-import { useAutoPilot } from '../hooks/useAutoPilot';
 
 const X2 = () => {
-  const { autoTradeSettings } = useAutoPilot();
-  
   return (
     <MainLayout>
-      <div className="container mx-auto px-6 py-8 space-y-8 pb-20">
+      <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Page Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
@@ -28,11 +24,6 @@ const X2 = () => {
           <p className="text-muted-foreground">
             Next-generation AI trading system with live data feeds, advanced signals, and comprehensive market analysis
           </p>
-          {autoTradeSettings.enabled && (
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 text-green-600 dark:text-green-400 rounded-full text-sm">
-              🤖 Auto Pilot Active (A+/A signals)
-            </div>
-          )}
         </div>
 
         {/* Live Stats */}
@@ -117,7 +108,6 @@ const X2 = () => {
         {/* AItradeX1 System Dashboard */}
         <AItradeX1SystemDashboard />
       </div>
-      <GlobalTradeBar />
     </MainLayout>
   );
 };

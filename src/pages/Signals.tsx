@@ -4,16 +4,13 @@ import { SignalFeed } from '@/components/SignalFeed';
 import { useSignals } from '@/hooks/useSignals';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
-import { GlobalTradeBar } from '@/components/GlobalTradeBar';
-import { useAutoPilot } from '@/hooks/useAutoPilot';
 
 const Signals = () => {
   const { signals, loading, generateSignals } = useSignals();
-  const { autoTradeSettings } = useAutoPilot();
 
   return (
     <MainLayout>
-      <div className="container mx-auto px-6 py-8 space-y-8 pb-20">
+      <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Page Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
@@ -22,11 +19,6 @@ const Signals = () => {
           <p className="text-muted-foreground">
             Advanced AI-powered signals with 80%+ confidence and real-time market analysis
           </p>
-          {autoTradeSettings.enabled && (
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 text-green-600 dark:text-green-400 rounded-full text-sm">
-              🤖 Auto Pilot Active (A+/A signals)
-            </div>
-          )}
         </div>
 
         <div className="flex items-center justify-between">
@@ -43,7 +35,6 @@ const Signals = () => {
           <SignalFeed signals={signals as any} />
         )}
       </div>
-      <GlobalTradeBar />
     </MainLayout>
   );
 };
