@@ -72,6 +72,7 @@ export const TradingGateway = {
       ASSERT(side === 'Buy' || side === 'Sell', 'side invalid');
       ASSERT(amount >= 0.10 && amount <= 100, 'amount out of range (0.10–100)');
       ASSERT(lev >= 1 && lev <= 100, 'leverage out of range (1–100)');
+      ASSERT(typeof lev === 'number' && !isNaN(lev), 'leverage must be a valid number');
 
       // Order shape
       const orderType   = p.orderType ?? (p.price ? 'Limit' : 'Market');

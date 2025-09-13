@@ -272,10 +272,25 @@ serve(async (req) => {
 
     // Handle place order requests
     if (action === 'place_order' || action === 'signal') {
-      if (!symbol || !side || !amountUSD) {
+      // Enhanced validation with better error messages
+      if (!symbol || !side || !amountUSD || leverage === undefined || leverage === null) {
+        const missing = [];
+        if (!symbol) missing.push('symbol');
+        if (!side) missing.push('side');
+        if (!amountUSD) missing.push('amountUSD');
+        if (leverage === undefined || leverage === null) missing.push('leverage');
+        
         return json({
           success: false,
-          message: 'Missing required fields: symbol, side, amountUSD'
+          error: `Missing required fields: ${missing.join(', ')}. Received: symbol=${symbol}, side=${side}, amountUSD=${amountUSD}, leverage=${leverage}`
+        }, 400);
+      }
+
+      // Validate leverage range
+      if (leverage < 1 || leverage > 100) {
+        return json({
+          success: false,
+          error: `Invalid leverage: ${leverage}. Must be between 1 and 100.`
         }, 400);
       }
 
@@ -288,7 +303,9 @@ serve(async (req) => {
         side,
         originalAmount: amountUSD,
         finalAmount: finalAmountUSD,
-        leverage: leverage || 1
+        leverage: leverage,
+        scalpMode,
+        reduceOnly
       });
 
       try {
@@ -318,7 +335,7 @@ serve(async (req) => {
         const isScalping = scalpMode === true;
         
         // Calculate proper quantity with scalping support
-        const scaledLeverage = isScalping ? Math.min(leverage || 10, 25) : (leverage || 1);
+        const scaledLeverage = isScalping ? Math.min(leverage, 25) : leverage;
         const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
         
         // Enhanced validation with better error messages

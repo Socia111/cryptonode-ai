@@ -38,8 +38,8 @@ export function ComprehensiveErrorFixTest() {
         details: connResult.ok ? 'Connection successful' : `Failed: ${connResult.message}`
       });
 
-      // Test 2: New Position Market Order (Main Fix)
-      addResult({ name: 'Market Order (New Position)', status: 'RUNNING', details: 'Testing reduceOnly=false...' });
+      // Test 2: Market Order with All Required Parameters
+      addResult({ name: 'Market Order (Full Parameters)', status: 'RUNNING', details: 'Testing complete parameter set...' });
       const marketResult = await TradingGateway.execute({
         symbol: 'BTCUSDT',
         side: 'Buy',
@@ -49,7 +49,7 @@ export function ComprehensiveErrorFixTest() {
         timeInForce: 'IOC'
       });
       addResult({
-        name: 'Market Order (New Position)',
+        name: 'Market Order (Full Parameters)',
         status: marketResult.ok ? 'PASS' : 'FAIL',
         details: marketResult.ok ? 'Order executed successfully' : `Failed: ${marketResult.message || marketResult.error}`
       });
@@ -108,19 +108,27 @@ export function ComprehensiveErrorFixTest() {
         });
       }
 
-      // Test 6: Error Format Check
-      addResult({ name: 'Error Format Check', status: 'RUNNING', details: 'Checking error response format...' });
-      const errorResult = await TradingGateway.execute({
-        symbol: 'INVALIDTICKER',
-        side: 'Buy',
-        amountUSD: 25,
-        leverage: 5
-      });
-      addResult({
-        name: 'Error Format Check',
-        status: errorResult.ok ? 'FAIL' : 'PASS',
-        details: errorResult.ok ? 'Should have failed for invalid ticker' : 'Error handling working correctly'
-      });
+      // Test 6: Missing Leverage Test
+      addResult({ name: 'Missing Leverage Test', status: 'RUNNING', details: 'Testing leverage validation...' });
+      try {
+        const missingLevResult = await TradingGateway.execute({
+          symbol: 'BTCUSDT',
+          side: 'Buy',
+          amountUSD: 25,
+          leverage: undefined as any
+        });
+        addResult({
+          name: 'Missing Leverage Test',
+          status: missingLevResult.ok ? 'FAIL' : 'PASS',
+          details: missingLevResult.ok ? 'Should have failed for missing leverage' : 'Correctly rejected missing leverage'
+        });
+      } catch (e: any) {
+        addResult({
+          name: 'Missing Leverage Test',
+          status: 'PASS',
+          details: 'Correctly caught missing leverage parameter'
+        });
+      }
 
     } catch (error: any) {
       addResult({
@@ -207,11 +215,12 @@ export function ComprehensiveErrorFixTest() {
         <div className="mt-6 p-4 bg-muted rounded-lg">
           <h4 className="font-medium mb-2">✅ Applied Fixes:</h4>
           <ul className="text-sm space-y-1">
-            <li>• **Phase 1**: Fixed reduceOnly parameter - always false for new positions</li>
-            <li>• **Phase 2**: Enhanced parameter forwarding (orderType, timeInForce, price)</li>
-            <li>• **Phase 3**: Improved error handling and logging throughout pipeline</li>
-            <li>• **Phase 4**: Comprehensive testing for all trading modes</li>
-            <li>• **Phase 5**: Fixed real-time subscription with better error handling</li>
+            <li>• **Phase 1**: Fixed reduceOnly=false for all new positions</li>
+            <li>• **Phase 2**: Enhanced leverage validation and parameter forwarding</li>
+            <li>• **Phase 3**: Improved error handling with detailed messages</li>
+            <li>• **Phase 4**: Fixed "leverage not defined" validation error</li>
+            <li>• **Phase 5**: Updated real-time subscription error handling</li>
+            <li>• **Phase 6**: Comprehensive testing for all trading scenarios</li>
           </ul>
         </div>
       </div>
