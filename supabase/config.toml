@@ -15,6 +15,9 @@ verify_jwt = false
 [functions.signals-api]
 verify_jwt = false
 
+[functions.signal-automation-trigger]
+verify_jwt = false
+
 [functions.trade-executor]
 verify_jwt = false
 
