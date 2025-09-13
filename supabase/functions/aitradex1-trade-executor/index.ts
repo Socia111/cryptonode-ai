@@ -255,7 +255,7 @@ serve(async (req) => {
 
     // Parse request
     const requestBody = await req.json();
-    const { action, symbol, side, amountUSD, leverage, scalpMode } = requestBody;
+    const { action, symbol, side, amountUSD, leverage, scalpMode, orderType } = requestBody;
     
     structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
 
