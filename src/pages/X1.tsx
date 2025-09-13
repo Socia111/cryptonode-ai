@@ -12,15 +12,22 @@ import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
-import { GlobalTradeBar } from '../components/GlobalTradeBar';
-import { useAutoPilot } from '../hooks/useAutoPilot';
+import { useSignals } from '@/hooks/useSignals';
+import { useRankedSignals } from '@/hooks/useRankedSignals';
 
 const X1 = () => {
-  const { autoTradeSettings } = useAutoPilot();
+  // Initialize API connection for live data
+  const { signals, loading } = useSignals();
   
+  // Apply Innovation Zone filtering and other signal filters
+  const rankedSignals = useRankedSignals(signals, {
+    hideWideSpreads: true,
+    excludeInnovationZone: true,
+    hide1MinSignals: true
+  });
   return (
     <MainLayout>
-      <div className="container mx-auto px-6 py-8 space-y-8 pb-20">
+      <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Page Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
@@ -29,11 +36,6 @@ const X1 = () => {
           <p className="text-muted-foreground">
             Multi-indicator confluence model with EMA stack, ADX/DMI, Stochastic, HVP, and weighted scoring system
           </p>
-          {autoTradeSettings.enabled && (
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 text-green-600 dark:text-green-400 rounded-full text-sm">
-              🤖 Auto Pilot Active (A+/A signals)
-            </div>
-          )}
         </div>
         
         {/* Database Setup */}
@@ -66,7 +68,6 @@ const X1 = () => {
           </div>
         </div>
       </div>
-      <GlobalTradeBar />
     </MainLayout>
   );
 };

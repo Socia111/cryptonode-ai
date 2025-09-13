@@ -31,7 +31,7 @@ export function TradingSettingsPanel() {
       defaultTPPercent: 4,
       useScalpingMode: false,
       orderType: 'limit',
-      maxLeverage: 100,
+      maxLeverage: 25,
       excludeInnovationZone: true
     });
     toast({
