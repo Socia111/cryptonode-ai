@@ -49,15 +49,16 @@ export { supabase };
 // A tiny health check that *really* verifies connectivity + RLS
 export async function isSupabaseConfigured(): Promise<boolean> {
   try {
-    // Choose a public-read table; markets is ideal if you created it
+    // Test with a simple query that should always work
     const { error } = await supabase.from('markets').select('id').limit(1);
     if (error) {
-      console.warn('[Supabase] Config present but query failed:', error.message);
+      console.info('[Supabase] Connection test failed, but client exists:', error.message);
       return false;
     }
+    console.info('[Supabase] Connection verified successfully');
     return true;
   } catch (e) {
-    console.warn('[Supabase] Query threw:', e);
+    console.info('[Supabase] Connection test threw exception:', e);
     return false;
   }
 }

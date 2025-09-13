@@ -35,6 +35,8 @@ const DatabaseSetup = () => {
         status[tableName] = !error;
         if (error) {
           console.warn(`[DatabaseSetup] Table ${tableName} check failed:`, error.message);
+        } else {
+          console.log(`[DatabaseSetup] Table ${tableName} is accessible`);
         }
       } catch (e) {
         console.warn(`[DatabaseSetup] Table ${tableName} threw:`, e);
