@@ -167,7 +167,7 @@ function assertSymbolAllowed(symbol: string) {
     );
   }
 }
-const MIN_NOTIONAL_USD = 1; // Support scalp mode with $1 minimum
+const MIN_NOTIONAL_USD = 5;
 const MAX_SPREAD_BPS = 1000; // 10%
 const MAX_FUNDING_RATE = 0.0005; // 0.05% per 8h
 const DEFAULT_ATR_SL_MULTIPLIER = 1.3;
@@ -281,14 +281,9 @@ serve(async (req) => {
         // Symbol validation
         assertSymbolAllowed(signal.symbol);
 
-        // Check minimum notional based on the order parameters
-        const orderQty = parseFloat(signal.qty || '0');
-        const orderPrice = parseFloat(signal.price || '0');
-        const notionalValue = orderQty * orderPrice;
-        
-        // Allow smaller orders for testing but warn if below exchange minimums
-        if (notionalValue > 0 && notionalValue < MIN_NOTIONAL_USD) {
-          console.log(`⚠️ Order below minimum notional of $${MIN_NOTIONAL_USD}, proceeding with test order`);
+        const notionalValue = parseFloat(signal.qty) * parseFloat(signal.price || '0');
+        if (notionalValue < MIN_NOTIONAL_USD) {
+          throw new Error(`Order below minimum notional of $${MIN_NOTIONAL_USD}`);
         }
 
         // Add precision rounding

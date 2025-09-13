@@ -25,8 +25,8 @@ export function TradingTest() {
     const tests: TestResult[] = [
       { test: 'Connection Test', status: 'running' },
       { test: 'Balance Check', status: 'running' },
-      { test: 'Scalp Mode Order ($5)', status: 'running' },
-      { test: 'Normal Mode Order ($10)', status: 'running' },
+      { test: 'Scalp Mode Order ($1)', status: 'running' },
+      { test: 'Normal Mode Order ($5)', status: 'running' },
       { test: 'Symbol Format Test', status: 'running' }
     ];
 
@@ -74,14 +74,14 @@ export function TradingTest() {
     try {
       const scalpTest = await TradingGateway.execute({
         symbol: 'BTCUSDT',
-        side: 'Buy',
-        amountUSD: 5, // Use $5 to meet Bybit minimum
-        leverage: 5,
+        side: 'BUY',
+        amountUSD: 1,
+        leverage: 10,
         scalpMode: true
       });
       
       tests[2] = {
-        test: 'Scalp Mode Order ($5)',
+        test: 'Scalp Mode Order ($1)',
         status: scalpTest.ok ? 'passed' : 'failed',
         message: scalpTest.ok ? 'Scalp order validated' : scalpTest.message || 'Scalp order failed',
         data: scalpTest.data
@@ -89,7 +89,7 @@ export function TradingTest() {
       setResults([...tests]);
     } catch (error: any) {
       tests[2] = {
-        test: 'Scalp Mode Order ($5)',
+        test: 'Scalp Mode Order ($1)',
         status: 'failed',
         message: error.message
       };
@@ -100,14 +100,14 @@ export function TradingTest() {
     try {
       const normalTest = await TradingGateway.execute({
         symbol: 'BTCUSDT',
-        side: 'Buy',
-        amountUSD: 10, // Use $10 for normal mode
+        side: 'BUY',
+        amountUSD: 5,
         leverage: 5,
         scalpMode: false
       });
       
       tests[3] = {
-        test: 'Normal Mode Order ($10)',
+        test: 'Normal Mode Order ($5)',
         status: normalTest.ok ? 'passed' : 'failed',
         message: normalTest.ok ? 'Normal order validated' : normalTest.message || 'Normal order failed',
         data: normalTest.data
@@ -115,7 +115,7 @@ export function TradingTest() {
       setResults([...tests]);
     } catch (error: any) {
       tests[3] = {
-        test: 'Normal Mode Order ($10)',
+        test: 'Normal Mode Order ($5)',
         status: 'failed',
         message: error.message
       };
@@ -126,8 +126,8 @@ export function TradingTest() {
     try {
       const symbolTest = await TradingGateway.execute({
         symbol: 'BTC/USDT', // Test with slash format
-        side: 'Buy',
-        amountUSD: 5, // Use $5 minimum
+        side: 'BUY',
+        amountUSD: 2,
         leverage: 5,
         scalpMode: true
       });
