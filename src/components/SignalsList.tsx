@@ -109,16 +109,15 @@ const SignalsList = () => {
       return;
     }
 
-    const side = signal.direction === 'BUY' ? 'Buy' : 'Sell' as const;
+    const side = signal.direction;
     const orderAmount = Math.max(25, parseFloat(orderSize)); // Ensure minimum $25
     const res = await TradingGateway.execute({ 
       symbol: signal.token, 
       side, 
-      amountUSD: orderAmount,
-      leverage: 10 // Default leverage
+      amountUSD: orderAmount
     });
     
-    if (!res.ok && res.error === 'DISABLED') {
+    if (!res.ok && res.code === 'DISABLED') {
       toast({
         title: "Auto-trading disabled", 
         description: res.message,

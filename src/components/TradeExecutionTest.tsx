@@ -71,7 +71,7 @@ export function TradeExecutionTest() {
     try {
       const result = await TradingGateway.execute({
         symbol: 'BTCUSDT',
-        side: 'Buy',
+        side: 'BUY',
         ...params
       });
       

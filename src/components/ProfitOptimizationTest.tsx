@@ -81,7 +81,7 @@ export function ProfitOptimizationTest() {
         console.log('🚀 Testing small order execution...');
         tradeTest = await TradingGateway.execute({
           symbol: testSignal.token,
-          side: testSignal.direction === 'Buy' ? 'Buy' : 'Sell',
+          side: testSignal.direction === 'Buy' ? 'BUY' : 'SELL',
           amountUSD: 10, // Minimum test size
           leverage: 1
         });

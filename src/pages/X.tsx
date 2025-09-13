@@ -12,19 +12,8 @@ import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
-import { useSignals } from '@/hooks/useSignals';
-import { useRankedSignals } from '@/hooks/useRankedSignals';
 
 const X = () => {
-  // Initialize API connection for live data
-  const { signals, loading } = useSignals();
-  
-  // Apply Innovation Zone filtering and other signal filters
-  const rankedSignals = useRankedSignals(signals, {
-    hideWideSpreads: true,
-    excludeInnovationZone: true,
-    hide1MinSignals: true
-  });
   return (
     <MainLayout>
       <div className="container mx-auto px-6 py-8 space-y-8">

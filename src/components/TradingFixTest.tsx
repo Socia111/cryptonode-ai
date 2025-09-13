@@ -34,7 +34,7 @@ export function TradingFixTest() {
           
           const tradeResult = await TradingGateway.execute({
             symbol,
-            side: 'Buy',
+            side: 'BUY',
             amountUSD: 10, // Minimum test size
             leverage: 1
           });
