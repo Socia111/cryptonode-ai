@@ -12,6 +12,8 @@ import { type ExecResult, type OrderTIF } from '@/lib/tradingTypes';
 import { tradingSettings } from '@/lib/tradingSettings';
 import { TradingErrorFixTest } from '@/components/TradingErrorFixTest';
 import { ComprehensiveErrorFixTest } from '@/components/ComprehensiveErrorFixTest';
+import { TradingSystemTest } from '@/components/TradingSystemTest';
+import { ErrorFixSummary } from '@/components/ErrorFixSummary';
 
 const TestTrading = () => {
   const { toast } = useToast();
@@ -215,6 +217,8 @@ const TestTrading = () => {
             </CardContent>
           </Card>
 
+          <ErrorFixSummary />
+          <TradingSystemTest />
           <ComprehensiveErrorFixTest />
           <TradingErrorFixTest />
           <TradingTestHarness />

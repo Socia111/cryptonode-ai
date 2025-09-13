@@ -44,12 +44,18 @@ const TradingPanel = () => {
     setIsExecuting(true);
     
     try {
+      // Ensure we have a proper symbol (map token -> symbol if needed)
+      const symbol = signal.symbol || signal.token;
+      if (!symbol) {
+        throw new Error('No valid symbol found in signal');
+      }
+
       const side = normalizeSide(signal.direction === 'LONG' ? 'BUY' : 'SELL');
       const res = await TradingGateway.execute({ 
-        symbol: signal.symbol, 
+        symbol: symbol.replace('/', ''), // Remove any slashes for Bybit format
         side, 
         amountUSD: Math.max(25, settings.quantity),
-        leverage: settings.leverage || 1
+        leverage: settings.leverage || 10 // Ensure valid leverage default
       });
       
       if (!res.ok) {

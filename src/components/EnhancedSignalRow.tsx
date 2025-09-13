@@ -8,7 +8,8 @@ import { useToast } from '@/components/ui/use-toast';
 interface EnhancedSignalRowProps {
   signal: {
     id: string;
-    symbol: string;
+    symbol?: string;
+    token?: string;
     direction: string;
     entry_price: number;
     stop_loss?: number;
@@ -38,8 +39,14 @@ export function EnhancedSignalRow({ signal }: EnhancedSignalRowProps) {
           signal.direction === 'LONG' ? 'Buy' : 'Sell'
         );
 
+      // Ensure we have a proper symbol (map token -> symbol if needed)
+      const symbol = signal.symbol || signal.token;
+      if (!symbol) {
+        throw new Error('No valid symbol found in signal');
+      }
+
       const result = await TradingGateway.execute({
-        symbol: signal.symbol,
+        symbol: symbol.replace('/', ''), // Remove any slashes for Bybit format
         side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
         amountUSD: 25, // Default trade size
         leverage: 10,  // Default leverage

@@ -2,7 +2,7 @@ import * as React from 'react';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { useGlobalTrade } from '@/store/useGlobalTrade';
 
-type Ranked = { id: string; token: string; direction: string; _grade: 'A+'|'A'|'B'|'C'; timeframe?: string };
+type Ranked = { id: string; token?: string; symbol?: string; direction: string; _grade: 'A+'|'A'|'B'|'C'; timeframe?: string };
 
 export function useAutoExec(opts: {
   rankedSignals: Ranked[];
@@ -29,11 +29,20 @@ export function useAutoExec(opts: {
         setBusy(true);
         console.log('🤖 Auto-executing signal:', candidate);
         
+        // Ensure we have a proper symbol (map token -> symbol if needed)
+        const symbol = candidate.token || (candidate as any).symbol;
+        if (!symbol) {
+          throw new Error('No valid symbol found in signal');
+        }
+
+        // Ensure leverage is valid
+        const finalLeverage = leverage && leverage >= 1 && leverage <= 100 ? leverage : 10;
+
         const res = await TradingGateway.execute({
-          symbol: candidate.token,
+          symbol: symbol.replace('/', ''), // Remove any slashes for Bybit format
           side: (candidate.direction as any), // normalized inside gateway
-          amountUSD,
-          leverage,
+          amountUSD: amountUSD || 25, // Ensure we have a valid amount
+          leverage: finalLeverage,
           orderType: 'Market',
           timeInForce: 'IOC',
           reduceOnly: false // Explicitly ensure we're opening new positions
