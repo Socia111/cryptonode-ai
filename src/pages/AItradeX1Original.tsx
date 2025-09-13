@@ -15,8 +15,19 @@ import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Zap, Target, Settings } from 'lucide-react';
+import { useSignals } from '@/hooks/useSignals';
+import { useRankedSignals } from '@/hooks/useRankedSignals';
 
 const AItradeX1Original = () => {
+  // Initialize API connection for live data
+  const { signals, loading } = useSignals();
+  
+  // Apply Innovation Zone filtering and other signal filters
+  const rankedSignals = useRankedSignals(signals, {
+    hideWideSpreads: true,
+    excludeInnovationZone: true,
+    hide1MinSignals: true
+  });
   return (
     <MainLayout>
       <div className="container mx-auto px-6 py-8 space-y-8">

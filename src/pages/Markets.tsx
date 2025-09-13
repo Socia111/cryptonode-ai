@@ -2,7 +2,6 @@ import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import MarketOverview from '../components/MarketOverview';
 import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
-import SignalsWidget from '@/components/SignalsWidget';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart3, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 
@@ -21,15 +20,8 @@ const Markets = () => {
         </div>
 
 
-        {/* Live Signals */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <MarketOverview />
-          </div>
-          <div>
-            <SignalsWidget maxItems={6} />
-          </div>
-        </div>
+        {/* Market Overview */}
+        <MarketOverview />
 
         {/* Comprehensive Scanner */}
         <ComprehensiveScannerDashboard />

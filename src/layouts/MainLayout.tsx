@@ -3,7 +3,6 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import TopNavigation from '@/components/TopNavigation';
 import BottomSignalsBar from '@/components/BottomSignalsBar';
-import GlobalSignalsPanel from '@/components/GlobalSignalsPanel';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 interface MainLayoutProps {
@@ -48,9 +47,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <BottomSignalsBar />
           </div>
         </div>
-        
-        {/* Global Signals Panel - Available on all pages */}
-        <GlobalSignalsPanel showTrigger={true} />
       </div>
     </SidebarProvider>
   );

@@ -25,15 +25,18 @@ export function TradeControls({
   const [amountUSD, setAmountUSD] = React.useState<number>(5);
   const [lev, setLev] = React.useState<number>(10);
   const [scalpMode, setScalpMode] = React.useState<boolean>(true);
+  const [useLimit, setUseLimit] = React.useState<boolean>(false);
   const [globalSettings, setGlobalSettings] = React.useState(tradingSettings.getSettings());
 
   React.useEffect(() => {
     const a = localStorage.getItem('trade.amountUSD');
     const l = localStorage.getItem('trade.leverage');
     const s = localStorage.getItem('trade.scalpMode');
+    const ul = localStorage.getItem('trade.useLimit');
     if (a) setAmountUSD(Math.max(1, Number(a)));
     if (l) setLev(Math.min(globalSettings.maxLeverage, Math.max(1, Number(l))));
     if (s) setScalpMode(s === 'true');
+    if (ul) setUseLimit(ul === 'true');
     
     // Subscribe to global settings changes
     const unsubscribe = tradingSettings.subscribe(setGlobalSettings);
@@ -44,7 +47,8 @@ export function TradeControls({
     localStorage.setItem('trade.amountUSD', String(amountUSD));
     localStorage.setItem('trade.leverage', String(lev));
     localStorage.setItem('trade.scalpMode', String(scalpMode));
-  }, [amountUSD, lev, scalpMode]);
+    localStorage.setItem('trade.useLimit', String(useLimit));
+  }, [amountUSD, lev, scalpMode, useLimit]);
 
   const minNotional = scalpMode ? 1 : 5;
   const belowMin = amountUSD < minNotional;
@@ -70,7 +74,10 @@ export function TradeControls({
       amountUSD: Math.max(amountUSD, minNotional), 
       leverage: lev, 
       scalpMode,
-      entryPrice: entryPrice || markPrice // Use signal entry price if available
+      orderType: useLimit ? 'Limit' : 'Market',
+      price: useLimit ? (entryPrice || markPrice) : undefined,
+      timeInForce: useLimit ? 'PostOnly' : 'ImmediateOrCancel',
+      entryPrice: entryPrice || markPrice
     };
     
     await onExecute(tradeParams);
@@ -103,17 +110,32 @@ export function TradeControls({
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="scalpMode"
-            checked={scalpMode}
-            onChange={(e) => setScalpMode(e.target.checked)}
-            className="rounded"
-          />
-          <label htmlFor="scalpMode" className="text-xs font-medium">
-            🎯 Scalp Mode (Micro TP/SL)
-          </label>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="scalpMode"
+              checked={scalpMode}
+              onChange={(e) => setScalpMode(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="scalpMode" className="text-xs font-medium">
+              🎯 Scalp Mode (Micro TP/SL)
+            </label>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="useLimit"
+              checked={useLimit}
+              onChange={(e) => setUseLimit(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="useLimit" className="text-xs font-medium">
+              📋 Use Limit (Post-Only)
+            </label>
+          </div>
         </div>
         
         <div className="rounded-md bg-muted p-2 text-xs space-y-1">
@@ -126,19 +148,19 @@ export function TradeControls({
           {displayPrice && riskPrices && (
             <div className="text-[10px] opacity-80 border-t pt-1 mt-1">
               <div className="flex justify-between">
-                <span>Entry: <b>${displayPrice.toFixed(4)}</b> {entryPrice ? '(Limit)' : '(Market)'}</span>
+                <span>Entry: <b>${displayPrice.toFixed(4)}</b> {useLimit ? '(Limit)' : '(Market)'}</span>
                 <span className="text-green-600">
                   TP: <b>${riskPrices.takeProfit.toFixed(4)}</b> 
-                  (+{globalSettings.useScalpingMode ? '0.5%' : `${globalSettings.defaultTPPercent}%`})
+                  (+{globalSettings.scalpTPPct ? (globalSettings.scalpTPPct * 100).toFixed(2) : (globalSettings.defaultTPPct * 100).toFixed(2)}%)
                 </span>
                 <span className="text-red-600">
                   SL: <b>${riskPrices.stopLoss.toFixed(4)}</b> 
-                  (-{globalSettings.useScalpingMode ? '0.15%' : `${globalSettings.defaultSLPercent}%`})
+                  (-{globalSettings.scalpSLPct ? (globalSettings.scalpSLPct * 100).toFixed(2) : (globalSettings.defaultSLPct * 100).toFixed(2)}%)
                 </span>
               </div>
               <div className="text-center mt-1 text-emerald-600">
-                <b>Risk/Reward: {(globalSettings.defaultTPPercent / globalSettings.defaultSLPercent).toFixed(1)}:1 
-                {globalSettings.orderType === 'limit' ? ' • Limit Orders' : ' • Market Orders'}</b>
+                <b>Risk/Reward: {(globalSettings.defaultTPPct / globalSettings.defaultSLPct).toFixed(1)}:1 
+                • Limit Orders</b>
               </div>
             </div>
           )}

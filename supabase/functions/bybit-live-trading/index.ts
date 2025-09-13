@@ -105,57 +105,9 @@ async function bybitApiCall(
 }
 
 async function getAccountBalance(apiKey: string, apiSecret: string, isTestnet: boolean): Promise<any> {
-  try {
-    const result = await bybitApiCall('/v5/account/wallet-balance', 'GET', {
-      accountType: 'UNIFIED'
-    }, apiKey, apiSecret, isTestnet);
-    
-    if (result.retCode !== 0) {
-      console.error('Balance check failed:', result.retMsg);
-      // Return structured balance data even on error
-      return {
-        retCode: 0, // Force success for UI display
-        retMsg: 'OK',
-        result: {
-          list: [{
-            accountType: 'UNIFIED',
-            coin: [{
-              coin: 'USDT',
-              equity: '0',
-              usdValue: '0',
-              walletBalance: '0',
-              availableToWithdraw: '0',
-              borrowAmount: '0',
-              locked: '0'
-            }]
-          }]
-        }
-      };
-    }
-    
-    return result;
-  } catch (error) {
-    console.error('Balance API error:', error);
-    // Return mock balance data to prevent UI errors
-    return {
-      retCode: 0,
-      retMsg: 'OK',
-      result: {
-        list: [{
-          accountType: 'UNIFIED',
-          coin: [{
-            coin: 'USDT',
-            equity: '0',
-            usdValue: '0',
-            walletBalance: '0',
-            availableToWithdraw: '0',
-            borrowAmount: '0',
-            locked: '0'
-          }]
-        }]
-      }
-    };
-  }
+  return await bybitApiCall('/v5/account/wallet-balance', 'GET', {
+    accountType: 'UNIFIED'
+  }, apiKey, apiSecret, isTestnet);
 }
 
 async function getPositions(apiKey: string, apiSecret: string, isTestnet: boolean): Promise<any> {
@@ -165,69 +117,17 @@ async function getPositions(apiKey: string, apiSecret: string, isTestnet: boolea
 }
 
 async function placeOrder(signal: TradeSignal, apiKey: string, apiSecret: string, isTestnet: boolean): Promise<any> {
-  try {
-    console.log('📋 placeOrder called with signal:', signal);
-    
-    // Basic validation
-    if (!signal.symbol || !signal.side || !signal.orderType || !signal.qty) {
-      throw new Error('Missing required signal fields: symbol, side, orderType, qty');
-    }
-
-    // Convert qty to number and validate
-    const qtyNumber = parseFloat(signal.qty);
-    if (isNaN(qtyNumber) || qtyNumber <= 0) {
-      throw new Error(`Invalid quantity: ${signal.qty}`);
-    }
-
-    // Try with reduce-only false first (for new positions)
-    const orderParams = {
-      category: 'linear',
-      symbol: signal.symbol,
-      side: signal.side,
-      orderType: signal.orderType,
-      qty: signal.qty,
-      reduceOnly: false,
-      ...(signal.price && { price: signal.price }),
-      ...(signal.timeInForce && { timeInForce: signal.timeInForce }),
-      ...(signal.orderType === 'Market' && { timeInForce: 'IOC' })
-    };
-    
-    console.log('📋 Placing order with params:', orderParams);
-    let result = await bybitApiCall('/v5/order/create', 'POST', orderParams, apiKey, apiSecret, isTestnet);
-    
-    // If failed with position-related error, try different approaches
-    if (result.retCode !== 0) {
-      console.log('❌ Order failed, trying alternative approaches:', result.retMsg);
-      
-      // Check for common errors and retry with different settings
-      if (result.retMsg?.includes('reduce only') || result.retMsg?.includes('position') || result.retCode === 110001) {
-        console.log('🔄 Retrying with reduce-only true...');
-        const retryParams = { ...orderParams, reduceOnly: true };
-        result = await bybitApiCall('/v5/order/create', 'POST', retryParams, apiKey, apiSecret, isTestnet);
-        
-        if (result.retCode !== 0) {
-          console.log('🔄 Retrying as Market order...');
-          const marketParams = { 
-            ...orderParams, 
-            orderType: 'Market', 
-            timeInForce: 'IOC',
-            reduceOnly: false
-          };
-          delete marketParams.price; // Remove price for market orders
-          result = await bybitApiCall('/v5/order/create', 'POST', marketParams, apiKey, apiSecret, isTestnet);
-        }
-      }
-    }
-    
-    return result;
-  } catch (error) {
-    console.error('❌ Order placement error:', error);
-    return {
-      retCode: 1,
-      retMsg: `Order failed: ${error.message}`,
-      result: null
-    };
-  }
+  const orderParams = {
+    category: 'linear',
+    symbol: signal.symbol,
+    side: signal.side,
+    orderType: signal.orderType,
+    qty: signal.qty,
+    ...(signal.price && { price: signal.price }),
+    ...(signal.timeInForce && { timeInForce: signal.timeInForce })
+  };
+  
+  return await bybitApiCall('/v5/order/create', 'POST', orderParams, apiKey, apiSecret, isTestnet);
 }
 
 async function setTpSlOrder(
@@ -309,8 +209,6 @@ serve(async (req) => {
   try {
     const { action, signal, testMode = true, idempotencyKey, ...params } = await req.json();
     
-    console.log('🔧 Bybit Live Trading Request:', { action, testMode, signal });
-    
     // Standardized environment variables with fallbacks
     const apiKey = Deno.env.get('BYBIT_API_KEY') ?? Deno.env.get('BYBIT_KEY');
     const apiSecret = Deno.env.get('BYBIT_API_SECRET') ?? Deno.env.get('BYBIT_SECRET');
@@ -347,22 +245,22 @@ serve(async (req) => {
       });
     }
 
-    // Master kill switch check - improved to work in testnet
-    if (!liveTrading && action === 'place_order' && !isTestnet) {
+    // Master kill switch check
+    if (!liveTrading && action === 'place_order') {
       console.log('🔒 Live trading disabled via LIVE_TRADING_ENABLED secret');
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Live trading is currently disabled. Enable LIVE_TRADING_ENABLED or use testnet.',
+          error: 'Live trading is currently disabled',
           code: 'LIVE_TRADING_DISABLED',
-          testMode: true,
-          isTestnet: isTestnet
+          testMode: true
         }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     console.log(`🚀 Bybit Live Trading - Action: ${action}, TestMode: ${isTestnet}`);
+    console.log('🔧 symbol gate:', { RAW_ALLOWED, ALLOW_ALL });
 
     let result;
 
@@ -380,24 +278,21 @@ serve(async (req) => {
           throw new Error('Signal data required for placing orders');
         }
 
-        console.log('📋 Processing order signal:', signal);
-
         // Symbol validation
         assertSymbolAllowed(signal.symbol);
 
-        // Basic validation for minimum order value
-        const estimatedNotional = parseFloat(signal.qty) * parseFloat(signal.price || '1');
-        if (estimatedNotional > 0 && estimatedNotional < MIN_NOTIONAL_USD) {
-          console.warn(`⚠️ Order below minimum notional of $${MIN_NOTIONAL_USD}, proceeding anyway for testnet`);
+        const notionalValue = parseFloat(signal.qty) * parseFloat(signal.price || '0');
+        if (notionalValue < MIN_NOTIONAL_USD) {
+          throw new Error(`Order below minimum notional of $${MIN_NOTIONAL_USD}`);
         }
 
-        // Add precision rounding only if values exist
+        // Add precision rounding
         if (signal.price) signal.price = roundToTickSize(parseFloat(signal.price));
-        if (signal.qty) signal.qty = roundToQtyStep(parseFloat(signal.qty));
+        signal.qty = roundToQtyStep(parseFloat(signal.qty));
         if (signal.stopLoss) signal.stopLoss = roundToTickSize(parseFloat(signal.stopLoss));
         if (signal.takeProfit) signal.takeProfit = roundToTickSize(parseFloat(signal.takeProfit));
         
-        console.log('📋 Placing order with processed signal:', { ...signal, idempotencyKey });
+        console.log('📋 Placing order with signal:', { ...signal, idempotencyKey });
         result = await placeOrder(signal, apiKey, apiSecret, isTestnet);
         
         // Set TP/SL if provided and order was successful
@@ -497,8 +392,6 @@ serve(async (req) => {
     const success = result.retCode === 0;
     const cleanMessage = success ? result.retMsg : getCleanErrorMessage(result.retCode, result.retMsg);
     
-    console.log('📊 Final response:', { success, cleanMessage, retCode: result.retCode });
-    
     return new Response(
       JSON.stringify({
         success,
@@ -518,47 +411,31 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Bybit Live Trading Error:', error);
     
-    // Enhanced error handling with more details
+    // Map common errors to user-friendly messages
     let userMessage = error.message;
     let errorCode = 'UNKNOWN_ERROR';
-    let httpStatus = 500;
     
     if (error.message.includes('fetch')) {
       userMessage = 'Network error - please try again';
       errorCode = 'NETWORK_ERROR';
-      httpStatus = 503;
     } else if (error.message.includes('timeout')) {
       userMessage = 'Request timeout - exchange may be busy';
       errorCode = 'TIMEOUT_ERROR';
-      httpStatus = 408;
     } else if (error.message.includes('blocked by config')) {
       errorCode = 'SYMBOL_BLOCKED';
-      httpStatus = 403;
     } else if (error.message.includes('minimum notional')) {
       errorCode = 'BELOW_MIN_NOTIONAL';
-      httpStatus = 400;
-    } else if (error.message.includes('Missing required')) {
-      errorCode = 'VALIDATION_ERROR';
-      httpStatus = 400;
     }
     
-    const errorResponse = { 
-      success: false, 
-      error: userMessage,
-      code: errorCode,
-      timestamp: new Date().toISOString(),
-      debug: {
-        originalError: error.message,
-        stack: error.stack?.split('\n').slice(0, 3) // First 3 lines only
-      }
-    };
-    
-    console.error('📋 Error response:', errorResponse);
-    
     return new Response(
-      JSON.stringify(errorResponse),
+      JSON.stringify({ 
+        success: false, 
+        error: userMessage,
+        code: errorCode,
+        timestamp: new Date().toISOString()
+      }),
       { 
-        status: httpStatus, 
+        status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );

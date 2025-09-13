@@ -2,8 +2,6 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import SignalsWidget from '@/components/SignalsWidget';
-import TradingSystemTest from '@/components/TradingSystemTest';
 import { 
   Shield, 
   Zap, 
@@ -61,15 +59,6 @@ const Home = () => {
         {/* Floating 3D Cube Effect */}
         <div className="absolute top-1/2 right-10 transform -translate-y-1/2 opacity-20">
           <div className="w-32 h-32 bg-gradient-to-br from-purple-500/30 to-violet-600/30 rounded-lg backdrop-blur-sm border border-purple-400/20 animate-pulse-glow"></div>
-        </div>
-      </section>
-
-      {/* Live Signals Preview */}
-      <section className="py-8 bg-gradient-to-r from-purple-950/5 to-violet-950/5">
-        <div className="container mx-auto px-6">
-          <div className="max-w-md mx-auto">
-            <SignalsWidget maxItems={3} className="bg-card/80 backdrop-blur-sm" />
-          </div>
         </div>
       </section>
 
@@ -292,13 +281,6 @@ const Home = () => {
               <Link to="/portfolio">Portfolio</Link>
             </Button>
           </div>
-        </div>
-      </section>
-
-      {/* Trading System Test - Development Only */}
-      <section className="py-8 border-t border-purple-500/20">
-        <div className="container mx-auto px-6">
-          <TradingSystemTest />
         </div>
       </section>
     </div>
