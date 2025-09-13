@@ -294,9 +294,13 @@ serve(async (req) => {
         }, 400);
       }
 
-  // For scalping, use very small minimum order size to avoid balance issues
-  const minOrderSize = scalpMode ? 1 : 5  // Scalp: $1 min | Normal: $5 min
-  const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
+      // For scalping, use very small minimum order size to avoid balance issues
+      const minOrderSize = scalpMode ? 1 : 5  // Scalp: $1 min | Normal: $5 min
+      const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
+      
+      // Define scaledLeverage in proper scope (before try block)
+      const isScalping = scalpMode === true;
+      const scaledLeverage = isScalping ? Math.min(leverage, 25) : leverage;
 
       structuredLog('info', 'Trade execution request', {
         symbol,
@@ -304,6 +308,7 @@ serve(async (req) => {
         originalAmount: amountUSD,
         finalAmount: finalAmountUSD,
         leverage: leverage,
+        scaledLeverage: scaledLeverage,
         scalpMode,
         reduceOnly
       });
@@ -332,10 +337,7 @@ serve(async (req) => {
         
         // =================== SCALPING VS NORMAL RISK MANAGEMENT ===================
         
-        const isScalping = scalpMode === true;
-        
         // Calculate proper quantity with scalping support
-        const scaledLeverage = isScalping ? Math.min(leverage, 25) : leverage;
         const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
         
         // Enhanced validation with better error messages

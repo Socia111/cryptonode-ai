@@ -14,6 +14,7 @@ import { TradingErrorFixTest } from '@/components/TradingErrorFixTest';
 import { ComprehensiveErrorFixTest } from '@/components/ComprehensiveErrorFixTest';
 import { TradingSystemTest } from '@/components/TradingSystemTest';
 import { ErrorFixSummary } from '@/components/ErrorFixSummary';
+import { FullSystemTest } from '@/components/FullSystemTest';
 
 const TestTrading = () => {
   const { toast } = useToast();
@@ -217,6 +218,7 @@ const TestTrading = () => {
             </CardContent>
           </Card>
 
+          <FullSystemTest />
           <ErrorFixSummary />
           <TradingSystemTest />
           <ComprehensiveErrorFixTest />
