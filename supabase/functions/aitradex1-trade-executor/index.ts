@@ -78,7 +78,8 @@ serve(async (req) => {
 
   try {
     const requestBody = await req.json();
-    const { action, symbol, side, amountUSD, leverage = 25 } = requestBody;
+    const { action, symbol, side, amountUSD: requestedAmount, leverage = 10 } = requestBody;
+    let amountUSD = requestedAmount;
 
     console.log('🚀 Trade executor request:', { action, symbol, side, amountUSD, leverage });
 
@@ -119,8 +120,8 @@ serve(async (req) => {
         }, 400);
       }
 
-      // FORCE DISABLE PAPER TRADING - ENABLE REAL TRADING
-      const isPaperMode = false; // Deno.env.get('PAPER_TRADING') === 'true';
+        // ENABLE REAL TRADING - PAPER MODE DISABLED
+        const isPaperMode = false;
       
       if (isPaperMode) {
         console.log('📝 Paper trading mode - simulating execution');
@@ -173,7 +174,7 @@ serve(async (req) => {
           if (availableBalance < requiredMargin) {
             console.warn('⚠️ Insufficient balance, adjusting order size');
             // Calculate maximum possible order size with current balance
-            const maxOrderSize = Math.floor(availableBalance * leverage * 0.8); // 80% of available balance
+            const maxOrderSize = Math.floor(availableBalance * leverage * 0.9); // 90% of available balance
             const adjustedAmount = Math.max(5, maxOrderSize);
             console.log(`📉 Adjusted order size from $${amountUSD} to $${adjustedAmount} (margin needed: $${requiredMargin}, available: $${availableBalance})`);
             
@@ -184,7 +185,7 @@ serve(async (req) => {
               }, 400);
             }
             
-            // Update amountUSD to the adjusted amount
+            // Update amount to the adjusted amount
             amountUSD = adjustedAmount;
           } else {
             console.log(`✅ Sufficient balance. Required margin: $${requiredMargin.toFixed(2)}, Available: $${availableBalance.toFixed(2)}`);
@@ -193,8 +194,8 @@ serve(async (req) => {
           console.warn('⚠️ Could not check balance, using conservative settings:', balanceError.message);
           
           // If balance check fails, use a smaller conservative order size
-          if (amountUSD > 10) {
-            amountUSD = 10; // Limit to $10 if balance check fails
+          if (amountUSD > 15) {
+            amountUSD = 15; // Limit to $15 if balance check fails
             console.log(`📉 Conservative fallback: limiting order to $${amountUSD} due to balance check failure`);
           }
         }
