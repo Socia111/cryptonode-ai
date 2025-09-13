@@ -39,9 +39,16 @@ class BybitV5Client {
   private apiSecret: string
 
   constructor(apiKey: string, apiSecret: string) {
-    this.baseURL = Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com'
+    // Use testnet for safety during development/testing
+    const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || true; // Force testnet for now
+    this.baseURL = isTestnet 
+      ? 'https://api-testnet.bybit.com' 
+      : (Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com');
+    
     this.apiKey = apiKey
     this.apiSecret = apiSecret
+    
+    console.log(`🌐 Bybit Client initialized: ${isTestnet ? 'TESTNET' : 'MAINNET'} (${this.baseURL})`);
   }
 
   private async signRequest(method: string, path: string, params: any = {}): Promise<string> {
@@ -254,10 +261,15 @@ serve(async (req) => {
 
     // Handle status requests
     if (action === 'status') {
+      const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || true;
+      const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
+      
       return json({
         ok: true,
         status: 'operational',
         trading_enabled: Deno.env.get('LIVE_TRADING_ENABLED') === 'true',
+        environment: isTestnet ? 'testnet' : 'mainnet',
+        paper_mode: isPaperMode,
         allowed_symbols: Deno.env.get('ALLOWED_SYMBOLS') || '*',
         timestamp: new Date().toISOString()
       });
@@ -272,8 +284,11 @@ serve(async (req) => {
         }, 400);
       }
 
-  // Use higher minimums to meet exchange requirements
-  const minOrderSize = scalpMode ? 10 : 25  // Scalp: $10 min | Normal: $25 min
+  // Use smaller amounts for testnet to avoid balance issues
+  const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || true; // Force testnet for now
+  const minOrderSize = isTestnet 
+    ? (scalpMode ? 1 : 5)   // Testnet: $1 scalp, $5 normal
+    : (scalpMode ? 10 : 25) // Mainnet: $10 scalp, $25 normal
   const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
 
       structuredLog('info', 'Trade execution request', {
@@ -285,7 +300,39 @@ serve(async (req) => {
       });
 
       try {
-        // Initialize Bybit client
+        // Check if paper trading mode is enabled
+        const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
+        
+        if (isPaperMode) {
+          structuredLog('info', 'Paper trading mode - simulating trade execution', {
+            symbol,
+            side,
+            finalAmount: finalAmountUSD,
+            leverage: 25
+          });
+          
+          // Simulate successful trade execution
+          const simulatedOrderId = 'PAPER_' + Date.now();
+          const simulatedPrice = Math.random() * 100 + 50; // Random price for demo
+          
+          return json({
+            success: true,
+            data: {
+              orderId: simulatedOrderId,
+              symbol,
+              side,
+              qty: (finalAmountUSD * 25 / simulatedPrice).toFixed(6),
+              price: simulatedPrice,
+              amount: finalAmountUSD,
+              leverage: 25,
+              status: 'FILLED',
+              paperMode: true,
+              message: 'Paper trade executed successfully - no real money involved'
+            }
+          });
+        }
+
+        // Initialize Bybit client for real trading
         const apiKey = Deno.env.get('BYBIT_API_KEY')
         const apiSecret = Deno.env.get('BYBIT_API_SECRET')
         
@@ -302,7 +349,41 @@ serve(async (req) => {
 
         const client = new BybitV5Client(apiKey, apiSecret)
 
-        // STEP 1: Check and set position mode to One-Way (safer for new positions)
+        // STEP 1: Check account balance before placing orders
+        try {
+          structuredLog('info', 'Checking account balance before trade execution', { symbol });
+          const balanceResponse = await client.signedRequest('GET', '/v5/account/wallet-balance', {
+            accountType: 'UNIFIED'
+          });
+          
+          if (balanceResponse?.result?.list?.[0]) {
+            const account = balanceResponse.result.list[0];
+            const usdtCoin = account.coin?.find((c: any) => c.coin === 'USDT');
+            const availableBalance = parseFloat(usdtCoin?.availableToWithdraw || '0');
+            
+            structuredLog('info', 'Account balance check', {
+              totalBalance: usdtCoin?.walletBalance || '0',
+              availableBalance,
+              requiredForTrade: finalAmountUSD,
+              hasSufficientBalance: availableBalance >= finalAmountUSD
+            });
+            
+            // Check if we have sufficient balance
+            if (availableBalance < finalAmountUSD) {
+              return json({
+                success: false,
+                error: `Insufficient balance. Available: $${availableBalance.toFixed(2)}, Required: $${finalAmountUSD}. Please add funds to your account or reduce the trade amount.`,
+                details: { availableBalance, requiredAmount: finalAmountUSD }
+              }, 400);
+            }
+          }
+        } catch (balanceError: any) {
+          structuredLog('warning', 'Balance check failed, proceeding anyway', { 
+            error: balanceError.message 
+          });
+        }
+
+        // STEP 2: Check and set position mode to One-Way (safer for new positions)
         if (inst.category === 'linear') {
           try {
             structuredLog('info', 'Setting position mode to One-Way for safe trading', { symbol });
