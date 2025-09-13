@@ -68,8 +68,9 @@ export const TradingConnectionTest = () => {
     try {
       const result = await TradingGateway.execute({
         symbol: 'BTCUSDT',
-        side: 'BUY',
-        amountUSD: 25
+        side: 'Buy',
+        amountUSD: 25,
+        leverage: 1
       });
       
       if (result.ok) {
@@ -82,7 +83,7 @@ export const TradingConnectionTest = () => {
         // Enhanced error handling for specific Bybit codes
         let errorMessage = result.message || "Trade execution failed";
         
-        if (result.code === 'DISABLED') {
+        if (result.error === 'DISABLED') {
           errorMessage = "Auto-trading is disabled in feature flags";
         } else if (result.message?.includes('10004')) {
           errorMessage = "Bybit signature mismatch - check API keys and system time";
