@@ -1,8 +1,7 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import AItradeX1SystemDashboard from '../components/AItradeX1SystemDashboard';
-import { SignalFeedAdvanced } from '../components/SignalFeedAdvanced';
-import { useSignals } from '@/hooks/useSignals';
+import SignalsList from '../components/SignalsList';
 import LivePrice from '../components/LivePrice';
 import TradingChart from '../components/TradingChart';
 import MarketOverview from '../components/MarketOverview';
@@ -17,7 +16,6 @@ import { useAutoPilot } from '../hooks/useAutoPilot';
 
 const X2 = () => {
   const { autoTradeSettings } = useAutoPilot();
-  const { signals } = useSignals();
   
   return (
     <MainLayout>
@@ -104,8 +102,8 @@ const X2 = () => {
         {/* Market Overview */}
         <MarketOverview />
 
-        {/* Enhanced Live Signals */}
-        <SignalFeedAdvanced signals={signals} algorithm="enhanced" />
+        {/* Live Signals */}
+        <SignalsList />
 
         {/* Comprehensive Scanner */}
         <ComprehensiveScannerDashboard />

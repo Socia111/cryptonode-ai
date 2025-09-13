@@ -29,14 +29,10 @@ const SignalsList = () => {
   const [executedSignals, setExecutedSignals] = useState(new Set());
   const [autoExecute, setAutoExecute] = useState(false);
 
-  // Use enhanced ranked signals with improved filtering
+  // Use ranked signals with filtering - hide 1min signals unless showing all
   const rankedSignals = useRankedSignals(signals, { 
     hideWideSpreads: !showAllSpreads,
-    hide1MinSignals: !showAllSignals,
-    useEnhancedScoring: true,  // Enable enhanced scoring
-    maxSpreadBps: showAllSpreads ? 50 : 20,
-    minDepth: 1000,
-    minRR: 1.8
+    hide1MinSignals: !showAllSignals 
   });
   const topPicks = rankedSignals.slice(0, 3);
 
@@ -85,12 +81,11 @@ const SignalsList = () => {
     };
   }, [signals]);
 
-  // Filter for priority signals (now using enhanced scoring) - exclude 1min signals
+  // Filter for priority signals (now using ranked signals) - exclude 1min signals
   const prioritySignals = useMemo(() => {
     if (!rankedSignals) return [];
     return rankedSignals.filter(signal => {
-      // Use _grade from enhanced scoring
-      const isHighGrade = signal._grade === 'A+' || signal._grade === 'A';
+      const isHighGrade = signal.grade === 'A+' || signal.grade === 'A';
       const timeframe = signal.timeframe?.toLowerCase() || '';
       const is1Min = timeframe.includes('1m') || timeframe.includes('1min');
       return isHighGrade && !is1Min;
@@ -382,32 +377,32 @@ const SignalsList = () => {
                           </Badge>
                           <Badge 
                             variant={
-                              signal._grade === 'A+' ? 'success' :
-                              signal._grade === 'A' ? 'default' :
-                              signal._grade === 'B' ? 'warning' : 'secondary'
+                              signal.grade === 'A+' ? 'success' :
+                              signal.grade === 'A' ? 'default' :
+                              signal.grade === 'B' ? 'warning' : 'secondary'
                             }
                             className="text-xs font-bold"
                           >
-                            {signal._grade}
+                            {signal.grade}
                           </Badge>
                           <Badge variant="outline" className="text-xs">
                             {signal.timeframe}
                           </Badge>
                           <span className="text-xs opacity-60 ml-2">
-                            score {Math.round((signal._score || signal.score || 0) * 100)}%
+                            score {Math.round(signal.score)}%
                           </span>
-                          {(signal.spread_bps || signal.spread) && (signal.spread_bps || signal.spread) > 20 && (
+                          {signal.spread && signal.spread > 20 && (
                             <Badge variant="warning" className="text-xs">
-                              {((signal.spread_bps || signal.spread) || 0).toFixed(1)} bps
+                              {signal.spread.toFixed(1)} bps
                             </Badge>
                           )}
                         </div>
                         
                         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                           <div>Entry: ${signal.entry_price?.toFixed(4)}</div>
-                          <div>R:R: {(signal.rr || signal.risk_reward_ratio || 0).toFixed(1)}</div>
+                          <div>Edge: {signal.edgeScore?.toFixed(1)}%</div>
                           <div>SL: ${signal.stop_loss?.toFixed(4)}</div>
-                          <div>TP: ${(signal.take_profit || signal.exit_target)?.toFixed(4)}</div>
+                          <div>TP: ${signal.exit_target?.toFixed(4)}</div>
                         </div>
                         
                         <div className="flex items-center space-x-2 text-xs text-muted-foreground mt-1">

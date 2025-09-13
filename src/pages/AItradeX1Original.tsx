@@ -1,8 +1,7 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import MarketOverview from '../components/MarketOverview';
-import { SignalFeedAdvanced } from '../components/SignalFeedAdvanced';
-import { useSignals } from '@/hooks/useSignals';
+import SignalsList from '../components/SignalsList';
 import TradingChart from '../components/TradingChart';
 import PortfolioStats from '../components/PortfolioStats';
 import DatabaseSetup from '../components/DatabaseSetup';
@@ -18,7 +17,6 @@ import { Badge } from '@/components/ui/badge';
 import { Zap, Target, Settings } from 'lucide-react';
 
 const AItradeX1Original = () => {
-  const { signals } = useSignals();
   return (
     <MainLayout>
       <div className="container mx-auto px-6 py-8 space-y-8">
@@ -78,11 +76,7 @@ const AItradeX1Original = () => {
             <TelegramIntegration />
             <QuantumAnalysis />
             <SpynxScoreCard />
-            <SignalFeedAdvanced 
-              signals={signals} 
-              algorithm="original"
-              title="AItradeX1 ORIGINAL Signals"
-            />
+            <SignalsList />
           </div>
         </div>
       </div>
