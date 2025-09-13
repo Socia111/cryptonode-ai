@@ -1,6 +1,7 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import PortfolioStats from '../components/PortfolioStats';
+import SignalsWidget from '@/components/SignalsWidget';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Wallet, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 
@@ -19,8 +20,15 @@ const Portfolio = () => {
         </div>
 
 
-        {/* Portfolio Stats Component */}
-        <PortfolioStats />
+        {/* Portfolio and Signals */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <PortfolioStats />
+          </div>
+          <div>
+            <SignalsWidget maxItems={8} />
+          </div>
+        </div>
       </div>
     </MainLayout>
   );

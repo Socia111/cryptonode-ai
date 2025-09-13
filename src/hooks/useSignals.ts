@@ -383,28 +383,53 @@ export const useSignals = () => {
         console.warn('[signals] initial load failed', e);
       }
 
+      // Fix realtime subscription with proper error handling
       try {
-        channel = subscribeSignalsRealtime(
-          (newSignal) => { 
-            if (mounted && newSignal.confidence_score >= 80) { // Only show 80%+ signals
-              setSignals(prev => [newSignal, ...prev].slice(0, 20));
-              
-              // Show toast notification for high-confidence signal
-              toast({
-                title: "🚨 High-Confidence Signal",
-                description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
-                duration: 5000,
-              });
+        channel = supabase
+          .channel('signals-realtime')
+          .on(
+            'postgres_changes',
+            { 
+              event: 'INSERT', 
+              schema: 'public', 
+              table: 'signals',
+              filter: 'score.gte.80'
+            },
+            (payload) => {
+              console.log('[signals-realtime] NEW signal:', payload);
+              if (mounted && payload.new) {
+                const newSignal = mapDbToSignal(payload.new);
+                setSignals(prev => [newSignal, ...prev].slice(0, 20));
+                
+                // Show toast notification for high-confidence signal
+                toast({
+                  title: "🚨 High-Confidence Signal",
+                  description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
+                  duration: 5000,
+                });
+              }
             }
-          },
-          (updatedSignal) => { 
-            if (mounted) {
-              setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
+          )
+          .on(
+            'postgres_changes',
+            { 
+              event: 'UPDATE', 
+              schema: 'public', 
+              table: 'signals' 
+            },
+            (payload) => {
+              console.log('[signals-realtime] UPDATED signal:', payload);
+              if (mounted && payload.new) {
+                const updatedSignal = mapDbToSignal(payload.new);
+                setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
+              }
             }
-          },
-        );
+          )
+          .subscribe((status) => {
+            console.log('[signals-realtime] Status:', status);
+          });
       } catch (e) {
-        console.warn('[signals] realtime subscribe failed, fallback to polling', e);
+        console.warn('[signals-realtime] Subscribe failed, using polling only:', e);
       }
 
       pollId = window.setInterval(() => {
