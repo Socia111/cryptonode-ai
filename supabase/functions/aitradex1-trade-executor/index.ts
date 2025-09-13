@@ -284,12 +284,13 @@ serve(async (req) => {
         }, 400);
       }
 
-  // Use smaller amounts for testnet to avoid balance issues
-  const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || true; // Force testnet for now
-  const minOrderSize = isTestnet 
-    ? (scalpMode ? 1 : 5)   // Testnet: $1 scalp, $5 normal
-    : (scalpMode ? 10 : 25) // Mainnet: $10 scalp, $25 normal
-  const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
+      // Use smaller amounts for testnet to avoid balance issues
+      const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || true; // Force testnet for now
+      const scalpMode = (req.url.includes('scalpMode=true') || orderType === 'scalp');
+      const minOrderSize = isTestnet 
+        ? (scalpMode ? 1 : 5)   // Testnet: $1 scalp, $5 normal
+        : (scalpMode ? 10 : 25) // Mainnet: $10 scalp, $25 normal
+      const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize);
 
       structuredLog('info', 'Trade execution request', {
         symbol,
