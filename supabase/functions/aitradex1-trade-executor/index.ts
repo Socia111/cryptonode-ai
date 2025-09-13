@@ -1,52 +1,80 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
+// CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
+  'Access-Control-Max-Age': '86400',
 };
 
-function jsonResponse(data: any, status = 200) {
-  return new Response(JSON.stringify(data), {
+function json(body: any, status = 200) {
+  return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders,
+    },
   });
 }
 
-class BybitClient {
-  private baseURL: string;
-  private apiKey: string;
-  private apiSecret: string;
+// =================== STRUCTURED LOGGING ===================
 
-  constructor(apiKey: string, apiSecret: string, testnet = true) {
-    this.baseURL = testnet ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com';
-    this.apiKey = apiKey;
-    this.apiSecret = apiSecret;
+const structuredLog = (event: string, data: Record<string, any> = {}) => {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    event,
+    requestId: data.requestId || crypto.randomUUID(),
+    ...data
+  };
+  console.log(JSON.stringify(logEntry));
+  return logEntry.requestId;
+};
+
+// =================== BYBIT V5 API INTEGRATION ===================
+
+class BybitV5Client {
+  private baseURL: string
+  private apiKey: string
+  private apiSecret: string
+
+  constructor(apiKey: string, apiSecret: string) {
+    this.baseURL = Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com'
+    this.apiKey = apiKey
+    this.apiSecret = apiSecret
   }
 
-  private async sign(params: any): Promise<string> {
-    const timestamp = Date.now().toString();
-    const paramString = JSON.stringify(params);
-    const message = timestamp + this.apiKey + '5000' + paramString;
+  private async signRequest(method: string, path: string, params: any = {}): Promise<string> {
+    const timestamp = Date.now().toString()
+    const paramString = Object.keys(params).length 
+      ? JSON.stringify(params)
+      : ''
+
+    const message = timestamp + this.apiKey + '5000' + paramString
+    const signature = await this.hmacSha256(this.apiSecret, message)
     
-    const encoder = new TextEncoder();
+    return signature
+  }
+
+  private async hmacSha256(secret: string, message: string): Promise<string> {
+    const encoder = new TextEncoder()
     const key = await crypto.subtle.importKey(
       'raw',
-      encoder.encode(this.apiSecret),
+      encoder.encode(secret),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['sign']
-    );
+    )
     
-    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
+    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message))
     return Array.from(new Uint8Array(signature))
       .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+      .join('')
   }
 
-  async request(method: string, endpoint: string, params: any = {}): Promise<any> {
-    const timestamp = Date.now().toString();
-    const signature = await this.sign(params);
+  async signedRequest(method: string, endpoint: string, params: any = {}): Promise<any> {
+    const timestamp = Date.now().toString()
+    const signature = await this.signRequest(method, endpoint, params)
     
     const headers = {
       'X-BAPI-API-KEY': this.apiKey,
@@ -55,375 +83,585 @@ class BybitClient {
       'X-BAPI-TIMESTAMP': timestamp,
       'X-BAPI-RECV-WINDOW': '5000',
       'Content-Type': 'application/json'
-    };
+    }
 
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
+    const url = `${this.baseURL}${endpoint}`
+    const options: RequestInit = {
       method,
       headers,
       ...(method !== 'GET' && { body: JSON.stringify(params) })
-    });
-
-    const data = await response.json();
-    if (data.retCode !== 0) {
-      throw new Error(`Bybit API error: ${data.retMsg}`);
     }
-    return data;
+
+    const response = await fetch(url, options)
+    const data = await response.json()
+    
+    if (data.retCode !== 0) {
+      throw new Error(`Bybit API error: ${data.retMsg}`)
+    }
+    
+    return data
   }
 }
 
+// =================== UTILITY FUNCTIONS ===================
+
+// Utility functions for number rounding
+function roundToStep(value: number, stepSize: number): number {
+  return Math.floor(value / stepSize + 1e-12) * stepSize;
+}
+
+// Symbol validation - allow all symbols including digits
+function isSymbolAllowed(symbol: string): boolean {
+  const allowAll = (Deno.env.get("ALLOWED_SYMBOLS") || "*").trim();
+  if (allowAll === "*") return true;
+
+  const list = allowAll.split(",").map(s => s.trim().toUpperCase());
+  return list.includes(symbol.toUpperCase());
+}
+
+// Instrument info types
+type Instrument = {
+  category: "spot" | "linear";
+  symbol: string;
+  tickSize: number;
+  qtyStep: number;
+  minOrderValue?: number;
+  minOrderQty?: number;
+  minOrderAmt?: number;
+};
+
+// Get instrument information from Bybit
+async function getInstrument(symbol: string): Promise<Instrument> {
+  const base = Deno.env.get("BYBIT_BASE") || 'https://api.bybit.com';
+  
+  for (const category of ["linear", "spot"] as const) {
+    const url = new URL("/v5/market/instruments-info", base);
+    url.searchParams.set("category", category);
+    url.searchParams.set("symbol", symbol);
+    
+    const r = await fetch(url.toString());
+    const j = await r.json();
+
+    if (j?.result?.list?.length) {
+      const it = j.result.list[0];
+      const tickSize = Number(it.priceFilter?.tickSize ?? 0.01);
+      const qtyStep = Number(it.lotSizeFilter?.qtyStep ?? 0.000001);
+      const minOrderValue = it.minOrderValue ? Number(it.minOrderValue) : undefined;
+      const minOrderQty = it.lotSizeFilter?.minOrderQty ? Number(it.lotSizeFilter.minOrderQty) : undefined;
+      const minOrderAmt = it.minOrderAmt ? Number(it.minOrderAmt) : undefined;
+
+      return { category, symbol, tickSize, qtyStep, minOrderValue, minOrderQty, minOrderAmt };
+    }
+  }
+  throw new Error(`Symbol ${symbol} not found on Bybit`);
+}
+
+// Get mark price from Bybit
+async function getMarkPrice(symbol: string): Promise<number> {
+  const base = Deno.env.get("BYBIT_BASE") || 'https://api.bybit.com';
+  
+  for (const category of ["linear", "spot"] as const) {
+    const url = new URL("/v5/market/tickers", base);
+    url.searchParams.set("category", category);
+    url.searchParams.set("symbol", symbol);
+    
+    const r = await fetch(url.toString());
+    const j = await r.json();
+    const p = Number(j?.result?.list?.[0]?.lastPrice);
+    if (p > 0) return p;
+  }
+  throw new Error("Mark price unavailable");
+}
+
+// Enhanced order quantity calculation with scalping support
+function computeOrderQtyUSD(
+  amountUSD: number, 
+  leverage: number, 
+  price: number, 
+  inst: Instrument,
+  isScalping = false
+) {
+  // Calculate total exposure: amountUSD * leverage (e.g., $1 * 5x = $5 exposure)
+  const targetNotional = amountUSD * leverage;
+  let qty = targetNotional / price;
+  
+  // Round to tick size
+  qty = roundToStep(qty, inst.qtyStep || 0.000001);
+  
+  // Handle minimum quantity with special scalping logic
+  if (isScalping) {
+    // For scalping, try to use smaller quantities if possible
+    const minScalpQty = Math.max(inst.minOrderQty || 0.001, 0.001);
+    qty = Math.max(qty, minScalpQty);
+    // Cap scalping orders to prevent balance issues - based on total exposure
+    if (targetNotional <= 25) {
+      qty = Math.min(qty, 0.05); // Smaller cap for micro trades
+    }
+  } else {
+    // Normal minimum enforcement
+    qty = Math.max(qty, inst.minOrderQty || 0.001);
+  }
+  
+  // For linear contracts, check minimum order value
+  if (inst.category === "linear" && inst.minOrderValue) {
+    const calculatedNotional = qty * price;
+    if (calculatedNotional < inst.minOrderValue && !isScalping) {
+      // For normal trades, ensure minimum value is met
+      qty = Math.max(qty, roundToStep(inst.minOrderValue / price, inst.qtyStep || 0.000001));
+    }
+  }
+
+  // For spot trading, handle minimum order amount
+  if (inst.category === "spot") {
+    if (inst.minOrderAmt) {
+      const spotNotional = qty * price;
+      if (spotNotional < inst.minOrderAmt) {
+        qty = Math.max(qty, roundToStep(inst.minOrderAmt / price, inst.qtyStep));
+      }
+    }
+    if (inst.minOrderQty && qty < inst.minOrderQty) {
+      qty = Math.max(qty, roundToStep(inst.minOrderQty, inst.qtyStep));
+    }
+  }
+
+  console.log('💰 Quantity calculation:', {
+    amountUSD,
+    leverage,
+    price,
+    targetNotional,
+    calculatedQty: qty,
+    minOrderQty: inst.minOrderQty,
+    qtyStep: inst.qtyStep,
+    isScalping
+  });
+
+  return { qty, targetNotional };
+}
+
+// =================== MAIN HANDLER ===================
+
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Require auth (since verify_jwt=true)
+    const auth = req.headers.get("authorization") || "";
+    if (!auth.startsWith("Bearer ")) {
+      return json({ success: false, code: "AUTH", message: "Missing authorization header" }, 401);
+    }
+
+    // Parse request
     const requestBody = await req.json();
-    const { action, symbol, side, amountUSD: requestedAmount } = requestBody;
-    let amountUSD = requestedAmount;
+    const { action, symbol, side, amountUSD, leverage, scalpMode, orderType, timeInForce, price, uiEntry, uiTP, uiSL, idempotencyKey } = requestBody;
+    
+    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
 
-    console.log('🚀 Trade executor request:', { action, symbol, side, amountUSD });
-
-    // Handle status check
+    // Handle status requests
     if (action === 'status') {
-      const useTestnet = Deno.env.get('BYBIT_TESTNET') === 'true';
-      // FORCE DISABLE PAPER TRADING
-      const isPaperMode = false; // Deno.env.get('PAPER_TRADING') === 'true';
-      
-      return jsonResponse({
+      return json({
         ok: true,
         status: 'operational',
-        environment: useTestnet ? 'testnet' : 'mainnet',
-        paper_mode: isPaperMode,
-        real_trading: true,
+        trading_enabled: Deno.env.get('LIVE_TRADING_ENABLED') === 'true',
+        allowed_symbols: Deno.env.get('ALLOWED_SYMBOLS') || '*',
         timestamp: new Date().toISOString()
       });
     }
 
-    // Handle trade execution
+    // Handle place order requests
     if (action === 'place_order' || action === 'signal') {
       if (!symbol || !side || !amountUSD) {
-        return jsonResponse({
+        return json({
           success: false,
-          error: 'Missing required fields: symbol, side, amountUSD'
+          message: 'Missing required fields: symbol, side, amountUSD'
         }, 400);
       }
 
-      // Get API credentials
-      const apiKey = Deno.env.get('BYBIT_API_KEY');
-      const apiSecret = Deno.env.get('BYBIT_API_SECRET');
-      
-      // Check credentials first
-      if (!apiKey || !apiSecret) {
-        return jsonResponse({
-          success: false,
-          error: 'Bybit API credentials not configured. Please add BYBIT_API_KEY and BYBIT_API_SECRET in edge function secrets.'
-        }, 400);
-      }
+  // For scalping, use very small minimum order size to avoid balance issues
+  const minOrderSize = scalpMode ? 1 : 5  // Scalp: $1 min | Normal: $5 min
+  const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
 
-        // ENABLE REAL TRADING - PAPER MODE DISABLED
-        const isPaperMode = false;
-      
-      if (isPaperMode) {
-        console.log('📝 Paper trading mode - simulating execution');
-        
-        const mockOrderId = `PAPER_${Date.now()}`;
-        const mockPrice = Math.random() * 100 + 50;
-        const mockQty = (amountUSD / mockPrice).toFixed(6);
-        
-        return jsonResponse({
-          success: true,
-          data: {
-            orderId: mockOrderId,
-            symbol,
-            side,
-            qty: mockQty,
-            price: mockPrice,
-            amount: amountUSD,
-            status: 'FILLED',
-            paperMode: true,
-            message: 'Paper trade executed - no real money involved'
-          }
-        });
-      }
-
-      const useTestnet = Deno.env.get('BYBIT_TESTNET') === 'true';
-      const client = new BybitClient(apiKey, apiSecret, useTestnet);
-      const baseURL = useTestnet ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com';
+      structuredLog('info', 'Trade execution request', {
+        symbol,
+        side,
+        originalAmount: amountUSD,
+        finalAmount: finalAmountUSD,
+        leverage: leverage || 1
+      });
 
       try {
-        // STEP 1: Check wallet balance first
-        console.log('💰 Checking wallet balance...');
-        let walletBalance;
-        try {
-          walletBalance = await client.request('GET', '/v5/account/wallet-balance?accountType=UNIFIED&coin=USDT');
-          const usdtBalance = walletBalance.result?.list?.[0]?.coin?.find((c: any) => c.coin === 'USDT');
-          const availableBalance = parseFloat(usdtBalance?.availableToWithdraw || '0');
-          
-          console.log('💰 Available USDT balance:', {
-            total: usdtBalance?.walletBalance || '0',
-            available: availableBalance,
-            requestedAmount: amountUSD,
-            requestedLeverage: leverage
+        // Initialize Bybit client
+        const apiKey = Deno.env.get('BYBIT_API_KEY')
+        const apiSecret = Deno.env.get('BYBIT_API_SECRET')
+        
+        if (!apiKey || !apiSecret) {
+          structuredLog('error', 'Missing Bybit credentials', {
+            hasApiKey: !!apiKey,
+            hasApiSecret: !!apiSecret
           });
-
-          // Check if we have enough balance for the requested order
-          // For spot trading, we need the full amount as balance
-          const requiredBalance = amountUSD;
-          
-          if (availableBalance < requiredBalance) {
-            console.warn('⚠️ Insufficient balance, adjusting order size');
-            // Calculate maximum possible order size with current balance
-            const maxOrderSize = Math.floor(availableBalance * 0.9); // 90% of available balance
-            const adjustedAmount = Math.max(5, maxOrderSize);
-            console.log(`📉 Adjusted order size from $${amountUSD} to $${adjustedAmount} (required: $${requiredBalance}, available: $${availableBalance})`);
-            
-            if (adjustedAmount < 5) {
-              return jsonResponse({
-                success: false,
-                error: `Insufficient balance. Available: $${availableBalance.toFixed(2)}, Required: $${requiredBalance.toFixed(2)}. Minimum order: $5`
-              }, 400);
-            }
-            
-            // Update amount to the adjusted amount
-            amountUSD = adjustedAmount;
-          } else {
-            console.log(`✅ Sufficient balance. Required: $${requiredBalance.toFixed(2)}, Available: $${availableBalance.toFixed(2)}`);
-          }
-        } catch (balanceError: any) {
-          console.warn('⚠️ Could not check balance, using conservative settings:', balanceError.message);
-          
-          // If balance check fails, use a smaller conservative order size
-          if (amountUSD > 15) {
-            amountUSD = 15; // Limit to $15 if balance check fails
-            console.log(`📉 Conservative fallback: limiting order to $${amountUSD} due to balance check failure`);
-          }
-        }
-
-        // STEP 2: Get current price from the appropriate environment
-        const tickerResponse = await fetch(`${baseURL}/v5/market/tickers?category=linear&symbol=${symbol}`);
-        const tickerData = await tickerResponse.json();
-        const currentPrice = parseFloat(tickerData.result?.list?.[0]?.lastPrice || '50000');
-
-        // STEP 3: Calculate quantity for spot trading (no leverage)
-        const targetNotional = amountUSD; // Direct amount for spot trading
-        let quantity = targetNotional / currentPrice;
-        
-        
-        // STEP 4: Get instrument info for proper quantity formatting
-        let instrumentInfo;
-        try {
-          const instrResponse = await fetch(`${baseURL}/v5/market/instruments-info?category=linear&symbol=${symbol}`);
-          const instrData = await instrResponse.json();
-          instrumentInfo = instrData.result?.list?.[0];
-        } catch (e) {
-          console.warn('Could not get instrument info, using defaults');
-        }
-        
-        // STEP 5: Apply proper quantity step and minimums
-        if (instrumentInfo) {
-          const qtyStep = parseFloat(instrumentInfo.lotSizeFilter?.qtyStep || '0.001');
-          const minOrderQty = parseFloat(instrumentInfo.lotSizeFilter?.minOrderQty || '0.001');
-          
-          // Round to step size
-          quantity = Math.floor(quantity / qtyStep) * qtyStep;
-          
-          // Ensure minimum quantity
-          quantity = Math.max(quantity, minOrderQty);
-          
-          // Format to appropriate decimal places
-          const stepDecimals = qtyStep.toString().split('.')[1]?.length || 3;
-          quantity = parseFloat(quantity.toFixed(stepDecimals));
-        } else {
-          // Fallback formatting
-          quantity = parseFloat(quantity.toFixed(3));
-          quantity = Math.max(quantity, 0.001); // Minimum fallback
-        }
-
-        console.log('💰 Order calculation:', {
-          symbol,
-          side,
-          currentPrice,
-          originalAmount: requestedAmount, // Show original requested amount
-          adjustedAmount: amountUSD, // Show potentially adjusted amount
-          targetNotional,
-          calculatedQty: quantity,
-          instrumentInfo: instrumentInfo ? 'found' : 'not found'
-        });
-
-        // STEP 6: Validate minimum notional value
-        const orderNotional = quantity * currentPrice;
-        const minNotionalUSD = 5; // Minimum $5 order
-        
-        if (orderNotional < minNotionalUSD) {
-          return jsonResponse({
+          return json({
             success: false,
-            error: `Order too small. Order value: $${orderNotional.toFixed(2)}, minimum required: $${minNotionalUSD}`
+            error: 'Bybit API credentials not configured. Please set BYBIT_API_KEY and BYBIT_API_SECRET in edge function secrets.'
           }, 400);
         }
 
-        // CRITICAL: First, set position mode to One-Way using SYMBOL (higher priority than coin)
-        try {
-          const positionModeParams = {
-            category: 'linear',
-            symbol: symbol, // Use symbol instead of coin for precise control
-            mode: 0 // 0 = Merged Single (One-Way mode)
-          };
-          
-          console.log('🔧 Setting position mode to One-Way for symbol:', positionModeParams);
-          await client.request('POST', '/v5/position/switch-mode', positionModeParams);
-          console.log('✅ Position mode set to One-Way successfully');
-        } catch (modeError: any) {
-          console.warn('⚠️ Position mode setting failed (may already be correct):', modeError.message);
-          
-          // Try with coin parameter as fallback
-          try {
-            const baseCoin = symbol.replace('USDT', '').replace('USD', '');
-            const fallbackParams = {
-              category: 'linear',
-              coin: baseCoin,
-              mode: 0
-            };
-            
-            console.log('🔧 Fallback: Setting position mode with coin parameter:', fallbackParams);
-            await client.request('POST', '/v5/position/switch-mode', fallbackParams);
-            console.log('✅ Position mode set with fallback method');
-          } catch (fallbackError: any) {
-            console.warn('⚠️ Fallback position mode setting also failed:', fallbackError.message);
-            // Continue anyway - might already be in correct mode
+        const client = new BybitV5Client(apiKey, apiSecret)
+
+        // Get instrument info and price
+        const inst = await getInstrument(symbol);
+        const price = await getMarkPrice(symbol);
+        
+        // =================== SCALPING VS NORMAL RISK MANAGEMENT ===================
+        
+        const isScalping = scalpMode === true;
+        
+        // Calculate proper quantity with scalping support
+        const scaledLeverage = isScalping ? Math.min(leverage || 10, 25) : (leverage || 1);
+        const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
+        
+        // Enhanced validation with better error messages
+        if (qty <= 0) {
+          structuredLog('error', { 
+            event: 'Invalid quantity calculated', 
+            qty, 
+            amountUSD: finalAmountUSD, 
+            leverage: scaledLeverage, 
+            price,
+            isScalping 
+          });
+          return json({ success: false, error: `Invalid quantity calculated: ${qty}. Try increasing amount or adjusting leverage.` }, 400);
+        }
+        
+        if (qty < inst.minOrderQty && !isScalping) {
+          structuredLog('error', { 
+            event: 'Quantity below minimum', 
+            qty, 
+            minOrderQty: inst.minOrderQty,
+            isScalping 
+          });
+          return json({ success: false, error: `Quantity ${qty} below minimum ${inst.minOrderQty}. Increase your trade amount to at least $${Math.ceil((inst.minOrderQty * price) / scaledLeverage)}.` }, 400);
+        }
+
+        structuredLog('info', 'Order size calculated', {
+          finalAmount: finalAmountUSD,
+          price,
+          qty,
+          leverage: scaledLeverage,
+          mode: isScalping ? 'scalping' : 'normal'
+        })
+        
+        // Micro TP/SL for scalping with better risk-reward
+        const stopLossPercent = isScalping ? 0.0015 : 0.02;  // Scalp: 0.15% | Normal: 2%
+        const takeProfitPercent = isScalping ? 0.005 : 0.04; // Scalp: 0.5% | Normal: 4%
+        // This gives 3.33:1 R:R for scalping (0.5%:0.15%)
+        
+        let stopLoss: number;
+        let takeProfit: number;
+        
+        if (side === 'Buy') {
+          stopLoss = price * (1 - stopLossPercent); // 2% below entry
+          takeProfit = price * (1 + takeProfitPercent); // 4% above entry
+        } else {
+          stopLoss = price * (1 + stopLossPercent); // 2% above entry for short
+          takeProfit = price * (1 - takeProfitPercent); // 4% below entry for short
+        }
+        
+        // Use UI values if provided, otherwise calculate defaults
+        let finalStopLoss = uiSL;
+        let finalTakeProfit = uiTP;
+        const finalEntryPrice = uiEntry || price;
+
+        // Calculate defaults if UI values not provided
+        if (!finalStopLoss || !finalTakeProfit) {
+          if (side === 'Buy') {
+            finalStopLoss = finalStopLoss || (finalEntryPrice * (1 - stopLossPercent));
+            finalTakeProfit = finalTakeProfit || (finalEntryPrice * (1 + takeProfitPercent));
+          } else {
+            finalStopLoss = finalStopLoss || (finalEntryPrice * (1 + stopLossPercent));
+            finalTakeProfit = finalTakeProfit || (finalEntryPrice * (1 - takeProfitPercent));
           }
         }
 
-        // Remove leverage setting - not needed for spot trading
+        // Round prices to tick size
+        finalStopLoss = roundToStep(finalStopLoss, inst.tickSize);
+        finalTakeProfit = roundToStep(finalTakeProfit, inst.tickSize);
+        
+        structuredLog('info', 'Risk management prices calculated', {
+          entryPrice: price,
+          stopLoss,
+          takeProfit,
+          mode: isScalping ? 'scalping' : 'normal',
+          stopLossPercent: ((side === 'Buy' ? price - stopLoss : stopLoss - price) / price * 100).toFixed(3) + '%',
+          takeProfitPercent: ((side === 'Buy' ? takeProfit - price : price - takeProfit) / price * 100).toFixed(3) + '%'
+        });
 
-        // Try to place the order - first without positionIdx, then with it if needed
-        let orderResult;
-        let orderParams = {
-          category: 'linear',
+        // =================== ORDER WITH TP/SL ATTACHMENT ===================
+        const finalOrderType = orderType || 'Market';
+        const isLong = side === 'Buy';
+        
+        // Directional validation
+        const tpValid = finalTakeProfit && (isLong ? finalTakeProfit > finalEntryPrice : finalTakeProfit < finalEntryPrice);
+        const slValid = finalStopLoss && (isLong ? finalStopLoss < finalEntryPrice : finalStopLoss > finalEntryPrice);
+        
+        const orderData: any = {
+          category: inst.category,
           symbol,
-          side,
-          orderType: 'Market',
-          qty: quantity.toString(),
+          side: side === 'Buy' ? 'Buy' : 'Sell',
+          orderType: finalOrderType,
+          qty: String(qty),
+          timeInForce: finalOrderType === 'Limit' ? (timeInForce || 'PostOnly') : 'IOC',
+          orderLinkId: `x1_${idempotencyKey || Date.now()}`,
           reduceOnly: false
         };
 
-        console.log('📋 Attempting order without positionIdx first:', orderParams);
+        // Add price for limit orders
+        if (finalOrderType === 'Limit' && finalEntryPrice) {
+          orderData.price = roundToStep(finalEntryPrice, inst.tickSize).toString();
+        }
 
-        try {
-          // First attempt: without positionIdx (let Bybit handle it automatically)
-          orderResult = await client.request('POST', '/v5/order/create', orderParams);
-          console.log('✅ Order placed successfully without positionIdx');
-        } catch (orderError: any) {
-          console.warn('⚠️ Order failed without positionIdx:', orderError.message);
+        // Attach TP/SL if valid (Bybit V5 supports this)
+        if (tpValid) {
+          orderData.takeProfit = finalTakeProfit.toString();
+          orderData.tpTriggerBy = 'MarkPrice';
+        }
+        if (slValid) {
+          orderData.stopLoss = finalStopLoss.toString();
+          orderData.slTriggerBy = 'MarkPrice';
+        }
+
+        // For linear contracts, always open new positions (not reduce-only)
+        if (inst.category === 'linear') {
+          structuredLog('info', 'Setting up linear contract order', {
+            symbol,
+            category: inst.category,
+            side: orderData.side
+          })
           
-          // Check if it's a balance error and try to reduce order size
-          if (orderError.message?.includes('ab not enough') || orderError.message?.includes('insufficient')) {
-            console.log('💰 Insufficient balance detected, reducing order size...');
-            
-            // Reduce order size by 50% and try again
-            const reducedAmount = Math.max(5, Math.floor(amountUSD * 0.5));
-            const reducedNotional = reducedAmount; // No leverage
-            const reducedQuantity = reducedNotional / currentPrice;
-            
-            // Apply instrument formatting to reduced quantity
-            if (instrumentInfo) {
-              const qtyStep = parseFloat(instrumentInfo.lotSizeFilter?.qtyStep || '0.001');
-              const minOrderQty = parseFloat(instrumentInfo.lotSizeFilter?.minOrderQty || '0.001');
-              reducedQuantity = Math.floor(reducedQuantity / qtyStep) * qtyStep;
-              reducedQuantity = Math.max(reducedQuantity, minOrderQty);
-              const stepDecimals = qtyStep.toString().split('.')[1]?.length || 3;
-              reducedQuantity = parseFloat(reducedQuantity.toFixed(stepDecimals));
-            } else {
-              reducedQuantity = parseFloat(reducedQuantity.toFixed(3));
-              reducedQuantity = Math.max(reducedQuantity, 0.001);
-            }
-            
-            console.log(`📉 Retrying with reduced size: $${reducedAmount} (qty: ${reducedQuantity})`);
-            
-            orderParams = {
-              ...orderParams,
-              qty: reducedQuantity.toString(),
-              positionIdx: 0 // Also add positionIdx for this retry
-            };
-            
-            try {
-              orderResult = await client.request('POST', '/v5/order/create', orderParams);
-              console.log('✅ Order placed successfully with reduced size');
-              amountUSD = reducedAmount; // Update amount for response
-              quantity = reducedQuantity; // Update quantity for response
-            } catch (retryError: any) {
-              console.error('❌ Order failed even with reduced size:', retryError.message);
-              throw retryError;
-            }
+          // Force new position, not reduce-only
+          orderData.reduceOnly = false
+          
+          // Important: Remove any position constraints to let API handle mode
+          // This avoids "position idx not match position mode" errors
+        }
+
+        // Execute the order with comprehensive fallback logic
+        let result;
+        
+        // Try different approaches in order of likelihood to succeed
+        const attemptOrder = async (approach: string, orderConfig: any) => {
+          structuredLog('info', `Attempting order with ${approach}`, orderConfig)
+          return await client.signedRequest('POST', '/v5/order/create', orderConfig)
+        }
+        
+        // Enhanced order placement with better error handling
+        let orderResult = null;
+        let lastError = null;
+        
+        const baseOrder = {
+          category: inst.category,
+          symbol,
+          side: side === 'Buy' ? 'Buy' : 'Sell',
+          orderType: 'Market',
+          qty: String(qty),
+          timeInForce: 'IOC'
+        };
+        
+        // Try clean order first (recommended approach)
+        structuredLog('info', { event: 'Attempting clean order (no position idx)' });
+        try {
+          orderResult = await client.signedRequest('POST', '/v5/order/create', baseOrder);
+          
+          if (orderResult?.retCode === 0) {
+            structuredLog('info', { event: 'Order placed successfully', orderId: orderResult.result?.orderId });
           } else {
-            // Try with positionIdx=0 for other errors
-            orderParams = {
-              ...orderParams,
-              positionIdx: 0 // 0 for One-Way mode
-            };
+            throw new Error(orderResult?.retMsg || 'Clean order failed');
+          }
+        } catch (cleanError: any) {
+          lastError = cleanError;
+          structuredLog('warning', { event: 'Clean order failed, trying with position modes', error: cleanError.message });
+          
+          // Try OneWay mode (positionIdx=0)
+          structuredLog('info', { event: 'Attempting order with OneWay mode (0)' });
+          try {
+            orderResult = await client.signedRequest('POST', '/v5/order/create', {
+              ...baseOrder,
+              positionIdx: 0
+            });
             
-            console.log('📋 Retrying order with positionIdx=0:', orderParams);
-            orderResult = await client.request('POST', '/v5/order/create', orderParams);
-            console.log('✅ Order placed successfully with positionIdx=0');
+            if (orderResult?.retCode === 0) {
+              structuredLog('info', { event: 'OneWay order successful', orderId: orderResult.result?.orderId });
+            } else {
+              throw new Error(orderResult?.retMsg || 'OneWay order failed');
+            }
+          } catch (oneWayError: any) {
+            lastError = oneWayError;
+            structuredLog('warning', { event: 'OneWay mode failed, trying hedge modes', error: oneWayError.message });
+            
+            // Try Hedge Buy mode (positionIdx=1)
+            structuredLog('info', { event: 'Attempting order with Hedge Buy mode (1)' });
+            try {
+              orderResult = await client.signedRequest('POST', '/v5/order/create', {
+                ...baseOrder,
+                positionIdx: 1
+              });
+              
+              if (orderResult?.retCode === 0) {
+                structuredLog('info', { event: 'Hedge Buy order successful', orderId: orderResult.result?.orderId });
+              } else {
+                throw new Error(orderResult?.retMsg || 'Hedge Buy order failed');
+              }
+            } catch (hedgeBuyError: any) {
+              lastError = hedgeBuyError;
+              
+              // Try Hedge Sell mode (positionIdx=2)
+              structuredLog('info', { event: 'Attempting order with Hedge Sell mode (2)' });
+              try {
+                orderResult = await client.signedRequest('POST', '/v5/order/create', {
+                  ...baseOrder,
+                  positionIdx: 2
+                });
+                
+                if (orderResult?.retCode === 0) {
+                  structuredLog('info', { event: 'Hedge Sell order successful', orderId: orderResult.result?.orderId });
+                } else {
+                  throw new Error(orderResult?.retMsg || 'Hedge Sell order failed');
+                }
+              } catch (hedgeSellError: any) {
+                structuredLog('error', { 
+                  event: 'All order placement attempts failed',
+                  finalError: hedgeSellError.message,
+                  qty: qty.toString(),
+                  symbol,
+                  side,
+                  amountUSD: finalAmountUSD,
+                  leverage: scaledLeverage,
+                  isScalping
+                });
+                
+                return json({ 
+                  success: false, 
+                  error: `Order placement failed: ${hedgeSellError.message}. Please check your account balance and try a smaller amount.` 
+                }, 400);
+              }
+            }
           }
         }
         
-        console.log('✅ Order placed successfully:', orderResult.result);
+        result = orderResult;
 
-        return jsonResponse({
+        structuredLog('info', 'Main order executed successfully', { 
+          symbol, 
+          side, 
+          qty, 
+          category: inst.category, 
+          orderId: result?.result?.orderId 
+        });
+
+        // =================== AUTOMATIC TP/SL PLACEMENT ===================
+        // Place stop loss and take profit as separate conditional orders
+        let slOrderId = null;
+        let tpOrderId = null;
+        
+        try {
+          // Wait a moment for position to be established
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Place Stop Loss Order (Conditional Order)
+          const stopLossOrder = {
+            category: inst.category,
+            symbol,
+            side: side === 'Buy' ? 'Sell' : 'Buy', // Opposite side to close position
+            orderType: 'Market', // Market order when triggered
+            qty: String(qty),
+            triggerPrice: String(stopLoss),
+            triggerBy: 'LastPrice',
+            reduceOnly: true, // This is correct for closing orders
+            timeInForce: 'IOC'
+          };
+          
+          const slResult = await client.signedRequest('POST', '/v5/order/create', stopLossOrder);
+          slOrderId = slResult?.result?.orderId;
+          
+          structuredLog('info', 'Stop loss order placed', {
+            orderId: slOrderId,
+            triggerPrice: stopLoss,
+            side: stopLossOrder.side
+          });
+          
+          // Place Take Profit Order (Conditional Order)
+          const takeProfitOrder = {
+            category: inst.category,
+            symbol,
+            side: side === 'Buy' ? 'Sell' : 'Buy', // Opposite side to close position
+            orderType: 'Market', // Market order when triggered
+            qty: String(qty),
+            triggerPrice: String(takeProfit),
+            triggerBy: 'LastPrice',
+            reduceOnly: true, // This is correct for closing orders
+            timeInForce: 'IOC'
+          };
+          
+          const tpResult = await client.signedRequest('POST', '/v5/order/create', takeProfitOrder);
+          tpOrderId = tpResult?.result?.orderId;
+          
+          structuredLog('info', 'Take profit order placed', {
+            orderId: tpOrderId,
+            triggerPrice: takeProfit,
+            side: takeProfitOrder.side
+          });
+          
+        } catch (tpslError: any) {
+          structuredLog('warning', 'TP/SL placement failed', {
+            error: tpslError.message,
+            mainOrderSuccess: true
+          });
+          // Don't fail the main trade if TP/SL fails - the main order succeeded
+        }
+
+        return json({
           success: true,
           data: {
-            orderId: orderResult.result.orderId,
-            symbol,
-            side,
-            qty: quantity.toString(),
-            price: currentPrice,
-            amount: amountUSD, // This might be adjusted from original
-            originalAmount: requestedAmount, // Original requested amount
-            status: 'NEW',
-            environment: useTestnet ? 'testnet' : 'mainnet',
-            realTrade: true,
-            targetNotional: targetNotional,
-            orderNotional: quantity * currentPrice,
-            positionMode: 'spot',
-            balanceChecked: walletBalance ? true : false,
-            actualParams: orderParams
+            mainOrder: result,
+            stopLossOrderId: slOrderId,
+            takeProfitOrderId: tpOrderId,
+            riskManagement: {
+              entryPrice: price,
+              stopLoss,
+              takeProfit,
+              riskRewardRatio: '2:1'
+            }
           }
         });
-
       } catch (error: any) {
-        console.error('❌ Trade execution error:', {
-          message: error.message,
-          symbol,
-          side,
-          amountUSD,
-          leverage,
-          environment: useTestnet ? 'testnet' : 'mainnet',
-          error: error
+        structuredLog('error', 'Trade execution failed', { 
+          error: error.message, 
+          symbol, 
+          side, 
+          amountUSD: finalAmountUSD, 
+          leverage: scaledLeverage 
         });
-        
-        return jsonResponse({
+        return json({
           success: false,
-          message: error.message || 'Trade execution failed',
-          details: {
-            symbol,
-            side,
-            amountUSD,
-            environment: useTestnet ? 'testnet' : 'mainnet'
-          }
+          error: error.message || 'Trade execution failed',
+          details: error.stack || 'No additional details'
         }, 500);
       }
     }
 
-    return jsonResponse({
+    // Unknown action
+    return json({
       success: false,
-      error: 'Invalid action. Use "status", "place_order", or "signal"'
+      message: `Unknown action: ${action}`
     }, 400);
 
-  } catch (error: any) {
-    console.error('❌ Request processing error:', error);
-    return jsonResponse({
+  } catch (error) {
+    structuredLog('error', 'Execution error', { error: error.message });
+    
+    return json({
       success: false,
-      error: error.message || 'Internal server error'
+      message: error.message || 'Internal server error'
     }, 500);
   }
 });

@@ -177,26 +177,96 @@ function getMockSignals(): Signal[] {
 
 export async function generateSignals() {
   try {
-    console.info('[generateSignals] Triggering live signal generation...');
+    console.info('[generateSignals] Triggering comprehensive live signal generation...');
     
-    // Use live-scanner-production function which is working and generating signals
-    const { data, error } = await supabase.functions.invoke('live-scanner-production', {
-      body: {
-        exchange: 'bybit',
-        timeframe: '1h',
-        relaxed_filters: true,
-        symbols: [] // Empty array scans all USDT pairs
+    const symbols: string[] = []; // Empty array means scan ALL available USDT pairs on Bybit
+    
+    // Run multiple timeframes in parallel for faster execution
+    const scanPromises = [
+      // 5-minute comprehensive scan - all coins
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '5m',
+          relaxed_filters: true,
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      }),
+      // 15-minute comprehensive scan - all coins
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit', 
+          timeframe: '15m',
+          relaxed_filters: true,
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      }),
+      // 1-hour comprehensive scan - all coins
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '1h', 
+          relaxed_filters: false, // Use canonical settings for higher timeframe
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      }),
+      // 4-hour comprehensive scan - all coins for swing trades
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '4h', 
+          relaxed_filters: false,
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      })
+    ];
+
+    // Wait for all scans to complete
+    const results = await Promise.allSettled(scanPromises);
+    
+    let totalSignals = 0;
+    const timeframes = ['5m', '15m', '1h', '4h'];
+    
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value.data) {
+        const signalsFound = result.value.data.signals_found || 0;
+        totalSignals += signalsFound;
+        console.log(`[generateSignals] ${timeframes[index]} scan: ${signalsFound} signals generated`);
+        if (result.value.error) {
+          console.warn(`[generateSignals] ${timeframes[index]} scan had errors:`, result.value.error);
+        }
+      } else if (result.status === 'rejected') {
+        console.error(`[generateSignals] ${timeframes[index]} scan failed:`, result.reason);
       }
     });
 
-    if (error) {
-      console.error('[generateSignals] Scanner failed:', error);
-      throw error;
-    }
+    if (totalSignals === 0) {
+      // Fallback to regular scanner with even more relaxed settings
+      console.log('[generateSignals] No signals found, trying fallback scanner...');
+      
+      const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('live-scanner', {
+        body: { 
+          exchange: 'bybit',
+          timeframe: '1h',
+          relaxed_filters: true,
+          symbols: [], // Empty = scan ALL USDT pairs as fallback
+          scan_all_coins: true
+        }
+      });
 
-    const signalsFound = data?.signals_found || 0;
-    console.info(`[generateSignals] Success: ${signalsFound} signals generated`);
-    return { signals_created: signalsFound, success: true };
+      if (fallbackError) {
+        throw fallbackError;
+      }
+
+      totalSignals = fallbackData?.signals_found || 0;
+    }
+    
+    console.info(`[generateSignals] Success: ${totalSignals} signals generated`);
+    return { signals_created: totalSignals, success: true };
   } catch (e: any) {
     console.error('[generateSignals] Exception:', e);
     throw e;
@@ -204,10 +274,21 @@ export async function generateSignals() {
 }
 
 export async function updateSpynxScores() {
-  // This function was removed during cleanup as it was not working
-  // Return mock success for now
-  console.info('[updateSpynxScores] Function disabled - was causing errors');
-  return { success: true, message: 'Spynx scores function disabled' };
+  try {
+    console.info('[updateSpynxScores] Invoking calculate-spynx-scores...');
+    const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
+    
+    if (error) {
+      console.error('[updateSpynxScores] calculate-spynx-scores failed:', error.message);
+      throw error;
+    }
+    
+    console.info('[updateSpynxScores] Success:', data);
+    return data;
+  } catch (e: any) {
+    console.error('[updateSpynxScores] Exception:', e);
+    throw e;
+  }
 }
 
 export const useSignals = () => {
@@ -394,9 +475,20 @@ export const useSpynxScores = () => {
   };
 
   const updateSpynxScores = async () => {
-    // Function disabled since calculate-spynx-scores was removed
-    console.log('[SPYNX] Spynx scores update disabled');
-    return { success: true, message: 'Function disabled' };
+    try {
+      console.log('[SPYNX] Calling calculate-spynx-scores function...');
+      const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
+      if (error) throw error;
+      
+      console.log('[SPYNX] Scores updated successfully:', data);
+      
+      // Refresh scores after calculation
+      await fetchScores();
+      return data;
+    } catch (err) {
+      console.error('[SPYNX] Update error:', err);
+      throw err;
+    }
   };
 
   return {
