@@ -253,8 +253,15 @@ serve(async (req) => {
       return json({ success: false, code: "AUTH", message: "Missing authorization header" }, 401);
     }
 
-    // Parse request
-    const requestBody = await req.json();
+    // Parse request with error handling
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (parseError) {
+      structuredLog('error', 'Failed to parse request body', { error: parseError.message });
+      return json({ success: false, error: 'Invalid JSON in request body' }, 400);
+    }
+    
     const { action, symbol, side, amountUSD, leverage, scalpMode, reduceOnly = false } = requestBody;
     
     structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
@@ -413,17 +420,17 @@ serve(async (req) => {
         }
 
         // CRITICAL FIX: Handle order parameters from request
-        const requestOrderType = body.orderType || 'Market';
-        const requestTimeInForce = body.timeInForce || 'IOC';
-        const requestPrice = body.price;
-        const requestReduceOnly = body.reduceOnly === true; // Explicit boolean check
+        const requestOrderType = requestBody.orderType || 'Market';
+        const requestTimeInForce = requestBody.timeInForce || 'IOC';
+        const requestPrice = requestBody.price;
+        const requestReduceOnly = requestBody.reduceOnly === true; // Explicit boolean check
 
         structuredLog('info', 'Processing order parameters', {
           requestOrderType,
           requestTimeInForce,
           requestPrice,
           requestReduceOnly,
-          bodyReduceOnly: body.reduceOnly
+          bodyReduceOnly: requestBody.reduceOnly
         });
 
         // Build order with all parameters
@@ -667,12 +674,21 @@ serve(async (req) => {
       message: `Unknown action: ${action}`
     }, 400);
 
-  } catch (error) {
-    structuredLog('error', 'Execution error', { error: error.message });
+  } catch (error: any) {
+    structuredLog('error', 'Unhandled error in trade executor', {
+      error: error.message,
+      stack: error.stack,
+      url: req.url,
+      method: req.method
+    });
     
     return json({
       success: false,
-      message: error.message || 'Internal server error'
+      error: error.message || 'Internal server error',
+      details: {
+        timestamp: new Date().toISOString(),
+        requestMethod: req.method
+      }
     }, 500);
   }
 });

@@ -219,11 +219,7 @@ const TestTrading = () => {
           </Card>
 
           <FullSystemTest />
-          <ErrorFixSummary />
-          <TradingSystemTest />
-          <ComprehensiveErrorFixTest />
           <TradingErrorFixTest />
-          <TradingTestHarness />
         </div>
       </div>
     </MainLayout>
