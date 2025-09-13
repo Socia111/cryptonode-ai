@@ -9,7 +9,6 @@ import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDas
 
 import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
 import DatabaseSetup from '../components/DatabaseSetup';
-import RollPanel from '../components/RollPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Zap, Target, Activity, TrendingUp } from 'lucide-react';
 
@@ -84,11 +83,6 @@ const X2 = () => {
 
         {/* Live Price Feed */}
         <LivePrice />
-
-        {/* ROLL Trading Panel */}
-        <div className="flex justify-center">
-          <RollPanel defaultSymbol="SOLUSDT" />
-        </div>
 
         {/* Trading Chart and Strategy Panel */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

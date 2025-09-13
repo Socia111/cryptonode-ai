@@ -12,7 +12,6 @@ import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
-import RollPanel from '../components/RollPanel';
 
 const X1 = () => {
   return (
@@ -49,7 +48,6 @@ const X1 = () => {
           
           {/* Signals Panel */}
           <div className="space-y-6">
-            <RollPanel defaultSymbol="ETHUSDT" />
             <PortfolioStats />
             <TradingPanel />
             <TelegramIntegration />

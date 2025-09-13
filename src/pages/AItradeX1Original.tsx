@@ -12,7 +12,6 @@ import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
-import RollPanel from '../components/RollPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Zap, Target, Settings } from 'lucide-react';
@@ -72,7 +71,6 @@ const AItradeX1Original = () => {
           
           {/* Signals Panel */}
           <div className="space-y-6">
-            <RollPanel defaultSymbol="BTCUSDT" />
             <PortfolioStats />
             <TradingPanel />
             <TelegramIntegration />
