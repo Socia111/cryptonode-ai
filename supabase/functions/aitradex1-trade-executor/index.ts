@@ -302,6 +302,25 @@ serve(async (req) => {
 
         const client = new BybitV5Client(apiKey, apiSecret)
 
+        // STEP 1: Check and set position mode to One-Way (safer for new positions)
+        if (inst.category === 'linear') {
+          try {
+            structuredLog('info', 'Setting position mode to One-Way for safe trading', { symbol });
+            await client.signedRequest('POST', '/v5/position/switch-mode', {
+              category: 'linear',
+              coin: symbol.replace('USDT', ''), // Extract base coin (e.g., BTC from BTCUSDT)
+              mode: 0 // 0 = One-Way mode (safer for new positions)
+            });
+            structuredLog('info', 'Position mode set to One-Way successfully', { symbol });
+          } catch (modeError: any) {
+            // Mode setting may fail if already in correct mode, continue anyway
+            structuredLog('warning', 'Position mode setting failed (may already be correct)', { 
+              symbol, 
+              error: modeError.message 
+            });
+          }
+        }
+
         // Get instrument info and price
         const inst = await getInstrument(symbol);
         const price = await getMarkPrice(symbol);
@@ -382,23 +401,18 @@ serve(async (req) => {
           side: side === 'Buy' ? 'Buy' : 'Sell',
           orderType: 'Market',
           qty: String(qty),
-          timeInForce: 'IOC'
-          // NOTE: TP/SL will be set as separate conditional orders after position opens
+          timeInForce: 'IOC',
+          reduceOnly: false  // CRITICAL: Always false for new positions
         }
 
-        // For linear contracts, always open new positions (not reduce-only)
+        // For linear contracts, always ensure new position mode
         if (inst.category === 'linear') {
-          structuredLog('info', 'Setting up linear contract order', {
+          structuredLog('info', 'Setting up linear contract order for new position', {
             symbol,
             category: inst.category,
-            side: orderData.side
+            side: orderData.side,
+            reduceOnly: orderData.reduceOnly
           })
-          
-          // Force new position, not reduce-only
-          orderData.reduceOnly = false
-          
-          // Important: Remove any position constraints to let API handle mode
-          // This avoids "position idx not match position mode" errors
         }
 
         // Execute the order with comprehensive fallback logic
@@ -420,90 +434,95 @@ serve(async (req) => {
           side: side === 'Buy' ? 'Buy' : 'Sell',
           orderType: 'Market',
           qty: String(qty),
-          timeInForce: 'IOC'
+          timeInForce: 'IOC',
+          reduceOnly: false  // CRITICAL: Explicitly set to false for new positions
         };
         
         // Try clean order first (recommended approach)
-        structuredLog('info', { event: 'Attempting clean order (no position idx)' });
+        structuredLog('info', 'Attempting clean order with explicit reduceOnly=false', {
+          order: { ...baseOrder },
+          symbol,
+          qty: String(qty),
+          side: baseOrder.side
+        });
+        
         try {
           orderResult = await client.signedRequest('POST', '/v5/order/create', baseOrder);
           
           if (orderResult?.retCode === 0) {
-            structuredLog('info', { event: 'Order placed successfully', orderId: orderResult.result?.orderId });
+            structuredLog('info', 'Order placed successfully', { 
+              orderId: orderResult.result?.orderId,
+              symbol,
+              side: baseOrder.side,
+              qty: String(qty)
+            });
           } else {
             throw new Error(orderResult?.retMsg || 'Clean order failed');
           }
         } catch (cleanError: any) {
           lastError = cleanError;
-          structuredLog('warning', { event: 'Clean order failed, trying with position modes', error: cleanError.message });
+          structuredLog('warning', 'Clean order failed, trying with position modes', { 
+            error: cleanError.message,
+            symbol,
+            side: baseOrder.side
+          });
           
-          // Try OneWay mode (positionIdx=0)
-          structuredLog('info', { event: 'Attempting order with OneWay mode (0)' });
+          // Try OneWay mode (positionIdx=0) - most compatible
+          structuredLog('info', 'Attempting order with OneWay mode (positionIdx=0)');
           try {
-            orderResult = await client.signedRequest('POST', '/v5/order/create', {
-              ...baseOrder,
-              positionIdx: 0
-            });
+            const oneWayOrder = { ...baseOrder, positionIdx: 0 };
+            orderResult = await client.signedRequest('POST', '/v5/order/create', oneWayOrder);
             
             if (orderResult?.retCode === 0) {
-              structuredLog('info', { event: 'OneWay order successful', orderId: orderResult.result?.orderId });
+              structuredLog('info', 'OneWay order successful', { 
+                orderId: orderResult.result?.orderId,
+                positionIdx: 0
+              });
             } else {
               throw new Error(orderResult?.retMsg || 'OneWay order failed');
             }
           } catch (oneWayError: any) {
             lastError = oneWayError;
-            structuredLog('warning', { event: 'OneWay mode failed, trying hedge modes', error: oneWayError.message });
+            structuredLog('warning', 'OneWay mode failed, trying hedge mode for Buy side', { 
+              error: oneWayError.message 
+            });
             
-            // Try Hedge Buy mode (positionIdx=1)
-            structuredLog('info', { event: 'Attempting order with Hedge Buy mode (1)' });
+            // Try Hedge mode with appropriate position index based on side
+            const hedgePositionIdx = side === 'Buy' ? 1 : 2; // Buy=1, Sell=2 in hedge mode
+            structuredLog('info', `Attempting order with Hedge mode (positionIdx=${hedgePositionIdx})`);
+            
             try {
-              orderResult = await client.signedRequest('POST', '/v5/order/create', {
-                ...baseOrder,
-                positionIdx: 1
-              });
+              const hedgeOrder = { ...baseOrder, positionIdx: hedgePositionIdx };
+              orderResult = await client.signedRequest('POST', '/v5/order/create', hedgeOrder);
               
               if (orderResult?.retCode === 0) {
-                structuredLog('info', { event: 'Hedge Buy order successful', orderId: orderResult.result?.orderId });
+                structuredLog('info', `Hedge mode order successful`, { 
+                  orderId: orderResult.result?.orderId,
+                  positionIdx: hedgePositionIdx,
+                  side
+                });
               } else {
-                throw new Error(orderResult?.retMsg || 'Hedge Buy order failed');
+                throw new Error(orderResult?.retMsg || `Hedge mode order failed`);
               }
-            } catch (hedgeBuyError: any) {
-              lastError = hedgeBuyError;
+            } catch (hedgeError: any) {
+              lastError = hedgeError;
+              structuredLog('error', 'All order placement attempts failed', {
+                finalError: hedgeError.message,
+                qty: String(qty),
+                symbol,
+                side,
+                amountUSD: finalAmountUSD,
+                leverage: scaledLeverage,
+                isScalping
+              });
               
-              // Try Hedge Sell mode (positionIdx=2)
-              structuredLog('info', { event: 'Attempting order with Hedge Sell mode (2)' });
-              try {
-                orderResult = await client.signedRequest('POST', '/v5/order/create', {
-                  ...baseOrder,
-                  positionIdx: 2
-                });
-                
-                if (orderResult?.retCode === 0) {
-                  structuredLog('info', { event: 'Hedge Sell order successful', orderId: orderResult.result?.orderId });
-                } else {
-                  throw new Error(orderResult?.retMsg || 'Hedge Sell order failed');
-                }
-              } catch (hedgeSellError: any) {
-                structuredLog('error', { 
-                  event: 'All order placement attempts failed',
-                  finalError: hedgeSellError.message,
-                  qty: qty.toString(),
-                  symbol,
-                  side,
-                  amountUSD: finalAmountUSD,
-                  leverage: scaledLeverage,
-                  isScalping
-                });
-                
-                return json({ 
-                  success: false, 
-                  error: `Order placement failed: ${hedgeSellError.message}. Please check your account balance and try a smaller amount.` 
-                }, 400);
-              }
+              // All attempts failed
+              throw new Error(`Order placement failed after all attempts: ${hedgeError.message}`);
             }
           }
         }
         
+        // Order execution completed successfully
         result = orderResult;
 
         structuredLog('info', 'Main order executed successfully', { 

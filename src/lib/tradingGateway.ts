@@ -59,7 +59,7 @@ export const TradingGateway = {
       const baseAmount = params.amountUSD || params.notionalUSD;
       const minAmount = isScalping ? 10 : 25; // $10 for scalping, $25 for normal
       const amount = Math.max(baseAmount || minAmount, minAmount);
-      const leverage = Math.max(params.leverage || 25, 25); // Default to 25x leverage
+      const leverage = Math.max(params.leverage || 25, 25); // Force minimum 25x leverage
       
       // Clean symbol format - remove any slashes or spaces
       const cleanSymbol = params.symbol.replace(/[\/\s]/g, '');
