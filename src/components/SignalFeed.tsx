@@ -69,7 +69,23 @@ export function SignalFeed({ signals }: { signals: UISignal[] }) {
         leverage: p.leverage,
       });
       if (res.ok) {
-        toast({ title: '✅ Trade Executed', description: `${sig.token} ${sig.direction} (${p.leverage}x)` });
+        // Enhanced success notification with SL/TP confirmation
+        const result = res.data;
+        const hasSlTp = result?.slOrder || result?.tpOrder || result?.stopLossOrder || result?.takeProfitOrder;
+        
+        toast({ 
+          title: '✅ Trade Executed', 
+          description: `${sig.token} ${sig.direction} (${p.leverage}x)${hasSlTp ? ' + SL/TP' : ' (No SL/TP)'}` 
+        });
+        
+        // Additional notifications for risk management
+        if (result?.slOrder || result?.stopLossOrder) {
+          console.log('🛡️ Stop Loss attached:', result.slOrder || result.stopLossOrder);
+        }
+        if (result?.tpOrder || result?.takeProfitOrder) {
+          console.log('🎯 Take Profit attached:', result.tpOrder || result.takeProfitOrder);
+        }
+        
         setSelected(null);
       } else {
         toast({ title: '❌ Trade Failed', description: res.message ?? 'Unknown error', variant: 'destructive' });

@@ -61,6 +61,11 @@ export const TradingGateway = {
       const amount = Math.max(baseAmount || minAmount, minAmount);
       const leverage = Math.max(params.leverage || 1, 1);
       
+      // Debug logging for amount adjustments
+      if ((baseAmount || 0) < minAmount) {
+        console.warn(`💰 Amount adjusted to minimum: $${baseAmount} → $${amount} (${isScalping ? 'scalp' : 'normal'} mode)`);
+      }
+      
       // Clean symbol format - remove any slashes or spaces
       const cleanSymbol = params.symbol.replace(/[\/\s]/g, '');
       
@@ -92,6 +97,29 @@ export const TradingGateway = {
         );
         stopLoss = stopLoss || riskPrices.stopLoss;
         takeProfit = takeProfit || riskPrices.takeProfit;
+        
+        // Debug logging for SL/TP calculation
+        const settings = tradingSettings.getSettings();
+        console.log(`🎯 Risk Management Debug:`, {
+          entryPrice,
+          side: params.side,
+          slPercent: settings.defaultSLPercent,
+          tpPercent: settings.defaultTPPercent,
+          calculatedSL: riskPrices.stopLoss,
+          calculatedTP: riskPrices.takeProfit,
+          finalSL: stopLoss,
+          finalTP: takeProfit,
+          scalpMode: settings.useScalpingMode
+        });
+      } else {
+        console.log(`⚠️ SL/TP Calculation Skipped:`, {
+          hasEntryPrice: !!entryPrice,
+          hasCustomSL: !!stopLoss,
+          hasCustomTP: !!takeProfit,
+          entryPrice,
+          stopLoss,
+          takeProfit
+        });
       }
 
       const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
@@ -129,6 +157,19 @@ export const TradingGateway = {
         data,
         headers: Object.fromEntries(response.headers.entries())
       });
+      
+      // Enhanced SL/TP confirmation logging
+      if (data.success && data.data) {
+        const result = data.data;
+        console.log('🔍 Order Execution Details:', {
+          mainOrder: result.orderId || result.order_id,
+          slAttached: !!(result.slOrder || result.stopLossOrder),
+          tpAttached: !!(result.tpOrder || result.takeProfitOrder),
+          orderType: result.orderType || 'market',
+          slPrice: result.slOrder?.triggerPrice || result.stopLossOrder?.price,
+          tpPrice: result.tpOrder?.triggerPrice || result.takeProfitOrder?.price
+        });
+      }
       
       if (!data.success) {
         console.error('❌ Trade execution failed:', data);
