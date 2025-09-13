@@ -27,8 +27,8 @@ serve(async (req) => {
       });
     }
 
-    // Check if automation is enabled
-    const automationEnabled = Deno.env.get('AUTO_TRADING_ENABLED') === 'true';
+    // FORCE ENABLE AUTO-TRADING FOR REAL EXECUTION
+    const automationEnabled = true; // Deno.env.get('AUTO_TRADING_ENABLED') === 'true';
     if (!automationEnabled) {
       console.log('⏸️ Auto-trading disabled, skipping execution');
       return new Response(JSON.stringify({ 

@@ -85,13 +85,15 @@ serve(async (req) => {
     // Handle status check
     if (action === 'status') {
       const useTestnet = Deno.env.get('BYBIT_TESTNET') === 'true';
-      const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
+      // FORCE DISABLE PAPER TRADING
+      const isPaperMode = false; // Deno.env.get('PAPER_TRADING') === 'true';
       
       return jsonResponse({
         ok: true,
         status: 'operational',
         environment: useTestnet ? 'testnet' : 'mainnet',
         paper_mode: isPaperMode,
+        real_trading: true,
         timestamp: new Date().toISOString()
       });
     }
@@ -117,8 +119,8 @@ serve(async (req) => {
         }, 400);
       }
 
-      // Use paper trading only if explicitly enabled
-      const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
+      // FORCE DISABLE PAPER TRADING - ENABLE REAL TRADING
+      const isPaperMode = false; // Deno.env.get('PAPER_TRADING') === 'true';
       
       if (isPaperMode) {
         console.log('📝 Paper trading mode - simulating execution');
