@@ -352,3 +352,5 @@ export function SignalFeedAdvanced({ signals, algorithm, title }: SignalFeedAdva
     </Card>
   );
 }
+
+export default SignalFeedAdvanced;
