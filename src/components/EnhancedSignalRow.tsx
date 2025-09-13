@@ -40,10 +40,12 @@ export function EnhancedSignalRow({ signal }: EnhancedSignalRowProps) {
 
       const result = await TradingGateway.execute({
         symbol: signal.symbol,
-        side: signal.direction === 'LONG' ? 'BUY' : 'SELL',
+        side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
         amountUSD: 25, // Default trade size
         leverage: 10,  // Default leverage
-        entryPrice: signal.entry_price,
+        uiEntry: signal.entry_price,
+        uiTP: signal.take_profit,
+        uiSL: signal.stop_loss,
         stopLoss: riskPrices.stopLoss,
         takeProfit: riskPrices.takeProfit
       });

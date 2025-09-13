@@ -110,6 +110,12 @@ function roundToStep(value: number, stepSize: number): number {
   return Math.floor(value / stepSize + 1e-12) * stepSize;
 }
 
+// Helper to round prices to tick size
+function roundToTick(price: number, tick: number): number {
+  if (!tick || tick <= 0) return price;
+  return Math.round(price / tick) * tick;
+}
+
 // Symbol validation - allow all symbols including digits
 function isSymbolAllowed(symbol: string): boolean {
   const allowAll = (Deno.env.get("ALLOWED_SYMBOLS") || "*").trim();
@@ -255,7 +261,7 @@ serve(async (req) => {
 
     // Parse request
     const requestBody = await req.json();
-    const { action, symbol, side, amountUSD, leverage, scalpMode } = requestBody;
+    const { action, symbol, side, amountUSD, leverage, scalpMode, orderType, timeInForce, price, uiEntry, uiTP, uiSL, idempotencyKey } = requestBody;
     
     structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
 
@@ -368,9 +374,25 @@ serve(async (req) => {
           takeProfit = price * (1 - takeProfitPercent); // 4% below entry for short
         }
         
+        // Use UI values if provided, otherwise calculate defaults
+        let finalStopLoss = uiSL;
+        let finalTakeProfit = uiTP;
+        const finalEntryPrice = uiEntry || price;
+
+        // Calculate defaults if UI values not provided
+        if (!finalStopLoss || !finalTakeProfit) {
+          if (side === 'Buy') {
+            finalStopLoss = finalStopLoss || (finalEntryPrice * (1 - stopLossPercent));
+            finalTakeProfit = finalTakeProfit || (finalEntryPrice * (1 + takeProfitPercent));
+          } else {
+            finalStopLoss = finalStopLoss || (finalEntryPrice * (1 + stopLossPercent));
+            finalTakeProfit = finalTakeProfit || (finalEntryPrice * (1 - takeProfitPercent));
+          }
+        }
+
         // Round prices to tick size
-        stopLoss = roundToStep(stopLoss, inst.tickSize);
-        takeProfit = roundToStep(takeProfit, inst.tickSize);
+        finalStopLoss = roundToTick(finalStopLoss, inst.tickSize);
+        finalTakeProfit = roundToTick(finalTakeProfit, inst.tickSize);
         
         structuredLog('info', 'Risk management prices calculated', {
           entryPrice: price,
@@ -381,16 +403,38 @@ serve(async (req) => {
           takeProfitPercent: ((side === 'Buy' ? takeProfit - price : price - takeProfit) / price * 100).toFixed(3) + '%'
         });
 
-        // =================== MARKET ENTRY ORDER (NO TP/SL YET) ===================
-        // Create clean market order without TP/SL (Bybit doesn't support TP/SL in market orders)
+        // =================== ORDER WITH TP/SL ATTACHMENT ===================
+        const finalOrderType = orderType || 'Market';
+        const isLong = side === 'Buy';
+        
+        // Directional validation
+        const tpValid = finalTakeProfit && (isLong ? finalTakeProfit > finalEntryPrice : finalTakeProfit < finalEntryPrice);
+        const slValid = finalStopLoss && (isLong ? finalStopLoss < finalEntryPrice : finalStopLoss > finalEntryPrice);
+        
         const orderData: any = {
           category: inst.category,
           symbol,
           side: side === 'Buy' ? 'Buy' : 'Sell',
-          orderType: 'Market',
+          orderType: finalOrderType,
           qty: String(qty),
-          timeInForce: 'IOC'
-          // NOTE: TP/SL will be set as separate conditional orders after position opens
+          timeInForce: finalOrderType === 'Limit' ? (timeInForce || 'PostOnly') : 'IOC',
+          orderLinkId: `x1_${idempotencyKey || Date.now()}`,
+          reduceOnly: false
+        };
+
+        // Add price for limit orders
+        if (finalOrderType === 'Limit' && finalEntryPrice) {
+          orderData.price = roundToTick(finalEntryPrice, inst.tickSize).toString();
+        }
+
+        // Attach TP/SL if valid (Bybit V5 supports this)
+        if (tpValid) {
+          orderData.takeProfit = finalTakeProfit.toString();
+          orderData.tpTriggerBy = 'MarkPrice';
+        }
+        if (slValid) {
+          orderData.stopLoss = finalStopLoss.toString();
+          orderData.slTriggerBy = 'MarkPrice';
         }
 
         // For linear contracts, always open new positions (not reduce-only)
