@@ -18,6 +18,9 @@ export interface ExecParams {
   uiEntry?: number;
   uiTP?: number;
   uiSL?: number;
+  // Auto-exec fields
+  stopLoss?: number;
+  takeProfit?: number;
   // optional extras
   reduceOnly?: boolean;
   scalpMode?: boolean;
@@ -25,8 +28,6 @@ export interface ExecParams {
   // Deprecated fields for backward compatibility
   notionalUSD?: number;  // deprecated, use amountUSD
   entryPrice?: number;   // deprecated, use uiEntry
-  stopLoss?: number;     // deprecated, use uiSL
-  takeProfit?: number;   // deprecated, use uiTP
 }
 
 // Legacy interface for backward compatibility
@@ -69,6 +70,9 @@ function normalizeParams(params: ExecParams | LegacyExecParams): ExecParams {
     uiEntry: (params as any).entryPrice || (params as ExecParams).uiEntry,
     uiTP: (params as any).takeProfit || (params as ExecParams).uiTP,
     uiSL: (params as any).stopLoss || (params as ExecParams).uiSL,
+    // Auto-exec fields
+    stopLoss: (params as ExecParams).stopLoss,
+    takeProfit: (params as ExecParams).takeProfit,
   };
 
   // Copy any additional fields
@@ -162,9 +166,13 @@ export const TradingGateway = {
           uiEntry: params.uiEntry,
           uiTP: params.uiTP,
           uiSL: params.uiSL,
+          // Auto-exec TP/SL
+          stopLoss: params.stopLoss,
+          takeProfit: params.takeProfit,
           scalpMode: isScalping,
           reduceOnly: params.reduceOnly || false,
-          idempotencyKey
+          idempotencyKey,
+          meta: params.meta
         })
       });
 
