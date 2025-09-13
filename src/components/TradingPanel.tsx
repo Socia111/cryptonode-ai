@@ -43,14 +43,15 @@ const TradingPanel = () => {
     setIsExecuting(true);
     
     try {
-      const side = signal.direction === 'LONG' ? 'BUY' : 'SELL';
+      const side = signal.direction === 'LONG' ? 'Buy' : 'Sell';
       const res = await TradingGateway.execute({ 
         symbol: signal.symbol, 
-        side, 
+        side,
+        leverage: 1,
         amountUSD: Math.max(25, settings.quantity)
       });
       
-      if (!res.ok && res.code === 'DISABLED') {
+      if (!res.ok && res.error === 'DISABLED') {
         toast({
           title: "Auto-trading disabled", 
           description: res.message,

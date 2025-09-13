@@ -1,5 +1,5 @@
 // Global trading settings store
-type Settings = {
+export type Settings = {
   defaultSLPct: number;     // normal mode
   defaultTPPct: number;
   scalpSLPct: number;       // scalp mode

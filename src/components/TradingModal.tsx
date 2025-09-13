@@ -39,7 +39,7 @@ export const TradingModal: React.FC<TradingModalProps> = ({
     try {
       const res = await TradingGateway.execute({
         symbol: signal.token,
-        side: signal.direction,
+        side: signal.direction === 'BUY' ? 'Buy' : 'Sell',
         amountUSD,
         leverage
       });
