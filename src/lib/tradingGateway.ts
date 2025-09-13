@@ -12,6 +12,9 @@ export type ExecParams = {
   entryPrice?: number   // signal entry price for limit orders
   stopLoss?: number     // custom stop loss price
   takeProfit?: number   // custom take profit price
+  orderType?: 'Market' | 'Limit'  // order type
+  price?: number        // limit price (required for limit orders)
+  timeInForce?: 'GTC' | 'IOC' | 'FOK' | 'PostOnly' | 'ImmediateOrCancel'
 }
 
 // Get the functions base URL using the hardcoded Supabase URL
@@ -84,7 +87,9 @@ export const TradingGateway = {
       
       // Use provided entry price or signal entry price for limit orders
       const entryPrice = params.entryPrice;
-      const orderType = entryPrice ? 'limit' : globalSettings.orderType;
+      const orderType = params.orderType || (entryPrice ? 'Limit' : globalSettings.orderType);
+      const limitPrice = params.price || (orderType === 'Limit' ? entryPrice : undefined);
+      const timeInForce = params.timeInForce || (orderType === 'Limit' ? 'PostOnly' : 'ImmediateOrCancel');
       
       // Calculate SL/TP using global settings if not provided
       let stopLoss = params.stopLoss;
@@ -133,6 +138,8 @@ export const TradingGateway = {
           leverage: leverage,
           scalpMode: isScalping,
           orderType,
+          price: limitPrice,
+          timeInForce,
           entryPrice,
           stopLoss,
           takeProfit

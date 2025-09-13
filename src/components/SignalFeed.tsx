@@ -57,9 +57,27 @@ export function SignalFeed({ signals }: { signals: UISignal[] }) {
     setSelected(pick);
   }, [ranked, autoMode, executingId]);
 
-  const execute = async (sig: any, p: { amountUSD: number; leverage: number }) => {
+  const execute = async (sig: any, p: { amountUSD: number; leverage: number; orderType?: string; price?: number; timeInForce?: string }) => {
     try {
       setExecutingId(sig.id);
+      
+      // Basic risk guard check (UI-only safety)
+      const { RiskPanel } = await import('@/lib/riskGuards');
+      const riskCheck = await RiskPanel.check({
+        maxDailyLossPct: 2,
+        maxOpenPositions: 2,
+        blockIf1m: sig.timeframe === '1m'
+      });
+      
+      if (!riskCheck.ok) {
+        toast({ 
+          title: '🛡️ Risk Guard', 
+          description: riskCheck.reason || 'Limits reached', 
+          variant: 'destructive' 
+        });
+        return;
+      }
+      
       // Normalize direction for TradingGateway
       const side = sig.direction === 'BUY' ? 'Buy' : sig.direction === 'SELL' ? 'Sell' : sig.direction;
       const res = await TradingGateway.execute({
@@ -67,6 +85,9 @@ export function SignalFeed({ signals }: { signals: UISignal[] }) {
         side,
         amountUSD: p.amountUSD,
         leverage: p.leverage,
+        orderType: p.orderType as any,
+        price: p.price,
+        timeInForce: p.timeInForce as any,
       });
       if (res.ok) {
         // Enhanced success notification with SL/TP confirmation

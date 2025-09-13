@@ -17,6 +17,7 @@ export const TradingTestHarness = () => {
     amountUSD: 10,
     leverage: 1,
     scalpMode: false,
+    useLimit: false,
     entryPrice: 45000,
     customSL: '',
     customTP: ''
@@ -53,6 +54,9 @@ export const TradingTestHarness = () => {
         amountUSD: testParams.amountUSD,
         leverage: testParams.leverage,
         scalpMode: testParams.scalpMode,
+        orderType: testParams.useLimit ? 'Limit' as const : 'Market' as const,
+        price: testParams.useLimit ? testParams.entryPrice : undefined,
+        timeInForce: testParams.useLimit ? 'PostOnly' as const : 'ImmediateOrCancel' as const,
         entryPrice: testParams.entryPrice,
         stopLoss: testParams.customSL ? parseFloat(testParams.customSL) : undefined,
         takeProfit: testParams.customTP ? parseFloat(testParams.customTP) : undefined
@@ -177,6 +181,14 @@ export const TradingTestHarness = () => {
               onCheckedChange={(checked) => setTestParams(prev => ({ ...prev, scalpMode: checked }))}
             />
             <Label>Scalp Mode</Label>
+          </div>
+          
+          <div className="space-y-2 flex items-center gap-2">
+            <Switch 
+              checked={testParams.useLimit}
+              onCheckedChange={(checked) => setTestParams(prev => ({ ...prev, useLimit: checked }))}
+            />
+            <Label>Use Limit Orders</Label>
           </div>
         </div>
 
