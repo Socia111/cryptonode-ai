@@ -78,10 +78,10 @@ serve(async (req) => {
 
   try {
     const requestBody = await req.json();
-    const { action, symbol, side, amountUSD: requestedAmount, leverage = 10 } = requestBody;
+    const { action, symbol, side, amountUSD: requestedAmount } = requestBody;
     let amountUSD = requestedAmount;
 
-    console.log('🚀 Trade executor request:', { action, symbol, side, amountUSD, leverage });
+    console.log('🚀 Trade executor request:', { action, symbol, side, amountUSD });
 
     // Handle status check
     if (action === 'status') {
@@ -128,7 +128,7 @@ serve(async (req) => {
         
         const mockOrderId = `PAPER_${Date.now()}`;
         const mockPrice = Math.random() * 100 + 50;
-        const mockQty = (amountUSD * leverage / mockPrice).toFixed(6);
+        const mockQty = (amountUSD / mockPrice).toFixed(6);
         
         return jsonResponse({
           success: true,
@@ -139,7 +139,6 @@ serve(async (req) => {
             qty: mockQty,
             price: mockPrice,
             amount: amountUSD,
-            leverage,
             status: 'FILLED',
             paperMode: true,
             message: 'Paper trade executed - no real money involved'
@@ -168,27 +167,27 @@ serve(async (req) => {
           });
 
           // Check if we have enough balance for the requested order
-          // For leveraged trading, we only need margin = amountUSD / leverage
-          const requiredMargin = amountUSD / leverage; // Corrected: divide by leverage for margin requirement
+          // For spot trading, we need the full amount as balance
+          const requiredBalance = amountUSD;
           
-          if (availableBalance < requiredMargin) {
+          if (availableBalance < requiredBalance) {
             console.warn('⚠️ Insufficient balance, adjusting order size');
             // Calculate maximum possible order size with current balance
-            const maxOrderSize = Math.floor(availableBalance * leverage * 0.9); // 90% of available balance
+            const maxOrderSize = Math.floor(availableBalance * 0.9); // 90% of available balance
             const adjustedAmount = Math.max(5, maxOrderSize);
-            console.log(`📉 Adjusted order size from $${amountUSD} to $${adjustedAmount} (margin needed: $${requiredMargin}, available: $${availableBalance})`);
+            console.log(`📉 Adjusted order size from $${amountUSD} to $${adjustedAmount} (required: $${requiredBalance}, available: $${availableBalance})`);
             
             if (adjustedAmount < 5) {
               return jsonResponse({
                 success: false,
-                error: `Insufficient balance. Available: $${availableBalance.toFixed(2)}, Required margin: $${requiredMargin.toFixed(2)}. Minimum order: $5`
+                error: `Insufficient balance. Available: $${availableBalance.toFixed(2)}, Required: $${requiredBalance.toFixed(2)}. Minimum order: $5`
               }, 400);
             }
             
             // Update amount to the adjusted amount
             amountUSD = adjustedAmount;
           } else {
-            console.log(`✅ Sufficient balance. Required margin: $${requiredMargin.toFixed(2)}, Available: $${availableBalance.toFixed(2)}`);
+            console.log(`✅ Sufficient balance. Required: $${requiredBalance.toFixed(2)}, Available: $${availableBalance.toFixed(2)}`);
           }
         } catch (balanceError: any) {
           console.warn('⚠️ Could not check balance, using conservative settings:', balanceError.message);
@@ -205,8 +204,8 @@ serve(async (req) => {
         const tickerData = await tickerResponse.json();
         const currentPrice = parseFloat(tickerData.result?.list?.[0]?.lastPrice || '50000');
 
-        // STEP 3: Calculate quantity with proper validation
-        const targetNotional = amountUSD * leverage;
+        // STEP 3: Calculate quantity for spot trading (no leverage)
+        const targetNotional = amountUSD; // Direct amount for spot trading
         let quantity = targetNotional / currentPrice;
         
         
@@ -244,11 +243,10 @@ serve(async (req) => {
           symbol,
           side,
           currentPrice,
-          originalAmount: requestBody.amountUSD, // Show original requested amount
+          originalAmount: requestedAmount, // Show original requested amount
           adjustedAmount: amountUSD, // Show potentially adjusted amount
           targetNotional,
           calculatedQty: quantity,
-          leverage,
           instrumentInfo: instrumentInfo ? 'found' : 'not found'
         });
 
@@ -295,22 +293,7 @@ serve(async (req) => {
           }
         }
 
-        // Set leverage (required for position trading)
-        try {
-          const leverageParams = {
-            category: 'linear',
-            symbol,
-            buyLeverage: leverage.toString(),
-            sellLeverage: leverage.toString()
-          };
-          
-          console.log('⚙️ Setting leverage:', leverageParams);
-          await client.request('POST', '/v5/position/set-leverage', leverageParams);
-          console.log('✅ Leverage set successfully');
-        } catch (leverageError: any) {
-          // Leverage setting might fail if already set, continue anyway
-          console.warn('⚠️ Leverage setting failed (may already be set):', leverageError.message);
-        }
+        // Remove leverage setting - not needed for spot trading
 
         // Try to place the order - first without positionIdx, then with it if needed
         let orderResult;
@@ -338,7 +321,7 @@ serve(async (req) => {
             
             // Reduce order size by 50% and try again
             const reducedAmount = Math.max(5, Math.floor(amountUSD * 0.5));
-            const reducedNotional = reducedAmount * leverage;
+            const reducedNotional = reducedAmount; // No leverage
             const reducedQuantity = reducedNotional / currentPrice;
             
             // Apply instrument formatting to reduced quantity
@@ -395,14 +378,13 @@ serve(async (req) => {
             qty: quantity.toString(),
             price: currentPrice,
             amount: amountUSD, // This might be adjusted from original
-            originalAmount: requestBody.amountUSD, // Original requested amount
-            leverage,
+            originalAmount: requestedAmount, // Original requested amount
             status: 'NEW',
             environment: useTestnet ? 'testnet' : 'mainnet',
             realTrade: true,
             targetNotional: targetNotional,
             orderNotional: quantity * currentPrice,
-            positionMode: 'one-way',
+            positionMode: 'spot',
             balanceChecked: walletBalance ? true : false,
             actualParams: orderParams
           }
@@ -421,12 +403,11 @@ serve(async (req) => {
         
         return jsonResponse({
           success: false,
-          error: error.message || 'Trade execution failed',
+          message: error.message || 'Trade execution failed',
           details: {
             symbol,
             side,
             amountUSD,
-            leverage,
             environment: useTestnet ? 'testnet' : 'mainnet'
           }
         }, 500);
