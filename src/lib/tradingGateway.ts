@@ -171,6 +171,7 @@ export const TradingGateway = {
           takeProfit: params.takeProfit,
           scalpMode: isScalping,
           reduceOnly: params.reduceOnly || false,
+          testMode: true, // Always use testnet for now
           idempotencyKey,
           meta: params.meta
         })

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import SignalsWidget from '@/components/SignalsWidget';
+import TradingSystemTest from '@/components/TradingSystemTest';
 import { 
   Shield, 
   Zap, 
@@ -291,6 +292,13 @@ const Home = () => {
               <Link to="/portfolio">Portfolio</Link>
             </Button>
           </div>
+        </div>
+      </section>
+
+      {/* Trading System Test - Development Only */}
+      <section className="py-8 border-t border-purple-500/20">
+        <div className="container mx-auto px-6">
+          <TradingSystemTest />
         </div>
       </section>
     </div>

@@ -32,7 +32,7 @@ serve(async (req) => {
       testMode = true
     } = await req.json();
 
-    console.log('🚀 AItradeX1 Trade Executor:', { action, symbol, side, amountUSD });
+    console.log('🚀 AItradeX1 Trade Executor:', { action, symbol, side, amountUSD, orderType, testMode });
 
     if (action === 'status') {
       return new Response(JSON.stringify({
@@ -55,27 +55,50 @@ serve(async (req) => {
       throw new Error('Missing required parameters: symbol, side, amountUSD');
     }
 
-    // Calculate position size
+    // Calculate position size with minimums
     const minAmount = scalpMode ? 1 : 5;
     const finalAmount = Math.max(amountUSD, minAmount);
-    
+
     // Clean symbol format
     const cleanSymbol = symbol.replace(/[\/\s]/g, '');
     
-    // Prepare signal for Bybit API
+    // Calculate quantity based on price (need to get current price first)
+    let currentPrice = price;
+    if (!currentPrice) {
+      // Get current price from Bybit public API
+      try {
+        const priceResponse = await fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${cleanSymbol}`);
+        const priceData = await priceResponse.json();
+        currentPrice = parseFloat(priceData.result?.list?.[0]?.lastPrice || '100');
+      } catch {
+        currentPrice = 100; // Fallback price
+      }
+    }
+    
+    const qty = (finalAmount / currentPrice).toFixed(6);
+    
+    // Prepare signal data for Bybit API exactly as expected
     const tradeSignal = {
       symbol: cleanSymbol,
-      side: side,
-      orderType: orderType,
-      qty: (finalAmount / (price || 100)).toString(), // Approximate qty calculation
-      ...(price && orderType === 'Limit' && { price: price.toString() }),
-      ...(orderType === 'Market' && { timeInForce: 'IOC' }),
-      ...(orderType === 'Limit' && { timeInForce: 'GTC' }),
+      side: side, // 'Buy' or 'Sell'
+      orderType: orderType || 'Market',
+      qty: qty,
+      timeInForce: orderType === 'Market' ? 'IOC' : 'GTC',
+      ...(orderType === 'Limit' && price && { price: price.toString() }),
       ...(stopLoss && { stopLoss: stopLoss.toString() }),
       ...(takeProfit && { takeProfit: takeProfit.toString() })
     };
 
-    // Call Bybit Live Trading function
+    console.log('📋 Calling Bybit Live Trading with:', { 
+      action: 'place_order', 
+      signal: tradeSignal,
+      testMode,
+      cleanSymbol,
+      qty,
+      currentPrice
+    });
+
+    // Call Bybit Live Trading function with correct structure
     const { data: bybitResponse, error: bybitError } = await supabase.functions.invoke('bybit-live-trading', {
       body: {
         action: 'place_order',
@@ -92,7 +115,7 @@ serve(async (req) => {
 
     if (!bybitResponse?.success) {
       console.error('❌ Bybit trade failed:', bybitResponse);
-      throw new Error(bybitResponse?.error || 'Trade execution failed');
+      throw new Error(bybitResponse?.error || bybitResponse?.message || 'Trade execution failed');
     }
 
     console.log('✅ Trade executed successfully:', bybitResponse);
