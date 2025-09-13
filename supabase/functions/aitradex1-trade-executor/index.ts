@@ -173,7 +173,7 @@ async function getMarkPrice(symbol: string): Promise<number> {
   throw new Error("Mark price unavailable");
 }
 
-// Enhanced order quantity calculation with scalping support
+// Enhanced order quantity calculation with higher minimums
 function computeOrderQtyUSD(
   amountUSD: number, 
   leverage: number, 
@@ -181,46 +181,39 @@ function computeOrderQtyUSD(
   inst: Instrument,
   isScalping = false
 ) {
-  // Calculate total exposure: amountUSD * leverage (e.g., $1 * 5x = $5 exposure)
+  // Calculate total exposure: amountUSD * leverage (e.g., $25 * 25x = $625 exposure)
   const targetNotional = amountUSD * leverage;
   let qty = targetNotional / price;
   
-  // Round to tick size
+  // Round to step size first
   qty = roundToStep(qty, inst.qtyStep || 0.000001);
   
-  // Handle minimum quantity with special scalping logic
-  if (isScalping) {
-    // For scalping, try to use smaller quantities if possible
-    const minScalpQty = Math.max(inst.minOrderQty || 0.001, 0.001);
-    qty = Math.max(qty, minScalpQty);
-    // Cap scalping orders to prevent balance issues - based on total exposure
-    if (targetNotional <= 25) {
-      qty = Math.min(qty, 0.05); // Smaller cap for micro trades
-    }
-  } else {
-    // Normal minimum enforcement
-    qty = Math.max(qty, inst.minOrderQty || 0.001);
+  // Enforce higher minimums to avoid "Qty is smaller amount" errors
+  const baseMinQty = inst.minOrderQty || 0.001;
+  
+  // Calculate minimum quantity based on minimum order value (typically $5-10 USDT)
+  let minRequiredQty = baseMinQty;
+  if (inst.category === "linear" && inst.minOrderValue) {
+    minRequiredQty = Math.max(minRequiredQty, inst.minOrderValue / price);
   }
   
-  // For linear contracts, check minimum order value
-  if (inst.category === "linear" && inst.minOrderValue) {
-    const calculatedNotional = qty * price;
-    if (calculatedNotional < inst.minOrderValue && !isScalping) {
-      // For normal trades, ensure minimum value is met
-      qty = Math.max(qty, roundToStep(inst.minOrderValue / price, inst.qtyStep || 0.000001));
-    }
+  // For spot trading, enforce minimum order amount
+  if (inst.category === "spot" && inst.minOrderAmt) {
+    minRequiredQty = Math.max(minRequiredQty, inst.minOrderAmt / price);
   }
-
-  // For spot trading, handle minimum order amount
-  if (inst.category === "spot") {
-    if (inst.minOrderAmt) {
-      const spotNotional = qty * price;
-      if (spotNotional < inst.minOrderAmt) {
-        qty = Math.max(qty, roundToStep(inst.minOrderAmt / price, inst.qtyStep));
-      }
-    }
-    if (inst.minOrderQty && qty < inst.minOrderQty) {
-      qty = Math.max(qty, roundToStep(inst.minOrderQty, inst.qtyStep));
+  
+  // Apply minimum quantity requirements
+  qty = Math.max(qty, minRequiredQty);
+  
+  // Round again after applying minimums
+  qty = roundToStep(qty, inst.qtyStep || 0.000001);
+  
+  // For scalping, ensure we meet minimum notional requirements
+  if (isScalping) {
+    const actualNotional = qty * price;
+    const minNotional = inst.minOrderValue || inst.minOrderAmt || 5; // Minimum $5 USD
+    if (actualNotional < minNotional) {
+      qty = roundToStep(minNotional / price, inst.qtyStep || 0.000001);
     }
   }
 
@@ -279,8 +272,8 @@ serve(async (req) => {
         }, 400);
       }
 
-  // For scalping, use very small minimum order size to avoid balance issues
-  const minOrderSize = scalpMode ? 1 : 5  // Scalp: $1 min | Normal: $5 min
+  // Use higher minimums to meet exchange requirements
+  const minOrderSize = scalpMode ? 10 : 25  // Scalp: $10 min | Normal: $25 min
   const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
 
       structuredLog('info', 'Trade execution request', {
@@ -317,8 +310,8 @@ serve(async (req) => {
         
         const isScalping = scalpMode === true;
         
-        // Calculate proper quantity with scalping support
-        const scaledLeverage = isScalping ? Math.min(leverage || 10, 25) : (leverage || 1);
+        // Calculate proper quantity with 25x leverage by default
+        const scaledLeverage = leverage || 25; // Default to 25x leverage
         const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
         
         // Enhanced validation with better error messages
@@ -352,9 +345,9 @@ serve(async (req) => {
           mode: isScalping ? 'scalping' : 'normal'
         })
         
-        // Micro TP/SL for scalping with better risk-reward
-        const stopLossPercent = isScalping ? 0.0015 : 0.02;  // Scalp: 0.15% | Normal: 2%
-        const takeProfitPercent = isScalping ? 0.005 : 0.04; // Scalp: 0.5% | Normal: 4%
+        // TP/SL percentages aligned with ROLL strategy
+        const stopLossPercent = isScalping ? 0.0015 : 0.03;  // Scalp: 0.15% | Normal: 3%
+        const takeProfitPercent = isScalping ? 0.005 : 0.06; // Scalp: 0.5% | Normal: 6%
         // This gives 3.33:1 R:R for scalping (0.5%:0.15%)
         
         let stopLoss: number;

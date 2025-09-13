@@ -54,12 +54,12 @@ export const TradingGateway = {
         'authorization': `Bearer ${sessionToken}`,
       };
       
-      // Dynamic minimum based on scalp mode
+      // Dynamic minimum based on scalp mode with higher minimums
       const isScalping = params.scalpMode === true;
       const baseAmount = params.amountUSD || params.notionalUSD;
-      const minAmount = isScalping ? 1 : 5; // $1 for scalping, $5 for normal
+      const minAmount = isScalping ? 10 : 25; // $10 for scalping, $25 for normal
       const amount = Math.max(baseAmount || minAmount, minAmount);
-      const leverage = Math.max(params.leverage || 1, 1);
+      const leverage = Math.max(params.leverage || 25, 25); // Default to 25x leverage
       
       // Clean symbol format - remove any slashes or spaces
       const cleanSymbol = params.symbol.replace(/[\/\s]/g, '');
