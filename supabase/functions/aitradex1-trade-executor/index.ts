@@ -516,7 +516,8 @@ serve(async (req) => {
           orderType: 'Market',
           qty: String(qty),
           timeInForce: 'IOC',
-          reduceOnly: false  // CRITICAL: Explicitly set to false for new positions
+          reduceOnly: false,  // CRITICAL: Explicitly set to false for new positions
+          isLeverage: 0      // Explicitly disable leverage flag to avoid conflicts
         };
         
         // Try clean order first (recommended approach)
