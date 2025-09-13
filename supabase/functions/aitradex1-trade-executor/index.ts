@@ -201,17 +201,49 @@ serve(async (req) => {
           instrumentInfo: instrumentInfo ? 'found' : 'not found'
         });
 
-        // Place market order
+        // Place market order with position index for One-Way mode
         const orderParams = {
           category: 'linear',
           symbol,
           side,
           orderType: 'Market',
-          qty: quantity.toString(), // Convert to string for API
-          leverage: leverage.toString(),
-          positionIdx: 0,
+          qty: quantity.toString(),
+          positionIdx: 0, // 0 for One-Way mode (which we just set above)
           reduceOnly: false
         };
+
+        // First, set position mode to One-Way (safer and more reliable)
+        try {
+          const positionModeParams = {
+            category: 'linear',
+            coin: symbol.replace('USDT', ''), // Extract base coin (e.g., BTC from BTCUSDT)
+            mode: 0 // 0 = One-Way mode, 3 = Hedge mode
+          };
+          
+          console.log('🔧 Setting position mode to One-Way:', positionModeParams);
+          await client.request('POST', '/v5/position/switch-mode', positionModeParams);
+          console.log('✅ Position mode set to One-Way');
+        } catch (modeError: any) {
+          // Position mode might already be set correctly
+          console.warn('⚠️ Position mode setting failed (may already be correct):', modeError.message);
+        }
+
+        // Set leverage (required for position trading)
+        try {
+          const leverageParams = {
+            category: 'linear',
+            symbol,
+            buyLeverage: leverage.toString(),
+            sellLeverage: leverage.toString()
+          };
+          
+          console.log('⚙️ Setting leverage:', leverageParams);
+          await client.request('POST', '/v5/position/set-leverage', leverageParams);
+          console.log('✅ Leverage set successfully');
+        } catch (leverageError: any) {
+          // Leverage setting might fail if already set, continue anyway
+          console.warn('⚠️ Leverage setting failed (may already be set):', leverageError.message);
+        }
 
         const orderResult = await client.request('POST', '/v5/order/create', orderParams);
         
