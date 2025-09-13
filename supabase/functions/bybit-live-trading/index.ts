@@ -105,9 +105,30 @@ async function bybitApiCall(
 }
 
 async function getAccountBalance(apiKey: string, apiSecret: string, isTestnet: boolean): Promise<any> {
-  return await bybitApiCall('/v5/account/wallet-balance', 'GET', {
-    accountType: 'UNIFIED'
-  }, apiKey, apiSecret, isTestnet);
+  try {
+    const result = await bybitApiCall('/v5/account/wallet-balance', 'GET', {
+      accountType: 'UNIFIED'
+    }, apiKey, apiSecret, isTestnet);
+    
+    // Additional error handling for balance check
+    if (result.retCode !== 0) {
+      console.error('Balance check failed:', result.retMsg);
+      return {
+        retCode: result.retCode,
+        retMsg: result.retMsg || 'Balance check failed',
+        result: null
+      };
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Balance API error:', error);
+    return {
+      retCode: 1,
+      retMsg: `Balance check failed: ${error.message}`,
+      result: null
+    };
+  }
 }
 
 async function getPositions(apiKey: string, apiSecret: string, isTestnet: boolean): Promise<any> {
@@ -123,8 +144,10 @@ async function placeOrder(signal: TradeSignal, apiKey: string, apiSecret: string
     side: signal.side,
     orderType: signal.orderType,
     qty: signal.qty,
+    reduceOnly: false, // Explicitly set to false for new positions
     ...(signal.price && { price: signal.price }),
-    ...(signal.timeInForce && { timeInForce: signal.timeInForce })
+    ...(signal.timeInForce && { timeInForce: signal.timeInForce }),
+    ...(signal.orderType === 'Market' && { timeInForce: 'IOC' }) // Market orders need IOC
   };
   
   return await bybitApiCall('/v5/order/create', 'POST', orderParams, apiKey, apiSecret, isTestnet);

@@ -471,7 +471,8 @@ serve(async (req) => {
           side: side === 'Buy' ? 'Buy' : 'Sell',
           orderType: 'Market',
           qty: String(qty),
-          timeInForce: 'IOC'
+          timeInForce: 'IOC',
+          reduceOnly: false // Explicitly set to false for new positions
         };
         
         // Try clean order first (recommended approach)
@@ -493,7 +494,8 @@ serve(async (req) => {
           try {
             orderResult = await client.signedRequest('POST', '/v5/order/create', {
               ...baseOrder,
-              positionIdx: 0
+              positionIdx: 0,
+              reduceOnly: false
             });
             
             if (orderResult?.retCode === 0) {

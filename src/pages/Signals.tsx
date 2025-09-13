@@ -1,11 +1,13 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { SignalFeed } from '@/components/SignalFeed';
+import { SignalsDashboard } from '@/components/SignalsDashboard';
 import { useSignals } from '@/hooks/useSignals';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { GlobalTradeBar } from '@/components/GlobalTradeBar';
 import { useAutoPilot } from '@/hooks/useAutoPilot';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Signals = () => {
   const { signals, loading, generateSignals } = useSignals();
@@ -29,19 +31,32 @@ const Signals = () => {
           )}
         </div>
 
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Signal Feed</h2>
-          <Button onClick={generateSignals} disabled={loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Generate New Signals
-          </Button>
-        </div>
-        
-        {loading ? (
-          <div className="py-10 text-center opacity-70">Loading…</div>
-        ) : (
-          <SignalFeed signals={signals as any} />
-        )}
+        <Tabs defaultValue="live" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="live">Live Dashboard</TabsTrigger>
+            <TabsTrigger value="feed">Signal Feed</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="live" className="space-y-4">
+            <SignalsDashboard />
+          </TabsContent>
+          
+          <TabsContent value="feed" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Signal Feed</h2>
+              <Button onClick={generateSignals} disabled={loading}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Generate New Signals
+              </Button>
+            </div>
+            
+            {loading ? (
+              <div className="py-10 text-center opacity-70">Loading…</div>
+            ) : (
+              <SignalFeed signals={signals as any} />
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
       <GlobalTradeBar />
     </MainLayout>
