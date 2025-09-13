@@ -1,73 +1,48 @@
 import React from 'react';
-import MainLayout from '../layouts/MainLayout';
-import MarketOverview from '../components/MarketOverview';
-import SignalsList from '../components/SignalsList';
-import TradingChart from '../components/TradingChart';
-import PortfolioStats from '../components/PortfolioStats';
-import DatabaseSetup from '../components/DatabaseSetup';
-import SpynxScoreCard from '../components/SpynxScoreCard';
-import TelegramIntegration from '../components/TelegramIntegration';
-import TradingPanel from '../components/TradingPanel';
-import BacktestEngine from '../components/BacktestEngine';
-import QuantumAnalysis from '../components/QuantumAnalysis';
-import ScannerDashboard from '../components/ScannerDashboard';
-import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
-import { useSignals } from '@/hooks/useSignals';
+import MainLayout from '@/layouts/MainLayout';
+import { GlobalTradeBar } from '@/components/GlobalTradeBar';
+import AItradeX1SystemDashboard from '@/components/AItradeX1SystemDashboard';
 import { useRankedSignals } from '@/hooks/useRankedSignals';
+import { useAutoExec } from '@/hooks/useAutoExec';
+import { useSignals } from '@/hooks/useSignals';
+import { useToast } from '@/hooks/use-toast';
 
 const X1 = () => {
-  // Initialize API connection for live data
   const { signals, loading } = useSignals();
-  
-  // Apply Innovation Zone filtering and other signal filters
-  const rankedSignals = useRankedSignals(signals, {
-    hideWideSpreads: true,
-    excludeInnovationZone: true,
-    hide1MinSignals: true
+  const ranked = useRankedSignals(signals, { hideWideSpreads: true, maxSpreadBps: 15 });
+  const { toast } = useToast();
+
+  // Auto execute A+/A (skip 1m timeframe)
+  useAutoExec({
+    rankedSignals: ranked as any,
+    skip: (s: any) => s.timeframe === '1m',
+    onSuccess: (s) => toast({ 
+      title: '✅ X1 Auto Trade', 
+      description: `${s.token} ${s.direction} + SL/TP` 
+    }),
+    onError: (s, e) => toast({ 
+      title: '❌ X1 Auto Trade Failed', 
+      description: `${s.token}: ${e?.message ?? 'Unknown error'}`, 
+      variant: 'destructive' 
+    }),
   });
+
   return (
     <MainLayout>
-      <div className="container mx-auto px-6 py-8 space-y-8">
-        {/* Page Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            AItradeX1 Confluence Platform
-          </h1>
-          <p className="text-muted-foreground">
-            Multi-indicator confluence model with EMA stack, ADX/DMI, Stochastic, HVP, and weighted scoring system
-          </p>
+      <div className="max-w-7xl mx-auto p-4 pb-32">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">X1 - AI Trade System</h1>
         </div>
         
-        {/* Database Setup */}
-        <DatabaseSetup />
-        
-        {/* AItradeX1 Scanner Chart */}
-        <AItradeX1ScannerChart />
-        
-        {/* AItradeX1 Scanner Dashboard */}
-        <ScannerDashboard />
-        
-        {/* Market Overview */}
-        <MarketOverview />
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Trading Chart */}
-          <div className="lg:col-span-2 space-y-6">
-            <TradingChart />
-            <BacktestEngine />
-          </div>
-          
-          {/* Signals Panel */}
-          <div className="space-y-6">
-            <PortfolioStats />
-            <TradingPanel />
-            <TelegramIntegration />
-            <QuantumAnalysis />
-            <SpynxScoreCard />
-            <SignalsList />
-          </div>
-        </div>
+        {loading ? (
+          <div className="opacity-70 py-10 text-center">Loading AI signals...</div>
+        ) : (
+          <AItradeX1SystemDashboard />
+        )}
       </div>
+
+      {/* Global persistent trade controls */}
+      <GlobalTradeBar />
     </MainLayout>
   );
 };

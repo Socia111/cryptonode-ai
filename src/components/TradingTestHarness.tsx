@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { normalizeSide } from '@/lib/tradingTypes';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,16 +52,17 @@ export const TradingTestHarness = () => {
       // Step 3: Prepare execution parameters
       const execParams = {
         symbol: testParams.symbol,
-        side: testParams.side === 'BUY' ? 'Buy' as const : 'Sell' as const,
+        side: normalizeSide(testParams.side),
         amountUSD: testParams.amountUSD,
         leverage: testParams.leverage,
         scalpMode: testParams.scalpMode,
         orderType: testParams.useLimit ? 'Limit' as const : 'Market' as const,
         price: testParams.useLimit ? testParams.entryPrice : undefined,
-        timeInForce: testParams.useLimit ? 'PostOnly' as const : 'ImmediateOrCancel' as const,
+        timeInForce: testParams.useLimit ? 'PostOnly' as const : 'GTC' as const,
         entryPrice: testParams.entryPrice,
         stopLoss: testParams.customSL ? parseFloat(testParams.customSL) : undefined,
-        takeProfit: testParams.customTP ? parseFloat(testParams.customTP) : undefined
+        takeProfit: testParams.customTP ? parseFloat(testParams.customTP) : undefined,
+        meta: { source: 'test-harness', timestamp: Date.now() }
       };
       
       console.log('📤 Execution Parameters:', execParams);
@@ -114,7 +116,7 @@ export const TradingTestHarness = () => {
 
   const riskPrices = tradingSettings.calculateRiskPrices(
     testParams.entryPrice,
-    testParams.side === 'BUY' ? 'Buy' : 'Sell',
+    normalizeSide(testParams.side),
     undefined,
     undefined,
     testParams.scalpMode

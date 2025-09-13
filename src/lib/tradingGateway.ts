@@ -5,21 +5,19 @@ export type OrderTIF = 'GTC' | 'IOC' | 'FOK' | 'PostOnly' | 'ImmediateOrCancel';
 export type OrderType = 'Market' | 'Limit';
 
 export interface ExecuteParams {
-  symbol: string;                 // e.g. "BTCUSDT"
+  symbol: string;
   side: 'Buy' | 'Sell';
   amountUSD: number;
   leverage: number;
-  // NEW:
-  orderType?: OrderType;          // default 'Market'
-  price?: number;                 // required when orderType='Limit'
-  timeInForce?: OrderTIF;         // default 'PostOnly' if Limit
-  reduceOnly?: boolean;           // optional
-  // pass-through SL/TP (optional)
+  orderType?: OrderType;
+  timeInForce?: OrderTIF;
+  price?: number;
+  scalpMode?: boolean;
+  entryPrice?: number;
   stopLoss?: number;
   takeProfit?: number;
-  scalpMode?: boolean;
-  entryPrice?: number;            // for backward compatibility
-  meta?: Record<string, any>;     // optional metadata
+  reduceOnly?: boolean;
+  meta?: Record<string, any>;
 }
 
 export interface ExecResult {
@@ -127,17 +125,18 @@ export const TradingGateway = {
         side: params.side,
         amountUSD: amount,
         leverage: leverage,
-        // NEW: limit-order fields
+        // Forward all order execution parameters with defensive defaults
         orderType: params.orderType ?? 'Market',
-        price: params.price,
         timeInForce: params.timeInForce ?? (params.orderType === 'Limit' ? 'PostOnly' : 'GTC'),
+        price: params.price,
         reduceOnly: params.reduceOnly ?? false,
-        // pass-through risk
+        scalpMode: isScalping,
+        entryPrice: params.entryPrice || params.price,
         stopLoss: params.stopLoss,
         takeProfit: params.takeProfit,
-        scalpMode: isScalping,
-        entryPrice: params.entryPrice || params.price, // backward compatibility
-        meta: params.meta || {}
+        meta: params.meta || {},
+        // Add idempotency for reliability
+        idempotencyKey: `fe-${cleanSymbol}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       };
       
       console.log('📤 Request body to edge function:', payload);
