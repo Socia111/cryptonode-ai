@@ -146,22 +146,59 @@ serve(async (req) => {
         });
       }
 
-      // Real trading - use mainnet unless testnet is explicitly enabled
       const useTestnet = Deno.env.get('BYBIT_TESTNET') === 'true';
       const client = new BybitClient(apiKey, apiSecret, useTestnet);
       const baseURL = useTestnet ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com';
 
       try {
-        // Get current price from the appropriate environment
+        // STEP 1: Check wallet balance first
+        console.log('💰 Checking wallet balance...');
+        let walletBalance;
+        try {
+          walletBalance = await client.request('GET', '/v5/account/wallet-balance?accountType=UNIFIED&coin=USDT');
+          const usdtBalance = walletBalance.result?.list?.[0]?.coin?.find((c: any) => c.coin === 'USDT');
+          const availableBalance = parseFloat(usdtBalance?.availableToWithdraw || '0');
+          
+          console.log('💰 Available USDT balance:', {
+            total: usdtBalance?.walletBalance || '0',
+            available: availableBalance,
+            requestedAmount: amountUSD,
+            requestedLeverage: leverage
+          });
+
+          // Check if we have enough balance for the requested order
+          const requiredMargin = amountUSD; // For simplicity, require 1:1 margin
+          if (availableBalance < requiredMargin) {
+            console.warn('⚠️ Insufficient balance, adjusting order size');
+            // Reduce amount to 80% of available balance to leave some buffer
+            const adjustedAmount = Math.max(5, Math.floor(availableBalance * 0.8));
+            console.log(`📉 Adjusted order size from $${amountUSD} to $${adjustedAmount}`);
+            
+            if (adjustedAmount < 5) {
+              return jsonResponse({
+                success: false,
+                error: `Insufficient balance. Available: $${availableBalance.toFixed(2)}, Required: $${amountUSD}. Minimum order: $5`
+              }, 400);
+            }
+            
+            // Update amountUSD to the adjusted amount
+            amountUSD = adjustedAmount;
+          }
+        } catch (balanceError: any) {
+          console.warn('⚠️ Could not check balance, proceeding with original order:', balanceError.message);
+        }
+
+        // STEP 2: Get current price from the appropriate environment
         const tickerResponse = await fetch(`${baseURL}/v5/market/tickers?category=linear&symbol=${symbol}`);
         const tickerData = await tickerResponse.json();
         const currentPrice = parseFloat(tickerData.result?.list?.[0]?.lastPrice || '50000');
 
-        // Calculate quantity with proper validation
+        // STEP 3: Calculate quantity with proper validation
         const targetNotional = amountUSD * leverage;
         let quantity = targetNotional / currentPrice;
         
-        // Get instrument info for proper quantity formatting
+        
+        // STEP 4: Get instrument info for proper quantity formatting
         let instrumentInfo;
         try {
           const instrResponse = await fetch(`${baseURL}/v5/market/instruments-info?category=linear&symbol=${symbol}`);
@@ -171,7 +208,7 @@ serve(async (req) => {
           console.warn('Could not get instrument info, using defaults');
         }
         
-        // Apply proper quantity step and minimums
+        // STEP 5: Apply proper quantity step and minimums
         if (instrumentInfo) {
           const qtyStep = parseFloat(instrumentInfo.lotSizeFilter?.qtyStep || '0.001');
           const minOrderQty = parseFloat(instrumentInfo.lotSizeFilter?.minOrderQty || '0.001');
@@ -195,11 +232,24 @@ serve(async (req) => {
           symbol,
           side,
           currentPrice,
+          originalAmount: requestBody.amountUSD, // Show original requested amount
+          adjustedAmount: amountUSD, // Show potentially adjusted amount
           targetNotional,
           calculatedQty: quantity,
           leverage,
           instrumentInfo: instrumentInfo ? 'found' : 'not found'
         });
+
+        // STEP 6: Validate minimum notional value
+        const orderNotional = quantity * currentPrice;
+        const minNotionalUSD = 5; // Minimum $5 order
+        
+        if (orderNotional < minNotionalUSD) {
+          return jsonResponse({
+            success: false,
+            error: `Order too small. Order value: $${orderNotional.toFixed(2)}, minimum required: $${minNotionalUSD}`
+          }, 400);
+        }
 
         // CRITICAL: First, set position mode to One-Way using SYMBOL (higher priority than coin)
         try {
@@ -291,14 +341,17 @@ serve(async (req) => {
             side,
             qty: quantity.toString(),
             price: currentPrice,
-            amount: amountUSD,
+            amount: amountUSD, // This might be adjusted from original
+            originalAmount: requestBody.amountUSD, // Original requested amount
             leverage,
             status: 'NEW',
             environment: useTestnet ? 'testnet' : 'mainnet',
             realTrade: true,
             targetNotional: targetNotional,
-            positionMode: 'one-way', // We ensured this is set
-            actualParams: orderParams // Include the final order params that worked
+            orderNotional: quantity * currentPrice,
+            positionMode: 'one-way',
+            balanceChecked: walletBalance ? true : false,
+            actualParams: orderParams
           }
         });
 
