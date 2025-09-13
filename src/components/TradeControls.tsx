@@ -151,16 +151,16 @@ export function TradeControls({
                 <span>Entry: <b>${displayPrice.toFixed(4)}</b> {useLimit ? '(Limit)' : '(Market)'}</span>
                 <span className="text-green-600">
                   TP: <b>${riskPrices.takeProfit.toFixed(4)}</b> 
-                  (+{globalSettings.useScalpingMode ? '0.5%' : `${globalSettings.defaultTPPercent}%`})
+                  (+{globalSettings.scalpTPPct ? (globalSettings.scalpTPPct * 100).toFixed(2) : (globalSettings.defaultTPPct * 100).toFixed(2)}%)
                 </span>
                 <span className="text-red-600">
                   SL: <b>${riskPrices.stopLoss.toFixed(4)}</b> 
-                  (-{globalSettings.useScalpingMode ? '0.15%' : `${globalSettings.defaultSLPercent}%`})
+                  (-{globalSettings.scalpSLPct ? (globalSettings.scalpSLPct * 100).toFixed(2) : (globalSettings.defaultSLPct * 100).toFixed(2)}%)
                 </span>
               </div>
               <div className="text-center mt-1 text-emerald-600">
-                <b>Risk/Reward: {(globalSettings.defaultTPPercent / globalSettings.defaultSLPercent).toFixed(1)}:1 
-                {globalSettings.orderType === 'limit' ? ' • Limit Orders' : ' • Market Orders'}</b>
+                <b>Risk/Reward: {(globalSettings.defaultTPPct / globalSettings.defaultSLPct).toFixed(1)}:1 
+                • Limit Orders</b>
               </div>
             </div>
           )}

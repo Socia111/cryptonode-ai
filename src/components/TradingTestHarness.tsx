@@ -43,14 +43,15 @@ export const TradingTestHarness = () => {
         testParams.entryPrice,
         testParams.side === 'BUY' ? 'Buy' : 'Sell',
         testParams.customSL ? parseFloat(testParams.customSL) : undefined,
-        testParams.customTP ? parseFloat(testParams.customTP) : undefined
+        testParams.customTP ? parseFloat(testParams.customTP) : undefined,
+        testParams.scalpMode
       );
       console.log('🎯 Calculated Risk Prices:', riskPrices);
       
       // Step 3: Prepare execution parameters
       const execParams = {
         symbol: testParams.symbol,
-        side: testParams.side,
+        side: testParams.side === 'BUY' ? 'Buy' as const : 'Sell' as const,
         amountUSD: testParams.amountUSD,
         leverage: testParams.leverage,
         scalpMode: testParams.scalpMode,
@@ -69,7 +70,7 @@ export const TradingTestHarness = () => {
       console.log('🔌 Connection Test:', connectionTest);
       
       if (!connectionTest.ok) {
-        throw new Error(`Connection failed: ${connectionTest.error || connectionTest.statusText}`);
+        throw new Error(`Connection failed: ${connectionTest.error || connectionTest.message || 'Unknown connection error'}`);
       }
       
       // Step 5: Execute the trade (this will be a real API call)
@@ -113,7 +114,10 @@ export const TradingTestHarness = () => {
 
   const riskPrices = tradingSettings.calculateRiskPrices(
     testParams.entryPrice,
-    testParams.side === 'BUY' ? 'Buy' : 'Sell'
+    testParams.side === 'BUY' ? 'Buy' : 'Sell',
+    undefined,
+    undefined,
+    testParams.scalpMode
   );
 
   return (

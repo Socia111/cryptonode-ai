@@ -4,70 +4,79 @@ import { TradingTestHarness } from '@/components/TradingTestHarness';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { TradingGateway } from '@/lib/tradingGateway';
+import { TradingGateway, type ExecResult, type OrderTIF } from '@/lib/tradingGateway';
 import { tradingSettings } from '@/lib/tradingSettings';
 
 const TestTrading = () => {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<any>(null);
+  
+  const [testParams, setTestParams] = useState({
+    symbol: 'BTCUSDT',
+    side: 'BUY' as 'BUY'|'SELL',
+    amountUSD: 5,
+    leverage: 5,
+    scalpMode: false,
+    // Limit test inputs:
+    useLimit: true,
+    timeInForce: 'PostOnly' as OrderTIF,
+  });
 
   const runSmokeTest = async () => {
     setBusy(true);
     setResult(null);
     
     try {
-      console.log('🧪 Smoke test start');
-      const settings = tradingSettings.getSettings();
-      console.log('📋 Global settings:', settings);
+      console.log('🔥 Smoke: start');
 
-      // 1) Ping edge function
-      const ping = await TradingGateway.testConnection();
-      console.log('🔌 Connection:', ping);
-      if (!ping?.ok) throw new Error(ping?.error || ping?.statusText || 'Connection failed');
+      // 1) connection
+      const ping: ExecResult = await TradingGateway.testConnection();
+      if (!ping.ok) throw new Error(`Connection failed: ${ping.error || ping.message || 'unknown'}`);
+      console.log('🔌 OK connection', ping);
 
-      // 2) Build params — $1 scalp, 1x, Post-Only limit
-      const symbol = 'BTCUSDT';
-      const side: 'BUY' | 'SELL' = 'BUY';
-      const mark = 45000; // Default mark price for testing
-      const price = +(mark * 0.999).toFixed(2); // Maker-friendly (below mark)
-      const { stopLoss, takeProfit } = tradingSettings.calculateRiskPrices(mark, 'Buy', 0.25, 0.5);
+      // 2) calc risk - use a fixed test price for deterministic results
+      const testPrice = 45000; // Fixed test price
+      const entry = testParams.useLimit ? testPrice : testPrice;
+      const side = testParams.side === 'BUY' ? 'Buy' : 'Sell' as const;
+      const risk = tradingSettings.calculateRiskPrices(entry, side, undefined, undefined, testParams.scalpMode);
+      console.log('🎯 risk', risk);
 
-      const params = {
-        symbol,
+      // 3) place tiny post-only limit (no fill if crossed)
+      const res = await TradingGateway.execute({
+        symbol: testParams.symbol,
         side,
-        amountUSD: 1,
-        leverage: 1,
-        orderType: 'Limit' as const,
-        price,
-        timeInForce: 'PostOnly' as const,
-        stopLoss,
-        takeProfit,
-        entryPrice: price,
-        scalpMode: true
-      };
+        amountUSD: testParams.amountUSD,
+        leverage: testParams.leverage,
+        orderType: testParams.useLimit ? 'Limit' : 'Market',
+        price: entry,
+        timeInForce: testParams.timeInForce,
+        stopLoss: risk.stopLoss,
+        takeProfit: risk.takeProfit,
+        scalpMode: testParams.scalpMode
+      });
 
-      console.log('📤 Exec params:', params);
-      const out = await TradingGateway.execute(params);
-      console.log('✅ Exec result:', out);
-      setResult(out);
+      console.log('✅ execute result', res);
+      if (!res.ok) throw new Error(res.error || res.message || 'execution error');
 
+      setResult(res);
       toast({ 
-        title: out.ok ? '✅ Smoke Test Passed' : '❌ Smoke Test Failed', 
-        description: out.message || `${symbol} Post-Only Limit Test`,
-        variant: out.ok ? 'default' : 'destructive'
+        title: 'Smoke test OK', 
+        description: `${testParams.symbol} ${side} - Check console for details` 
       });
     } catch (e: any) {
-      console.error('🚨 Smoke test error', e);
+      console.error('🚨 Smoke failed', e);
       toast({ 
-        title: '🚨 Smoke Test Error', 
+        title: 'Smoke test failed', 
         description: e.message, 
         variant: 'destructive' 
       });
       setResult({ ok: false, error: e.message });
-    } finally {
-      setBusy(false);
+    } finally { 
+      setBusy(false); 
     }
   };
 
@@ -92,15 +101,59 @@ const TestTrading = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Runs a $1 Post-Only limit order test with micro SL/TP to validate the entire pipeline.
+                Runs a deterministic Post-Only limit order test with micro SL/TP to validate the entire pipeline.
               </p>
+              
+              {/* Test Parameters */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Symbol</Label>
+                  <select 
+                    className="w-full p-2 border rounded text-sm"
+                    value={testParams.symbol}
+                    onChange={(e) => setTestParams(prev => ({ ...prev, symbol: e.target.value }))}
+                  >
+                    <option value="BTCUSDT">BTCUSDT</option>
+                    <option value="ETHUSDT">ETHUSDT</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Side</Label>
+                  <select 
+                    className="w-full p-2 border rounded text-sm"
+                    value={testParams.side}
+                    onChange={(e) => setTestParams(prev => ({ ...prev, side: e.target.value as 'BUY' | 'SELL' }))}
+                  >
+                    <option value="BUY">BUY</option>
+                    <option value="SELL">SELL</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-2 flex items-center gap-2">
+                  <Switch 
+                    checked={testParams.useLimit}
+                    onCheckedChange={(checked) => setTestParams(prev => ({ ...prev, useLimit: checked }))}
+                  />
+                  <Label>Use Limit (Post-Only)</Label>
+                </div>
+                
+                <div className="space-y-2 flex items-center gap-2">
+                  <Switch 
+                    checked={testParams.scalpMode}
+                    onCheckedChange={(checked) => setTestParams(prev => ({ ...prev, scalpMode: checked }))}
+                  />
+                  <Label>Scalp Mode</Label>
+                </div>
+              </div>
+              
               <div className="flex gap-2">
                 <Button 
                   onClick={runSmokeTest} 
                   disabled={busy}
                   className="flex-1"
                 >
-                  {busy ? '🔄 Running...' : '🧪 Run Post-Only Limit Test ($1)'}
+                  {busy ? '🔄 Running...' : '🧪 Run Post-Only Limit Test'}
                 </Button>
                 <Button 
                   variant="outline" 
@@ -110,6 +163,7 @@ const TestTrading = () => {
                   Clear
                 </Button>
               </div>
+              
               {result && (
                 <div className="bg-muted p-4 rounded">
                   <h4 className="font-medium mb-2">📋 Smoke Test Result</h4>
@@ -136,24 +190,22 @@ const TestTrading = () => {
                 <div className="space-y-2">
                   <h4 className="font-medium text-green-600">✅ What This Tests:</h4>
                   <ul className="space-y-1 text-muted-foreground">
-                    <li>• Amount validation & adjustment</li>
-                    <li>• SL/TP calculation from global settings</li>
-                    <li>• Parameter formatting & validation</li>
-                    <li>• Edge function connectivity</li>
-                    <li>• Complete execution pipeline logging</li>
+                    <li>• Connection to edge function</li>
+                    <li>• SL/TP calculation (0.35%/0.70% scalp mode)</li>
                     <li>• Post-Only limit order placement</li>
-                    <li>• Risk guard validation</li>
+                    <li>• Parameter forwarding & validation</li>
+                    <li>• Complete execution pipeline logging</li>
+                    <li>• Risk management integration</li>
                   </ul>
                 </div>
                 <div className="space-y-2">
-                  <h4 className="font-medium text-amber-600">⚠️ Testing Considerations:</h4>
+                  <h4 className="font-medium text-amber-600">⚠️ Expected Results:</h4>
                   <ul className="space-y-1 text-muted-foreground">
-                    <li>• Uses real Bybit API (testnet if configured)</li>
-                    <li>• Check console logs for detailed debugging</li>
-                    <li>• Start with small amounts ($1-5)</li>
-                    <li>• Verify API credentials are set up</li>
-                    <li>• Review all logs before live trading</li>
-                    <li>• Post-Only may reject if price takes liquidity</li>
+                    <li>• Console: connection → risk → execute result</li>
+                    <li>• Result: ok: true with order details</li>
+                    <li>• Post-Only may reject if price crosses</li>
+                    <li>• Check SL/TP attachment in response</li>
+                    <li>• Verify order type and timeInForce</li>
                   </ul>
                 </div>
               </div>
