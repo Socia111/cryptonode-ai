@@ -78,7 +78,11 @@ const AItradeX1Original = () => {
             <TelegramIntegration />
             <QuantumAnalysis />
             <SpynxScoreCard />
-            <SignalFeedAdvanced signals={signals} algorithm="original" />
+            <SignalFeedAdvanced 
+              signals={signals} 
+              algorithm="original"
+              title="AItradeX1 ORIGINAL Signals"
+            />
           </div>
         </div>
       </div>

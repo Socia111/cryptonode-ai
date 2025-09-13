@@ -69,9 +69,9 @@ const ALGORITHM_CONFIGS: Record<AlgorithmType, AlgorithmConfig> = {
   original: {
     name: 'AItradeX1 Original',
     description: 'Pure canonical algorithm with exact 8-factor scoring',
-    defaultMinDepth: 1200,
-    defaultMaxSpread: 15,
-    defaultMinRR: 1.8,
+    defaultMinDepth: 0, // No depth requirement for original
+    defaultMaxSpread: 50, // Allow wider spreads
+    defaultMinRR: 1.0, // Lower RR requirement
     trendWeight: 0.375, // 3/8 factors
     momentumWeight: 0.25, // 2/8 factors
     volatilityWeight: 0.375, // 3/8 factors
