@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { type ExecResult, type OrderTIF } from '@/lib/tradingTypes';
 import { tradingSettings } from '@/lib/tradingSettings';
+import { TradingErrorFixTest } from '@/components/TradingErrorFixTest';
 
 const TestTrading = () => {
   const { toast } = useToast();
@@ -213,6 +214,8 @@ const TestTrading = () => {
             </CardContent>
           </Card>
 
+          <TradingErrorFixTest />
+          
           <TradingTestHarness />
         </div>
       </div>

@@ -106,6 +106,9 @@ export const TradingGateway = {
         takeProfit: p.takeProfit,
         scalpMode: !!p.scalpMode,
         entryPrice: p.entryPrice,
+        
+        // Explicitly set reduceOnly to false for new positions
+        reduceOnly: false,
 
         idempotencyKey: `x1-${symbol}-${side}-${Date.now()}`,
         meta: p.meta || {}

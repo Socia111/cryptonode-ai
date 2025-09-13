@@ -45,7 +45,8 @@ export function EnhancedSignalRow({ signal }: EnhancedSignalRowProps) {
         leverage: 10,  // Default leverage
         entryPrice: signal.entry_price,
         stopLoss: riskPrices.stopLoss,
-        takeProfit: riskPrices.takeProfit
+        takeProfit: riskPrices.takeProfit,
+        reduceOnly: false // Explicitly set for new positions
       });
 
       if (result.ok) {

@@ -27,18 +27,29 @@ export function useAutoExec(opts: {
     (async () => {
       try {
         setBusy(true);
+        console.log('🤖 Auto-executing signal:', candidate);
+        
         const res = await TradingGateway.execute({
           symbol: candidate.token,
           side: (candidate.direction as any), // normalized inside gateway
           amountUSD,
           leverage,
-          orderType: 'Market',  // change to 'Limit' if you want default PostOnly
-          timeInForce: 'IOC'
+          orderType: 'Market',
+          timeInForce: 'IOC',
+          reduceOnly: false // Explicitly ensure we're opening new positions
         });
+        
         lastIdRef.current = candidate.id;
-        if (res.ok) onSuccess?.(candidate);
-        else onError?.(candidate, res);
+        console.log('🤖 Auto-execution result:', res);
+        
+        if (res.ok) {
+          onSuccess?.(candidate);
+        } else {
+          console.error('🤖 Auto-execution failed:', res.message);
+          onError?.(candidate, res);
+        }
       } catch (e) {
+        console.error('🤖 Auto-execution error:', e);
         onError?.(candidate, e);
       } finally {
         setBusy(false);

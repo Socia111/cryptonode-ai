@@ -26,14 +26,27 @@ export function subscribeSignals(
   onInsert: (signal: Signal) => void,
   onUpdate: (signal: Signal) => void,
 ) {
+  // Create a unique channel name to avoid conflicts
+  const channelName = `signals-realtime-${Date.now()}`;
+  
   const channel = supabase
-    .channel('signals-realtime')
+    .channel(channelName, { 
+      config: { 
+        broadcast: { self: true },
+        // Set minimal heartbeat to reduce connection issues
+        heartbeat: 30000
+      } 
+    })
     .on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'signals' },
+      { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'signals'
+      },
       (payload) => {
         if (payload.new) {
           try {
-            const rawSignal = payload.new;
+            const rawSignal = payload.new as any;
             const mappedSignal: Signal = {
               id: rawSignal.id.toString(),
               token: rawSignal.symbol?.replace('USDT', '/USDT') || 'UNKNOWN/USDT',
@@ -57,46 +70,10 @@ export function subscribeSignals(
               created_at: rawSignal.created_at || new Date().toISOString(),
             };
             
-            console.log('New signal received:', mappedSignal);
+            console.log('[signals-realtime] New signal received:', mappedSignal);
             onInsert(mappedSignal);
           } catch (error) {
-            console.error('Error mapping new signal:', error);
-          }
-        }
-      })
-    .on('postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'signals' },
-      (payload) => {
-        if (payload.new) {
-          try {
-            const rawSignal = payload.new;
-            const mappedSignal: Signal = {
-              id: rawSignal.id.toString(),
-              token: rawSignal.symbol?.replace('USDT', '/USDT') || 'UNKNOWN/USDT',
-              direction: rawSignal.direction === 'LONG' ? 'BUY' : 'SELL',
-              signal_type: `${rawSignal.algo || 'AItradeX1'} ${rawSignal.timeframe}`,
-              timeframe: rawSignal.timeframe || '1h',
-              entry_price: Number(rawSignal.price || 0),
-              exit_target: rawSignal.tp ? Number(rawSignal.tp) : null,
-              stop_loss: rawSignal.sl ? Number(rawSignal.sl) : null,
-              leverage: 1,
-              confidence_score: Number(rawSignal.score || 0),
-              pms_score: Number(rawSignal.score || 0),
-              trend_projection: rawSignal.direction === 'LONG' ? '⬆️' : '⬇️',
-              volume_strength: 1.0,
-              roi_projection: rawSignal.tp && rawSignal.price ? 
-                Math.abs((Number(rawSignal.tp) - Number(rawSignal.price)) / Number(rawSignal.price) * 100) : 10,
-              signal_strength: rawSignal.score > 85 ? 'STRONG' : rawSignal.score > 75 ? 'MEDIUM' : 'WEAK',
-              risk_level: rawSignal.score > 85 ? 'LOW' : rawSignal.score > 75 ? 'MEDIUM' : 'HIGH',
-              quantum_probability: Number(rawSignal.score || 0) / 100,
-              status: 'active',
-              created_at: rawSignal.created_at || new Date().toISOString(),
-            };
-            
-            console.log('Signal updated:', mappedSignal);
-            onUpdate(mappedSignal);
-          } catch (error) {
-            console.error('Error mapping updated signal:', error);
+            console.error('[signals-realtime] Error mapping new signal:', error);
           }
         }
       })
@@ -105,7 +82,7 @@ export function subscribeSignals(
         console.log('[signals-realtime] Successfully subscribed to signals channel');
       } else if (status === 'CHANNEL_ERROR') {
         console.warn('[signals-realtime] Channel error:', err);
-        // Gracefully handle subscription errors - try to resubscribe later
+        // Gracefully handle subscription errors without throwing
       } else if (status === 'CLOSED') {
         console.log('[signals-realtime] CLOSED');
       } else {

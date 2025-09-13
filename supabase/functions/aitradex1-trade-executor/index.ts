@@ -255,7 +255,7 @@ serve(async (req) => {
 
     // Parse request
     const requestBody = await req.json();
-    const { action, symbol, side, amountUSD, leverage, scalpMode } = requestBody;
+    const { action, symbol, side, amountUSD, leverage, scalpMode, reduceOnly = false } = requestBody;
     
     structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
 
@@ -401,8 +401,8 @@ serve(async (req) => {
             side: orderData.side
           })
           
-          // Force new position, not reduce-only
-          orderData.reduceOnly = false
+          // Force new position unless explicitly requested to reduce
+          orderData.reduceOnly = reduceOnly;
           
           // Important: Remove any position constraints to let API handle mode
           // This avoids "position idx not match position mode" errors
