@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { normalizeSide } from '@/lib/tradingTypes';
 import {
   Dialog,
   DialogContent,
@@ -40,7 +39,7 @@ export const TradingModal: React.FC<TradingModalProps> = ({
     try {
       const res = await TradingGateway.execute({
         symbol: signal.token,
-        side: normalizeSide(signal.direction),
+        side: signal.direction,
         amountUSD,
         leverage
       });

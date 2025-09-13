@@ -25,7 +25,6 @@ const SignalsList = () => {
   const [useLeverage, setUseLeverage] = useState(false);
   const [debugInfo, setDebugInfo] = useState(null);
   const [isExecutingOrder, setIsExecutingOrder] = useState(false);
-  const [executingSignals, setExecutingSignals] = useState(new Set<string | number>());
   const [bulkExecuteMode, setBulkExecuteMode] = useState(false);
   const [executedSignals, setExecutedSignals] = useState(new Set());
   const [autoExecute, setAutoExecute] = useState(false);
@@ -110,66 +109,53 @@ const SignalsList = () => {
       return;
     }
 
-    // Set this specific signal as executing
-    setExecutingSignals(prev => new Set(prev).add(String(signal.id)));
+    const side = signal.direction;
+    const orderAmount = Math.max(25, parseFloat(orderSize)); // Ensure minimum $25
+    const res = await TradingGateway.execute({ 
+      symbol: signal.token, 
+      side, 
+      amountUSD: orderAmount
+    });
+    
+    if (!res.ok && res.code === 'DISABLED') {
+      toast({
+        title: "Auto-trading disabled", 
+        description: res.message,
+        variant: "default",
+      });
+      return;
+    }
+
+    // Execute real trade via TradingGateway
+    setIsExecutingOrder(true);
     try {
-      // Ensure we have a proper symbol (map token -> symbol if needed)
-      const symbol = signal.token || signal.symbol;
-      if (!symbol) {
-        throw new Error('No valid symbol found in signal');
-      }
-
-      // Ensure leverage is valid
-      const finalLeverage = (useLeverage && leverage >= 1 && leverage <= 100) ? leverage : 10;
-      const orderAmount = Math.max(25, parseFloat(orderSize) || 25); // Ensure minimum $25
-
       console.log('🚀 Executing real trade:', {
-        symbol: symbol,
+        token: signal.token,
         direction: signal.direction,
         entry_price: signal.entry_price,
         stop_loss: signal.stop_loss,
         exit_target: signal.exit_target,
         confidence: signal.confidence_score,
-        leverage: finalLeverage,
-        amount: orderAmount
+        leverage: useLeverage ? leverage : 1
       });
-
-      const side = signal.direction === 'BUY' ? 'Buy' : 'Sell' as const;
-      const res = await TradingGateway.execute({ 
-        symbol: symbol.replace('/', ''), // Remove any slashes for Bybit format
-        side, 
-        amountUSD: orderAmount,
-        leverage: finalLeverage,
-        entryPrice: signal.entry_price,
-        stopLoss: signal.stop_loss,
-        takeProfit: signal.exit_target,
-        reduceOnly: false // Explicitly set for new positions
-      });
-      
-      if (!res.ok && res.error === 'DISABLED') {
-        toast({
-          title: "Auto-trading disabled", 
-          description: res.message,
-          variant: "default",
-        });
-        return;
-      }
 
       if (res.ok) {
         toast({
           title: "✅ Trade Executed Successfully",
-          description: `${signal.token || signal.symbol} ${signal.direction} - Real order placed on Bybit`,
+          description: `${signal.token} ${signal.direction} - Real order placed on Bybit`,
           variant: "default",
         });
-        // Mark as executed
-        setExecutedSignals(prev => new Set(prev).add(String(signal.id)));
       } else {
         toast({
           title: "❌ Trade Execution Failed", 
           description: res.message || 'Failed to execute trade on Bybit',
           variant: "destructive",
         });
+        return;
       }
+
+      // Mark as executed
+      setExecutedSignals(prev => new Set(prev).add(signal.id));
     } catch (error: any) {
       console.error('❌ Trade execution error:', error);
       toast({
@@ -178,12 +164,7 @@ const SignalsList = () => {
         variant: "destructive",
       });
     } finally {
-      // Remove this signal from executing set
-      setExecutingSignals(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(String(signal.id));
-        return newSet;
-      });
+      setIsExecutingOrder(false);
     }
   };
 
@@ -193,7 +174,7 @@ const SignalsList = () => {
     
     if (autoExecute && prioritySignals.length > 0 && !isExecutingOrder) {
       // Execute all priority signals that haven't been executed yet
-      const newSignals = prioritySignals.filter(signal => !executedSignals.has(String(signal.id)));
+      const newSignals = prioritySignals.filter(signal => !executedSignals.has(signal.id));
       
       if (newSignals.length > 0) {
         console.log(`🤖 Auto-executing ${newSignals.length} new priority signals...`);
@@ -201,7 +182,7 @@ const SignalsList = () => {
         // Execute signals one by one with delays
         const executeSequentially = async () => {
           for (const signal of newSignals) {
-            if (!executedSignals.has(String(signal.id))) {
+            if (!executedSignals.has(signal.id)) {
               await executeOrder(signal);
               // Add delay between orders to avoid rate limiting
               await new Promise(resolve => setTimeout(resolve, 2000));
@@ -231,7 +212,7 @@ const SignalsList = () => {
       console.log(`🚀 Bulk executing ${displayedSignals.length} signals...`);
       
       for (const signal of displayedSignals) {
-        if (!executedSignals.has(String(signal.id))) {
+        if (!executedSignals.has(signal.id)) {
           await executeOrder(signal);
           // Add delay between orders to avoid rate limiting
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -286,11 +267,11 @@ const SignalsList = () => {
   const getTimeframeIndicator = (signal: any) => {
     const timeframe = signal.timeframe?.toLowerCase();
     if (timeframe?.includes('min') || timeframe?.includes('m')) {
-      const minutes = parseInt(timeframe.replace(/\D/g, ''));
+      const minutes = parseInt(timeframe.replace(/\\D/g, ''));
       if (minutes >= 5 && minutes <= 30) return '🪤';
     }
     if (timeframe?.includes('hour') || timeframe?.includes('h')) {
-      const hours = parseInt(timeframe.replace(/\D/g, ''));
+      const hours = parseInt(timeframe.replace(/\\D/g, ''));
       if (hours >= 1 && hours <= 4) return '👍';
     }
     return '';
@@ -373,7 +354,7 @@ const SignalsList = () => {
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {displayedSignals.map((signal) => {
                 const isBuy = signal.direction === 'BUY';
-                const isExecuted = executedSignals.has(String(signal.id));
+                const isExecuted = executedSignals.has(signal.id);
                 
                 return (
                   <div
@@ -437,13 +418,10 @@ const SignalsList = () => {
                           size="sm"
                           variant={isBuy ? "default" : "destructive"}
                           className="text-xs"
-                          onClick={(e) => {
-                            e.stopPropagation(); // Prevent event bubbling
-                            executeOrder(signal);
-                          }}
-                          disabled={executingSignals.has(String(signal.id)) || !FEATURES.AUTOTRADE_ENABLED || isExecuted}
+                          onClick={() => executeOrder(signal)}
+                          disabled={isExecutingOrder || !FEATURES.AUTOTRADE_ENABLED || isExecuted}
                         >
-                          {executingSignals.has(String(signal.id)) ? 'Executing...' : FEATURES.AUTOTRADE_ENABLED ? 'Execute Trade' : 'Disabled'}
+                          {isExecutingOrder ? 'Executing...' : FEATURES.AUTOTRADE_ENABLED ? 'Execute Trade' : 'Disabled'}
                         </Button>
                       </div>
                     </div>

@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { normalizeSide } from '@/lib/tradingTypes';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -75,7 +74,7 @@ export function TradingTest() {
     try {
       const scalpTest = await TradingGateway.execute({
         symbol: 'BTCUSDT',
-        side: normalizeSide('BUY'),
+        side: 'BUY',
         amountUSD: 1,
         leverage: 10,
         scalpMode: true
@@ -101,7 +100,7 @@ export function TradingTest() {
     try {
       const normalTest = await TradingGateway.execute({
         symbol: 'BTCUSDT',
-        side: normalizeSide('BUY'),
+        side: 'BUY',
         amountUSD: 5,
         leverage: 5,
         scalpMode: false
@@ -127,7 +126,7 @@ export function TradingTest() {
     try {
       const symbolTest = await TradingGateway.execute({
         symbol: 'BTC/USDT', // Test with slash format
-        side: normalizeSide('BUY'),
+        side: 'BUY',
         amountUSD: 2,
         leverage: 5,
         scalpMode: true

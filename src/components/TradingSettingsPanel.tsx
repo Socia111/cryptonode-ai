@@ -3,20 +3,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { tradingSettings, type Settings } from '@/lib/tradingSettings';
-import { useToast } from '@/hooks/use-toast';
+import { tradingSettings, TradingSettings } from '@/lib/tradingSettings';
+import { useToast } from '@/components/ui/use-toast';
 
 export function TradingSettingsPanel() {
   const { toast } = useToast();
-  const [settings, setSettings] = React.useState<Settings>(tradingSettings.getSettings());
+  const [settings, setSettings] = React.useState<TradingSettings>(tradingSettings.getSettings());
 
   React.useEffect(() => {
     const unsubscribe = tradingSettings.subscribe(setSettings);
     return unsubscribe;
   }, []);
 
-  const handleUpdate = (updates: Partial<Settings>) => {
+  const handleUpdate = (updates: Partial<TradingSettings>) => {
     tradingSettings.updateSettings(updates);
     toast({
       title: "Settings Updated",
@@ -26,11 +27,12 @@ export function TradingSettingsPanel() {
 
   const resetToDefaults = () => {
     tradingSettings.updateSettings({
-      defaultSLPct: 0.0075,
-      defaultTPPct: 0.015,
-      scalpSLPct: 0.0035,
-      scalpTPPct: 0.007,
-      maxLeverage: 100
+      defaultSLPercent: 2,
+      defaultTPPercent: 4,
+      useScalpingMode: false,
+      orderType: 'limit',
+      maxLeverage: 25,
+      excludeInnovationZone: true
     });
     toast({
       title: "Settings Reset",
@@ -56,11 +58,11 @@ export function TradingSettingsPanel() {
               <Input
                 id="slPercent"
                 type="number"
-                min="0.01"
+                min="0.1"
                 max="10"
-                step="0.01"
-                value={(settings.defaultSLPct * 100).toFixed(2)}
-                onChange={(e) => handleUpdate({ defaultSLPct: Number(e.target.value) / 100 })}
+                step="0.1"
+                value={settings.defaultSLPercent}
+                onChange={(e) => handleUpdate({ defaultSLPercent: Number(e.target.value) })}
               />
             </div>
             
@@ -69,53 +71,66 @@ export function TradingSettingsPanel() {
               <Input
                 id="tpPercent"
                 type="number"
-                min="0.01"
+                min="0.1"
                 max="20"
-                step="0.01"
-                value={(settings.defaultTPPct * 100).toFixed(2)}
-                onChange={(e) => handleUpdate({ defaultTPPct: Number(e.target.value) / 100 })}
+                step="0.1"
+                value={settings.defaultTPPercent}
+                onChange={(e) => handleUpdate({ defaultTPPercent: Number(e.target.value) })}
               />
             </div>
           </div>
 
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="scalpingMode"
+              checked={settings.useScalpingMode}
+              onCheckedChange={(checked) => handleUpdate({ useScalpingMode: checked })}
+            />
+            <Label htmlFor="scalpingMode">Enable Scalping Mode (0.5% TP / 0.15% SL)</Label>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="excludeInnovationZone"
+              checked={settings.excludeInnovationZone}
+              onCheckedChange={(checked) => handleUpdate({ excludeInnovationZone: checked })}
+            />
+            <Label htmlFor="excludeInnovationZone">Exclude Innovation Zone Pairs (Higher fees & risk)</Label>
+          </div>
+        </div>
+
+        {/* Order Settings */}
+        <div className="space-y-4">
+          <h3 className="font-semibold text-sm text-muted-foreground">Order Settings</h3>
+          
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="scalpSL">Scalp Stop Loss (%)</Label>
-              <Input
-                id="scalpSL"
-                type="number"
-                min="0.01"
-                max="5"
-                step="0.01"
-                value={(settings.scalpSLPct * 100).toFixed(2)}
-                onChange={(e) => handleUpdate({ scalpSLPct: Number(e.target.value) / 100 })}
-              />
+              <Label htmlFor="orderType">Default Order Type</Label>
+              <Select
+                value={settings.orderType}
+                onValueChange={(value: 'market' | 'limit') => handleUpdate({ orderType: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="limit">Limit Order</SelectItem>
+                  <SelectItem value="market">Market Order</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="scalpTP">Scalp Take Profit (%)</Label>
+              <Label htmlFor="maxLeverage">Max Leverage</Label>
               <Input
-                id="scalpTP"
+                id="maxLeverage"
                 type="number"
-                min="0.01"
-                max="10"
-                step="0.01"
-                value={(settings.scalpTPPct * 100).toFixed(2)}
-                onChange={(e) => handleUpdate({ scalpTPPct: Number(e.target.value) / 100 })}
+                min="1"
+                max="100"
+                value={settings.maxLeverage}
+                onChange={(e) => handleUpdate({ maxLeverage: Number(e.target.value) })}
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="maxLeverage">Max Leverage</Label>
-            <Input
-              id="maxLeverage"
-              type="number"
-              min="1"
-              max="100"
-              value={settings.maxLeverage}
-              onChange={(e) => handleUpdate({ maxLeverage: Number(e.target.value) })}
-            />
           </div>
         </div>
 
@@ -128,21 +143,21 @@ export function TradingSettingsPanel() {
               <span className="font-mono">$45,000.00</span>
             </div>
             <div className="flex justify-between text-green-600">
-              <span>Normal Take Profit:</span>
+              <span>Take Profit:</span>
               <span className="font-mono">
-                ${(45000 * (1 + settings.defaultTPPct)).toFixed(2)}
+                ${(45000 * (1 + (settings.useScalpingMode ? 0.5 : settings.defaultTPPercent) / 100)).toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between text-red-600">
-              <span>Normal Stop Loss:</span>
+              <span>Stop Loss:</span>
               <span className="font-mono">
-                ${(45000 * (1 - settings.defaultSLPct)).toFixed(2)}
+                ${(45000 * (1 - (settings.useScalpingMode ? 0.15 : settings.defaultSLPercent) / 100)).toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between text-blue-600">
               <span>Risk/Reward:</span>
               <span className="font-mono">
-                1:{(settings.defaultTPPct / settings.defaultSLPct).toFixed(1)}
+                1:{((settings.useScalpingMode ? 0.5 : settings.defaultTPPercent) / (settings.useScalpingMode ? 0.15 : settings.defaultSLPercent)).toFixed(1)}
               </span>
             </div>
           </div>

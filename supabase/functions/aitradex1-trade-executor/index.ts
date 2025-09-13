@@ -253,16 +253,9 @@ serve(async (req) => {
       return json({ success: false, code: "AUTH", message: "Missing authorization header" }, 401);
     }
 
-    // Parse request with error handling
-    let requestBody;
-    try {
-      requestBody = await req.json();
-    } catch (parseError) {
-      structuredLog('error', 'Failed to parse request body', { error: parseError.message });
-      return json({ success: false, error: 'Invalid JSON in request body' }, 400);
-    }
-    
-    const { action, symbol, side, amountUSD, leverage, scalpMode, reduceOnly = false } = requestBody;
+    // Parse request
+    const requestBody = await req.json();
+    const { action, symbol, side, amountUSD, leverage, scalpMode } = requestBody;
     
     structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
 
@@ -279,45 +272,23 @@ serve(async (req) => {
 
     // Handle place order requests
     if (action === 'place_order' || action === 'signal') {
-      // Enhanced validation with better error messages
-      if (!symbol || !side || !amountUSD || leverage === undefined || leverage === null) {
-        const missing = [];
-        if (!symbol) missing.push('symbol');
-        if (!side) missing.push('side');
-        if (!amountUSD) missing.push('amountUSD');
-        if (leverage === undefined || leverage === null) missing.push('leverage');
-        
+      if (!symbol || !side || !amountUSD) {
         return json({
           success: false,
-          error: `Missing required fields: ${missing.join(', ')}. Received: symbol=${symbol}, side=${side}, amountUSD=${amountUSD}, leverage=${leverage}`
+          message: 'Missing required fields: symbol, side, amountUSD'
         }, 400);
       }
 
-      // Validate leverage range
-      if (leverage < 1 || leverage > 100) {
-        return json({
-          success: false,
-          error: `Invalid leverage: ${leverage}. Must be between 1 and 100.`
-        }, 400);
-      }
-
-      // For scalping, use very small minimum order size to avoid balance issues
-      const minOrderSize = scalpMode ? 1 : 5  // Scalp: $1 min | Normal: $5 min
-      const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
-      
-      // Define scaledLeverage in proper scope (before try block)
-      const isScalping = scalpMode === true;
-      const scaledLeverage = isScalping ? Math.min(leverage, 25) : leverage;
+  // For scalping, use very small minimum order size to avoid balance issues
+  const minOrderSize = scalpMode ? 1 : 5  // Scalp: $1 min | Normal: $5 min
+  const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
 
       structuredLog('info', 'Trade execution request', {
         symbol,
         side,
         originalAmount: amountUSD,
         finalAmount: finalAmountUSD,
-        leverage: leverage,
-        scaledLeverage: scaledLeverage,
-        scalpMode,
-        reduceOnly
+        leverage: leverage || 1
       });
 
       try {
@@ -344,7 +315,10 @@ serve(async (req) => {
         
         // =================== SCALPING VS NORMAL RISK MANAGEMENT ===================
         
+        const isScalping = scalpMode === true;
+        
         // Calculate proper quantity with scalping support
+        const scaledLeverage = isScalping ? Math.min(leverage || 10, 25) : (leverage || 1);
         const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
         
         // Enhanced validation with better error messages
@@ -419,49 +393,19 @@ serve(async (req) => {
           // NOTE: TP/SL will be set as separate conditional orders after position opens
         }
 
-        // CRITICAL FIX: Handle order parameters from request
-        const requestOrderType = requestBody.orderType || 'Market';
-        const requestTimeInForce = requestBody.timeInForce || 'IOC';
-        const requestPrice = requestBody.price;
-        const requestReduceOnly = requestBody.reduceOnly === true; // Explicit boolean check
-
-        structuredLog('info', 'Processing order parameters', {
-          requestOrderType,
-          requestTimeInForce,
-          requestPrice,
-          requestReduceOnly,
-          bodyReduceOnly: requestBody.reduceOnly
-        });
-
-        // Build order with all parameters
-        orderData.orderType = requestOrderType;
-        orderData.timeInForce = requestTimeInForce;
-        
-        // Add price for limit orders
-        if (requestOrderType === 'Limit') {
-          if (!requestPrice || requestPrice <= 0) {
-            throw new Error('Price is required for Limit orders');
-          }
-          orderData.price = String(requestPrice);
-        }
-
-        // For linear contracts, handle reduceOnly properly
+        // For linear contracts, always open new positions (not reduce-only)
         if (inst.category === 'linear') {
           structuredLog('info', 'Setting up linear contract order', {
             symbol,
             category: inst.category,
-            side: orderData.side,
-            reduceOnly: requestReduceOnly
-          });
+            side: orderData.side
+          })
           
-          // CRITICAL: Always false for new positions to avoid reduce-only error
-          orderData.reduceOnly = requestReduceOnly;
+          // Force new position, not reduce-only
+          orderData.reduceOnly = false
           
-          // Log the final order configuration
-          structuredLog('info', 'Final order configuration', {
-            ...orderData,
-            isNewPosition: !requestReduceOnly
-          });
+          // Important: Remove any position constraints to let API handle mode
+          // This avoids "position idx not match position mode" errors
         }
 
         // Execute the order with comprehensive fallback logic
@@ -674,21 +618,12 @@ serve(async (req) => {
       message: `Unknown action: ${action}`
     }, 400);
 
-  } catch (error: any) {
-    structuredLog('error', 'Unhandled error in trade executor', {
-      error: error.message,
-      stack: error.stack,
-      url: req.url,
-      method: req.method
-    });
+  } catch (error) {
+    structuredLog('error', 'Execution error', { error: error.message });
     
     return json({
       success: false,
-      error: error.message || 'Internal server error',
-      details: {
-        timestamp: new Date().toISOString(),
-        requestMethod: req.method
-      }
+      message: error.message || 'Internal server error'
     }, 500);
   }
 });

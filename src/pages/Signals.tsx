@@ -1,47 +1,40 @@
-import React, { useState } from 'react';
-import { normalizeSide } from '@/lib/tradingTypes';
+import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { SignalFeed } from '@/components/SignalFeed';
-import { GlobalTradeBar } from '@/components/GlobalTradeBar';
 import { useSignals } from '@/hooks/useSignals';
-import { useRankedSignals } from '@/hooks/useRankedSignals';
-import { useAutoExec } from '@/hooks/useAutoExec';
-import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 
 const Signals = () => {
-  const { signals, loading } = useSignals();
-  const ranked = useRankedSignals(signals, { hideWideSpreads: true });
-  const { toast } = useToast();
-
-  // Auto execute A+/A (skip 1m timeframe)
-  useAutoExec({
-    rankedSignals: ranked as any,
-    skip: (s: any) => s.timeframe === '1m',
-    onSuccess: (s) => toast({ 
-      title: '✅ Signals Auto Trade', 
-      description: `${s.token} ${s.direction} + SL/TP` 
-    }),
-    onError: (s, e) => toast({ 
-      title: '❌ Signals Auto Trade Failed', 
-      description: `${s.token}: ${e?.message ?? 'Unknown error'}`, 
-      variant: 'destructive' 
-    }),
-  });
+  const { signals, loading, generateSignals } = useSignals();
 
   return (
     <MainLayout>
-      <div className="max-w-4xl mx-auto p-4 pb-32">
-        <h1 className="text-2xl font-bold mb-6">Live Trading Signals</h1>
+      <div className="container mx-auto px-6 py-8 space-y-8">
+        {/* Page Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            AI Trading Signals
+          </h1>
+          <p className="text-muted-foreground">
+            Advanced AI-powered signals with 80%+ confidence and real-time market analysis
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Signal Feed</h2>
+          <Button onClick={generateSignals} disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Generate New Signals
+          </Button>
+        </div>
         
         {loading ? (
-          <div className="text-center py-10">Loading signals...</div>
+          <div className="py-10 text-center opacity-70">Loading…</div>
         ) : (
-          <SignalFeed signals={ranked} />
+          <SignalFeed signals={signals as any} />
         )}
       </div>
-
-      {/* Global persistent trade controls */}
-      <GlobalTradeBar />
     </MainLayout>
   );
 };

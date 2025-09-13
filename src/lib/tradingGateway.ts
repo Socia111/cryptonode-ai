@@ -1,8 +1,18 @@
 import { supabase } from '@/integrations/supabase/client';
 import { FEATURES } from '@/config/featureFlags';
-import { ExecuteParams, ExecResult, normalizeSide } from '@/lib/tradingTypes';
+import { tradingSettings } from './tradingSettings';
 
-const ASSERT = (cond: any, msg: string) => { if (!cond) throw new Error(msg); };
+export type ExecParams = {
+  symbol: string
+  side: 'BUY'|'SELL'
+  notionalUSD?: number  // deprecated, use amountUSD
+  amountUSD?: number    // new: USD amount to trade
+  leverage?: number     // new: leverage (1-100x)
+  scalpMode?: boolean   // new: scalping mode for micro trades
+  entryPrice?: number   // signal entry price for limit orders
+  stopLoss?: number     // custom stop loss price
+  takeProfit?: number   // custom take profit price
+}
 
 // Get the functions base URL using the hardcoded Supabase URL
 function getFunctionsBaseUrl(): string {
@@ -20,145 +30,123 @@ async function getSessionToken(): Promise<string | null> {
 }
 
 export const TradingGateway = {
-  async testConnection(): Promise<ExecResult> {
-    try {
-      const functionsBase = getFunctionsBaseUrl();
-      const sessionToken = await getSessionToken();
-      
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (sessionToken) {
-        headers['authorization'] = `Bearer ${sessionToken}`;
-      }
-      
-      const r = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'status' })
-      });
-      
-      const data = await r.json().catch(() => ({}));
-      return { 
-        ok: r.ok, 
-        data, 
-        message: data?.message, 
-        error: data?.error,
-        status: r.status
-      };
-    } catch (error: any) {
-      return { 
-        ok: false, 
-        error: error.message,
-        message: 'Connection test failed'
-      };
-    }
-  },
-
-  async execute(p: ExecuteParams): Promise<ExecResult> {
+  async execute(params: ExecParams) {
     if (!FEATURES.AUTOTRADE_ENABLED) {
-      return { ok: false, error: 'DISABLED', message: 'Auto-trading disabled' }
+      return { ok: false, code: 'DISABLED', message: 'Auto-trading disabled' }
     }
 
     try {
-      // Normalize + assert
-      const symbol = (p.symbol || '').replace('/', '').trim().toUpperCase();
-      const side   = normalizeSide(p.side as any);
-      const amount = Number(p.amountUSD);
-      const lev    = Number(p.leverage);
-
-      ASSERT(symbol, 'symbol required');
-      ASSERT(side === 'Buy' || side === 'Sell', 'side invalid');
-      ASSERT(amount >= 0.10 && amount <= 100, 'amount out of range (0.10–100)');
-      ASSERT(lev >= 1 && lev <= 100, 'leverage out of range (1–100)');
-      ASSERT(typeof lev === 'number' && !isNaN(lev), 'leverage must be a valid number');
-
-      // Order shape
-      const orderType   = p.orderType ?? (p.price ? 'Limit' : 'Market');
-      const timeInForce = p.timeInForce ?? (orderType === 'Limit' ? 'PostOnly' : 'IOC');
-
-      if (orderType === 'Limit') {
-        ASSERT(p.price && p.price > 0, 'price required for Limit');
-      }
-
+      console.log('🚀 Executing live trade via Bybit API:', params);
+      
       const functionsBase = getFunctionsBaseUrl();
       const sessionToken = await getSessionToken();
       
       if (!sessionToken) {
         return { 
           ok: false, 
-          error: 'AUTH_REQUIRED', 
+          code: 'AUTH_REQUIRED', 
           message: 'Please sign in to execute trades' 
         };
       }
-
-      const payload = {
-        action: 'place_order',
-        symbol,
-        side,
-        amountUSD: amount,
-        leverage: lev,
-        orderType,
-        timeInForce,
-        price: p.price,
-
-        stopLoss: p.stopLoss,
-        takeProfit: p.takeProfit,
-        scalpMode: !!p.scalpMode,
-        entryPrice: p.entryPrice,
-        
-        // Explicitly set reduceOnly to false for new positions
-        reduceOnly: false,
-
-        idempotencyKey: `x1-${symbol}-${side}-${Date.now()}`,
-        meta: p.meta || {}
-      };
-
-      console.log('🧭 TradingGateway.execute:', payload);
-
+      
       const headers: Record<string, string> = {
         'content-type': 'application/json',
         'authorization': `Bearer ${sessionToken}`,
       };
+      
+      // Dynamic minimum based on scalp mode
+      const isScalping = params.scalpMode === true;
+      const baseAmount = params.amountUSD || params.notionalUSD;
+      const minAmount = isScalping ? 1 : 5; // $1 for scalping, $5 for normal
+      const amount = Math.max(baseAmount || minAmount, minAmount);
+      const leverage = Math.max(params.leverage || 1, 1);
+      
+      // Clean symbol format - remove any slashes or spaces
+      const cleanSymbol = params.symbol.replace(/[\/\s]/g, '');
+      
+      console.log('🔧 Trade execution params:', {
+        symbol: cleanSymbol,
+        side: params.side,
+        amountUSD: amount,
+        leverage,
+        scalpMode: isScalping,
+        minAmount,
+        functionsBase
+      });
+      
+      // Get global trading settings
+      const globalSettings = tradingSettings.getSettings();
+      
+      // Use provided entry price or signal entry price for limit orders
+      const entryPrice = params.entryPrice;
+      const orderType = entryPrice ? 'limit' : globalSettings.orderType;
+      
+      // Calculate SL/TP using global settings if not provided
+      let stopLoss = params.stopLoss;
+      let takeProfit = params.takeProfit;
+      
+      if (entryPrice && (!stopLoss || !takeProfit)) {
+        const riskPrices = tradingSettings.calculateRiskPrices(
+          entryPrice, 
+          params.side === 'BUY' ? 'Buy' : 'Sell'
+        );
+        stopLoss = stopLoss || riskPrices.stopLoss;
+        takeProfit = takeProfit || riskPrices.takeProfit;
+      }
 
-      const r = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          action: 'place_order',
+          symbol: cleanSymbol,
+          side: params.side === 'BUY' ? 'Buy' : 'Sell',
+          amountUSD: amount,
+          leverage: leverage,
+          scalpMode: isScalping,
+          orderType,
+          entryPrice,
+          stopLoss,
+          takeProfit
+        })
       });
 
-      if (!r.ok) {
-        const errorText = await r.text();
-        console.error('❌ HTTP Error:', r.status, errorText);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ HTTP Error:', response.status, errorText);
         return { 
           ok: false, 
-          message: `HTTP ${r.status}: ${errorText}`,
-          error: 'HTTP_ERROR',
-          status: r.status
+          code: 'HTTP_ERROR', 
+          message: `HTTP ${response.status}: ${errorText}` 
         };
       }
 
-      const data = await r.json();
+      const data = await response.json();
+      
+      // Log the full response for debugging
+      console.log('📊 Trade executor response:', {
+        status: response.status,
+        data,
+        headers: Object.fromEntries(response.headers.entries())
+      });
       
       if (!data.success) {
         console.error('❌ Trade execution failed:', data);
+        const errorMessage = data?.error || data?.message || 'Unknown error';
         return { 
           ok: false, 
-          message: data?.error || data?.message || 'Unknown error',
-          error: 'TRADE_FAILED',
-          data: data?.details
+          code: 'TRADE_FAILED', 
+          message: errorMessage,
+          details: data?.details || 'No additional details'
         };
       }
 
-      // Expect SL/TP confirmation fields from function if available
-      const hasRisk = !!(data?.slOrder || data?.tpOrder || data?.stopLossOrder || data?.takeProfitOrder);
-      console.log('✅ Live trade executed successfully:', { ...data, hasRisk });
-      return { ok: true, data: { ...data, hasRisk } };
+      console.log('✅ Live trade executed successfully:', data);
+      return { ok: true, data: data.data || data };
       
-    } catch (e: any) {
-      console.error('❌ Trading gateway error:', e);
-      return { ok: false, message: e?.message ?? 'execute failed', error: 'ASSERT' };
+    } catch (error: any) {
+      console.error('❌ Trading gateway error:', error);
+      return { ok: false, code: 'NETWORK_ERROR', message: error.message };
     }
   },
 
@@ -214,6 +202,68 @@ export const TradingGateway = {
       
     } catch (error: any) {
       console.error('❌ Error fetching balance:', error);
+      return { ok: false, error: error.message };
+    }
+  },
+
+  async bulkExecute(list: ExecParams[]) {
+    if (!FEATURES.AUTOTRADE_ENABLED) {
+      return { ok: false, code: 'DISABLED', message: 'Auto-trading disabled' }
+    }
+
+    try {
+      console.log('🚀 Queuing bulk trades:', list.length, 'orders');
+      
+      // Import trade queue here to avoid circular dependencies
+      const { tradeQueue } = await import('./tradeQueue');
+      
+      const tradeIds = list.map(params => tradeQueue.addTrade(params));
+      
+      console.log(`📋 ${tradeIds.length} trades queued for execution`);
+
+      return { 
+        ok: true, 
+        data: { 
+          queued: tradeIds.length, 
+          tradeIds,
+          message: 'Trades queued for execution'
+        }
+      };
+      
+    } catch (error: any) {
+      console.error('❌ Bulk trading error:', error);
+      return { ok: false, code: 'BULK_ERROR', message: error.message };
+    }
+  },
+
+  // Test function to check edge function connectivity
+  async testConnection() {
+    try {
+      const functionsBase = getFunctionsBaseUrl();
+      const sessionToken = await getSessionToken();
+      
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+      };
+      
+      if (sessionToken) {
+        headers['authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'status' })
+      });
+
+      if (!response.ok) {
+        return { ok: false, status: response.status, statusText: response.statusText };
+      }
+
+      const data = await response.json();
+      return { ok: true, data };
+      
+    } catch (error: any) {
       return { ok: false, error: error.message };
     }
   }

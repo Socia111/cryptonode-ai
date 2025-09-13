@@ -1,124 +1,117 @@
 // Trade queue system for reliable trade execution
-import { TradingGateway } from './tradingGateway';
-import { ExecuteParams, normalizeSide, type Side } from './tradingTypes';
+import { TradingGateway, ExecParams } from './tradingGateway';
 
-export interface QueuedTrade extends ExecuteParams {
+interface QueuedTrade extends ExecParams {
   id: string;
   timestamp: number;
+  retries: number;
+  maxRetries: number;
   status: 'pending' | 'executing' | 'completed' | 'failed';
-  attempts: number;
-  error?: string;
 }
 
-class TradeQueueManager {
+class TradeQueue {
   private queue: QueuedTrade[] = [];
   private isProcessing = false;
-  private status: 'idle' | 'processing' | 'error' = 'idle';
-  private metrics = {
-    totalProcessed: 0,
-    successCount: 0,
-    errorCount: 0,
-    lastProcessedAt: undefined as Date | undefined
-  };
-  private maxRetries = 3;
-  private processingDelay = 2000; // 2 seconds between trades
+  private maxConcurrent = 3;
+  private processing = new Set<string>();
 
-  private listeners: ((queue: QueuedTrade[]) => void)[] = [];
-
-  private notifyListeners() {
-    this.listeners.forEach(listener => listener([...this.queue]));
-  }
-
-  subscribe(listener: (queue: QueuedTrade[]) => void) {
-    this.listeners.push(listener);
-    listener([...this.queue]);
-    return () => {
-      const index = this.listeners.indexOf(listener);
-      if (index > -1) this.listeners.splice(index, 1);
-    };
-  }
-
-  addTrade(params: ExecuteParams): string {
-    const trade: QueuedTrade = {
-      id: `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  addTrade(params: ExecParams): string {
+    const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const queuedTrade: QueuedTrade = {
       ...params,
+      id: tradeId,
       timestamp: Date.now(),
-      status: 'pending',
-      attempts: 0
+      retries: 0,
+      maxRetries: 3,
+      status: 'pending'
     };
+
+    this.queue.push(queuedTrade);
+    console.log(`📋 Trade queued: ${tradeId} for ${params.symbol} ${params.side}`);
     
-    this.queue.push(trade);
-    this.notifyListeners();
-    
-    console.log(`📋 Trade queued: ${trade.symbol} ${trade.side} $${trade.amountUSD}`);
-    
+    // Start processing if not already running
     if (!this.isProcessing) {
-      this.startProcessing();
+      this.processQueue();
     }
-    
-    return trade.id;
+
+    return tradeId;
   }
 
-  private async startProcessing() {
-    if (this.isProcessing || this.queue.length === 0) return;
-    
+  private async processQueue() {
+    if (this.isProcessing) return;
     this.isProcessing = true;
-    this.status = 'processing';
-    
-    while (this.queue.length > 0) {
-      const trade = this.queue[0];
-      console.log(`🎯 Executing trade: ${trade.symbol} ${trade.side}`);
+
+    console.log('🔄 Starting trade queue processing...');
+
+    while (this.queue.length > 0 && this.processing.size < this.maxConcurrent) {
+      const trade = this.queue.find(t => t.status === 'pending');
+      if (!trade) break;
+
+      trade.status = 'executing';
+      this.processing.add(trade.id);
+
+      // Execute trade asynchronously
+      this.executeTrade(trade).finally(() => {
+        this.processing.delete(trade.id);
+        // Remove completed/failed trades from queue
+        this.queue = this.queue.filter(t => !['completed', 'failed'].includes(t.status));
+      });
+    }
+
+    // Check if we should continue processing
+    setTimeout(() => {
+      if (this.queue.some(t => t.status === 'pending') || this.processing.size > 0) {
+        this.processQueue();
+      } else {
+        this.isProcessing = false;
+        console.log('✅ Trade queue processing completed');
+      }
+    }, 1000);
+  }
+
+  private async executeTrade(trade: QueuedTrade) {
+    try {
+      console.log(`🚀 Executing trade ${trade.id}: ${trade.symbol} ${trade.side}`);
       
-      const result = await TradingGateway.execute(trade);
-      console.log(`📊 Trade result for ${trade.symbol}:`, result);
-      console.log(`📈 ${trade.side} ${trade.amountUSD || 'unknown'} USD`);
-      
+      const result = await TradingGateway.execute({
+        symbol: trade.symbol,
+        side: trade.side,
+        amountUSD: Math.max(25, trade.notionalUSD || 25)
+      });
+
       if (result.ok) {
         trade.status = 'completed';
-        this.metrics.successCount++;
-        console.log(`✅ Trade completed: ${trade.symbol}`);
+        console.log(`✅ Trade ${trade.id} completed successfully`);
       } else {
-        trade.attempts++;
-        if (trade.attempts >= this.maxRetries) {
-          trade.status = 'failed';
-          trade.error = result.message || 'Max retries exceeded';
-          this.metrics.errorCount++;
-          console.log(`❌ Trade failed permanently: ${trade.symbol} after ${trade.attempts} attempts`);
-        } else {
-          console.log(`⚠️ Trade failed, will retry: ${trade.symbol} (attempt ${trade.attempts}/${this.maxRetries})`);
-          // Keep in queue for retry
-          await new Promise(resolve => setTimeout(resolve, this.processingDelay));
-          continue;
-        }
+        throw new Error(result.message || 'Trade execution failed');
       }
+
+    } catch (error: any) {
+      console.error(`❌ Trade ${trade.id} failed:`, error.message);
       
-      this.queue.shift();
-      this.metrics.totalProcessed++;
-      this.metrics.lastProcessedAt = new Date();
-      this.notifyListeners();
-      
-      if (this.queue.length > 0) {
-        await new Promise(resolve => setTimeout(resolve, this.processingDelay));
+      trade.retries++;
+      if (trade.retries < trade.maxRetries) {
+        trade.status = 'pending'; // Retry
+        console.log(`🔄 Retrying trade ${trade.id} (${trade.retries}/${trade.maxRetries})`);
+      } else {
+        trade.status = 'failed';
+        console.log(`💀 Trade ${trade.id} failed permanently after ${trade.retries} retries`);
       }
     }
-    
-    this.isProcessing = false;
-    this.status = 'idle';
-    console.log(`🏁 Queue processing complete. Metrics:`, this.metrics);
   }
 
-  getMetrics() {
-    return { ...this.metrics };
-  }
-
-  getStatus() {
-    return this.status;
-  }
-
-  clearQueue() {
-    this.queue = [];
-    this.notifyListeners();
+  getQueueStatus() {
+    return {
+      total: this.queue.length,
+      pending: this.queue.filter(t => t.status === 'pending').length,
+      executing: this.queue.filter(t => t.status === 'executing').length,
+      completed: this.queue.filter(t => t.status === 'completed').length,
+      failed: this.queue.filter(t => t.status === 'failed').length,
+      processing: this.processing.size
+    };
   }
 }
 
-export const tradeQueue = new TradeQueueManager();
+// Global trade queue instance
+export const tradeQueue = new TradeQueue();

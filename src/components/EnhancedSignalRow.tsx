@@ -3,13 +3,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { tradingSettings } from '@/lib/tradingSettings';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 
 interface EnhancedSignalRowProps {
   signal: {
     id: string;
-    symbol?: string;
-    token?: string;
+    symbol: string;
     direction: string;
     entry_price: number;
     stop_loss?: number;
@@ -39,27 +38,20 @@ export function EnhancedSignalRow({ signal }: EnhancedSignalRowProps) {
           signal.direction === 'LONG' ? 'Buy' : 'Sell'
         );
 
-      // Ensure we have a proper symbol (map token -> symbol if needed)
-      const symbol = signal.symbol || signal.token;
-      if (!symbol) {
-        throw new Error('No valid symbol found in signal');
-      }
-
       const result = await TradingGateway.execute({
-        symbol: symbol.replace('/', ''), // Remove any slashes for Bybit format
-        side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
+        symbol: signal.symbol,
+        side: signal.direction === 'LONG' ? 'BUY' : 'SELL',
         amountUSD: 25, // Default trade size
         leverage: 10,  // Default leverage
         entryPrice: signal.entry_price,
         stopLoss: riskPrices.stopLoss,
-        takeProfit: riskPrices.takeProfit,
-        reduceOnly: false // Explicitly set for new positions
+        takeProfit: riskPrices.takeProfit
       });
 
       if (result.ok) {
         toast({
           title: "Trade Executed",
-          description: `${signal.direction} ${signal.symbol || signal.token} order placed successfully`,
+          description: `${signal.direction} ${signal.symbol} order placed successfully`,
         });
       } else {
         toast({
@@ -87,7 +79,7 @@ export function EnhancedSignalRow({ signal }: EnhancedSignalRowProps) {
     <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
       <div className="flex items-center gap-4">
         <div className="flex flex-col">
-          <span className="font-medium">{signal.symbol || signal.token}</span>
+          <span className="font-medium">{signal.symbol}</span>
           <span className="text-xs text-muted-foreground">
             {new Date(signal.created_at).toLocaleTimeString()}
           </span>
@@ -118,10 +110,7 @@ export function EnhancedSignalRow({ signal }: EnhancedSignalRowProps) {
       </div>
       
       <Button 
-        onClick={(e) => {
-          e.stopPropagation(); // Prevent event bubbling
-          executeSignalTrade();
-        }}
+        onClick={executeSignalTrade}
         disabled={isExecuting}
         size="sm"
         className={signal.direction === 'LONG' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}

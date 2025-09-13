@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { normalizeSide } from '@/lib/tradingTypes';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,21 +43,14 @@ const TradingPanel = () => {
     setIsExecuting(true);
     
     try {
-      // Ensure we have a proper symbol (map token -> symbol if needed)
-      const symbol = signal.symbol || signal.token;
-      if (!symbol) {
-        throw new Error('No valid symbol found in signal');
-      }
-
-      const side = normalizeSide(signal.direction === 'LONG' ? 'BUY' : 'SELL');
+      const side = signal.direction === 'LONG' ? 'BUY' : 'SELL';
       const res = await TradingGateway.execute({ 
-        symbol: symbol.replace('/', ''), // Remove any slashes for Bybit format
+        symbol: signal.symbol, 
         side, 
-        amountUSD: Math.max(25, settings.quantity),
-        leverage: settings.leverage || 10 // Ensure valid leverage default
+        amountUSD: Math.max(25, settings.quantity)
       });
       
-      if (!res.ok) {
+      if (!res.ok && res.code === 'DISABLED') {
         toast({
           title: "Auto-trading disabled", 
           description: res.message,

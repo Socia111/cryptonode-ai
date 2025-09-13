@@ -2,16 +2,14 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 
 type Item = {
-  id: string | number;
+  id: string;
   token: string;
   direction: 'Buy'|'Sell'|'BUY'|'SELL';
-  score?: number;
-  grade?: 'A+'|'A'|'B'|'C';
-  _score?: number;
-  _grade?: 'A+'|'A'|'B'|'C';
+  _score: number;
+  _grade: 'A+'|'A'|'B'|'C';
 };
 
-export function TopPicks({ items, onClick }: { items: Item[]; onClick?: (id: string | number) => void }) {
+export function TopPicks({ items, onClick }: { items: Item[]; onClick?: (id: string) => void }) {
   if (!items?.length) return null;
   return (
     <div className="mb-3">
@@ -26,15 +24,15 @@ export function TopPicks({ items, onClick }: { items: Item[]; onClick?: (id: str
             <div className="flex items-center justify-between">
               <div className="font-medium">{it.token}</div>
               <Badge variant={
-                (it.grade || it._grade) === 'A+' ? 'success' :
-                (it.grade || it._grade) === 'A'  ? 'default' :
-                (it.grade || it._grade) === 'B'  ? 'secondary' : 'outline'
+                it._grade === 'A+' ? 'success' :
+                it._grade === 'A'  ? 'default' :
+                it._grade === 'B'  ? 'secondary' : 'outline'
               }>
-                {it.grade || it._grade}
+                {it._grade}
               </Badge>
             </div>
             <div className="mt-1 text-xs opacity-70">
-              {it.direction} • score {((it.score || it._score || 0)|0)}%
+              {it.direction} • score {(it._score*100|0)}%
             </div>
           </button>
         ))}
