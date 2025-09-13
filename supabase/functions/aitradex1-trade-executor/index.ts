@@ -296,24 +296,51 @@ serve(async (req) => {
         side,
         originalAmount: amountUSD,
         finalAmount: finalAmountUSD,
-        leverage: leverage || 1
+        leverage: leverage || 25
       });
 
+      // Initialize variables in broader scope to avoid "not defined" errors
+      let scaledLeverage = leverage || 25; // Default to 25x leverage
+      let isScalping = scalpMode === true;
+      let qty = 0;
+      let price = 0;
+
       try {
-        // Check if paper trading mode is enabled
-        const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
+        // Check if paper trading mode is enabled (safer for testing)
+        const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true' || true; // Force paper mode for now
         
         if (isPaperMode) {
           structuredLog('info', 'Paper trading mode - simulating trade execution', {
             symbol,
             side,
             finalAmount: finalAmountUSD,
-            leverage: 25
+            leverage: scaledLeverage
           });
           
-          // Simulate successful trade execution
-          const simulatedOrderId = 'PAPER_' + Date.now();
-          const simulatedPrice = Math.random() * 100 + 50; // Random price for demo
+          // Simulate successful trade execution with realistic data
+          const simulatedOrderId = 'PAPER_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+          const simulatedPrice = 50000 + (Math.random() - 0.5) * 1000; // BTC-like price simulation
+          const simulatedQty = (finalAmountUSD * scaledLeverage / simulatedPrice).toFixed(6);
+          
+          // Simulate TP/SL prices
+          const stopLossPercent = isScalping ? 0.0015 : 0.03;
+          const takeProfitPercent = isScalping ? 0.005 : 0.06;
+          
+          const stopLoss = side === 'Buy' 
+            ? simulatedPrice * (1 - stopLossPercent)
+            : simulatedPrice * (1 + stopLossPercent);
+            
+          const takeProfit = side === 'Buy'
+            ? simulatedPrice * (1 + takeProfitPercent) 
+            : simulatedPrice * (1 - takeProfitPercent);
+          
+          structuredLog('info', 'Paper trade executed successfully', {
+            orderId: simulatedOrderId,
+            price: simulatedPrice,
+            qty: simulatedQty,
+            stopLoss,
+            takeProfit
+          });
           
           return json({
             success: true,
@@ -321,13 +348,16 @@ serve(async (req) => {
               orderId: simulatedOrderId,
               symbol,
               side,
-              qty: (finalAmountUSD * 25 / simulatedPrice).toFixed(6),
+              qty: simulatedQty,
               price: simulatedPrice,
               amount: finalAmountUSD,
-              leverage: 25,
+              leverage: scaledLeverage,
+              stopLoss,
+              takeProfit,
               status: 'FILLED',
               paperMode: true,
-              message: 'Paper trade executed successfully - no real money involved'
+              message: '🧪 Paper trade executed successfully - no real money involved',
+              environment: 'paper_trading'
             }
           });
         }
@@ -404,15 +434,17 @@ serve(async (req) => {
 
         // Get instrument info and price
         const inst = await getInstrument(symbol);
-        const price = await getMarkPrice(symbol);
+        price = await getMarkPrice(symbol);
         
         // =================== SCALPING VS NORMAL RISK MANAGEMENT ===================
         
-        const isScalping = scalpMode === true;
+        // Update scalping mode and leverage (already declared in broader scope)
+        isScalping = scalpMode === true;
+        scaledLeverage = leverage || 25; // Default to 25x leverage
         
         // Calculate proper quantity with 25x leverage by default
-        const scaledLeverage = leverage || 25; // Default to 25x leverage
-        const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
+        const qtyResult = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
+        qty = qtyResult.qty;
         
         // Enhanced validation with better error messages
         if (qty <= 0) {
@@ -690,17 +722,27 @@ serve(async (req) => {
           }
         });
       } catch (error: any) {
-        structuredLog('error', 'Trade execution failed', { 
+        // Ensure variables are defined for error logging
+        const errorContext = {
           error: error.message, 
           symbol, 
           side, 
           amountUSD: finalAmountUSD, 
-          leverage: scaledLeverage 
-        });
+          leverage: scaledLeverage || 25,
+          qty: qty || 0,
+          price: price || 0,
+          isScalping: isScalping || false
+        };
+        
+        structuredLog('error', 'Trade execution failed', errorContext);
+        
         return json({
           success: false,
           error: error.message || 'Trade execution failed',
-          details: error.stack || 'No additional details'
+          details: {
+            context: errorContext,
+            stack: error.stack || 'No stack trace available'
+          }
         }, 500);
       }
     }
