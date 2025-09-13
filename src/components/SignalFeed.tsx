@@ -57,56 +57,25 @@ export function SignalFeed({ signals }: { signals: UISignal[] }) {
     setSelected(pick);
   }, [ranked, autoMode, executingId]);
 
-  const execute = async (sig: any, p: { amountUSD: number; leverage: number; orderType?: string; price?: number; timeInForce?: string }) => {
+  const execute = async (sig: any, p: { amountUSD: number; leverage: number }) => {
     try {
       setExecutingId(sig.id);
-      
-      // Basic risk guard check (UI-only safety)
-      const { RiskPanel } = await import('@/lib/riskGuards');
-      const riskCheck = await RiskPanel.check({
-        maxDailyLossPct: 2,
-        maxOpenPositions: 2,
-        blockIf1m: sig.timeframe === '1m'
-      });
-      
-      if (!riskCheck.ok) {
-        toast({ 
-          title: '🛡️ Risk Guard', 
-          description: riskCheck.reason || 'Limits reached', 
-          variant: 'destructive' 
-        });
-        return;
-      }
-      
       // Normalize direction for TradingGateway
       const side = sig.direction === 'BUY' ? 'Buy' : sig.direction === 'SELL' ? 'Sell' : sig.direction;
+      
+      // Pass TP/SL values from the signal panel
       const res = await TradingGateway.execute({
-        symbol: sig.token,
+        symbol: sig.token.replace('/', ''),  // Clean symbol format
         side,
         amountUSD: p.amountUSD,
         leverage: p.leverage,
-        orderType: p.orderType as any,
-        price: p.price,
-        timeInForce: p.timeInForce as any,
+        // Pass what the user SAW on the signal card
+        uiEntry: sig.entry_price,
+        uiTP: sig.take_profit,
+        uiSL: sig.stop_loss,
       });
       if (res.ok) {
-        // Enhanced success notification with SL/TP confirmation
-        const result = res.data;
-        const hasSlTp = result?.slOrder || result?.tpOrder || result?.stopLossOrder || result?.takeProfitOrder;
-        
-        toast({ 
-          title: '✅ Trade Executed', 
-          description: `${sig.token} ${sig.direction} (${p.leverage}x)${hasSlTp ? ' + SL/TP' : ' (No SL/TP)'}` 
-        });
-        
-        // Additional notifications for risk management
-        if (result?.slOrder || result?.stopLossOrder) {
-          console.log('🛡️ Stop Loss attached:', result.slOrder || result.stopLossOrder);
-        }
-        if (result?.tpOrder || result?.takeProfitOrder) {
-          console.log('🎯 Take Profit attached:', result.tpOrder || result.takeProfitOrder);
-        }
-        
+        toast({ title: '✅ Trade Executed', description: `${sig.token} ${sig.direction} (${p.leverage}x)` });
         setSelected(null);
       } else {
         toast({ title: '❌ Trade Failed', description: res.message ?? 'Unknown error', variant: 'destructive' });

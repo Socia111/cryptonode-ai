@@ -1,33 +1,46 @@
 import { supabase } from '@/integrations/supabase/client';
 import { FEATURES } from '@/config/featureFlags';
+import { tradingSettings } from './tradingSettings';
 
-export type OrderTIF = 'GTC' | 'IOC' | 'FOK' | 'PostOnly' | 'ImmediateOrCancel';
-export type OrderType = 'Market' | 'Limit';
+export type Side = 'Buy'|'Sell';
+export type OrderType = 'Market'|'Limit';
+export type OrderTIF = 'GTC'|'IOC'|'FOK'|'PostOnly';
 
-export interface ExecuteParams {
-  symbol: string;                 // e.g. "BTCUSDT"
-  side: 'Buy' | 'Sell';
-  amountUSD: number;
-  leverage: number;
-  // NEW:
+export interface ExecParams {
+  symbol: string;                 // "PEAQUSDT"
+  side: Side;                     // 'Buy' | 'Sell'
+  amountUSD: number;              // 0.10 ... 100
+  leverage: number;               // 1 ... 100
   orderType?: OrderType;          // default 'Market'
-  price?: number;                 // required when orderType='Limit'
-  timeInForce?: OrderTIF;         // default 'PostOnly' if Limit
-  reduceOnly?: boolean;           // optional
-  // pass-through SL/TP (optional)
+  timeInForce?: OrderTIF;         // default 'PostOnly' for Limit
+  price?: number;                 // Limit price (usually entry_price)
+  // NEW: pass-through from signal panel (raw)
+  uiEntry?: number;
+  uiTP?: number;
+  uiSL?: number;
+  // Auto-exec fields
   stopLoss?: number;
   takeProfit?: number;
+  // optional extras
+  reduceOnly?: boolean;
   scalpMode?: boolean;
-  entryPrice?: number;            // for backward compatibility
-  meta?: Record<string, any>;     // optional metadata
+  meta?: Record<string, any>;
+  // Deprecated fields for backward compatibility
+  notionalUSD?: number;  // deprecated, use amountUSD
+  entryPrice?: number;   // deprecated, use uiEntry
 }
 
-export interface ExecResult {
-  ok: boolean;
-  message?: string;
-  data?: any;
-  error?: string;
-  status?: number;
+// Legacy interface for backward compatibility
+export type LegacyExecParams = {
+  symbol: string
+  side: 'BUY'|'SELL'|'Buy'|'Sell'
+  notionalUSD?: number
+  amountUSD?: number
+  leverage?: number
+  scalpMode?: boolean
+  entryPrice?: number
+  stopLoss?: number
+  takeProfit?: number
 }
 
 // Get the functions base URL using the hardcoded Supabase URL
@@ -45,50 +58,48 @@ async function getSessionToken(): Promise<string | null> {
   }
 }
 
+// Helper to normalize params from legacy format
+function normalizeParams(params: ExecParams | LegacyExecParams): ExecParams {
+  const normalized: ExecParams = {
+    symbol: params.symbol,
+    side: normalizeSide(params.side),
+    amountUSD: params.amountUSD || (params as any).notionalUSD || 5,
+    leverage: params.leverage || 1,
+    scalpMode: params.scalpMode,
+    // Map legacy fields to new UI fields
+    uiEntry: (params as any).entryPrice || (params as ExecParams).uiEntry,
+    uiTP: (params as any).takeProfit || (params as ExecParams).uiTP,
+    uiSL: (params as any).stopLoss || (params as ExecParams).uiSL,
+    // Auto-exec fields
+    stopLoss: (params as ExecParams).stopLoss,
+    takeProfit: (params as ExecParams).takeProfit,
+  };
+
+  // Copy any additional fields
+  if ('orderType' in params) normalized.orderType = params.orderType;
+  if ('timeInForce' in params) normalized.timeInForce = params.timeInForce;
+  if ('price' in params) normalized.price = params.price;
+  if ('reduceOnly' in params) normalized.reduceOnly = params.reduceOnly;
+  if ('meta' in params) normalized.meta = params.meta;
+
+  return normalized;
+}
+
+function normalizeSide(side: string): Side {
+  if (side === 'BUY' || side === 'Buy') return 'Buy';
+  if (side === 'SELL' || side === 'Sell') return 'Sell';
+  throw new Error(`Invalid side: ${side}`);
+}
+
 export const TradingGateway = {
-  async testConnection(): Promise<ExecResult> {
-    try {
-      const functionsBase = getFunctionsBaseUrl();
-      const sessionToken = await getSessionToken();
-      
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (sessionToken) {
-        headers['authorization'] = `Bearer ${sessionToken}`;
-      }
-      
-      const r = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'status' })
-      });
-      
-      const data = await r.json().catch(() => ({}));
-      return { 
-        ok: r.ok, 
-        status: r.status, 
-        data, 
-        message: data?.message, 
-        error: data?.error 
-      };
-    } catch (error: any) {
-      return { 
-        ok: false, 
-        error: error.message,
-        message: 'Connection test failed'
-      };
-    }
-  },
-
-  async execute(params: ExecuteParams): Promise<ExecResult> {
+  async execute(inputParams: ExecParams | LegacyExecParams) {
     if (!FEATURES.AUTOTRADE_ENABLED) {
-      return { ok: false, error: 'DISABLED', message: 'Auto-trading disabled' }
+      return { ok: false, code: 'DISABLED', message: 'Auto-trading disabled' }
     }
 
     try {
-      console.log('🧭 TradingGateway.execute IN:', params);
+      const params = normalizeParams(inputParams);
+      console.log('🚀 Executing live trade via Bybit API:', params);
       
       const functionsBase = getFunctionsBaseUrl();
       const sessionToken = await getSessionToken();
@@ -96,7 +107,7 @@ export const TradingGateway = {
       if (!sessionToken) {
         return { 
           ok: false, 
-          error: 'AUTH_REQUIRED', 
+          code: 'AUTH_REQUIRED', 
           message: 'Please sign in to execute trades' 
         };
       }
@@ -109,96 +120,98 @@ export const TradingGateway = {
       // Dynamic minimum based on scalp mode
       const isScalping = params.scalpMode === true;
       const minAmount = isScalping ? 1 : 5; // $1 for scalping, $5 for normal
-      const amount = Math.max(params.amountUSD || minAmount, minAmount);
-      const leverage = Math.max(params.leverage || 1, 1);
-      
-      // Debug logging for amount adjustments
-      if ((params.amountUSD || 0) < minAmount) {
-        console.warn(`💰 Amount adjusted to minimum: $${params.amountUSD} → $${amount} (${isScalping ? 'scalp' : 'normal'} mode)`);
-      }
+      const amount = Math.max(params.amountUSD, minAmount);
+      const leverage = Math.max(params.leverage, 1);
       
       // Clean symbol format - remove any slashes or spaces
       const cleanSymbol = params.symbol.replace(/[\/\s]/g, '');
       
-      const payload = {
-        action: 'place_order',
+      console.log('🔧 Trade execution params:', {
         symbol: cleanSymbol,
         side: params.side,
         amountUSD: amount,
-        leverage: leverage,
-        // NEW: limit-order fields
-        orderType: params.orderType ?? 'Market',
-        price: params.price,
-        timeInForce: params.timeInForce ?? (params.orderType === 'Limit' ? 'PostOnly' : 'GTC'),
-        reduceOnly: params.reduceOnly ?? false,
-        // pass-through risk
-        stopLoss: params.stopLoss,
-        takeProfit: params.takeProfit,
+        leverage,
         scalpMode: isScalping,
-        entryPrice: params.entryPrice || params.price, // backward compatibility
-        meta: params.meta || {}
-      };
+        minAmount,
+        functionsBase,
+        uiEntry: params.uiEntry,
+        uiTP: params.uiTP,
+        uiSL: params.uiSL
+      });
       
-      console.log('📤 Request body to edge function:', payload);
+      // Get global trading settings
+      const globalSettings = tradingSettings.getSettings();
+      
+      // Determine order type and price
+      const entryPrice = params.uiEntry || params.price;
+      const orderType = params.orderType || (entryPrice ? 'Limit' : globalSettings.orderType === 'limit' ? 'Limit' : 'Market');
+      const timeInForce = params.timeInForce || (orderType === 'Limit' ? 'PostOnly' : 'GTC');
+      
+      // Generate idempotency key to avoid duplicates on retries
+      const idempotencyKey = crypto.randomUUID();
 
-      const r = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          action: 'place_order',
+          symbol: cleanSymbol,
+          side: params.side,
+          amountUSD: amount,
+          leverage: leverage,
+          orderType,
+          timeInForce,
+          price: orderType === 'Limit' ? entryPrice : undefined,
+          // Pass UI values for TP/SL attachment
+          uiEntry: params.uiEntry,
+          uiTP: params.uiTP,
+          uiSL: params.uiSL,
+          // Auto-exec TP/SL
+          stopLoss: params.stopLoss,
+          takeProfit: params.takeProfit,
+          scalpMode: isScalping,
+          reduceOnly: params.reduceOnly || false,
+          idempotencyKey,
+          meta: params.meta
+        })
       });
 
-      if (!r.ok) {
-        const errorText = await r.text();
-        console.error('❌ HTTP Error:', r.status, errorText);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ HTTP Error:', response.status, errorText);
         return { 
           ok: false, 
-          error: 'HTTP_ERROR', 
-          message: `HTTP ${r.status}: ${errorText}`,
-          status: r.status
+          code: 'HTTP_ERROR', 
+          message: `HTTP ${response.status}: ${errorText}` 
         };
       }
 
-      const data = await r.json();
+      const data = await response.json();
       
-      // Enhanced response logging
-      const out: ExecResult = { 
-        ok: r.ok && data?.success !== false, 
-        status: r.status, 
+      // Log the full response for debugging
+      console.log('📊 Trade executor response:', {
+        status: response.status,
         data,
-        message: data?.message,
-        error: data?.error
-      };
-      console.log('🧭 TradingGateway.execute OUT:', out);
+        headers: Object.fromEntries(response.headers.entries())
+      });
       
-      // Enhanced SL/TP confirmation logging
-      if (data.success && data.data) {
-        const result = data.data;
-        console.log('🔍 Order Execution Details:', {
-          mainOrder: result.orderId || result.order_id,
-          slAttached: !!(result.slOrder || result.stopLossOrder),
-          tpAttached: !!(result.tpOrder || result.takeProfitOrder),
-          orderType: result.orderType || payload.orderType,
-          slPrice: result.slOrder?.triggerPrice || result.stopLossOrder?.price,
-          tpPrice: result.tpOrder?.triggerPrice || result.takeProfitOrder?.price
-        });
-      }
-      
-      if (!data.success) {
+      if (!data.success && !data.ok) {
         console.error('❌ Trade execution failed:', data);
+        const errorMessage = data?.error || data?.message || 'Unknown error';
         return { 
           ok: false, 
-          error: 'TRADE_FAILED', 
-          message: data?.error || data?.message || 'Unknown error',
-          data: data?.details
+          code: 'TRADE_FAILED', 
+          message: errorMessage,
+          details: data?.details || 'No additional details'
         };
       }
 
       console.log('✅ Live trade executed successfully:', data);
-      return out;
+      return { ok: true, data: data.data || data };
       
     } catch (error: any) {
       console.error('❌ Trading gateway error:', error);
-      return { ok: false, error: 'NETWORK_ERROR', message: error.message };
+      return { ok: false, code: 'NETWORK_ERROR', message: error.message };
     }
   },
 
@@ -254,6 +267,68 @@ export const TradingGateway = {
       
     } catch (error: any) {
       console.error('❌ Error fetching balance:', error);
+      return { ok: false, error: error.message };
+    }
+  },
+
+  async bulkExecute(list: (ExecParams | LegacyExecParams)[]) {
+    if (!FEATURES.AUTOTRADE_ENABLED) {
+      return { ok: false, code: 'DISABLED', message: 'Auto-trading disabled' }
+    }
+
+    try {
+      console.log('🚀 Queuing bulk trades:', list.length, 'orders');
+      
+      // Import trade queue here to avoid circular dependencies
+      const { tradeQueue } = await import('./tradeQueue');
+      
+      const tradeIds = list.map(params => tradeQueue.addTrade(normalizeParams(params)));
+      
+      console.log(`📋 ${tradeIds.length} trades queued for execution`);
+
+      return { 
+        ok: true, 
+        data: { 
+          queued: tradeIds.length, 
+          tradeIds,
+          message: 'Trades queued for execution'
+        }
+      };
+      
+    } catch (error: any) {
+      console.error('❌ Bulk trading error:', error);
+      return { ok: false, code: 'BULK_ERROR', message: error.message };
+    }
+  },
+
+  // Test function to check edge function connectivity
+  async testConnection() {
+    try {
+      const functionsBase = getFunctionsBaseUrl();
+      const sessionToken = await getSessionToken();
+      
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+      };
+      
+      if (sessionToken) {
+        headers['authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'status' })
+      });
+
+      if (!response.ok) {
+        return { ok: false, status: response.status, statusText: response.statusText };
+      }
+
+      const data = await response.json();
+      return { ok: true, data };
+      
+    } catch (error: any) {
       return { ok: false, error: error.message };
     }
   }

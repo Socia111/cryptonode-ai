@@ -43,11 +43,14 @@ const TradingPanel = () => {
     setIsExecuting(true);
     
     try {
-      const side = signal.direction === 'LONG' ? 'BUY' : 'SELL';
+      const side = signal.direction === 'LONG' ? 'Buy' : 'Sell';
       const res = await TradingGateway.execute({ 
         symbol: signal.symbol, 
         side, 
-        amountUSD: Math.max(25, settings.quantity)
+        amountUSD: Math.max(25, settings.quantity),
+        uiEntry: signal.entry_price,
+        uiTP: signal.take_profit,
+        uiSL: signal.stop_loss
       });
       
       if (!res.ok && res.code === 'DISABLED') {

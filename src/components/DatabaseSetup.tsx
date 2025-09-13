@@ -46,8 +46,8 @@ const DatabaseSetup = () => {
     setIsChecking(false);
   };
 
-  const allTablesExist = Object.values(tables).every(exists => exists);
-  const someTablesExist = Object.values(tables).some(exists => exists);
+  const tablesReady = Object.values(tables).filter(exists => exists).length;
+  const allTablesExist = tablesReady === requiredTables.length;
 
   const handleVerifySetup = async () => {
     if (!connected) {
@@ -96,7 +96,7 @@ const DatabaseSetup = () => {
             <div className="text-sm text-muted-foreground">Connection</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold">{Object.keys(tables).length}/{requiredTables.length}</div>
+            <div className="text-2xl font-bold">{tablesReady}/{requiredTables.length}</div>
             <div className="text-sm text-muted-foreground">Tables Ready</div>
           </div>
         </div>
