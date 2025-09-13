@@ -54,12 +54,15 @@ export const TradingGateway = {
         'authorization': `Bearer ${sessionToken}`,
       };
       
-      // Dynamic minimum based on scalp mode
+      // Use smaller amounts for testnet testing to avoid balance issues
+      const isTestnet = true; // Force testnet for now during development
       const isScalping = params.scalpMode === true;
       const baseAmount = params.amountUSD || params.notionalUSD;
-      const minAmount = isScalping ? 1 : 5; // $1 for scalping, $5 for normal
+      const minAmount = isTestnet 
+        ? (isScalping ? 1 : 5)   // Testnet: $1 scalp, $5 normal  
+        : (isScalping ? 10 : 25) // Mainnet: $10 scalp, $25 normal
       const amount = Math.max(baseAmount || minAmount, minAmount);
-      const leverage = Math.max(params.leverage || 1, 1);
+      const leverage = Math.max(params.leverage || 25, 25); // Force minimum 25x leverage
       
       // Clean symbol format - remove any slashes or spaces
       const cleanSymbol = params.symbol.replace(/[\/\s]/g, '');
@@ -132,7 +135,17 @@ export const TradingGateway = {
       
       if (!data.success) {
         console.error('❌ Trade execution failed:', data);
-        const errorMessage = data?.error || data?.message || 'Unknown error';
+        let errorMessage = data?.error || data?.message || 'Unknown error';
+        
+        // Provide helpful error messages for common issues
+        if (errorMessage.includes('ab not enough')) {
+          errorMessage = `Insufficient balance. ${errorMessage}. Try reducing the amount to $5 or add more funds to your account.`;
+        } else if (errorMessage.includes('reduce-only')) {
+          errorMessage = `Position mode error. ${errorMessage}. The system will retry with different position modes.`;
+        } else if (errorMessage.includes('position idx')) {
+          errorMessage = `Position mode mismatch. ${errorMessage}. The system will attempt to fix this automatically.`;
+        }
+        
         return { 
           ok: false, 
           code: 'TRADE_FAILED', 

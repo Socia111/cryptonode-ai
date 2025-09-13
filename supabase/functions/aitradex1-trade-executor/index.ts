@@ -39,9 +39,16 @@ class BybitV5Client {
   private apiSecret: string
 
   constructor(apiKey: string, apiSecret: string) {
-    this.baseURL = Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com'
+    // Use testnet for safety during development/testing
+    const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || true; // Force testnet for now
+    this.baseURL = isTestnet 
+      ? 'https://api-testnet.bybit.com' 
+      : (Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com');
+    
     this.apiKey = apiKey
     this.apiSecret = apiSecret
+    
+    console.log(`🌐 Bybit Client initialized: ${isTestnet ? 'TESTNET' : 'MAINNET'} (${this.baseURL})`);
   }
 
   private async signRequest(method: string, path: string, params: any = {}): Promise<string> {
@@ -173,7 +180,7 @@ async function getMarkPrice(symbol: string): Promise<number> {
   throw new Error("Mark price unavailable");
 }
 
-// Enhanced order quantity calculation with scalping support
+// Enhanced order quantity calculation with higher minimums
 function computeOrderQtyUSD(
   amountUSD: number, 
   leverage: number, 
@@ -181,46 +188,39 @@ function computeOrderQtyUSD(
   inst: Instrument,
   isScalping = false
 ) {
-  // Calculate total exposure: amountUSD * leverage (e.g., $1 * 5x = $5 exposure)
+  // Calculate total exposure: amountUSD * leverage (e.g., $25 * 25x = $625 exposure)
   const targetNotional = amountUSD * leverage;
   let qty = targetNotional / price;
   
-  // Round to tick size
+  // Round to step size first
   qty = roundToStep(qty, inst.qtyStep || 0.000001);
   
-  // Handle minimum quantity with special scalping logic
-  if (isScalping) {
-    // For scalping, try to use smaller quantities if possible
-    const minScalpQty = Math.max(inst.minOrderQty || 0.001, 0.001);
-    qty = Math.max(qty, minScalpQty);
-    // Cap scalping orders to prevent balance issues - based on total exposure
-    if (targetNotional <= 25) {
-      qty = Math.min(qty, 0.05); // Smaller cap for micro trades
-    }
-  } else {
-    // Normal minimum enforcement
-    qty = Math.max(qty, inst.minOrderQty || 0.001);
+  // Enforce higher minimums to avoid "Qty is smaller amount" errors
+  const baseMinQty = inst.minOrderQty || 0.001;
+  
+  // Calculate minimum quantity based on minimum order value (typically $5-10 USDT)
+  let minRequiredQty = baseMinQty;
+  if (inst.category === "linear" && inst.minOrderValue) {
+    minRequiredQty = Math.max(minRequiredQty, inst.minOrderValue / price);
   }
   
-  // For linear contracts, check minimum order value
-  if (inst.category === "linear" && inst.minOrderValue) {
-    const calculatedNotional = qty * price;
-    if (calculatedNotional < inst.minOrderValue && !isScalping) {
-      // For normal trades, ensure minimum value is met
-      qty = Math.max(qty, roundToStep(inst.minOrderValue / price, inst.qtyStep || 0.000001));
-    }
+  // For spot trading, enforce minimum order amount
+  if (inst.category === "spot" && inst.minOrderAmt) {
+    minRequiredQty = Math.max(minRequiredQty, inst.minOrderAmt / price);
   }
-
-  // For spot trading, handle minimum order amount
-  if (inst.category === "spot") {
-    if (inst.minOrderAmt) {
-      const spotNotional = qty * price;
-      if (spotNotional < inst.minOrderAmt) {
-        qty = Math.max(qty, roundToStep(inst.minOrderAmt / price, inst.qtyStep));
-      }
-    }
-    if (inst.minOrderQty && qty < inst.minOrderQty) {
-      qty = Math.max(qty, roundToStep(inst.minOrderQty, inst.qtyStep));
+  
+  // Apply minimum quantity requirements
+  qty = Math.max(qty, minRequiredQty);
+  
+  // Round again after applying minimums
+  qty = roundToStep(qty, inst.qtyStep || 0.000001);
+  
+  // For scalping, ensure we meet minimum notional requirements
+  if (isScalping) {
+    const actualNotional = qty * price;
+    const minNotional = inst.minOrderValue || inst.minOrderAmt || 5; // Minimum $5 USD
+    if (actualNotional < minNotional) {
+      qty = roundToStep(minNotional / price, inst.qtyStep || 0.000001);
     }
   }
 
@@ -261,10 +261,15 @@ serve(async (req) => {
 
     // Handle status requests
     if (action === 'status') {
+      const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || true;
+      const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
+      
       return json({
         ok: true,
         status: 'operational',
         trading_enabled: Deno.env.get('LIVE_TRADING_ENABLED') === 'true',
+        environment: isTestnet ? 'testnet' : 'mainnet',
+        paper_mode: isPaperMode,
         allowed_symbols: Deno.env.get('ALLOWED_SYMBOLS') || '*',
         timestamp: new Date().toISOString()
       });
@@ -279,8 +284,11 @@ serve(async (req) => {
         }, 400);
       }
 
-  // For scalping, use very small minimum order size to avoid balance issues
-  const minOrderSize = scalpMode ? 1 : 5  // Scalp: $1 min | Normal: $5 min
+  // Use smaller amounts for testnet to avoid balance issues
+  const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || true; // Force testnet for now
+  const minOrderSize = isTestnet 
+    ? (scalpMode ? 1 : 5)   // Testnet: $1 scalp, $5 normal
+    : (scalpMode ? 10 : 25) // Mainnet: $10 scalp, $25 normal
   const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
 
       structuredLog('info', 'Trade execution request', {
@@ -292,7 +300,39 @@ serve(async (req) => {
       });
 
       try {
-        // Initialize Bybit client
+        // Check if paper trading mode is enabled
+        const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
+        
+        if (isPaperMode) {
+          structuredLog('info', 'Paper trading mode - simulating trade execution', {
+            symbol,
+            side,
+            finalAmount: finalAmountUSD,
+            leverage: 25
+          });
+          
+          // Simulate successful trade execution
+          const simulatedOrderId = 'PAPER_' + Date.now();
+          const simulatedPrice = Math.random() * 100 + 50; // Random price for demo
+          
+          return json({
+            success: true,
+            data: {
+              orderId: simulatedOrderId,
+              symbol,
+              side,
+              qty: (finalAmountUSD * 25 / simulatedPrice).toFixed(6),
+              price: simulatedPrice,
+              amount: finalAmountUSD,
+              leverage: 25,
+              status: 'FILLED',
+              paperMode: true,
+              message: 'Paper trade executed successfully - no real money involved'
+            }
+          });
+        }
+
+        // Initialize Bybit client for real trading
         const apiKey = Deno.env.get('BYBIT_API_KEY')
         const apiSecret = Deno.env.get('BYBIT_API_SECRET')
         
@@ -309,6 +349,59 @@ serve(async (req) => {
 
         const client = new BybitV5Client(apiKey, apiSecret)
 
+        // STEP 1: Check account balance before placing orders
+        try {
+          structuredLog('info', 'Checking account balance before trade execution', { symbol });
+          const balanceResponse = await client.signedRequest('GET', '/v5/account/wallet-balance', {
+            accountType: 'UNIFIED'
+          });
+          
+          if (balanceResponse?.result?.list?.[0]) {
+            const account = balanceResponse.result.list[0];
+            const usdtCoin = account.coin?.find((c: any) => c.coin === 'USDT');
+            const availableBalance = parseFloat(usdtCoin?.availableToWithdraw || '0');
+            
+            structuredLog('info', 'Account balance check', {
+              totalBalance: usdtCoin?.walletBalance || '0',
+              availableBalance,
+              requiredForTrade: finalAmountUSD,
+              hasSufficientBalance: availableBalance >= finalAmountUSD
+            });
+            
+            // Check if we have sufficient balance
+            if (availableBalance < finalAmountUSD) {
+              return json({
+                success: false,
+                error: `Insufficient balance. Available: $${availableBalance.toFixed(2)}, Required: $${finalAmountUSD}. Please add funds to your account or reduce the trade amount.`,
+                details: { availableBalance, requiredAmount: finalAmountUSD }
+              }, 400);
+            }
+          }
+        } catch (balanceError: any) {
+          structuredLog('warning', 'Balance check failed, proceeding anyway', { 
+            error: balanceError.message 
+          });
+        }
+
+        // STEP 2: Check and set position mode to One-Way (safer for new positions)
+        if (inst.category === 'linear') {
+          try {
+            structuredLog('info', 'Setting position mode to One-Way for safe trading', { symbol });
+            await client.signedRequest('POST', '/v5/position/switch-mode', {
+              category: 'linear',
+              coin: symbol.replace('USDT', ''), // Extract base coin (e.g., BTC from BTCUSDT)
+              mode: 0 // 0 = One-Way mode (safer for new positions)
+            });
+            structuredLog('info', 'Position mode set to One-Way successfully', { symbol });
+          } catch (modeError: any) {
+            // Mode setting may fail if already in correct mode, continue anyway
+            structuredLog('warning', 'Position mode setting failed (may already be correct)', { 
+              symbol, 
+              error: modeError.message 
+            });
+          }
+        }
+
         // Get instrument info and price
         const inst = await getInstrument(symbol);
         const price = await getMarkPrice(symbol);
@@ -317,8 +410,8 @@ serve(async (req) => {
         
         const isScalping = scalpMode === true;
         
-        // Calculate proper quantity with scalping support
-        const scaledLeverage = isScalping ? Math.min(leverage || 10, 25) : (leverage || 1);
+        // Calculate proper quantity with 25x leverage by default
+        const scaledLeverage = leverage || 25; // Default to 25x leverage
         const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
         
         // Enhanced validation with better error messages
@@ -352,9 +445,9 @@ serve(async (req) => {
           mode: isScalping ? 'scalping' : 'normal'
         })
         
-        // Micro TP/SL for scalping with better risk-reward
-        const stopLossPercent = isScalping ? 0.0015 : 0.02;  // Scalp: 0.15% | Normal: 2%
-        const takeProfitPercent = isScalping ? 0.005 : 0.04; // Scalp: 0.5% | Normal: 4%
+        // TP/SL percentages aligned with ROLL strategy
+        const stopLossPercent = isScalping ? 0.0015 : 0.03;  // Scalp: 0.15% | Normal: 3%
+        const takeProfitPercent = isScalping ? 0.005 : 0.06; // Scalp: 0.5% | Normal: 6%
         // This gives 3.33:1 R:R for scalping (0.5%:0.15%)
         
         let stopLoss: number;
@@ -389,23 +482,18 @@ serve(async (req) => {
           side: side === 'Buy' ? 'Buy' : 'Sell',
           orderType: 'Market',
           qty: String(qty),
-          timeInForce: 'IOC'
-          // NOTE: TP/SL will be set as separate conditional orders after position opens
+          timeInForce: 'IOC',
+          reduceOnly: false  // CRITICAL: Always false for new positions
         }
 
-        // For linear contracts, always open new positions (not reduce-only)
+        // For linear contracts, always ensure new position mode
         if (inst.category === 'linear') {
-          structuredLog('info', 'Setting up linear contract order', {
+          structuredLog('info', 'Setting up linear contract order for new position', {
             symbol,
             category: inst.category,
-            side: orderData.side
+            side: orderData.side,
+            reduceOnly: orderData.reduceOnly
           })
-          
-          // Force new position, not reduce-only
-          orderData.reduceOnly = false
-          
-          // Important: Remove any position constraints to let API handle mode
-          // This avoids "position idx not match position mode" errors
         }
 
         // Execute the order with comprehensive fallback logic
@@ -427,90 +515,95 @@ serve(async (req) => {
           side: side === 'Buy' ? 'Buy' : 'Sell',
           orderType: 'Market',
           qty: String(qty),
-          timeInForce: 'IOC'
+          timeInForce: 'IOC',
+          reduceOnly: false  // CRITICAL: Explicitly set to false for new positions
         };
         
         // Try clean order first (recommended approach)
-        structuredLog('info', { event: 'Attempting clean order (no position idx)' });
+        structuredLog('info', 'Attempting clean order with explicit reduceOnly=false', {
+          order: { ...baseOrder },
+          symbol,
+          qty: String(qty),
+          side: baseOrder.side
+        });
+        
         try {
           orderResult = await client.signedRequest('POST', '/v5/order/create', baseOrder);
           
           if (orderResult?.retCode === 0) {
-            structuredLog('info', { event: 'Order placed successfully', orderId: orderResult.result?.orderId });
+            structuredLog('info', 'Order placed successfully', { 
+              orderId: orderResult.result?.orderId,
+              symbol,
+              side: baseOrder.side,
+              qty: String(qty)
+            });
           } else {
             throw new Error(orderResult?.retMsg || 'Clean order failed');
           }
         } catch (cleanError: any) {
           lastError = cleanError;
-          structuredLog('warning', { event: 'Clean order failed, trying with position modes', error: cleanError.message });
+          structuredLog('warning', 'Clean order failed, trying with position modes', { 
+            error: cleanError.message,
+            symbol,
+            side: baseOrder.side
+          });
           
-          // Try OneWay mode (positionIdx=0)
-          structuredLog('info', { event: 'Attempting order with OneWay mode (0)' });
+          // Try OneWay mode (positionIdx=0) - most compatible
+          structuredLog('info', 'Attempting order with OneWay mode (positionIdx=0)');
           try {
-            orderResult = await client.signedRequest('POST', '/v5/order/create', {
-              ...baseOrder,
-              positionIdx: 0
-            });
+            const oneWayOrder = { ...baseOrder, positionIdx: 0 };
+            orderResult = await client.signedRequest('POST', '/v5/order/create', oneWayOrder);
             
             if (orderResult?.retCode === 0) {
-              structuredLog('info', { event: 'OneWay order successful', orderId: orderResult.result?.orderId });
+              structuredLog('info', 'OneWay order successful', { 
+                orderId: orderResult.result?.orderId,
+                positionIdx: 0
+              });
             } else {
               throw new Error(orderResult?.retMsg || 'OneWay order failed');
             }
           } catch (oneWayError: any) {
             lastError = oneWayError;
-            structuredLog('warning', { event: 'OneWay mode failed, trying hedge modes', error: oneWayError.message });
+            structuredLog('warning', 'OneWay mode failed, trying hedge mode for Buy side', { 
+              error: oneWayError.message 
+            });
             
-            // Try Hedge Buy mode (positionIdx=1)
-            structuredLog('info', { event: 'Attempting order with Hedge Buy mode (1)' });
+            // Try Hedge mode with appropriate position index based on side
+            const hedgePositionIdx = side === 'Buy' ? 1 : 2; // Buy=1, Sell=2 in hedge mode
+            structuredLog('info', `Attempting order with Hedge mode (positionIdx=${hedgePositionIdx})`);
+            
             try {
-              orderResult = await client.signedRequest('POST', '/v5/order/create', {
-                ...baseOrder,
-                positionIdx: 1
-              });
+              const hedgeOrder = { ...baseOrder, positionIdx: hedgePositionIdx };
+              orderResult = await client.signedRequest('POST', '/v5/order/create', hedgeOrder);
               
               if (orderResult?.retCode === 0) {
-                structuredLog('info', { event: 'Hedge Buy order successful', orderId: orderResult.result?.orderId });
+                structuredLog('info', `Hedge mode order successful`, { 
+                  orderId: orderResult.result?.orderId,
+                  positionIdx: hedgePositionIdx,
+                  side
+                });
               } else {
-                throw new Error(orderResult?.retMsg || 'Hedge Buy order failed');
+                throw new Error(orderResult?.retMsg || `Hedge mode order failed`);
               }
-            } catch (hedgeBuyError: any) {
-              lastError = hedgeBuyError;
+            } catch (hedgeError: any) {
+              lastError = hedgeError;
+              structuredLog('error', 'All order placement attempts failed', {
+                finalError: hedgeError.message,
+                qty: String(qty),
+                symbol,
+                side,
+                amountUSD: finalAmountUSD,
+                leverage: scaledLeverage,
+                isScalping
+              });
               
-              // Try Hedge Sell mode (positionIdx=2)
-              structuredLog('info', { event: 'Attempting order with Hedge Sell mode (2)' });
-              try {
-                orderResult = await client.signedRequest('POST', '/v5/order/create', {
-                  ...baseOrder,
-                  positionIdx: 2
-                });
-                
-                if (orderResult?.retCode === 0) {
-                  structuredLog('info', { event: 'Hedge Sell order successful', orderId: orderResult.result?.orderId });
-                } else {
-                  throw new Error(orderResult?.retMsg || 'Hedge Sell order failed');
-                }
-              } catch (hedgeSellError: any) {
-                structuredLog('error', { 
-                  event: 'All order placement attempts failed',
-                  finalError: hedgeSellError.message,
-                  qty: qty.toString(),
-                  symbol,
-                  side,
-                  amountUSD: finalAmountUSD,
-                  leverage: scaledLeverage,
-                  isScalping
-                });
-                
-                return json({ 
-                  success: false, 
-                  error: `Order placement failed: ${hedgeSellError.message}. Please check your account balance and try a smaller amount.` 
-                }, 400);
-              }
+              // All attempts failed
+              throw new Error(`Order placement failed after all attempts: ${hedgeError.message}`);
             }
           }
         }
         
+        // Order execution completed successfully
         result = orderResult;
 
         structuredLog('info', 'Main order executed successfully', { 
