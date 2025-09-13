@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS: TradingSettings = {
   defaultTPPercent: 4,   // 4% take profit  
   useScalpingMode: false,
   orderType: 'limit',
-  maxLeverage: 25,
+  maxLeverage: 100,
   excludeInnovationZone: true  // Exclude high-fee Innovation Zone pairs by default
 };
 
