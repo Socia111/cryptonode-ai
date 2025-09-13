@@ -101,8 +101,12 @@ serve(async (req) => {
         }, 400);
       }
 
-      // Check if paper trading mode
-      const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
+      // Get API credentials
+      const apiKey = Deno.env.get('BYBIT_API_KEY');
+      const apiSecret = Deno.env.get('BYBIT_API_SECRET');
+      
+      // Always use paper trading if credentials are missing or explicitly enabled
+      const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true' || !apiKey || !apiSecret;
       
       if (isPaperMode) {
         console.log('📝 Paper trading mode - simulating execution');
@@ -128,16 +132,7 @@ serve(async (req) => {
         });
       }
 
-      // Real trading
-      const apiKey = Deno.env.get('BYBIT_API_KEY');
-      const apiSecret = Deno.env.get('BYBIT_API_SECRET');
-      
-      if (!apiKey || !apiSecret) {
-        return jsonResponse({
-          success: false,
-          error: 'Bybit API credentials not configured'
-        }, 400);
-      }
+      // Real trading (credentials already validated above)
 
       const client = new BybitClient(apiKey, apiSecret, true); // Always use testnet for safety
 
