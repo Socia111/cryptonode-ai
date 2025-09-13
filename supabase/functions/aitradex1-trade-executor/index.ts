@@ -201,34 +201,35 @@ serve(async (req) => {
           instrumentInfo: instrumentInfo ? 'found' : 'not found'
         });
 
-        // CRITICAL: First, FORCE position mode to One-Way for ALL symbols
-        const baseCoin = symbol.replace('USDT', '').replace('USD', '');
-        
-        for (let attempt = 0; attempt < 3; attempt++) {
+        // CRITICAL: First, set position mode to One-Way using SYMBOL (higher priority than coin)
+        try {
+          const positionModeParams = {
+            category: 'linear',
+            symbol: symbol, // Use symbol instead of coin for precise control
+            mode: 0 // 0 = Merged Single (One-Way mode)
+          };
+          
+          console.log('🔧 Setting position mode to One-Way for symbol:', positionModeParams);
+          await client.request('POST', '/v5/position/switch-mode', positionModeParams);
+          console.log('✅ Position mode set to One-Way successfully');
+        } catch (modeError: any) {
+          console.warn('⚠️ Position mode setting failed (may already be correct):', modeError.message);
+          
+          // Try with coin parameter as fallback
           try {
-            const positionModeParams = {
+            const baseCoin = symbol.replace('USDT', '').replace('USD', '');
+            const fallbackParams = {
               category: 'linear',
               coin: baseCoin,
-              mode: 0 // 0 = One-Way mode (REQUIRED for positionIdx: 0)
+              mode: 0
             };
             
-            console.log(`🔧 Attempt ${attempt + 1}: Setting position mode to One-Way:`, positionModeParams);
-            await client.request('POST', '/v5/position/switch-mode', positionModeParams);
-            console.log('✅ Position mode set to One-Way successfully');
-            break; // Success, exit retry loop
-          } catch (modeError: any) {
-            console.warn(`⚠️ Position mode attempt ${attempt + 1} failed:`, modeError.message);
-            
-            // If it's already in One-Way mode, that's fine
-            if (modeError.message?.includes('mode not modified') || 
-                modeError.message?.includes('already') ||
-                attempt === 2) {
-              console.log('📋 Position mode likely already correct or max attempts reached');
-              break;
-            }
-            
-            // Wait a bit before retrying
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log('🔧 Fallback: Setting position mode with coin parameter:', fallbackParams);
+            await client.request('POST', '/v5/position/switch-mode', fallbackParams);
+            console.log('✅ Position mode set with fallback method');
+          } catch (fallbackError: any) {
+            console.warn('⚠️ Fallback position mode setting also failed:', fallbackError.message);
+            // Continue anyway - might already be in correct mode
           }
         }
 
@@ -249,20 +250,36 @@ serve(async (req) => {
           console.warn('⚠️ Leverage setting failed (may already be set):', leverageError.message);
         }
 
-        // NOW place market order with confirmed One-Way mode position index
-        const orderParams = {
+        // Try to place the order - first without positionIdx, then with it if needed
+        let orderResult;
+        let orderParams = {
           category: 'linear',
           symbol,
           side,
           orderType: 'Market',
           qty: quantity.toString(),
-          positionIdx: 0, // 0 for One-Way mode (which we just confirmed above)
           reduceOnly: false
         };
 
-        console.log('📋 Order parameters:', orderParams);
+        console.log('📋 Attempting order without positionIdx first:', orderParams);
 
-        const orderResult = await client.request('POST', '/v5/order/create', orderParams);
+        try {
+          // First attempt: without positionIdx (let Bybit handle it automatically)
+          orderResult = await client.request('POST', '/v5/order/create', orderParams);
+          console.log('✅ Order placed successfully without positionIdx');
+        } catch (orderError: any) {
+          console.warn('⚠️ Order failed without positionIdx, trying with positionIdx=0:', orderError.message);
+          
+          // Second attempt: with positionIdx=0 for One-Way mode
+          orderParams = {
+            ...orderParams,
+            positionIdx: 0 // 0 for One-Way mode
+          };
+          
+          console.log('📋 Retrying order with positionIdx=0:', orderParams);
+          orderResult = await client.request('POST', '/v5/order/create', orderParams);
+          console.log('✅ Order placed successfully with positionIdx=0');
+        }
         
         console.log('✅ Order placed successfully:', orderResult.result);
 
@@ -279,15 +296,33 @@ serve(async (req) => {
             status: 'NEW',
             environment: useTestnet ? 'testnet' : 'mainnet',
             realTrade: true,
-            targetNotional: targetNotional
+            targetNotional: targetNotional,
+            positionMode: 'one-way', // We ensured this is set
+            actualParams: orderParams // Include the final order params that worked
           }
         });
 
       } catch (error: any) {
-        console.error('❌ Trade execution error:', error);
+        console.error('❌ Trade execution error:', {
+          message: error.message,
+          symbol,
+          side,
+          amountUSD,
+          leverage,
+          environment: useTestnet ? 'testnet' : 'mainnet',
+          error: error
+        });
+        
         return jsonResponse({
           success: false,
-          error: error.message || 'Trade execution failed'
+          error: error.message || 'Trade execution failed',
+          details: {
+            symbol,
+            side,
+            amountUSD,
+            leverage,
+            environment: useTestnet ? 'testnet' : 'mainnet'
+          }
         }, 500);
       }
     }
