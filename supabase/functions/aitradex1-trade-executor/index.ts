@@ -157,17 +157,48 @@ serve(async (req) => {
         const tickerData = await tickerResponse.json();
         const currentPrice = parseFloat(tickerData.result?.list?.[0]?.lastPrice || '50000');
 
-        // Calculate quantity
+        // Calculate quantity with proper validation
         const targetNotional = amountUSD * leverage;
-        const quantity = (targetNotional / currentPrice).toFixed(6);
+        let quantity = targetNotional / currentPrice;
+        
+        // Get instrument info for proper quantity formatting
+        let instrumentInfo;
+        try {
+          const instrResponse = await fetch(`${baseURL}/v5/market/instruments-info?category=linear&symbol=${symbol}`);
+          const instrData = await instrResponse.json();
+          instrumentInfo = instrData.result?.list?.[0];
+        } catch (e) {
+          console.warn('Could not get instrument info, using defaults');
+        }
+        
+        // Apply proper quantity step and minimums
+        if (instrumentInfo) {
+          const qtyStep = parseFloat(instrumentInfo.lotSizeFilter?.qtyStep || '0.001');
+          const minOrderQty = parseFloat(instrumentInfo.lotSizeFilter?.minOrderQty || '0.001');
+          
+          // Round to step size
+          quantity = Math.floor(quantity / qtyStep) * qtyStep;
+          
+          // Ensure minimum quantity
+          quantity = Math.max(quantity, minOrderQty);
+          
+          // Format to appropriate decimal places
+          const stepDecimals = qtyStep.toString().split('.')[1]?.length || 3;
+          quantity = parseFloat(quantity.toFixed(stepDecimals));
+        } else {
+          // Fallback formatting
+          quantity = parseFloat(quantity.toFixed(3));
+          quantity = Math.max(quantity, 0.001); // Minimum fallback
+        }
 
         console.log('💰 Order calculation:', {
           symbol,
           side,
           currentPrice,
-          quantity,
+          targetNotional,
+          calculatedQty: quantity,
           leverage,
-          targetNotional
+          instrumentInfo: instrumentInfo ? 'found' : 'not found'
         });
 
         // Place market order
@@ -176,7 +207,7 @@ serve(async (req) => {
           symbol,
           side,
           orderType: 'Market',
-          qty: quantity,
+          qty: quantity.toString(), // Convert to string for API
           leverage: leverage.toString(),
           positionIdx: 0,
           reduceOnly: false
@@ -192,13 +223,14 @@ serve(async (req) => {
             orderId: orderResult.result.orderId,
             symbol,
             side,
-            qty: quantity,
+            qty: quantity.toString(),
             price: currentPrice,
             amount: amountUSD,
             leverage,
             status: 'NEW',
             environment: useTestnet ? 'testnet' : 'mainnet',
-            realTrade: true
+            realTrade: true,
+            targetNotional: targetNotional
           }
         });
 
