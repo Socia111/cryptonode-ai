@@ -113,8 +113,11 @@ const SignalsList = () => {
     const orderAmount = Math.max(25, parseFloat(orderSize)); // Ensure minimum $25
     const res = await TradingGateway.execute({ 
       symbol: signal.token, 
-      side, 
-      amountUSD: orderAmount
+      side: signal.direction === 'BUY' ? 'Buy' : 'Sell', 
+      amountUSD: orderAmount,
+      uiEntry: signal.entry_price,
+      uiTP: signal.take_profit,
+      uiSL: signal.stop_loss
     });
     
     if (!res.ok && res.code === 'DISABLED') {

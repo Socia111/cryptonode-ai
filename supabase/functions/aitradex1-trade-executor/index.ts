@@ -110,6 +110,12 @@ function roundToStep(value: number, stepSize: number): number {
   return Math.floor(value / stepSize + 1e-12) * stepSize;
 }
 
+// Helper to round prices to tick size
+function roundToTick(price: number, tick: number): number {
+  if (!tick || tick <= 0) return price;
+  return Math.round(price / tick) * tick;
+}
+
 // Symbol validation - allow all symbols including digits
 function isSymbolAllowed(symbol: string): boolean {
   const allowAll = (Deno.env.get("ALLOWED_SYMBOLS") || "*").trim();
@@ -385,8 +391,8 @@ serve(async (req) => {
         }
 
         // Round prices to tick size
-        finalStopLoss = roundToStep(finalStopLoss, inst.tickSize);
-        finalTakeProfit = roundToStep(finalTakeProfit, inst.tickSize);
+        finalStopLoss = roundToTick(finalStopLoss, inst.tickSize);
+        finalTakeProfit = roundToTick(finalTakeProfit, inst.tickSize);
         
         structuredLog('info', 'Risk management prices calculated', {
           entryPrice: price,
@@ -418,7 +424,7 @@ serve(async (req) => {
 
         // Add price for limit orders
         if (finalOrderType === 'Limit' && finalEntryPrice) {
-          orderData.price = roundToStep(finalEntryPrice, inst.tickSize).toString();
+          orderData.price = roundToTick(finalEntryPrice, inst.tickSize).toString();
         }
 
         // Attach TP/SL if valid (Bybit V5 supports this)
