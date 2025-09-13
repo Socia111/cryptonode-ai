@@ -27,22 +27,22 @@ import {
 } from "@/components/ui/sidebar";
 
 const mainItems = [
-  { title: "Dashboard", url: "/", icon: Home },
-  { title: "X Platform", url: "/x", icon: TrendingUp },
-  { title: "X1 System", url: "/x1", icon: BarChart3 },
-  { title: "X2 Advanced", url: "/x2", icon: PieChart },
-  { title: "Original AI", url: "/AITRADEX1ORIGINAL", icon: Zap },
-  { title: "Trade", url: "/trade", icon: TrendingUp },
-  { title: "Portfolio", url: "/portfolio", icon: Wallet },
-  { title: "Signals", url: "/signals", icon: Zap },
-  { title: "Markets", url: "/markets", icon: BarChart3 },
-  { title: "Backtests", url: "/backtests", icon: TestTube },
-  { title: "Automation", url: "/automation", icon: Bot },
-  { title: "Alerts", url: "/alerts", icon: Bell },
+  { title: "Dashboard", url: "/", icon: Home, desc: "Main overview and trading hub" },
+  { title: "X Platform", url: "/x", icon: TrendingUp, desc: "Core trading platform" },
+  { title: "X1 System", url: "/x1", icon: BarChart3, desc: "Advanced AI scanner" },
+  { title: "X2 Advanced", url: "/x2", icon: PieChart, desc: "Premium analytics" },
+  { title: "Original AI", url: "/AITRADEX1ORIGINAL", icon: Zap, desc: "Canonical implementation" },
+  { title: "Trade", url: "/trade", icon: TrendingUp, desc: "Live trading interface" },
+  { title: "Portfolio", url: "/portfolio", icon: Wallet, desc: "Portfolio management" },
+  { title: "Signals", url: "/signals", icon: Zap, desc: "Trading signals feed" },
+  { title: "Markets", url: "/markets", icon: BarChart3, desc: "Market analysis" },
+  { title: "Backtests", url: "/backtests", icon: TestTube, desc: "Strategy testing" },
+  { title: "Automation", url: "/automation", icon: Bot, desc: "Auto trading setup" },
+  { title: "Alerts", url: "/alerts", icon: Bell, desc: "Notifications & alerts" },
 ];
 
 const settingsItems = [
-  { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Settings", url: "/settings", icon: Settings, desc: "App configuration" },
 ];
 
 export function AppSidebar() {
@@ -65,7 +65,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar
-      className={collapsed ? "w-16" : "w-64"}
+      className={collapsed ? "w-16" : "w-80"}
       collapsible="icon"
       side="left"
     >
@@ -97,13 +97,18 @@ export function AppSidebar() {
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
+                     <NavLink 
                       to={item.url} 
                       end={item.url === "/"}
-                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors`}
+                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors ${collapsed ? 'p-3' : 'p-4'}`}
                     >
-                      <item.icon className="w-5 h-5 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.title}</span>}
+                      <item.icon className={`shrink-0 ${collapsed ? 'w-6 h-6' : 'w-8 h-8'}`} />
+                      {!collapsed && (
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="font-medium text-sm truncate">{item.title}</span>
+                          <span className="text-xs text-muted-foreground truncate">{item.desc}</span>
+                        </div>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -119,12 +124,17 @@ export function AppSidebar() {
               {settingsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
+                     <NavLink 
                       to={item.url}
-                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors`}
+                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors ${collapsed ? 'p-3' : 'p-4'}`}
                     >
-                      <item.icon className="w-5 h-5 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.title}</span>}
+                      <item.icon className={`shrink-0 ${collapsed ? 'w-6 h-6' : 'w-8 h-8'}`} />
+                      {!collapsed && (
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="font-medium text-sm truncate">{item.title}</span>
+                          <span className="text-xs text-muted-foreground truncate">{item.desc}</span>
+                        </div>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
