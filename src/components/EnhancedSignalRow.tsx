@@ -118,7 +118,10 @@ export function EnhancedSignalRow({ signal }: EnhancedSignalRowProps) {
       </div>
       
       <Button 
-        onClick={executeSignalTrade}
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent event bubbling
+          executeSignalTrade();
+        }}
         disabled={isExecuting}
         size="sm"
         className={signal.direction === 'LONG' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}

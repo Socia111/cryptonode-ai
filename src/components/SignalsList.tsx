@@ -25,6 +25,7 @@ const SignalsList = () => {
   const [useLeverage, setUseLeverage] = useState(false);
   const [debugInfo, setDebugInfo] = useState(null);
   const [isExecutingOrder, setIsExecutingOrder] = useState(false);
+  const [executingSignals, setExecutingSignals] = useState(new Set<string>());
   const [bulkExecuteMode, setBulkExecuteMode] = useState(false);
   const [executedSignals, setExecutedSignals] = useState(new Set());
   const [autoExecute, setAutoExecute] = useState(false);
@@ -109,7 +110,8 @@ const SignalsList = () => {
       return;
     }
 
-    setIsExecutingOrder(true);
+    // Set this specific signal as executing
+    setExecutingSignals(prev => new Set(prev).add(signal.id));
     try {
       // Ensure we have a proper symbol (map token -> symbol if needed)
       const symbol = signal.token || signal.symbol;
@@ -176,7 +178,12 @@ const SignalsList = () => {
         variant: "destructive",
       });
     } finally {
-      setIsExecutingOrder(false);
+      // Remove this signal from executing set
+      setExecutingSignals(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(signal.id);
+        return newSet;
+      });
     }
   };
 
@@ -430,10 +437,13 @@ const SignalsList = () => {
                           size="sm"
                           variant={isBuy ? "default" : "destructive"}
                           className="text-xs"
-                          onClick={() => executeOrder(signal)}
-                          disabled={isExecutingOrder || !FEATURES.AUTOTRADE_ENABLED || isExecuted}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent event bubbling
+                            executeOrder(signal);
+                          }}
+                          disabled={executingSignals.has(signal.id) || !FEATURES.AUTOTRADE_ENABLED || isExecuted}
                         >
-                          {isExecutingOrder ? 'Executing...' : FEATURES.AUTOTRADE_ENABLED ? 'Execute Trade' : 'Disabled'}
+                          {executingSignals.has(signal.id) ? 'Executing...' : FEATURES.AUTOTRADE_ENABLED ? 'Execute Trade' : 'Disabled'}
                         </Button>
                       </div>
                     </div>
