@@ -1,7 +1,8 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import MarketOverview from '../components/MarketOverview';
-import SignalsList from '../components/SignalsList';
+import { SignalFeedAdvanced } from '../components/SignalFeedAdvanced';
+import { useSignals } from '@/hooks/useSignals';
 import TradingChart from '../components/TradingChart';
 import PortfolioStats from '../components/PortfolioStats';
 import DatabaseSetup from '../components/DatabaseSetup';
@@ -17,6 +18,7 @@ import { useAutoPilot } from '../hooks/useAutoPilot';
 
 const X = () => {
   const { autoTradeSettings } = useAutoPilot();
+  const { signals } = useSignals();
   
   return (
     <MainLayout>
@@ -62,7 +64,7 @@ const X = () => {
             <TelegramIntegration />
             <QuantumAnalysis />
             <SpynxScoreCard />
-            <SignalsList />
+            <SignalFeedAdvanced signals={signals} algorithm="advanced" />
           </div>
         </div>
       </div>
