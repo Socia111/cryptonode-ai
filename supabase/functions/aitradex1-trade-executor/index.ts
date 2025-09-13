@@ -84,10 +84,14 @@ serve(async (req) => {
 
     // Handle status check
     if (action === 'status') {
+      const useTestnet = Deno.env.get('BYBIT_TESTNET') === 'true';
+      const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
+      
       return jsonResponse({
         ok: true,
         status: 'operational',
-        environment: 'testnet',
+        environment: useTestnet ? 'testnet' : 'mainnet',
+        paper_mode: isPaperMode,
         timestamp: new Date().toISOString()
       });
     }
@@ -105,8 +109,16 @@ serve(async (req) => {
       const apiKey = Deno.env.get('BYBIT_API_KEY');
       const apiSecret = Deno.env.get('BYBIT_API_SECRET');
       
-      // Always use paper trading if credentials are missing or explicitly enabled
-      const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true' || !apiKey || !apiSecret;
+      // Check credentials first
+      if (!apiKey || !apiSecret) {
+        return jsonResponse({
+          success: false,
+          error: 'Bybit API credentials not configured. Please add BYBIT_API_KEY and BYBIT_API_SECRET in edge function secrets.'
+        }, 400);
+      }
+
+      // Use paper trading only if explicitly enabled
+      const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
       
       if (isPaperMode) {
         console.log('📝 Paper trading mode - simulating execution');
@@ -132,13 +144,14 @@ serve(async (req) => {
         });
       }
 
-      // Real trading (credentials already validated above)
-
-      const client = new BybitClient(apiKey, apiSecret, true); // Always use testnet for safety
+      // Real trading - use mainnet unless testnet is explicitly enabled
+      const useTestnet = Deno.env.get('BYBIT_TESTNET') === 'true';
+      const client = new BybitClient(apiKey, apiSecret, useTestnet);
+      const baseURL = useTestnet ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com';
 
       try {
-        // Get current price
-        const tickerResponse = await fetch(`https://api-testnet.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`);
+        // Get current price from the appropriate environment
+        const tickerResponse = await fetch(`${baseURL}/v5/market/tickers?category=linear&symbol=${symbol}`);
         const tickerData = await tickerResponse.json();
         const currentPrice = parseFloat(tickerData.result?.list?.[0]?.lastPrice || '50000');
 
@@ -182,7 +195,8 @@ serve(async (req) => {
             amount: amountUSD,
             leverage,
             status: 'NEW',
-            testnet: true
+            environment: useTestnet ? 'testnet' : 'mainnet',
+            realTrade: true
           }
         });
 
