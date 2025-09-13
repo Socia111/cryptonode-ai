@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { normalizeSide } from '@/lib/tradingTypes';
 import MainLayout from '../layouts/MainLayout';
 import { SignalFeed } from '@/components/SignalFeed';
 import { useSignals } from '@/hooks/useSignals';
@@ -33,7 +34,7 @@ const Signals = () => {
   const executeTrade = async (signal: any) => {
     setIsExecuting(true);
     try {
-      const side = signal.direction === 'LONG' ? 'BUY' : 'SELL';
+      const side = normalizeSide(signal.direction === 'LONG' ? 'BUY' : 'SELL');
       const result = await TradingGateway.execute({
         symbol: signal.token,
         side,

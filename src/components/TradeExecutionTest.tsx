@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { normalizeSide } from '@/lib/tradingTypes';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -71,7 +72,7 @@ export function TradeExecutionTest() {
     try {
       const result = await TradingGateway.execute({
         symbol: 'BTCUSDT',
-        side: 'BUY',
+        side: normalizeSide('BUY'),
         ...params
       });
       

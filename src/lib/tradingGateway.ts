@@ -28,6 +28,7 @@ export interface ExecResult {
   data?: any;
   error?: string;
   status?: number;
+  code?: string;            // Keep optional for compatibility
 }
 
 // Get the functions base URL using the hardcoded Supabase URL

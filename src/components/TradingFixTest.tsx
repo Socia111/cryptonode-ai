@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { normalizeSide } from '@/lib/tradingTypes';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +35,7 @@ export function TradingFixTest() {
           
           const tradeResult = await TradingGateway.execute({
             symbol,
-            side: 'BUY',
+            side: normalizeSide('BUY'),
             amountUSD: 10, // Minimum test size
             leverage: 1
           });

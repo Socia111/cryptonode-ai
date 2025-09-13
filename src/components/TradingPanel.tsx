@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { normalizeSide } from '@/lib/tradingTypes';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,14 +44,15 @@ const TradingPanel = () => {
     setIsExecuting(true);
     
     try {
-      const side = signal.direction === 'LONG' ? 'BUY' : 'SELL';
+      const side = normalizeSide(signal.direction === 'LONG' ? 'BUY' : 'SELL');
       const res = await TradingGateway.execute({ 
         symbol: signal.symbol, 
         side, 
-        amountUSD: Math.max(25, settings.quantity)
+        amountUSD: Math.max(25, settings.quantity),
+        leverage: settings.leverage || 1
       });
       
-      if (!res.ok && res.code === 'DISABLED') {
+      if (!res.ok) {
         toast({
           title: "Auto-trading disabled", 
           description: res.message,
