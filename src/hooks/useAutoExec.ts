@@ -2,7 +2,7 @@ import * as React from 'react';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { useGlobalTrade } from '@/store/useGlobalTrade';
 
-type Ranked = { id: string; token?: string; symbol?: string; direction: string; _grade: 'A+'|'A'|'B'|'C'; timeframe?: string };
+type Ranked = { id: string | number; token?: string; symbol?: string; direction: string; grade: 'A+'|'A'|'B'|'C'; timeframe?: string };
 
 export function useAutoExec(opts: {
   rankedSignals: Ranked[];
@@ -18,9 +18,9 @@ export function useAutoExec(opts: {
   React.useEffect(() => {
     if (!auto || busy || !rankedSignals?.length) return;
     const candidate = rankedSignals.find(s =>
-      (s._grade === 'A+' || s._grade === 'A') &&
+      (s.grade === 'A+' || s.grade === 'A') &&
       (!skip || !skip(s)) &&
-      s.id !== lastIdRef.current
+      String(s.id) !== lastIdRef.current
     );
     if (!candidate) return;
 
@@ -48,7 +48,7 @@ export function useAutoExec(opts: {
           reduceOnly: false // Explicitly ensure we're opening new positions
         });
         
-        lastIdRef.current = candidate.id;
+        lastIdRef.current = String(candidate.id);
         console.log('🤖 Auto-execution result:', res);
         
         if (res.ok) {

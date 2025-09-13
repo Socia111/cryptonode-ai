@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { tradingSettings } from '@/lib/tradingSettings';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 interface EnhancedSignalRowProps {
   signal: {
@@ -59,7 +59,7 @@ export function EnhancedSignalRow({ signal }: EnhancedSignalRowProps) {
       if (result.ok) {
         toast({
           title: "Trade Executed",
-          description: `${signal.direction} ${signal.symbol} order placed successfully`,
+          description: `${signal.direction} ${signal.symbol || signal.token} order placed successfully`,
         });
       } else {
         toast({
@@ -87,7 +87,7 @@ export function EnhancedSignalRow({ signal }: EnhancedSignalRowProps) {
     <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
       <div className="flex items-center gap-4">
         <div className="flex flex-col">
-          <span className="font-medium">{signal.symbol}</span>
+          <span className="font-medium">{signal.symbol || signal.token}</span>
           <span className="text-xs text-muted-foreground">
             {new Date(signal.created_at).toLocaleTimeString()}
           </span>
