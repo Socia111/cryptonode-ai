@@ -77,11 +77,12 @@ export function subscribeSignals(
           }
         }
       })
-    .subscribe((status, err) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('[signals-realtime] Successfully subscribed to signals channel');
-      } else if (status === 'CHANNEL_ERROR') {
-        console.warn('[signals-realtime] Channel error:', err);
+      .subscribe((status, err) => {
+        console.log('[signals-realtime] Subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('[signals-realtime] Successfully subscribed to signals channel');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[signals-realtime] Channel error:', err);
         // Gracefully handle subscription errors without throwing
       } else if (status === 'CLOSED') {
         console.log('[signals-realtime] CLOSED');

@@ -393,19 +393,49 @@ serve(async (req) => {
           // NOTE: TP/SL will be set as separate conditional orders after position opens
         }
 
-        // For linear contracts, always open new positions (not reduce-only)
+        // CRITICAL FIX: Handle order parameters from request
+        const requestOrderType = body.orderType || 'Market';
+        const requestTimeInForce = body.timeInForce || 'IOC';
+        const requestPrice = body.price;
+        const requestReduceOnly = body.reduceOnly === true; // Explicit boolean check
+
+        structuredLog('info', 'Processing order parameters', {
+          requestOrderType,
+          requestTimeInForce,
+          requestPrice,
+          requestReduceOnly,
+          bodyReduceOnly: body.reduceOnly
+        });
+
+        // Build order with all parameters
+        orderData.orderType = requestOrderType;
+        orderData.timeInForce = requestTimeInForce;
+        
+        // Add price for limit orders
+        if (requestOrderType === 'Limit') {
+          if (!requestPrice || requestPrice <= 0) {
+            throw new Error('Price is required for Limit orders');
+          }
+          orderData.price = String(requestPrice);
+        }
+
+        // For linear contracts, handle reduceOnly properly
         if (inst.category === 'linear') {
           structuredLog('info', 'Setting up linear contract order', {
             symbol,
             category: inst.category,
-            side: orderData.side
-          })
+            side: orderData.side,
+            reduceOnly: requestReduceOnly
+          });
           
-          // Force new position unless explicitly requested to reduce
-          orderData.reduceOnly = reduceOnly;
+          // CRITICAL: Always false for new positions to avoid reduce-only error
+          orderData.reduceOnly = requestReduceOnly;
           
-          // Important: Remove any position constraints to let API handle mode
-          // This avoids "position idx not match position mode" errors
+          // Log the final order configuration
+          structuredLog('info', 'Final order configuration', {
+            ...orderData,
+            isNewPosition: !requestReduceOnly
+          });
         }
 
         // Execute the order with comprehensive fallback logic
