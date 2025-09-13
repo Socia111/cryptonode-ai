@@ -167,25 +167,36 @@ serve(async (req) => {
           });
 
           // Check if we have enough balance for the requested order
-          const requiredMargin = amountUSD; // For simplicity, require 1:1 margin
+          // For leveraged trading, we only need margin = amountUSD / leverage
+          const requiredMargin = amountUSD / leverage; // Corrected: divide by leverage for margin requirement
+          
           if (availableBalance < requiredMargin) {
             console.warn('⚠️ Insufficient balance, adjusting order size');
-            // Reduce amount to 80% of available balance to leave some buffer
-            const adjustedAmount = Math.max(5, Math.floor(availableBalance * 0.8));
-            console.log(`📉 Adjusted order size from $${amountUSD} to $${adjustedAmount}`);
+            // Calculate maximum possible order size with current balance
+            const maxOrderSize = Math.floor(availableBalance * leverage * 0.8); // 80% of available balance
+            const adjustedAmount = Math.max(5, maxOrderSize);
+            console.log(`📉 Adjusted order size from $${amountUSD} to $${adjustedAmount} (margin needed: $${requiredMargin}, available: $${availableBalance})`);
             
             if (adjustedAmount < 5) {
               return jsonResponse({
                 success: false,
-                error: `Insufficient balance. Available: $${availableBalance.toFixed(2)}, Required: $${amountUSD}. Minimum order: $5`
+                error: `Insufficient balance. Available: $${availableBalance.toFixed(2)}, Required margin: $${requiredMargin.toFixed(2)}. Minimum order: $5`
               }, 400);
             }
             
             // Update amountUSD to the adjusted amount
             amountUSD = adjustedAmount;
+          } else {
+            console.log(`✅ Sufficient balance. Required margin: $${requiredMargin.toFixed(2)}, Available: $${availableBalance.toFixed(2)}`);
           }
         } catch (balanceError: any) {
-          console.warn('⚠️ Could not check balance, proceeding with original order:', balanceError.message);
+          console.warn('⚠️ Could not check balance, using conservative settings:', balanceError.message);
+          
+          // If balance check fails, use a smaller conservative order size
+          if (amountUSD > 10) {
+            amountUSD = 10; // Limit to $10 if balance check fails
+            console.log(`📉 Conservative fallback: limiting order to $${amountUSD} due to balance check failure`);
+          }
         }
 
         // STEP 2: Get current price from the appropriate environment
@@ -318,17 +329,58 @@ serve(async (req) => {
           orderResult = await client.request('POST', '/v5/order/create', orderParams);
           console.log('✅ Order placed successfully without positionIdx');
         } catch (orderError: any) {
-          console.warn('⚠️ Order failed without positionIdx, trying with positionIdx=0:', orderError.message);
+          console.warn('⚠️ Order failed without positionIdx:', orderError.message);
           
-          // Second attempt: with positionIdx=0 for One-Way mode
-          orderParams = {
-            ...orderParams,
-            positionIdx: 0 // 0 for One-Way mode
-          };
-          
-          console.log('📋 Retrying order with positionIdx=0:', orderParams);
-          orderResult = await client.request('POST', '/v5/order/create', orderParams);
-          console.log('✅ Order placed successfully with positionIdx=0');
+          // Check if it's a balance error and try to reduce order size
+          if (orderError.message?.includes('ab not enough') || orderError.message?.includes('insufficient')) {
+            console.log('💰 Insufficient balance detected, reducing order size...');
+            
+            // Reduce order size by 50% and try again
+            const reducedAmount = Math.max(5, Math.floor(amountUSD * 0.5));
+            const reducedNotional = reducedAmount * leverage;
+            const reducedQuantity = reducedNotional / currentPrice;
+            
+            // Apply instrument formatting to reduced quantity
+            if (instrumentInfo) {
+              const qtyStep = parseFloat(instrumentInfo.lotSizeFilter?.qtyStep || '0.001');
+              const minOrderQty = parseFloat(instrumentInfo.lotSizeFilter?.minOrderQty || '0.001');
+              reducedQuantity = Math.floor(reducedQuantity / qtyStep) * qtyStep;
+              reducedQuantity = Math.max(reducedQuantity, minOrderQty);
+              const stepDecimals = qtyStep.toString().split('.')[1]?.length || 3;
+              reducedQuantity = parseFloat(reducedQuantity.toFixed(stepDecimals));
+            } else {
+              reducedQuantity = parseFloat(reducedQuantity.toFixed(3));
+              reducedQuantity = Math.max(reducedQuantity, 0.001);
+            }
+            
+            console.log(`📉 Retrying with reduced size: $${reducedAmount} (qty: ${reducedQuantity})`);
+            
+            orderParams = {
+              ...orderParams,
+              qty: reducedQuantity.toString(),
+              positionIdx: 0 // Also add positionIdx for this retry
+            };
+            
+            try {
+              orderResult = await client.request('POST', '/v5/order/create', orderParams);
+              console.log('✅ Order placed successfully with reduced size');
+              amountUSD = reducedAmount; // Update amount for response
+              quantity = reducedQuantity; // Update quantity for response
+            } catch (retryError: any) {
+              console.error('❌ Order failed even with reduced size:', retryError.message);
+              throw retryError;
+            }
+          } else {
+            // Try with positionIdx=0 for other errors
+            orderParams = {
+              ...orderParams,
+              positionIdx: 0 // 0 for One-Way mode
+            };
+            
+            console.log('📋 Retrying order with positionIdx=0:', orderParams);
+            orderResult = await client.request('POST', '/v5/order/create', orderParams);
+            console.log('✅ Order placed successfully with positionIdx=0');
+          }
         }
         
         console.log('✅ Order placed successfully:', orderResult.result);
