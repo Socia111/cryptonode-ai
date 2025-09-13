@@ -1,6 +1,6 @@
 // Trade queue system for reliable trade execution
-import { TradingGateway, type ExecuteParams } from './tradingGateway';
-import { normalizeSide, type Side } from './tradingTypes';
+import { TradingGateway } from './tradingGateway';
+import { ExecuteParams, normalizeSide, type Side } from './tradingTypes';
 
 export interface QueuedTrade extends ExecuteParams {
   id: string;

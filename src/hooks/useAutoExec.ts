@@ -1,49 +1,49 @@
 import * as React from 'react';
-import { useAutoTradeStore } from '@/store/autoTradeStore';
-import type { UISignal } from '@/lib/signalScoring';
 import { TradingGateway } from '@/lib/tradingGateway';
+import { useGlobalTrade } from '@/store/useGlobalTrade';
 
-type Args = {
-  rankedSignals: (UISignal & { _score: number; _grade: 'A+'|'A'|'B'|'C' })[];
-  // optional filter (e.g., skip 1m)
-  skip?: (s: UISignal & { _grade: string }) => boolean;
-  onSuccess?: (s: UISignal, res: any) => void;
-  onError?: (s: UISignal, err: any) => void;
-};
+type Ranked = { id: string; token: string; direction: string; _grade: 'A+'|'A'|'B'|'C'; timeframe?: string };
 
-export function useAutoExec({ rankedSignals, skip, onSuccess, onError }: Args) {
-  const { enabled, amountUSD, leverage } = useAutoTradeStore();
-  const [executingId, setExecutingId] = React.useState<string | null>(null);
+export function useAutoExec(opts: {
+  rankedSignals: Ranked[];
+  skip?: (s: Ranked) => boolean;
+  onSuccess?: (s: Ranked) => void;
+  onError?: (s: Ranked, e: any) => void;
+}) {
+  const { rankedSignals, skip, onSuccess, onError } = opts;
+  const { auto, amountUSD, leverage } = useGlobalTrade();
+  const [busy, setBusy] = React.useState(false);
+  const lastIdRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    if (!enabled || !rankedSignals.length || executingId) return;
+    if (!auto || busy || !rankedSignals?.length) return;
+    const candidate = rankedSignals.find(s =>
+      (s._grade === 'A+' || s._grade === 'A') &&
+      (!skip || !skip(s)) &&
+      s.id !== lastIdRef.current
+    );
+    if (!candidate) return;
 
-    const pick = rankedSignals.find(s => (s._grade === 'A+' || s._grade === 'A') && !(skip?.(s)));
-    if (!pick) return;
-
-    let cancelled = false;
     (async () => {
       try {
-        setExecutingId(pick.id);
+        setBusy(true);
         const res = await TradingGateway.execute({
-          symbol: pick.token,
-          side: pick.direction === 'BUY' ? 'Buy' : 'Sell',
+          symbol: candidate.token,
+          side: (candidate.direction as any), // normalized inside gateway
           amountUSD,
           leverage,
+          orderType: 'Market',  // change to 'Limit' if you want default PostOnly
+          timeInForce: 'IOC'
         });
-        if (!cancelled) {
-          if (res?.ok) onSuccess?.(pick, res);
-          else onError?.(pick, res);
-        }
-      } catch (err) {
-        if (!cancelled) onError?.(pick, err);
+        lastIdRef.current = candidate.id;
+        if (res.ok) onSuccess?.(candidate);
+        else onError?.(candidate, res);
+      } catch (e) {
+        onError?.(candidate, e);
       } finally {
-        if (!cancelled) setExecutingId(null);
+        setBusy(false);
       }
     })();
-
-    return () => { cancelled = true; };
-  }, [enabled, rankedSignals, amountUSD, leverage, executingId]);
-
-  return { executingId };
+  // watch only rank list + settings + auto
+  }, [rankedSignals, auto, amountUSD, leverage, skip]);
 }

@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { TradingGateway, type ExecResult, type OrderTIF } from '@/lib/tradingGateway';
+import { TradingGateway } from '@/lib/tradingGateway';
+import { type ExecResult, type OrderTIF } from '@/lib/tradingTypes';
 import { tradingSettings } from '@/lib/tradingSettings';
 
 const TestTrading = () => {

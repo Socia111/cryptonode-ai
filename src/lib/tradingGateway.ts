@@ -1,33 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import { FEATURES } from '@/config/featureFlags';
+import { ExecuteParams, ExecResult, normalizeSide } from '@/lib/tradingTypes';
 
-export type OrderTIF = 'GTC' | 'IOC' | 'FOK' | 'PostOnly' | 'ImmediateOrCancel';
-export type OrderType = 'Market' | 'Limit';
-
-export interface ExecuteParams {
-  symbol: string;
-  side: 'Buy' | 'Sell';
-  amountUSD: number;
-  leverage: number;
-  orderType?: OrderType;
-  timeInForce?: OrderTIF;
-  price?: number;
-  scalpMode?: boolean;
-  entryPrice?: number;
-  stopLoss?: number;
-  takeProfit?: number;
-  reduceOnly?: boolean;
-  meta?: Record<string, any>;
-}
-
-export interface ExecResult {
-  ok: boolean;
-  message?: string;
-  data?: any;
-  error?: string;
-  status?: number;
-  code?: string;            // Keep optional for compatibility
-}
+const ASSERT = (cond: any, msg: string) => { if (!cond) throw new Error(msg); };
 
 // Get the functions base URL using the hardcoded Supabase URL
 function getFunctionsBaseUrl(): string {
@@ -67,10 +42,10 @@ export const TradingGateway = {
       const data = await r.json().catch(() => ({}));
       return { 
         ok: r.ok, 
-        status: r.status, 
         data, 
         message: data?.message, 
-        error: data?.error 
+        error: data?.error,
+        status: r.status
       };
     } catch (error: any) {
       return { 
@@ -81,14 +56,31 @@ export const TradingGateway = {
     }
   },
 
-  async execute(params: ExecuteParams): Promise<ExecResult> {
+  async execute(p: ExecuteParams): Promise<ExecResult> {
     if (!FEATURES.AUTOTRADE_ENABLED) {
       return { ok: false, error: 'DISABLED', message: 'Auto-trading disabled' }
     }
 
     try {
-      console.log('🧭 TradingGateway.execute IN:', params);
-      
+      // Normalize + assert
+      const symbol = (p.symbol || '').replace('/', '').trim().toUpperCase();
+      const side   = normalizeSide(p.side as any);
+      const amount = Number(p.amountUSD);
+      const lev    = Number(p.leverage);
+
+      ASSERT(symbol, 'symbol required');
+      ASSERT(side === 'Buy' || side === 'Sell', 'side invalid');
+      ASSERT(amount >= 0.10 && amount <= 100, 'amount out of range (0.10–100)');
+      ASSERT(lev >= 1 && lev <= 100, 'leverage out of range (1–100)');
+
+      // Order shape
+      const orderType   = p.orderType ?? (p.price ? 'Limit' : 'Market');
+      const timeInForce = p.timeInForce ?? (orderType === 'Limit' ? 'PostOnly' : 'IOC');
+
+      if (orderType === 'Limit') {
+        ASSERT(p.price && p.price > 0, 'price required for Limit');
+      }
+
       const functionsBase = getFunctionsBaseUrl();
       const sessionToken = await getSessionToken();
       
@@ -99,47 +91,32 @@ export const TradingGateway = {
           message: 'Please sign in to execute trades' 
         };
       }
-      
+
+      const payload = {
+        action: 'place_order',
+        symbol,
+        side,
+        amountUSD: amount,
+        leverage: lev,
+        orderType,
+        timeInForce,
+        price: p.price,
+
+        stopLoss: p.stopLoss,
+        takeProfit: p.takeProfit,
+        scalpMode: !!p.scalpMode,
+        entryPrice: p.entryPrice,
+
+        idempotencyKey: `x1-${symbol}-${side}-${Date.now()}`,
+        meta: p.meta || {}
+      };
+
+      console.log('🧭 TradingGateway.execute:', payload);
+
       const headers: Record<string, string> = {
         'content-type': 'application/json',
         'authorization': `Bearer ${sessionToken}`,
       };
-      
-      // Dynamic minimum based on scalp mode
-      const isScalping = params.scalpMode === true;
-      const minAmount = isScalping ? 1 : 5; // $1 for scalping, $5 for normal
-      const amount = Math.max(params.amountUSD || minAmount, minAmount);
-      const leverage = Math.max(params.leverage || 1, 1);
-      
-      // Debug logging for amount adjustments
-      if ((params.amountUSD || 0) < minAmount) {
-        console.warn(`💰 Amount adjusted to minimum: $${params.amountUSD} → $${amount} (${isScalping ? 'scalp' : 'normal'} mode)`);
-      }
-      
-      // Clean symbol format - remove any slashes or spaces
-      const cleanSymbol = params.symbol.replace(/[\/\s]/g, '');
-      
-      const payload = {
-        action: 'place_order',
-        symbol: cleanSymbol,
-        side: params.side,
-        amountUSD: amount,
-        leverage: leverage,
-        // Forward all order execution parameters with defensive defaults
-        orderType: params.orderType ?? 'Market',
-        timeInForce: params.timeInForce ?? (params.orderType === 'Limit' ? 'PostOnly' : 'GTC'),
-        price: params.price,
-        reduceOnly: params.reduceOnly ?? false,
-        scalpMode: isScalping,
-        entryPrice: params.entryPrice || params.price,
-        stopLoss: params.stopLoss,
-        takeProfit: params.takeProfit,
-        meta: params.meta || {},
-        // Add idempotency for reliability
-        idempotencyKey: `fe-${cleanSymbol}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      };
-      
-      console.log('📤 Request body to edge function:', payload);
 
       const r = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
@@ -152,53 +129,32 @@ export const TradingGateway = {
         console.error('❌ HTTP Error:', r.status, errorText);
         return { 
           ok: false, 
-          error: 'HTTP_ERROR', 
           message: `HTTP ${r.status}: ${errorText}`,
+          error: 'HTTP_ERROR',
           status: r.status
         };
       }
 
       const data = await r.json();
       
-      // Enhanced response logging
-      const out: ExecResult = { 
-        ok: r.ok && data?.success !== false, 
-        status: r.status, 
-        data,
-        message: data?.message,
-        error: data?.error
-      };
-      console.log('🧭 TradingGateway.execute OUT:', out);
-      
-      // Enhanced SL/TP confirmation logging
-      if (data.success && data.data) {
-        const result = data.data;
-        console.log('🔍 Order Execution Details:', {
-          mainOrder: result.orderId || result.order_id,
-          slAttached: !!(result.slOrder || result.stopLossOrder),
-          tpAttached: !!(result.tpOrder || result.takeProfitOrder),
-          orderType: result.orderType || payload.orderType,
-          slPrice: result.slOrder?.triggerPrice || result.stopLossOrder?.price,
-          tpPrice: result.tpOrder?.triggerPrice || result.takeProfitOrder?.price
-        });
-      }
-      
       if (!data.success) {
         console.error('❌ Trade execution failed:', data);
         return { 
           ok: false, 
-          error: 'TRADE_FAILED', 
           message: data?.error || data?.message || 'Unknown error',
+          error: 'TRADE_FAILED',
           data: data?.details
         };
       }
 
-      console.log('✅ Live trade executed successfully:', data);
-      return out;
+      // Expect SL/TP confirmation fields from function if available
+      const hasRisk = !!(data?.slOrder || data?.tpOrder || data?.stopLossOrder || data?.takeProfitOrder);
+      console.log('✅ Live trade executed successfully:', { ...data, hasRisk });
+      return { ok: true, data: { ...data, hasRisk } };
       
-    } catch (error: any) {
-      console.error('❌ Trading gateway error:', error);
-      return { ok: false, error: 'NETWORK_ERROR', message: error.message };
+    } catch (e: any) {
+      console.error('❌ Trading gateway error:', e);
+      return { ok: false, message: e?.message ?? 'execute failed', error: 'ASSERT' };
     }
   },
 
