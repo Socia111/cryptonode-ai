@@ -201,31 +201,35 @@ serve(async (req) => {
           instrumentInfo: instrumentInfo ? 'found' : 'not found'
         });
 
-        // Place market order with position index for One-Way mode
-        const orderParams = {
-          category: 'linear',
-          symbol,
-          side,
-          orderType: 'Market',
-          qty: quantity.toString(),
-          positionIdx: 0, // 0 for One-Way mode (which we just set above)
-          reduceOnly: false
-        };
-
-        // First, set position mode to One-Way (safer and more reliable)
-        try {
-          const positionModeParams = {
-            category: 'linear',
-            coin: symbol.replace('USDT', ''), // Extract base coin (e.g., BTC from BTCUSDT)
-            mode: 0 // 0 = One-Way mode, 3 = Hedge mode
-          };
-          
-          console.log('🔧 Setting position mode to One-Way:', positionModeParams);
-          await client.request('POST', '/v5/position/switch-mode', positionModeParams);
-          console.log('✅ Position mode set to One-Way');
-        } catch (modeError: any) {
-          // Position mode might already be set correctly
-          console.warn('⚠️ Position mode setting failed (may already be correct):', modeError.message);
+        // CRITICAL: First, FORCE position mode to One-Way for ALL symbols
+        const baseCoin = symbol.replace('USDT', '').replace('USD', '');
+        
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const positionModeParams = {
+              category: 'linear',
+              coin: baseCoin,
+              mode: 0 // 0 = One-Way mode (REQUIRED for positionIdx: 0)
+            };
+            
+            console.log(`🔧 Attempt ${attempt + 1}: Setting position mode to One-Way:`, positionModeParams);
+            await client.request('POST', '/v5/position/switch-mode', positionModeParams);
+            console.log('✅ Position mode set to One-Way successfully');
+            break; // Success, exit retry loop
+          } catch (modeError: any) {
+            console.warn(`⚠️ Position mode attempt ${attempt + 1} failed:`, modeError.message);
+            
+            // If it's already in One-Way mode, that's fine
+            if (modeError.message?.includes('mode not modified') || 
+                modeError.message?.includes('already') ||
+                attempt === 2) {
+              console.log('📋 Position mode likely already correct or max attempts reached');
+              break;
+            }
+            
+            // Wait a bit before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         }
 
         // Set leverage (required for position trading)
@@ -244,6 +248,19 @@ serve(async (req) => {
           // Leverage setting might fail if already set, continue anyway
           console.warn('⚠️ Leverage setting failed (may already be set):', leverageError.message);
         }
+
+        // NOW place market order with confirmed One-Way mode position index
+        const orderParams = {
+          category: 'linear',
+          symbol,
+          side,
+          orderType: 'Market',
+          qty: quantity.toString(),
+          positionIdx: 0, // 0 for One-Way mode (which we just confirmed above)
+          reduceOnly: false
+        };
+
+        console.log('📋 Order parameters:', orderParams);
 
         const orderResult = await client.request('POST', '/v5/order/create', orderParams);
         
