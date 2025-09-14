@@ -98,7 +98,18 @@ async function bybitApiCall(
     body: method === 'POST' ? body : undefined,
   });
   
-  const result = await response.json();
+  let result;
+  try {
+    const responseText = await response.text();
+    if (responseText.trim()) {
+      result = JSON.parse(responseText);
+    } else {
+      result = { retCode: 1, retMsg: 'Empty response from server' };
+    }
+  } catch (parseError) {
+    console.error('JSON parse error:', parseError);
+    result = { retCode: 1, retMsg: 'Invalid JSON response from server' };
+  }
   console.log(`📊 Bybit Response:`, result);
   
   return result;
