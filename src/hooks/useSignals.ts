@@ -384,78 +384,27 @@ export const useSignals = () => {
       }
 
       try {
-        // Use direct Supabase realtime subscription for better reliability
-        console.log('[signals-realtime] Setting up direct database subscription...');
-        
-        channel = supabase
-          .channel('signals-realtime-channel')
-          .on(
-            'postgres_changes', 
-            { 
-              event: 'INSERT', 
-              schema: 'public', 
-              table: 'signals',
-              filter: 'score.gte.80' // Only listen for high-confidence signals
-            }, 
-            (payload) => {
-              console.log('[signals-realtime] New signal:', payload.new);
-              if (mounted) {
-                try {
-                  const newSignal = mapDbToSignal(payload.new);
-                  if (newSignal.confidence_score >= 80) {
-                    setSignals(prev => [newSignal, ...prev].slice(0, 20));
-                    
-                    // Show toast notification for high-confidence signal
-                    toast({
-                      title: "🚨 High-Confidence Signal",
-                      description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
-                      duration: 5000,
-                    });
-                  }
-                } catch (e) {
-                  console.error('[signals-realtime] Error processing new signal:', e);
-                }
-              }
+        channel = subscribeSignalsRealtime(
+          (newSignal) => { 
+            if (mounted && newSignal.confidence_score >= 80) { // Only show 80%+ signals
+              setSignals(prev => [newSignal, ...prev].slice(0, 20));
+              
+              // Show toast notification for high-confidence signal
+              toast({
+                title: "🚨 High-Confidence Signal",
+                description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
+                duration: 5000,
+              });
             }
-          )
-          .on(
-            'postgres_changes',
-            { 
-              event: 'UPDATE', 
-              schema: 'public', 
-              table: 'signals'
-            },
-            (payload) => {
-              console.log('[signals-realtime] Updated signal:', payload.new);
-              if (mounted) {
-                try {
-                  const updatedSignal = mapDbToSignal(payload.new);
-                  if (updatedSignal.confidence_score >= 80) {
-                    setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
-                  } else {
-                    // Remove signal if confidence dropped below threshold
-                    setSignals(prev => prev.filter(s => s.id !== updatedSignal.id));
-                  }
-                } catch (e) {
-                  console.error('[signals-realtime] Error processing updated signal:', e);
-                }
-              }
+          },
+          (updatedSignal) => { 
+            if (mounted) {
+              setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
             }
-          )
-          .subscribe((status) => {
-            console.log('[signals-realtime] Subscription status:', status);
-            if (status === 'SUBSCRIBED') {
-              console.log('[signals-realtime] Successfully subscribed to real-time updates');
-            } else if (status === 'CHANNEL_ERROR') {
-              console.error('[signals-realtime] Channel error occurred');
-            } else if (status === 'TIMED_OUT') {
-              console.error('[signals-realtime] Subscription timed out');
-            } else if (status === 'CLOSED') {
-              console.log('[signals-realtime] CLOSED');
-            }
-          });
+          },
+        );
       } catch (e) {
-        console.warn('[signals-realtime] realtime subscribe failed, fallback to polling', e);
+        console.warn('[signals] realtime subscribe failed, fallback to polling', e);
       }
 
       pollId = window.setInterval(() => {

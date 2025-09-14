@@ -22,8 +22,7 @@ import Automation from "./pages/Automation";
 import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import Rebuild from "./pages/Rebuild";
-import FullSystemTest from "./components/FullSystemTest";
+import { RebuildConsole } from "./components/RebuildConsole";
 const queryClient = new QueryClient();
 
 function App() {
@@ -40,11 +39,7 @@ function App() {
       
       // Check for /rebuild command
       if (window.location.pathname === '/rebuild' || window.location.search.includes('rebuild=true')) {
-        console.log('🚀 [Rebuild] Rebuild command detected - redirecting to rebuild console');
-        localStorage.setItem('rebuildCommand', 'true');
-        if (window.location.pathname !== '/rebuild') {
-          window.location.href = '/rebuild';
-        }
+        console.log('🚀 [Rebuild] Rebuild command detected');
       }
     })();
   }, []);
@@ -56,7 +51,6 @@ function App() {
         <Sonner />
         <BrowserRouter>
         <Routes>
-          <Route path="/test" element={<FullSystemTest />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/" element={<Index />} />
           <Route path="/home" element={<Home />} />
@@ -73,7 +67,7 @@ function App() {
             <Route path="/automation" element={<Automation />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/rebuild" element={<Rebuild />} />
+            <Route path="/rebuild" element={<RebuildConsole />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
