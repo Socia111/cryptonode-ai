@@ -1,23 +1,12 @@
 
 import React from 'react';
-import MainLayout from '../layouts/MainLayout';
-import TradingDashboard from '../components/TradingDashboard';
-import { TradingTest } from '@/components/TradingTest';
+import { MobileTradingDashboard } from '@/components/MobileTradingDashboard';
 
 const Index = () => {
   return (
-    <MainLayout>
-      <div className="container mx-auto p-6 space-y-6">
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1">
-            <TradingDashboard />
-          </div>
-          <div className="lg:w-96">
-            <TradingTest />
-          </div>
-        </div>
-      </div>
-    </MainLayout>
+    <div className="min-h-screen bg-background">
+      <MobileTradingDashboard />
+    </div>
   );
 };
 
