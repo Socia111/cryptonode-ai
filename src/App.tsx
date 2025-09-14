@@ -23,6 +23,7 @@ import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Rebuild from "./pages/Rebuild";
+import FullSystemTest from "./components/FullSystemTest";
 const queryClient = new QueryClient();
 
 function App() {
@@ -55,6 +56,7 @@ function App() {
         <Sonner />
         <BrowserRouter>
         <Routes>
+          <Route path="/test" element={<FullSystemTest />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/" element={<Index />} />
           <Route path="/home" element={<Home />} />
