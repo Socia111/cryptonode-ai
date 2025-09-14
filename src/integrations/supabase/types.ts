@@ -14,220 +14,74 @@ export type Database = {
   }
   public: {
     Tables: {
-      exchanges: {
+      audit_log: {
         Row: {
-          created_at: string | null
-          display_name: string
-          id: string
-          is_active: boolean | null
-          name: string
-          supported_features: Json | null
-        }
-        Insert: {
-          created_at?: string | null
-          display_name: string
-          id?: string
-          is_active?: boolean | null
-          name: string
-          supported_features?: Json | null
-        }
-        Update: {
-          created_at?: string | null
-          display_name?: string
-          id?: string
-          is_active?: boolean | null
-          name?: string
-          supported_features?: Json | null
-        }
-        Relationships: []
-      }
-      markets: {
-        Row: {
-          base_asset: string
-          created_at: string | null
-          exchange: string
-          id: string
-          is_active: boolean | null
-          quote_asset: string
-          symbol: string
-          updated_at: string | null
-        }
-        Insert: {
-          base_asset: string
-          created_at?: string | null
-          exchange?: string
-          id?: string
-          is_active?: boolean | null
-          quote_asset: string
-          symbol: string
-          updated_at?: string | null
-        }
-        Update: {
-          base_asset?: string
-          created_at?: string | null
-          exchange?: string
-          id?: string
-          is_active?: boolean | null
-          quote_asset?: string
-          symbol?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      orders: {
-        Row: {
+          action: string
           created_at: string | null
           id: string
-          order_id: string | null
-          order_link_id: string | null
-          order_type: string
-          price: number | null
-          qty: number
-          side: string
-          status: string | null
-          symbol: string
-          trade_id: string | null
-          updated_at: string | null
+          ip_address: unknown | null
+          metadata: Json | null
+          resource_id: string | null
+          resource_type: string | null
+          user_agent: string | null
           user_id: string | null
         }
         Insert: {
+          action: string
           created_at?: string | null
           id?: string
-          order_id?: string | null
-          order_link_id?: string | null
-          order_type?: string
-          price?: number | null
-          qty: number
-          side: string
-          status?: string | null
-          symbol: string
-          trade_id?: string | null
-          updated_at?: string | null
+          ip_address?: unknown | null
+          metadata?: Json | null
+          resource_id?: string | null
+          resource_type?: string | null
+          user_agent?: string | null
           user_id?: string | null
         }
         Update: {
+          action?: string
           created_at?: string | null
           id?: string
-          order_id?: string | null
-          order_link_id?: string | null
-          order_type?: string
-          price?: number | null
-          qty?: number
-          side?: string
-          status?: string | null
-          symbol?: string
-          trade_id?: string | null
-          updated_at?: string | null
+          ip_address?: unknown | null
+          metadata?: Json | null
+          resource_id?: string | null
+          resource_type?: string | null
+          user_agent?: string | null
           user_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "orders_trade_id_fkey"
-            columns: ["trade_id"]
+            foreignKeyName: "audit_log_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "trades"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      portfolios: {
-        Row: {
-          balance: number | null
-          created_at: string | null
-          currency: string | null
-          id: string
-          name: string
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          balance?: number | null
-          created_at?: string | null
-          currency?: string | null
-          id?: string
-          name: string
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          balance?: number | null
-          created_at?: string | null
-          currency?: string | null
-          id?: string
-          name?: string
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      positions: {
-        Row: {
-          created_at: string | null
-          current_price: number | null
-          entry_price: number
-          id: string
-          portfolio_id: string | null
-          side: string
-          size: number
-          symbol: string
-          unrealized_pnl: number | null
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          current_price?: number | null
-          entry_price: number
-          id?: string
-          portfolio_id?: string | null
-          side: string
-          size: number
-          symbol: string
-          unrealized_pnl?: number | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          current_price?: number | null
-          entry_price?: number
-          id?: string
-          portfolio_id?: string | null
-          side?: string
-          size?: number
-          symbol?: string
-          unrealized_pnl?: number | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "positions_portfolio_id_fkey"
-            columns: ["portfolio_id"]
-            isOneToOne: false
-            referencedRelation: "portfolios"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string | null
-          email: string | null
+          email: string
+          full_name: string | null
           id: string
           updated_at: string | null
           username: string | null
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string | null
-          email?: string | null
+          email: string
+          full_name?: string | null
           id: string
           updated_at?: string | null
           username?: string | null
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string | null
-          email?: string | null
+          email?: string
+          full_name?: string | null
           id?: string
           updated_at?: string | null
           username?: string | null
@@ -237,329 +91,133 @@ export type Database = {
       signals: {
         Row: {
           bar_time: string
+          confidence: number | null
           created_at: string | null
           direction: string
           entry_price: number | null
-          exchange: string
           expires_at: string | null
-          filters: Json | null
           id: string
-          indicators: Json | null
-          price: number | null
-          score: number | null
-          sl: number | null
+          metadata: Json | null
+          price: number
+          score: number
+          source: string | null
+          stop_loss: number | null
           symbol: string
+          take_profit: number | null
           timeframe: string
-          tp: number | null
-          updated_at: string | null
         }
         Insert: {
           bar_time: string
+          confidence?: number | null
           created_at?: string | null
           direction: string
           entry_price?: number | null
-          exchange?: string
           expires_at?: string | null
-          filters?: Json | null
           id?: string
-          indicators?: Json | null
-          price?: number | null
-          score?: number | null
-          sl?: number | null
+          metadata?: Json | null
+          price: number
+          score: number
+          source?: string | null
+          stop_loss?: number | null
           symbol: string
-          timeframe?: string
-          tp?: number | null
-          updated_at?: string | null
+          take_profit?: number | null
+          timeframe: string
         }
         Update: {
           bar_time?: string
+          confidence?: number | null
           created_at?: string | null
           direction?: string
           entry_price?: number | null
-          exchange?: string
           expires_at?: string | null
-          filters?: Json | null
           id?: string
-          indicators?: Json | null
-          price?: number | null
-          score?: number | null
-          sl?: number | null
+          metadata?: Json | null
+          price?: number
+          score?: number
+          source?: string | null
+          stop_loss?: number | null
           symbol?: string
+          take_profit?: number | null
           timeframe?: string
-          tp?: number | null
-          updated_at?: string | null
         }
         Relationships: []
       }
-      strategy_signals: {
-        Row: {
-          confidence: number
-          created_at: string | null
-          id: string
-          queued_at: string | null
-          sent_at: string | null
-          side: string
-          sl_price: number | null
-          status: string | null
-          symbol: string
-          timeframe: string
-          tp_price: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          confidence?: number
-          created_at?: string | null
-          id?: string
-          queued_at?: string | null
-          sent_at?: string | null
-          side: string
-          sl_price?: number | null
-          status?: string | null
-          symbol: string
-          timeframe?: string
-          tp_price?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          confidence?: number
-          created_at?: string | null
-          id?: string
-          queued_at?: string | null
-          sent_at?: string | null
-          side?: string
-          sl_price?: number | null
-          status?: string | null
-          symbol?: string
-          timeframe?: string
-          tp_price?: number | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      trades: {
+      trading_preferences: {
         Row: {
           created_at: string | null
           id: string
-          order_link_id: string | null
-          qty: number
-          side: string
-          sl_price: number | null
-          status: string | null
-          strategy_signal_id: string | null
-          symbol: string
-          tp_price: number | null
+          max_positions: number | null
+          notifications_enabled: boolean | null
+          preferred_timeframes: string[] | null
+          risk_tolerance: string | null
           updated_at: string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string | null
           id?: string
-          order_link_id?: string | null
-          qty: number
-          side: string
-          sl_price?: number | null
-          status?: string | null
-          strategy_signal_id?: string | null
-          symbol: string
-          tp_price?: number | null
+          max_positions?: number | null
+          notifications_enabled?: boolean | null
+          preferred_timeframes?: string[] | null
+          risk_tolerance?: string | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string | null
           id?: string
-          order_link_id?: string | null
-          qty?: number
-          side?: string
-          sl_price?: number | null
-          status?: string | null
-          strategy_signal_id?: string | null
-          symbol?: string
-          tp_price?: number | null
+          max_positions?: number | null
+          notifications_enabled?: boolean | null
+          preferred_timeframes?: string[] | null
+          risk_tolerance?: string | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "trades_strategy_signal_id_fkey"
-            columns: ["strategy_signal_id"]
+            foreignKeyName: "trading_preferences_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "strategy_signals"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
       }
-      trading_accounts: {
+      watchlists: {
         Row: {
-          api_key: string
-          api_secret: string
-          created_at: string | null
-          exchange: string
+          added_at: string | null
           id: string
-          is_active: boolean | null
-          is_testnet: boolean | null
-          updated_at: string | null
-          user_id: string | null
+          symbol: string
+          user_id: string
         }
         Insert: {
-          api_key: string
-          api_secret: string
-          created_at?: string | null
-          exchange?: string
+          added_at?: string | null
           id?: string
-          is_active?: boolean | null
-          is_testnet?: boolean | null
-          updated_at?: string | null
-          user_id?: string | null
+          symbol: string
+          user_id: string
         }
         Update: {
-          api_key?: string
-          api_secret?: string
-          created_at?: string | null
-          exchange?: string
+          added_at?: string | null
           id?: string
-          is_active?: boolean | null
-          is_testnet?: boolean | null
-          updated_at?: string | null
-          user_id?: string | null
+          symbol?: string
+          user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "watchlists_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
-      v_portfolio_performance: {
-        Row: {
-          created_at: string | null
-          status: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      binary_quantize: {
-        Args: { "": string } | { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_compress: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_decompress: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_in: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_options: {
-        Args: { "": unknown }
-        Returns: undefined
-      }
-      gtrgm_out: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      halfvec_avg: {
-        Args: { "": number[] }
-        Returns: unknown
-      }
-      halfvec_out: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      halfvec_send: {
-        Args: { "": unknown }
-        Returns: string
-      }
-      halfvec_typmod_in: {
-        Args: { "": unknown[] }
-        Returns: number
-      }
-      hnsw_bit_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      hnsw_halfvec_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      hnsw_sparsevec_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      hnswhandler: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      ivfflat_bit_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      ivfflat_halfvec_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      ivfflathandler: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      l2_norm: {
-        Args: { "": unknown } | { "": unknown }
-        Returns: number
-      }
-      l2_normalize: {
-        Args: { "": string } | { "": unknown } | { "": unknown }
-        Returns: string
-      }
-      set_limit: {
-        Args: { "": number }
-        Returns: number
-      }
-      show_limit: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      show_trgm: {
-        Args: { "": string }
-        Returns: string[]
-      }
-      sparsevec_out: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      sparsevec_send: {
-        Args: { "": unknown }
-        Returns: string
-      }
-      sparsevec_typmod_in: {
-        Args: { "": unknown[] }
-        Returns: number
-      }
-      vector_avg: {
-        Args: { "": number[] }
-        Returns: string
-      }
-      vector_dims: {
-        Args: { "": string } | { "": unknown }
-        Returns: number
-      }
-      vector_norm: {
-        Args: { "": string }
-        Returns: number
-      }
-      vector_out: {
-        Args: { "": string }
-        Returns: unknown
-      }
-      vector_send: {
-        Args: { "": string }
-        Returns: string
-      }
-      vector_typmod_in: {
-        Args: { "": unknown[] }
-        Returns: number
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
