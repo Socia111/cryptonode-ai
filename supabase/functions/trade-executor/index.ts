@@ -71,7 +71,7 @@ async function bybitReq(method: 'GET'|'POST', path: string, params: Record<strin
 
 async function logTrade(params: any, result: any, status: string) {
   try {
-    await supabase.from('trade_logs').insert({
+    const { error } = await supabase.from('trade_logs').insert({
       symbol: params.symbol,
       side: params.side,
       amount_usd: params.amountUSD,
@@ -81,6 +81,10 @@ async function logTrade(params: any, result: any, status: string) {
       bybit_response: result,
       executed_at: new Date().toISOString()
     });
+    
+    if (error) {
+      console.error('Failed to log trade:', error);
+    }
   } catch (e) {
     console.error('Failed to log trade:', e);
   }
@@ -138,45 +142,72 @@ Deno.serve(async (req) => {
 
       // Get current price for quantity calculation
       const ticker = await bybitReq('GET', '/v5/market/tickers', { category: 'linear', symbol: params.symbol });
-      if (!ticker.ok) throw new Error(`Failed to get price for ${params.symbol}`);
+      if (!ticker.ok) {
+        console.error('Failed to get ticker:', ticker.json);
+        throw new Error(`Failed to get price for ${params.symbol}: ${ticker.json?.retMsg || 'Unknown error'}`);
+      }
+      
+      if (!ticker.json?.result?.list || ticker.json.result.list.length === 0) {
+        throw new Error(`No price data available for ${params.symbol}`);
+      }
       
       const price = parseFloat(ticker.json.result.list[0].lastPrice);
+      if (!price || price <= 0) {
+        throw new Error(`Invalid price received for ${params.symbol}: ${price}`);
+      }
+      
       const qty = (params.amountUSD * params.leverage) / price;
+      
+      if (qty <= 0) {
+        throw new Error(`Invalid quantity calculated: ${qty}`);
+      }
 
       console.log(`Executing ${params.side} ${qty.toFixed(4)} ${params.symbol} @ ${price} (${params.amountUSD} USD, ${params.leverage}x)`);
 
-      // Set position mode (One-Way)
-      await bybitReq('POST', '/v5/position/switch-mode', {
+      // Set position mode (One-Way) - ignore errors as this might already be set
+      const positionMode = await bybitReq('POST', '/v5/position/switch-mode', {
         category: 'linear',
         symbol: params.symbol,
         positionMode: 0
       });
+      
+      if (!positionMode.ok && positionMode.json?.retCode !== 110025) {
+        console.warn('Position mode warning:', positionMode.json?.retMsg);
+      }
 
-      // Set leverage
-      await bybitReq('POST', '/v5/position/set-leverage', {
+      // Set leverage - ignore errors as this might already be set
+      const leverageReq = await bybitReq('POST', '/v5/position/set-leverage', {
         category: 'linear',
         symbol: params.symbol,
         buyLeverage: String(params.leverage),
         sellLeverage: String(params.leverage),
       });
+      
+      if (!leverageReq.ok && leverageReq.json?.retCode !== 110043) {
+        console.warn('Leverage setting warning:', leverageReq.json?.retMsg);
+      }
 
-      // Create order
+      // Create order with better error handling
       const orderReq = {
         category: 'linear',
         symbol: params.symbol,
         side: params.side,
         orderType: params.orderType,
         timeInForce: params.orderType === 'Limit' ? 'GTC' : 'IOC',
-        qty: qty.toFixed(4),
+        qty: qty.toFixed(6), // More precision for small quantities
         reduceOnly: !!params.reduceOnly,
         positionIdx: 0
       };
 
+      console.log('Order request:', orderReq);
+
       const create = await bybitReq('POST', '/v5/order/create', orderReq);
       
       if (!create.ok) {
+        const errorMsg = `Order failed: ${create.json?.retCode} - ${create.json?.retMsg}`;
+        console.error('Order creation failed:', create.json);
         await logTrade(params, create.json, 'failed');
-        throw new Error(`Bybit order error: ${create.json?.retCode} ${create.json?.retMsg}`);
+        throw new Error(errorMsg);
       }
 
       await logTrade(params, create.json, 'filled');
@@ -195,10 +226,12 @@ Deno.serve(async (req) => {
     throw new Error(`Unknown action: ${action}`);
 
   } catch (e) {
-    console.error('Trade executor error:', e);
+    const error = e as Error;
+    console.error('Trade executor error:', error.message);
+    console.error('Stack trace:', error.stack);
     return new Response(JSON.stringify({ 
       ok: false, 
-      error: String(e),
+      error: error.message,
       mode: { paper: PAPER, liveEnabled: LIVEOK, testnet: TESTNET }
     }), {
       headers: { ...cors, 'content-type': 'application/json' }, 
