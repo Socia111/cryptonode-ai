@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { createHmac } from "https://deno.land/std@0.208.0/crypto/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,11 +21,19 @@ interface TradeRequest {
   idempotencyKey?: string;
 }
 
-// Bybit API helper functions
-function generateSignature(params: string, secret: string): string {
-  const hmac = createHmac("sha256", new TextEncoder().encode(secret));
-  hmac.update(new TextEncoder().encode(params));
-  return Array.from(new Uint8Array(hmac.digest()))
+// Bybit API helper functions using Web Crypto API
+async function generateSignature(params: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(params));
+  return Array.from(new Uint8Array(signature))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
 }
@@ -35,28 +42,28 @@ async function makeBybitRequest(endpoint: string, params: any = {}, apiKey: stri
   const timestamp = Date.now().toString();
   const recvWindow = "5000";
   
-  // Create query string
-  const queryParams = new URLSearchParams({
-    ...params,
-    api_key: apiKey,
-    timestamp,
-    recv_window: recvWindow
-  });
+  // Create parameter string for signing
+  const paramString = timestamp + apiKey + recvWindow + (Object.keys(params).length ? JSON.stringify(params) : '');
+  const signature = await generateSignature(paramString, apiSecret);
   
-  // Generate signature
-  const signature = generateSignature(queryParams.toString(), apiSecret);
-  queryParams.append('sign', signature);
+  const url = `https://api-testnet.bybit.com${endpoint}`;
   
-  const url = `https://api-testnet.bybit.com${endpoint}?${queryParams.toString()}`;
-  
-  console.log(`🔄 Bybit API Call: GET ${url.split('?')[0]}`);
+  console.log(`🔄 Bybit API Call: GET ${url}`);
   
   const response = await fetch(url, {
     method: 'GET',
     headers: {
+      'X-BAPI-API-KEY': apiKey,
+      'X-BAPI-TIMESTAMP': timestamp,
+      'X-BAPI-RECV-WINDOW': recvWindow,
+      'X-BAPI-SIGN': signature,
       'Content-Type': 'application/json',
     }
   });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
   
   return await response.json();
 }
@@ -65,22 +72,22 @@ async function placeBybitOrder(params: any, apiKey: string, apiSecret: string) {
   const timestamp = Date.now().toString();
   const recvWindow = "5000";
   
-  const orderParams = {
+  const orderParams: any = {
     category: "linear",
     symbol: params.symbol,
     side: params.side,
     orderType: params.orderType || "Market",
     qty: params.qty,
-    timeInForce: params.timeInForce || "GTC"
   };
   
-  if (params.price) orderParams.price = params.price;
-  if (params.stopLoss) orderParams.stopLoss = params.stopLoss;
-  if (params.takeProfit) orderParams.takeProfit = params.takeProfit;
+  if (params.orderType === "Limit" && params.price) {
+    orderParams.price = params.price;
+    orderParams.timeInForce = params.timeInForce || "GTC";
+  }
   
   const body = JSON.stringify(orderParams);
   const paramString = timestamp + apiKey + recvWindow + body;
-  const signature = generateSignature(paramString, apiSecret);
+  const signature = await generateSignature(paramString, apiSecret);
   
   console.log(`🔄 Placing order: ${JSON.stringify(orderParams)}`);
   
@@ -186,9 +193,7 @@ serve(async (req: Request) => {
           orderType: body.orderType || 'Market',
           qty,
           timeInForce: body.timeInForce || 'GTC',
-          price: body.entryPrice,
-          stopLoss: body.stopLoss,
-          takeProfit: body.takeProfit
+          price: body.entryPrice
         }, apiKey, apiSecret);
         
         console.log('📋 Bybit order response:', orderResult);

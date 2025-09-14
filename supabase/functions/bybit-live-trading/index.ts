@@ -1,16 +1,27 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { createHmac } from "https://deno.land/std@0.208.0/crypto/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Bybit API helper functions
-function generateSignature(params: string, secret: string): string {
-  const hmac = createHmac("sha256", new TextEncoder().encode(secret));
-  hmac.update(new TextEncoder().encode(params));
-  return Array.from(new Uint8Array(hmac.digest()))
+interface BybitRequest {
+  action: string;
+}
+
+// Bybit API helper functions using Web Crypto API
+async function generateSignature(params: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(params));
+  return Array.from(new Uint8Array(signature))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
 }
@@ -21,7 +32,7 @@ async function makeBybitRequest(endpoint: string, params: any = {}, apiKey: stri
   
   // Create parameter string for signing
   const paramString = timestamp + apiKey + recvWindow + (Object.keys(params).length ? JSON.stringify(params) : '');
-  const signature = generateSignature(paramString, apiSecret);
+  const signature = await generateSignature(paramString, apiSecret);
   
   const url = `https://api-testnet.bybit.com${endpoint}`;
   
@@ -45,10 +56,6 @@ async function makeBybitRequest(endpoint: string, params: any = {}, apiKey: stri
   return await response.json();
 }
 
-interface BybitRequest {
-  action: string;
-}
-
 serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -69,7 +76,7 @@ serve(async (req: Request) => {
     console.log('- Live Trading: true');
     console.log('- API Key present:', !!apiKey, apiKey ? `(${apiKey.length} chars)` : '');
     console.log('- API Secret present:', !!apiSecret, apiSecret ? `(${apiSecret.length} chars)` : '');
-    console.log('- Base URL: https://api.bybit.com');
+    console.log('- Base URL: https://api-testnet.bybit.com');
     console.log('- Is Testnet: true');
 
     if (!apiKey || !apiSecret) {
