@@ -42,15 +42,17 @@ async function makeBybitRequest(endpoint: string, params: any = {}, apiKey: stri
   const timestamp = Date.now().toString();
   const recvWindow = "5000";
   
+  // Build query string for GET requests
+  const queryParams = new URLSearchParams(params).toString();
+  const fullUrl = `https://api-testnet.bybit.com${endpoint}${queryParams ? '?' + queryParams : ''}`;
+  
   // Create parameter string for signing
-  const paramString = timestamp + apiKey + recvWindow + (Object.keys(params).length ? JSON.stringify(params) : '');
+  const paramString = timestamp + apiKey + recvWindow + queryParams;
   const signature = await generateSignature(paramString, apiSecret);
   
-  const url = `https://api-testnet.bybit.com${endpoint}`;
+  console.log(`🔄 Bybit API Call: GET ${fullUrl}`);
   
-  console.log(`🔄 Bybit API Call: GET ${url}`);
-  
-  const response = await fetch(url, {
+  const response = await fetch(fullUrl, {
     method: 'GET',
     headers: {
       'X-BAPI-API-KEY': apiKey,
