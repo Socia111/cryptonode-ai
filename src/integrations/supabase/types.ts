@@ -5024,10 +5024,6 @@ export type Database = {
           | { fragment_content: string; p_user_id: string }
         Returns: string
       }
-      analyze_conversation_emotion: {
-        Args: { conversation_text: string }
-        Returns: Json
-      }
       basic_security_check: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -5041,30 +5037,13 @@ export type Database = {
         Args: { "": string } | { "": unknown }
         Returns: unknown
       }
-      calculate_aura_resonance: {
-        Args: { user_a_memory: Json; user_b_memory: Json }
-        Returns: number
-      }
       calculate_comprehensive_health_score: {
         Args: { p_date?: string; p_user_id: string }
-        Returns: number
-      }
-      calculate_encounter_xp: {
-        Args: {
-          p_archetype: string
-          p_compatibility_score: number
-          p_distance_meters: number
-          p_interaction_type?: string
-        }
         Returns: number
       }
       calculate_health_score: {
         Args: { p_user_id: string }
         Returns: number
-      }
-      calculate_user_tier: {
-        Args: { user_points: number }
-        Returns: string
       }
       check_account_lockout: {
         Args: { p_email: string }
@@ -5133,25 +5112,9 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      comprehensive_security_audit: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      consume_credits: {
-        Args: { credits_to_consume?: number; team_uuid: string }
-        Returns: boolean
-      }
-      create_default_goals: {
-        Args: { user_uuid: string }
-        Returns: undefined
-      }
       enforce_data_retention_policies: {
         Args: Record<PropertyKey, never>
         Returns: undefined
-      }
-      enhanced_security_monitoring: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
       }
       fetch_signals_to_execute: {
         Args: {
@@ -5181,10 +5144,6 @@ export type Database = {
           user_id: string
         }[]
       }
-      generate_live_signals: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
       get_active_stakes: {
         Args: { user_uuid: string }
         Returns: {
@@ -5199,13 +5158,6 @@ export type Database = {
       get_enhanced_security_headers: {
         Args: Record<PropertyKey, never>
         Returns: Json
-      }
-      get_nearby_users: {
-        Args: { range_km: number; user_lat: number; user_lng: number }
-        Returns: {
-          distance_m: number
-          user_id: string
-        }[]
       }
       get_security_headers: {
         Args: Record<PropertyKey, never>
@@ -5222,10 +5174,6 @@ export type Database = {
       get_user_token_balance: {
         Args: { user_uuid: string }
         Returns: number
-      }
-      get_user_traits_cached: {
-        Args: { p_user_id: string }
-        Returns: Json
       }
       gtrgm_compress: {
         Args: { "": unknown }
@@ -5362,10 +5310,6 @@ export type Database = {
         Args: { p_action: string; p_session_data?: Json; p_severity?: string }
         Returns: undefined
       }
-      log_security_event_batch: {
-        Args: { events: Json[] }
-        Returns: undefined
-      }
       log_security_policy_hardening: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -5435,14 +5379,6 @@ export type Database = {
           queued_id: string
         }[]
       }
-      refresh_materialized_views: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      refresh_trait_cache: {
-        Args: { p_user_id: string }
-        Returns: undefined
-      }
       resend_confirmation_email: {
         Args: { user_email: string }
         Returns: Json
@@ -5487,10 +5423,6 @@ export type Database = {
         Args: { p_amount: number; p_team: string }
         Returns: undefined
       }
-      start_automated_trading_session: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
       sync_health_to_amarean_memory: {
         Args: { p_health_score: number; p_metrics: Json; p_user_id: string }
         Returns: undefined
@@ -5525,23 +5457,6 @@ export type Database = {
           p_timeframe: string
         }
         Returns: string
-      }
-      validate_user_input: {
-        Args: { input_text: string; input_type?: string; max_length?: number }
-        Returns: Json
-      }
-      validate_user_input_comprehensive: {
-        Args: {
-          additional_patterns?: string[]
-          input_text: string
-          input_type?: string
-          max_length?: number
-        }
-        Returns: Json
-      }
-      validate_user_input_enhanced: {
-        Args: { input_text: string; input_type?: string; max_length?: number }
-        Returns: Json
       }
       vector_avg: {
         Args: { "": number[] }
