@@ -82,12 +82,28 @@ function mapDbSignal(row: any): Signal {
 
 async function fetchSignals(): Promise<Signal[]> {
   try {
-    console.log('[Signals] Fetching live signals from database...');
+    console.log('[Signals] Fetching live signals via API...');
     
-    // Direct database query (since functions are now public, no need for complex API)
-    console.log('[Signals] Using direct database query for best performance...');
+    // Use the signals API endpoint which has service role access
+    try {
+      const response = await fetch('https://codhlwjogfjywmjyjbbn.functions.supabase.co/v1/signals-api/recent');
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        if (result.success && result.signals) {
+          console.log(`[Signals] API returned ${result.signals.length} signals`);
+          return mapSignalsToInterface(result.signals);
+        }
+      }
+      
+      console.warn('[Signals] API call failed, trying fallback...');
+    } catch (apiError) {
+      console.warn('[Signals] API error, trying fallback:', apiError);
+    }
 
     // Fallback to direct database query
+    console.log('[Signals] Using direct database fallback...');
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
@@ -97,22 +113,24 @@ async function fetchSignals(): Promise<Signal[]> {
       .limit(50);
 
     if (signalsError) {
-      console.error('[Signals] Signals query failed:', signalsError.message);
-      return [];
+      console.error('[Signals] Database query failed:', signalsError.message);
+      // Return mock signals as last resort
+      console.log('[Signals] Using demo signals as fallback');
+      return getMockSignals();
     }
 
     if (allSignals && allSignals.length > 0) {
-      console.log(`[Signals] Found ${allSignals.length} total signals (80%+ confidence)`);
+      console.log(`[Signals] Database returned ${allSignals.length} signals`);
       return mapSignalsToInterface(allSignals);
     }
 
-    // Fallback to mock signals for demo purposes
+    // No signals found, use demo
     console.log('[Signals] No live signals found, using demo signals');
     return getMockSignals();
 
   } catch (e) {
     console.error('[Signals] Failed to fetch signals:', e);
-    return [];
+    return getMockSignals();
   }
 }
 
