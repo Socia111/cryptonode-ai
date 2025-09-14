@@ -62,17 +62,11 @@ export function SignalFeed({ signals }: { signals: UISignal[] }) {
       setExecutingId(sig.id);
       // Normalize direction for TradingGateway
       const side = sig.direction === 'BUY' ? 'Buy' : sig.direction === 'SELL' ? 'Sell' : sig.direction;
-      
-      // Pass TP/SL values from the signal panel
       const res = await TradingGateway.execute({
-        symbol: sig.token.replace('/', ''),  // Clean symbol format
+        symbol: sig.token,
         side,
         amountUSD: p.amountUSD,
         leverage: p.leverage,
-        // Pass what the user SAW on the signal card
-        uiEntry: sig.entry_price,
-        uiTP: sig.take_profit,
-        uiSL: sig.stop_loss,
       });
       if (res.ok) {
         toast({ title: '✅ Trade Executed', description: `${sig.token} ${sig.direction} (${p.leverage}x)` });
