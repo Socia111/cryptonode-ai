@@ -21,8 +21,7 @@ const TradingDiagnostics = () => {
         apiKeys: false,
         edgeFunctions: false,
         bybitReachable: false,
-        errors: [] as string[],
-        testResults: [] as any[]
+        errors: [] as string[]
       };
 
       // Test 1: Supabase connection
@@ -34,53 +33,53 @@ const TradingDiagnostics = () => {
         diagnostics.errors.push(`Supabase connection failed: ${e}`);
       }
 
-      // Test 2: New diagnostics endpoint
+      // Test 2: User authentication and API keys
       try {
-        const { data: diagData, error: diagError } = await supabase.functions.invoke('trade-diag');
-        if (diagError) {
-          diagnostics.errors.push(`Diagnostics: ${diagError.message}`);
+        const { data: { session } } = await supabase.auth.getSession();
+        diagnostics.userAuth = !!session;
+        if (!session) {
+          diagnostics.errors.push('No active user session');
+        } else {
+          // Check for user-specific trading account credentials
+          const { data: accounts, error: accountError } = await supabase
+            .from('user_trading_accounts')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .eq('exchange', 'bybit')
+            .eq('is_active', true)
+            .limit(1);
+
+          if (accounts && accounts.length > 0) {
+            diagnostics.apiKeys = true;
+          } else {
+            diagnostics.errors.push('No Bybit trading account configured for this user');
+          }
+        }
+      } catch (e) {
+        diagnostics.errors.push(`Auth check failed: ${e}`);
+      }
+
+      // Test 3: Edge function (optional system-level check)
+      try {
+        const { data, error } = await supabase.functions.invoke('debug-trading-status', {
+          body: { action: 'env_check' }
+        });
+        
+        if (error) {
+          diagnostics.errors.push(`Edge function error: ${error.message}`);
         } else {
           diagnostics.edgeFunctions = true;
-          diagnostics.testResults.push({ test: 'Environment Check', result: diagData });
-          diagnostics.apiKeys = diagData?.environment?.has_api_key;
-        }
-      } catch (e) {
-        diagnostics.errors.push(`Trade diagnostics failed: ${e}`);
-      }
-
-      // Test 3: Connection test
-      try {
-        const { data: connData, error: connError } = await supabase.functions.invoke('trade-connection-test');
-        if (connError) {
-          diagnostics.errors.push(`Connection test: ${connError.message}`);
-        } else {
-          diagnostics.testResults.push({ test: 'Bybit Connection', result: connData });
-          diagnostics.bybitReachable = connData?.success || false;
-        }
-      } catch (e) {
-        diagnostics.errors.push(`Connection test failed: ${e}`);
-      }
-
-      // Test 4: Paper trade test  
-      try {
-        const { data: tradeData, error: tradeError } = await supabase.functions.invoke('trade-executor', {
-          body: {
-            symbol: 'BTCUSDT',
-            side: 'Buy',
-            amountUSD: 10,
-            testMode: true
+          // System-level API keys are optional if user has personal credentials
+          const hasSystemKeys = data?.environment?.hasApiKey && data?.environment?.hasApiSecret;
+          if (!diagnostics.apiKeys && !hasSystemKeys) {
+            diagnostics.errors.push('No API credentials found (neither user-specific nor system-wide)');
           }
-        });
-        if (tradeError) {
-          diagnostics.errors.push(`Trade test: ${tradeError.message}`);
-        } else {
-          diagnostics.testResults.push({ test: 'Trade Execution', result: tradeData });
         }
       } catch (e) {
-        diagnostics.errors.push(`Trade execution test failed: ${e}`);
+        diagnostics.errors.push(`Edge function test failed: ${e}`);
       }
 
-      // Test 5: Direct Bybit API test (public endpoint)
+      // Test 4: Direct Bybit API test (public endpoint)
       try {
         const response = await fetch('https://api.bybit.com/v5/market/time');
         diagnostics.bybitReachable = response.ok;
@@ -154,6 +153,10 @@ const TradingDiagnostics = () => {
                 <StatusIcon status={results.supabaseConnection} />
               </div>
               <div className="flex items-center justify-between">
+                <span>User Authentication</span>
+                <StatusIcon status={results.userAuth} />
+              </div>
+              <div className="flex items-center justify-between">
                 <span>Edge Functions</span>
                 <StatusIcon status={results.edgeFunctions} />
               </div>
@@ -166,20 +169,6 @@ const TradingDiagnostics = () => {
                 <StatusIcon status={results.bybitReachable} />
               </div>
             </div>
-
-            {results.testResults?.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-semibold">Test Results</h4>
-                {results.testResults.map((test: any, i: number) => (
-                  <details key={i} className="border rounded p-2">
-                    <summary className="cursor-pointer font-medium">{test.test}</summary>
-                    <pre className="text-xs bg-gray-100 p-2 mt-2 rounded overflow-auto">
-                      {JSON.stringify(test.result, null, 2)}
-                    </pre>
-                  </details>
-                ))}
-              </div>
-            )}
 
             {results.errors?.length > 0 && (
               <div className="space-y-2">
