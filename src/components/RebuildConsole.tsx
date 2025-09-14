@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRebuild } from '@/hooks/useRebuild';
+import { SystemTestRunner } from './SystemTestRunner';
 import { 
   Play, 
   Square, 
@@ -117,8 +118,9 @@ export function RebuildConsole() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="logs" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+      <Tabs defaultValue="tests" className="w-full">
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="tests">Tests</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
           <TabsTrigger value="config">Configuration</TabsTrigger>
           <TabsTrigger value="files">Core Files</TabsTrigger>
@@ -126,6 +128,10 @@ export function RebuildConsole() {
           <TabsTrigger value="functions">Functions</TabsTrigger>
           <TabsTrigger value="validation">Validation</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="tests">
+          <SystemTestRunner />
+        </TabsContent>
 
         <TabsContent value="logs">
           <Card>

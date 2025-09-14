@@ -22,7 +22,7 @@ import Automation from "./pages/Automation";
 import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import { RebuildConsole } from "./components/RebuildConsole";
+import Rebuild from "./pages/Rebuild";
 const queryClient = new QueryClient();
 
 function App() {
@@ -39,7 +39,11 @@ function App() {
       
       // Check for /rebuild command
       if (window.location.pathname === '/rebuild' || window.location.search.includes('rebuild=true')) {
-        console.log('🚀 [Rebuild] Rebuild command detected');
+        console.log('🚀 [Rebuild] Rebuild command detected - redirecting to rebuild console');
+        localStorage.setItem('rebuildCommand', 'true');
+        if (window.location.pathname !== '/rebuild') {
+          window.location.href = '/rebuild';
+        }
       }
     })();
   }, []);
@@ -67,7 +71,7 @@ function App() {
             <Route path="/automation" element={<Automation />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/rebuild" element={<RebuildConsole />} />
+            <Route path="/rebuild" element={<Rebuild />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

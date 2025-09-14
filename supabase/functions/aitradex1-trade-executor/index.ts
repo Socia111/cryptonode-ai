@@ -159,19 +159,39 @@ serve(async (req: Request) => {
         // Calculate position size based on USD amount and current price
         const symbol = body.symbol?.replace(/[\/\s]/g, '') || 'BTCUSDT';
         
-        // Get current price - try linear first (for USDT pairs), then spot if that fails
+        // Determine the correct category and get current price
         let tickerResponse;
+        let category = 'linear'; // Default to linear for USDT perpetual contracts
+        
+        // For USDT perpetual contracts, use linear category
+        if (symbol.endsWith('USDT')) {
+          category = 'linear';
+        } else if (symbol.includes('BTC') || symbol.includes('ETH')) {
+          category = 'inverse'; // For inverse perpetual contracts
+        } else {
+          category = 'spot'; // For spot trading
+        }
+        
+        console.log(`🔄 Getting ticker for ${symbol} using category: ${category}`);
+        
         try {
           tickerResponse = await makeBybitRequest('/v5/market/tickers', {
-            category: 'linear',
+            category: category,
             symbol: symbol
           }, apiKey, apiSecret);
+          
+          // If linear fails and it's a USDT pair, try spot as fallback
+          if (tickerResponse.retCode !== 0 && category === 'linear' && symbol.endsWith('USDT')) {
+            console.log('Linear category failed for USDT pair, trying spot fallback');
+            tickerResponse = await makeBybitRequest('/v5/market/tickers', {
+              category: 'spot',
+              symbol: symbol
+            }, apiKey, apiSecret);
+            category = 'spot'; // Update category for subsequent calls
+          }
         } catch (error) {
-          console.log('Linear category failed, trying spot:', error.message);
-          tickerResponse = await makeBybitRequest('/v5/market/tickers', {
-            category: 'spot',
-            symbol: symbol
-          }, apiKey, apiSecret);
+          console.error(`Failed to get ticker for ${symbol} with category ${category}:`, error.message);
+          throw new Error(`Failed to get ticker for ${symbol}: ${error.message}`);
         }
         
         if (tickerResponse.retCode !== 0) {
