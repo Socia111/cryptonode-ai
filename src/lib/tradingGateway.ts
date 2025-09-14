@@ -146,7 +146,7 @@ export const TradingGateway = {
       // Generate idempotency key to avoid duplicates on retries
       const idempotencyKey = crypto.randomUUID();
 
-      const response = await fetch(`${functionsBase}/trade-executor`, {
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -307,7 +307,7 @@ export const TradingGateway = {
         headers['authorization'] = `Bearer ${sessionToken}`;
       }
       
-      const response = await fetch(`${functionsBase}/trade-executor`, {
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ action: 'status' })

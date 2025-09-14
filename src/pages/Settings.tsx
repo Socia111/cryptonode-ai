@@ -6,8 +6,6 @@ import { TestnetTradeTest } from '@/components/TestnetTradeTest';
 import AutoTradingToggle from '@/components/AutoTradingToggle';
 import ThreeCommasAuth from '@/components/ThreeCommasAuth';
 import BybitTradingAuth from '@/components/BybitTradingAuth';
-import { BybitAuthTest } from '@/components/BybitAuthTest';
-import { LiveTradeTest } from '@/components/LiveTradeTest';
 
 export default function Settings() {
   return (
@@ -25,18 +23,6 @@ export default function Settings() {
           <div className="grid gap-6 lg:grid-cols-2">
             <ThreeCommasAuth />
             <BybitTradingAuth />
-          </div>
-          
-          {/* Bybit API Authentication Test */}
-          <div className="w-full">
-            <h3 className="text-lg font-medium mb-4">Bybit API Validation</h3>
-            <BybitAuthTest />
-          </div>
-          
-          {/* Live Trade Test */}
-          <div className="w-full">
-            <h3 className="text-lg font-medium mb-4">Live Trade Execution Test</h3>
-            <LiveTradeTest />
           </div>
         </div>
 
