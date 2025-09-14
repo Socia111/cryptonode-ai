@@ -161,7 +161,7 @@ serve(async (req: Request) => {
         
         // Get current price first
         const tickerResponse = await makeBybitRequest('/v5/market/tickers', {
-          category: 'linear',
+          category: 'spot',
           symbol: symbol
         }, apiKey, apiSecret);
         
