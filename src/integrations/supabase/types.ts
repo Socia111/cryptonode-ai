@@ -5013,17 +5013,6 @@ export type Database = {
       }
     }
     Functions: {
-      add_memory_fragment: {
-        Args:
-          | {
-              content: Json
-              emotional_weight?: number
-              fragment_type: string
-              p_user_id: string
-            }
-          | { fragment_content: string; p_user_id: string }
-        Returns: string
-      }
       basic_security_check: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -5036,14 +5025,6 @@ export type Database = {
       binary_quantize: {
         Args: { "": string } | { "": unknown }
         Returns: unknown
-      }
-      calculate_comprehensive_health_score: {
-        Args: { p_date?: string; p_user_id: string }
-        Returns: number
-      }
-      calculate_health_score: {
-        Args: { p_user_id: string }
-        Returns: number
       }
       check_account_lockout: {
         Args: { p_email: string }
@@ -5096,10 +5077,6 @@ export type Database = {
         Args: { p_consent_type: string; p_user_id: string }
         Returns: boolean
       }
-      cleanup_expired_typing_indicators: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
       cleanup_old_behavior_data: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -5130,29 +5107,6 @@ export type Database = {
           symbol: string
           timeframe: string
           tp_price: number
-        }[]
-      }
-      find_nearby_agents: {
-        Args: { _agent_id: string; _limit?: number; _max_distance?: number }
-        Returns: {
-          agent_id: string
-          compatibility_score: number
-          distance: number
-          mood: string
-          status: string
-          traits: string[]
-          user_id: string
-        }[]
-      }
-      get_active_stakes: {
-        Args: { user_uuid: string }
-        Returns: {
-          amount: number
-          days_remaining: number
-          ends_at: string
-          id: string
-          reward_multiplier: number
-          started_at: string
         }[]
       }
       get_enhanced_security_headers: {
