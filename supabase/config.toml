@@ -1,5 +1,11 @@
 project_id = "codhlwjogfjywmjyjbbn"
 
+[functions.bybit-auth-check]
+verify_jwt = false
+
+[functions.trade-executor]
+verify_jwt = false
+
 [functions.connect-bybit]
 verify_jwt = true
 
