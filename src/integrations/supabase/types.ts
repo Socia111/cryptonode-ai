@@ -545,15 +545,7 @@ export type Database = {
           signal_id?: number | null
           status?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "alerts_log_signal_id_fkey"
-            columns: ["signal_id"]
-            isOneToOne: false
-            referencedRelation: "signals"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       amarean_memory: {
         Row: {
@@ -881,6 +873,45 @@ export type Database = {
           trait_value?: number
           updated_at?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      backtest_results: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          finished_at: string | null
+          id: string
+          notes: string | null
+          params: Json
+          sample_size: number
+          started_at: string
+          tethered: Json
+          untethered: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          finished_at?: string | null
+          id?: string
+          notes?: string | null
+          params: Json
+          sample_size: number
+          started_at?: string
+          tethered: Json
+          untethered: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          finished_at?: string | null
+          id?: string
+          notes?: string | null
+          params?: Json
+          sample_size?: number
+          started_at?: string
+          tethered?: Json
+          untethered?: Json
         }
         Relationships: []
       }
@@ -1361,6 +1392,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      edge_event_log: {
+        Row: {
+          created_at: string | null
+          fn: string
+          id: number
+          payload: Json | null
+          stage: string
+        }
+        Insert: {
+          created_at?: string | null
+          fn: string
+          id?: number
+          payload?: Json | null
+          stage: string
+        }
+        Update: {
+          created_at?: string | null
+          fn?: string
+          id?: number
+          payload?: Json | null
+          stage?: string
+        }
+        Relationships: []
       }
       employee_skill_runs: {
         Row: {
@@ -2608,13 +2663,6 @@ export type Database = {
             referencedRelation: "portfolios"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "orders_portfolio_id_fkey"
-            columns: ["portfolio_id"]
-            isOneToOne: false
-            referencedRelation: "v_portfolio_performance"
-            referencedColumns: ["portfolio_id"]
-          },
         ]
       }
       performance_alerts: {
@@ -2807,14 +2855,46 @@ export type Database = {
             referencedRelation: "portfolios"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "positions_portfolio_id_fkey"
-            columns: ["portfolio_id"]
-            isOneToOne: false
-            referencedRelation: "v_portfolio_performance"
-            referencedColumns: ["portfolio_id"]
-          },
         ]
+      }
+      priority_coins: {
+        Row: {
+          liquidity_rank: number
+          market_cap_momentum: number
+          on_chain_volume: number
+          priority_score: number
+          risk_score: number
+          sentiment_score: number
+          smart_money_inflow: number
+          symbol: string
+          updated_at: string | null
+          wallet_growth: number
+        }
+        Insert: {
+          liquidity_rank?: number
+          market_cap_momentum?: number
+          on_chain_volume?: number
+          priority_score?: number
+          risk_score?: number
+          sentiment_score?: number
+          smart_money_inflow?: number
+          symbol: string
+          updated_at?: string | null
+          wallet_growth?: number
+        }
+        Update: {
+          liquidity_rank?: number
+          market_cap_momentum?: number
+          on_chain_volume?: number
+          priority_score?: number
+          risk_score?: number
+          sentiment_score?: number
+          smart_money_inflow?: number
+          symbol?: string
+          updated_at?: string | null
+          wallet_growth?: number
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -3137,6 +3217,39 @@ export type Database = {
         }
         Relationships: []
       }
+      signal_ingest_stats: {
+        Row: {
+          created_at: string
+          errors: number
+          execution_time_ms: number | null
+          id: string
+          inserted: number
+          source: string
+          trimmed: number
+          ts: string
+        }
+        Insert: {
+          created_at?: string
+          errors?: number
+          execution_time_ms?: number | null
+          id?: string
+          inserted?: number
+          source: string
+          trimmed?: number
+          ts?: string
+        }
+        Update: {
+          created_at?: string
+          errors?: number
+          execution_time_ms?: number | null
+          id?: string
+          inserted?: number
+          source?: string
+          trimmed?: number
+          ts?: string
+        }
+        Relationships: []
+      }
       signals: {
         Row: {
           aira_boost_applied: number | null
@@ -3144,16 +3257,18 @@ export type Database = {
           algo: string
           atr: number | null
           bar_time: string
-          created_at: string
+          created_at: string | null
           direction: string
-          exchange: string
-          filters: Json
+          entry_price: number | null
+          exchange: string | null
+          expires_at: string | null
+          filters: Json | null
           hvp: number | null
-          id: number
-          indicators: Json
-          price: number
+          id: string
+          indicators: Json | null
+          price: number | null
           relaxed_mode: boolean | null
-          score: number
+          score: number | null
           sl: number | null
           symbol: string
           timeframe: string
@@ -3162,19 +3277,21 @@ export type Database = {
         Insert: {
           aira_boost_applied?: number | null
           aira_rank?: number | null
-          algo?: string
+          algo: string
           atr?: number | null
           bar_time: string
-          created_at?: string
+          created_at?: string | null
           direction: string
-          exchange: string
-          filters: Json
+          entry_price?: number | null
+          exchange?: string | null
+          expires_at?: string | null
+          filters?: Json | null
           hvp?: number | null
-          id?: number
-          indicators: Json
-          price: number
+          id?: string
+          indicators?: Json | null
+          price?: number | null
           relaxed_mode?: boolean | null
-          score: number
+          score?: number | null
           sl?: number | null
           symbol: string
           timeframe: string
@@ -3186,16 +3303,18 @@ export type Database = {
           algo?: string
           atr?: number | null
           bar_time?: string
-          created_at?: string
+          created_at?: string | null
           direction?: string
-          exchange?: string
-          filters?: Json
+          entry_price?: number | null
+          exchange?: string | null
+          expires_at?: string | null
+          filters?: Json | null
           hvp?: number | null
-          id?: number
-          indicators?: Json
-          price?: number
+          id?: string
+          indicators?: Json | null
+          price?: number | null
           relaxed_mode?: boolean | null
-          score?: number
+          score?: number | null
           sl?: number | null
           symbol?: string
           timeframe?: string
@@ -3752,6 +3871,63 @@ export type Database = {
           reward_type?: string
           status?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      trade_logs: {
+        Row: {
+          amount: number | null
+          bybit_order_id: string | null
+          bybit_response: Json | null
+          category: string | null
+          created_at: string | null
+          error_message: string | null
+          exchange: string | null
+          id: number
+          leverage: number | null
+          order_type: string | null
+          paper_trade: boolean | null
+          price: number | null
+          quantity: number | null
+          side: string | null
+          status: string | null
+          symbol: string | null
+        }
+        Insert: {
+          amount?: number | null
+          bybit_order_id?: string | null
+          bybit_response?: Json | null
+          category?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          exchange?: string | null
+          id?: number
+          leverage?: number | null
+          order_type?: string | null
+          paper_trade?: boolean | null
+          price?: number | null
+          quantity?: number | null
+          side?: string | null
+          status?: string | null
+          symbol?: string | null
+        }
+        Update: {
+          amount?: number | null
+          bybit_order_id?: string | null
+          bybit_response?: Json | null
+          category?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          exchange?: string | null
+          id?: number
+          leverage?: number | null
+          order_type?: string | null
+          paper_trade?: boolean | null
+          price?: number | null
+          quantity?: number | null
+          side?: string | null
+          status?: string | null
+          symbol?: string | null
         }
         Relationships: []
       }
@@ -4734,6 +4910,36 @@ export type Database = {
         }
         Relationships: []
       }
+      signals_tethered: {
+        Row: {
+          aira_boost_applied: number | null
+          aira_rank: number | null
+          algo: string | null
+          atr: number | null
+          bar_time: string | null
+          created_at: string | null
+          direction: string | null
+          entry_price: number | null
+          exchange: string | null
+          expires_at: string | null
+          filters: Json | null
+          hvp: number | null
+          id: string | null
+          indicators: Json | null
+          price: number | null
+          priority_score: number | null
+          relaxed_mode: boolean | null
+          score: number | null
+          sentiment_score: number | null
+          sl: number | null
+          smart_money_inflow: number | null
+          symbol: string | null
+          tethered_score: number | null
+          timeframe: string | null
+          tp: number | null
+        }
+        Relationships: []
+      }
       system_status_cache: {
         Row: {
           components: Json | null
@@ -4796,24 +5002,12 @@ export type Database = {
             referencedRelation: "portfolios"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "positions_portfolio_id_fkey"
-            columns: ["portfolio_id"]
-            isOneToOne: false
-            referencedRelation: "v_portfolio_performance"
-            referencedColumns: ["portfolio_id"]
-          },
         ]
       }
       v_portfolio_performance: {
         Row: {
-          base_ccy: string | null
-          closed_positions: number | null
-          name: string | null
-          open_positions: number | null
-          portfolio_id: string | null
-          realized_pnl: number | null
-          unrealized_pnl: number | null
+          created_at: string | null
+          status: string | null
         }
         Relationships: []
       }
@@ -5021,6 +5215,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      get_tethered_score: {
+        Args: { p_symbol: string; signal_score: number }
+        Returns: number
+      }
       get_user_token_balance: {
         Args: { user_uuid: string }
         Returns: number
@@ -5172,6 +5370,16 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      log_signal_ingest_stats: {
+        Args: {
+          p_errors?: number
+          p_execution_time_ms?: number
+          p_inserted?: number
+          p_source: string
+          p_trimmed?: number
+        }
+        Returns: undefined
+      }
       log_trade_sent: {
         Args: {
           p_order_link_id: string
@@ -5285,6 +5493,10 @@ export type Database = {
       }
       sync_health_to_amarean_memory: {
         Args: { p_health_score: number; p_metrics: Json; p_user_id: string }
+        Returns: undefined
+      }
+      trim_signals_keep_latest: {
+        Args: { p_keep?: number; p_symbol: string; p_timeframe: string }
         Returns: undefined
       }
       update_avatar_state: {
