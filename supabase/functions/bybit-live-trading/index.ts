@@ -92,23 +92,51 @@ async function bybitApiCall(
   
   console.log(`🔄 Bybit API Call: ${method} ${url}`);
   
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: method === 'POST' ? body : undefined,
-  });
-  
-  let result;
   try {
-    const responseText = await response.text();
-    if (responseText.trim()) {
-      result = JSON.parse(responseText);
-    } else {
-      result = { retCode: 1, retMsg: 'Empty response from server' };
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: method === 'POST' ? body : undefined,
+    });
+    
+    if (!response.ok) {
+      console.error(`HTTP Error: ${response.status} ${response.statusText}`);
+      return { 
+        retCode: 1, 
+        retMsg: `HTTP ${response.status}: ${response.statusText}`,
+        httpStatus: response.status 
+      };
     }
-  } catch (parseError) {
-    console.error('JSON parse error:', parseError);
-    result = { retCode: 1, retMsg: 'Invalid JSON response from server' };
+    
+    let result;
+    try {
+      const responseText = await response.text();
+      console.log(`📤 Raw Response: ${responseText.substring(0, 200)}...`);
+      
+      if (responseText.trim()) {
+        result = JSON.parse(responseText);
+      } else {
+        result = { 
+          retCode: 1, 
+          retMsg: 'Empty response from Bybit server. This may indicate invalid API credentials or testnet access issues.',
+          suggestion: 'Please verify your Bybit API credentials are valid for testnet and have proper permissions'
+        };
+      }
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      result = { 
+        retCode: 1, 
+        retMsg: 'Invalid JSON response from Bybit server',
+        rawResponse: responseText?.substring(0, 100) 
+      };
+    }
+  } catch (fetchError) {
+    console.error('Fetch error:', fetchError);
+    return { 
+      retCode: 1, 
+      retMsg: `Network error: ${fetchError.message}`,
+      suggestion: 'Check network connectivity and Bybit server status' 
+    };
   }
   console.log(`📊 Bybit Response:`, result);
   

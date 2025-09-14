@@ -115,6 +115,7 @@ export type Database = {
       signals: {
         Row: {
           algo: string | null
+          atr: number | null
           bar_time: string
           confidence: number | null
           created_at: string | null
@@ -133,6 +134,7 @@ export type Database = {
         }
         Insert: {
           algo?: string | null
+          atr?: number | null
           bar_time: string
           confidence?: number | null
           created_at?: string | null
@@ -151,6 +153,7 @@ export type Database = {
         }
         Update: {
           algo?: string | null
+          atr?: number | null
           bar_time?: string
           confidence?: number | null
           created_at?: string | null
