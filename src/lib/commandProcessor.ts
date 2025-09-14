@@ -21,6 +21,7 @@ export class CommandProcessor {
       console.log('🚀 Executing /rebuild command');
       // Set rebuild flag and redirect
       localStorage.setItem('rebuildCommand', 'true');
+      // Immediately trigger rebuild
       window.location.href = '/rebuild?rebuild=true';
     });
 
