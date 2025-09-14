@@ -159,11 +159,20 @@ serve(async (req: Request) => {
         // Calculate position size based on USD amount and current price
         const symbol = body.symbol?.replace(/[\/\s]/g, '') || 'BTCUSDT';
         
-        // Get current price first
-        const tickerResponse = await makeBybitRequest('/v5/market/tickers', {
-          category: 'spot',
-          symbol: symbol
-        }, apiKey, apiSecret);
+        // Get current price - try linear first (for USDT pairs), then spot if that fails
+        let tickerResponse;
+        try {
+          tickerResponse = await makeBybitRequest('/v5/market/tickers', {
+            category: 'linear',
+            symbol: symbol
+          }, apiKey, apiSecret);
+        } catch (error) {
+          console.log('Linear category failed, trying spot:', error.message);
+          tickerResponse = await makeBybitRequest('/v5/market/tickers', {
+            category: 'spot',
+            symbol: symbol
+          }, apiKey, apiSecret);
+        }
         
         if (tickerResponse.retCode !== 0) {
           throw new Error(`Failed to get ticker: ${tickerResponse.retMsg}`);
