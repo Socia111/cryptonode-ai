@@ -106,7 +106,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    console.log('🚀 AItradeX1 Trade Executor - Request received');
+    console.log('🚀 AItradeX1 Trade Executor - REAL API Request received');
     
     const body: TradeRequest = await req.json();
     console.log('📋 Request body:', body);

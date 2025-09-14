@@ -56,7 +56,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    console.log('🚀 Bybit Live Trading - Request received');
+    console.log('🚀 Bybit Live Trading - REAL API Request received');
     
     const body: BybitRequest = await req.json();
     console.log('📋 Request action:', body.action);
