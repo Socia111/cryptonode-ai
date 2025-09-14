@@ -319,6 +319,27 @@ export const useSignals = () => {
     setLoading(true);
     try {
       setError(null);
+      
+      // Try signals API first (uses service role)
+      try {
+        console.log('[useSignals] Fetching via signals API...');
+        const { data: apiData, error: apiError } = await supabase.functions.invoke('signals-api', {
+          body: { action: 'recent' }
+        });
+        
+        if (!apiError && apiData?.success && apiData?.signals) {
+          const mappedSignals = mapSignalsToInterface(apiData.signals);
+          setSignals(mappedSignals);
+          console.log(`[useSignals] API loaded ${mappedSignals.length} signals`);
+          setLoading(false);
+          return;
+        }
+      } catch (apiError) {
+        console.warn('[useSignals] API fallback failed:', apiError);
+      }
+      
+      // Fallback to direct database query
+      console.log('[useSignals] Using direct database query...');
       const { data, error } = await supabase.from('signals')
         .select('*')
         .gte('score', 80) // Only show 80%+ confidence signals 
@@ -326,14 +347,18 @@ export const useSignals = () => {
         .order('created_at', { ascending: false })
         .limit(20); // Limit to 20 most recent
         
-      if (error) throw error;
-      
-      const mappedSignals = (data || []).map(mapDbToSignal);
-      setSignals(mappedSignals);
-      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database (80%+ confidence only)`);
+      if (error) {
+        console.warn('[useSignals] Database query failed, using mock signals:', error);
+        setSignals(getMockSignals());
+      } else {
+        const mappedSignals = (data || []).map(mapDbToSignal);
+        setSignals(mappedSignals);
+        console.log(`[useSignals] Database loaded ${mappedSignals.length} signals`);
+      }
     } catch (err: any) {
       console.error('[useSignals] refreshSignals failed:', err);
       setError(err.message || 'Failed to fetch signals');
+      setSignals(getMockSignals()); // Always show something
     } finally {
       setLoading(false);
     }

@@ -22,13 +22,46 @@ serve(async (req) => {
 
     console.log(`📡 Signals API called: ${req.method} ${path}`);
 
-    // Handle POST requests with path routing
+    // Handle POST requests with action routing
     if (req.method === 'POST') {
       const body = await req.json();
-      const requestPath = body.path;
+      const action = body.action;
       
-      // GET /signals/live - Live signals endpoint
-      if (requestPath === '/signals/live') {
+      console.log('📥 Signals API request:', { action, body });
+      
+      // Handle 'recent' action - Fetch recent high-confidence signals
+      if (action === 'recent') {
+        const { data: signals, error } = await supabase
+          .from('signals')
+          .select('*')
+          .gte('score', 80) // Only high-confidence signals
+          .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Last 4 hours
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (error) {
+          console.error('❌ Recent signals query error:', error);
+          return new Response(JSON.stringify({
+            success: false,
+            error: error.message
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500
+          });
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          signals: signals || [],
+          count: signals?.length || 0,
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      
+      // GET /signals/live - Live signals endpoint (legacy support)
+      if (action === 'live') {
         const { data: signals, error } = await supabase
           .from('signals')
           .select('*')

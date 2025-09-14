@@ -196,13 +196,21 @@ export const TradingGateway = {
       const functionsBase = getFunctionsBaseUrl();
       const sessionToken = await getSessionToken();
       
+      if (!sessionToken) {
+        console.warn('No session token available for balance check');
+        return { 
+          ok: false, 
+          error: 'Authentication required. Please sign in to check balance.',
+          code: 'AUTH_REQUIRED' 
+        };
+      }
+      
       const headers: Record<string, string> = {
         'content-type': 'application/json',
+        'authorization': `Bearer ${sessionToken}`,
       };
       
-      if (sessionToken) {
-        headers['authorization'] = `Bearer ${sessionToken}`;
-      }
+      console.log('🔍 Checking balance via bybit-live-trading function...');
       
       const response = await fetch(`${functionsBase}/bybit-live-trading`, {
         method: 'POST',
@@ -210,12 +218,46 @@ export const TradingGateway = {
         body: JSON.stringify({ action: 'balance' })
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Balance check HTTP error:', response.status, errorText);
+        return { 
+          ok: false, 
+          error: `HTTP ${response.status}: ${errorText}`,
+          code: 'HTTP_ERROR'
+        };
+      }
+
       const data = await response.json();
-      return { ok: data.success, data: data.data };
+      
+      if (!data.success) {
+        console.error('❌ Balance check failed:', data);
+        
+        // Provide helpful error messages for common issues
+        let errorMessage = data.message || data.error || 'Balance check failed';
+        if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+          errorMessage = 'API authentication failed. Please check your Bybit API credentials in the settings.';
+        } else if (errorMessage.includes('MISSING_CREDENTIALS')) {
+          errorMessage = 'Bybit API credentials not configured. Please configure your API key and secret in the Edge Function settings.';
+        }
+        
+        return { 
+          ok: false, 
+          error: errorMessage,
+          data: data 
+        };
+      }
+      
+      console.log('✅ Balance check successful:', data.data);
+      return { ok: true, data: data.data };
       
     } catch (error: any) {
       console.error('❌ Error fetching balance:', error);
-      return { ok: false, error: error.message };
+      return { 
+        ok: false, 
+        error: error.message || 'Network error during balance check',
+        code: 'NETWORK_ERROR'
+      };
     }
   },
 

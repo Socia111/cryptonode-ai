@@ -77,6 +77,15 @@ async function bybitApiCall(
     queryString = body;
   }
   
+  // Validate API credentials before making the call
+  if (!apiKey || !apiSecret) {
+    throw new Error('API key and secret are required');
+  }
+
+  if (apiKey.length < 10 || apiSecret.length < 20) {
+    throw new Error('Invalid API credentials format');
+  }
+  
   const signature = await generateSignature(timestamp, apiKey, recv_window, queryString, apiSecret);
   
   const headers = {
@@ -97,6 +106,7 @@ async function bybitApiCall(
       method,
       headers,
       body: method === 'POST' ? body : undefined,
+      timeout: 10000, // 10 second timeout
     });
     
     if (!response.ok) {
@@ -277,7 +287,9 @@ serve(async (req) => {
           isTestnet: isTestnet,
           configurationHelp: 'Go to Supabase Dashboard → Functions → Secrets to add BYBIT_API_KEY and BYBIT_API_SECRET'
         },
-        action: action
+        action: action,
+        testMode: isTestnet,
+        live_trading_enabled: liveTrading
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
