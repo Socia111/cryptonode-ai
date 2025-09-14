@@ -109,29 +109,18 @@ const SignalsList = () => {
       return;
     }
 
-    const side = signal.direction;
-    const orderAmount = Math.max(25, parseFloat(orderSize)); // Ensure minimum $25
-    const res = await TradingGateway.execute({ 
-      symbol: signal.token, 
-      side, 
-      amountUSD: orderAmount
-    });
-    
-    if (!res.ok && res.code === 'DISABLED') {
-      toast({
-        title: "Auto-trading disabled", 
-        description: res.message,
-        variant: "default",
-      });
-      return;
-    }
-
-    // Execute real trade via TradingGateway
     setIsExecutingOrder(true);
     try {
+      // Clean symbol format - remove /USDT suffix and normalize
+      const cleanSymbol = signal.token?.replace('/USDT', '').replace('USDT', '') + 'USDT';
+      const side = signal.direction === 'BUY' || signal.direction === 'Buy' ? 'Buy' : 'Sell';
+      const orderAmount = Math.max(25, parseFloat(orderSize)); // Ensure minimum $25
+      
       console.log('🚀 Executing real trade:', {
-        token: signal.token,
-        direction: signal.direction,
+        originalToken: signal.token,
+        cleanSymbol,
+        side,
+        orderAmount,
         entry_price: signal.entry_price,
         stop_loss: signal.stop_loss,
         exit_target: signal.exit_target,
@@ -139,23 +128,42 @@ const SignalsList = () => {
         leverage: useLeverage ? leverage : 1
       });
 
-      if (res.ok) {
-        toast({
-          title: "✅ Trade Executed Successfully",
-          description: `${signal.token} ${signal.direction} - Real order placed on Bybit`,
-          variant: "default",
-        });
-      } else {
-        toast({
-          title: "❌ Trade Execution Failed", 
-          description: res.message || 'Failed to execute trade on Bybit',
-          variant: "destructive",
-        });
+      const res = await TradingGateway.execute({ 
+        symbol: cleanSymbol,
+        side,
+        amountUSD: orderAmount,
+        leverage: useLeverage ? leverage : 1,
+        uiEntry: signal.entry_price,
+        uiSL: signal.stop_loss,
+        uiTP: signal.exit_target
+      });
+      
+      if (!res.ok) {
+        if (res.code === 'DISABLED') {
+          toast({
+            title: "Auto-trading disabled", 
+            description: res.message,
+            variant: "default",
+          });
+        } else {
+          toast({
+            title: "❌ Trade Execution Failed", 
+            description: res.message || 'Failed to execute trade on Bybit',
+            variant: "destructive",
+          });
+        }
         return;
       }
 
+      toast({
+        title: "✅ Trade Executed Successfully",
+        description: `${cleanSymbol} ${side} order placed on Bybit`,
+        variant: "default",
+      });
+
       // Mark as executed
       setExecutedSignals(prev => new Set(prev).add(signal.id));
+      
     } catch (error: any) {
       console.error('❌ Trade execution error:', error);
       toast({
