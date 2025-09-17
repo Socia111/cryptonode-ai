@@ -281,16 +281,17 @@ serve(async (req) => {
       }, 401);
     }
 
-    const { symbol, side, amountUSD, leverage, scalpMode } = requestBody;
+    const { symbol, side, amountUSD, leverage = 1, scalpMode } = requestBody;
     
-    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
+    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage: Number(leverage) || 1 });
 
     // Handle place order requests
     if (action === 'place_order' || action === 'signal') {
       if (!symbol || !side || !amountUSD) {
         return json({
           success: false,
-          message: 'Missing required fields: symbol, side, amountUSD'
+          message: 'Missing required fields: symbol, side, amountUSD',
+          received: { symbol, side, amountUSD, leverage }
         }, 400);
       }
 
@@ -321,14 +322,15 @@ serve(async (req) => {
             symbol,
             side,
             finalAmount: finalAmountUSD,
-            leverage: leverage || 1
+            leverage: Number(leverage) || 1
           });
           
           // Simulate successful trade execution with realistic data
           const simulatedOrderId = 'PAPER_' + Date.now();
           const basePrice = symbol === 'BTCUSDT' ? 60000 : symbol === 'ETHUSDT' ? 3200 : 50;
           const simulatedPrice = basePrice * (1 + (Math.random() - 0.5) * 0.02); // ±1% price variation
-          const qty = (finalAmountUSD * (leverage || 1)) / simulatedPrice;
+          const effectiveLeverage = Number(leverage) || 1;
+          const qty = (finalAmountUSD * effectiveLeverage) / simulatedPrice;
           
           return json({
             success: true,
@@ -339,7 +341,7 @@ serve(async (req) => {
               qty: qty.toFixed(6),
               price: simulatedPrice.toFixed(2),
               amount: finalAmountUSD,
-              leverage: leverage || 1,
+              leverage: effectiveLeverage,
               status: 'FILLED',
               paperMode: true,
               message: 'Paper trade executed successfully - no real money involved'
@@ -401,7 +403,11 @@ serve(async (req) => {
           });
         }
 
-        // STEP 2: Check and set position mode to One-Way (safer for new positions)
+        // STEP 2: Get instrument info and price first
+        const inst = await getInstrument(symbol);
+        const price = await getMarkPrice(symbol);
+        
+        // STEP 3: Check and set position mode to One-Way (safer for new positions)
         if (inst.category === 'linear') {
           try {
             structuredLog('info', 'Setting position mode to One-Way for safe trading', { symbol });
@@ -419,17 +425,13 @@ serve(async (req) => {
             });
           }
         }
-
-        // Get instrument info and price
-        const inst = await getInstrument(symbol);
-        const price = await getMarkPrice(symbol);
         
         // =================== SCALPING VS NORMAL RISK MANAGEMENT ===================
         
         const isScalping = scalpMode === true;
         
-        // Calculate proper quantity with 25x leverage by default
-        const scaledLeverage = leverage || 25; // Default to 25x leverage
+        // Calculate proper quantity with defined leverage (default to 1x if not provided)
+        const scaledLeverage = Number(leverage) || 1; // Ensure leverage is a number
         const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
         
         // Enhanced validation with better error messages

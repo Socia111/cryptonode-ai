@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export const LiveTradingEnabler = () => {
   const [enabling, setEnabling] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [status, setStatus] = useState<'checking' | 'ready' | 'error'>('checking');
   const { toast } = useToast();
@@ -69,6 +70,44 @@ export const LiveTradingEnabler = () => {
     }
   };
 
+  const testTrade = async () => {
+    setTesting(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
+        body: { 
+          action: 'place_order',
+          symbol: 'BTCUSDT',
+          side: 'Buy',
+          amountUSD: 10,
+          leverage: 1
+        }
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      if (data?.success) {
+        toast({
+          title: "✅ Test Trade Successful",
+          description: `${data.data?.paperMode ? 'Paper' : 'Live'} trade executed: ${data.data?.qty} BTC at $${data.data?.price}`,
+        });
+      } else {
+        throw new Error(data?.message || 'Trade execution failed');
+      }
+      
+    } catch (error: any) {
+      toast({
+        title: "❌ Test Trade Failed", 
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
   React.useEffect(() => {
     checkCurrentMode();
   }, []);
@@ -110,6 +149,15 @@ export const LiveTradingEnabler = () => {
             variant={isLiveMode ? "outline" : "default"}
           >
             {enabling ? 'Testing Systems...' : isLiveMode ? '✅ Live Trading Active' : '🔥 Enable Live Trading'}
+          </Button>
+          
+          <Button 
+            onClick={testTrade}
+            disabled={testing}
+            className="w-full"
+            variant="outline"
+          >
+            {testing ? 'Testing Trade...' : '🧪 Test Trade Execution'}
           </Button>
           
           <p className="text-sm text-muted-foreground">
