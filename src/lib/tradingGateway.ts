@@ -94,12 +94,15 @@ export const TradingGateway = {
       const sessionToken = await getSessionToken();
       
       if (!sessionToken) {
+        console.warn('❌ No session token available');
         return { 
           ok: false, 
           error: 'AUTH_REQUIRED', 
-          message: 'Please sign in to execute trades' 
+          message: 'Please sign in to execute trades. Authentication is required for trading operations.' 
         };
       }
+      
+      console.log('✅ Session token available, proceeding with trade execution');
       
       const headers: Record<string, string> = {
         'content-type': 'application/json',
@@ -148,12 +151,41 @@ export const TradingGateway = {
       });
 
       if (!r.ok) {
-        const errorText = await r.text();
-        console.error('❌ HTTP Error:', r.status, errorText);
+        let errorData: any = {};
+        let errorText = '';
+        
+        try {
+          errorText = await r.text();
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText || 'Unknown error' };
+        }
+        
+        console.error('❌ HTTP Error:', r.status, errorData);
+        
+        // Handle specific error codes
+        if (r.status === 401) {
+          return { 
+            ok: false, 
+            error: 'AUTH_FAILED', 
+            message: errorData.error || 'Authentication failed. Please check your credentials.',
+            status: r.status
+          };
+        }
+        
+        if (r.status === 400 && errorData.code === 'CREDENTIALS_REQUIRED') {
+          return { 
+            ok: false, 
+            error: 'CREDENTIALS_REQUIRED', 
+            message: errorData.error || 'Trading credentials required. Please add your API keys.',
+            status: r.status
+          };
+        }
+        
         return { 
           ok: false, 
           error: 'HTTP_ERROR', 
-          message: `HTTP ${r.status}: ${errorText}`,
+          message: errorData.error || errorText || `HTTP ${r.status} error`,
           status: r.status
         };
       }

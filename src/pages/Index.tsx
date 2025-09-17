@@ -4,6 +4,9 @@ import MainLayout from '../layouts/MainLayout';
 import TradingDashboard from '../components/TradingDashboard';
 import { TradingTest } from '@/components/TradingTest';
 import { SystemTestRunner } from '@/components/SystemTestRunner';
+import { AuthenticationTest } from '@/components/AuthenticationTest';
+import { TradingSystemTest } from '@/components/TradingSystemTest';
+import { TradingCredentialsManager } from '@/components/TradingCredentialsManager';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Index = () => {
@@ -11,10 +14,12 @@ const Index = () => {
     <MainLayout>
       <div className="container mx-auto p-6 space-y-6">
         <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="dashboard">Trading Dashboard</TabsTrigger>
-            <TabsTrigger value="testing">System Testing</TabsTrigger>
-            <TabsTrigger value="trading">Live Trading</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="auth">Authentication</TabsTrigger>
+            <TabsTrigger value="credentials">Credentials</TabsTrigger>
+            <TabsTrigger value="trading">Trading Tests</TabsTrigger>
+            <TabsTrigger value="system">System Tests</TabsTrigger>
           </TabsList>
           
           <TabsContent value="dashboard" className="space-y-6">
@@ -28,14 +33,20 @@ const Index = () => {
             </div>
           </TabsContent>
           
-          <TabsContent value="testing" className="space-y-6">
-            <SystemTestRunner />
+          <TabsContent value="auth" className="space-y-6">
+            <AuthenticationTest />
+          </TabsContent>
+          
+          <TabsContent value="credentials" className="space-y-6">
+            <TradingCredentialsManager />
           </TabsContent>
           
           <TabsContent value="trading" className="space-y-6">
-            <div className="grid gap-6">
-              <TradingTest />
-            </div>
+            <TradingSystemTest />
+          </TabsContent>
+          
+          <TabsContent value="system" className="space-y-6">
+            <SystemTestRunner />
           </TabsContent>
         </Tabs>
       </div>

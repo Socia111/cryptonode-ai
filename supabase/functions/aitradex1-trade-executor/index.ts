@@ -137,18 +137,19 @@ class BybitV5Client {
 // =================== TRADE EXECUTION LOGIC ===================
 
 async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
+  const requestId = structuredLog('info', 'Trade execution started', { requestBody });
+  
   try {
     const { symbol, side, amountUSD, leverage = 1, testMode = false } = requestBody;
     
-    // Get user from JWT token
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    // Initialize Supabase client with service role key
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
-    // Create Supabase client 
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.56.0')
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.56.0');
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Try to get user ID from JWT token if provided
+    // Extract user ID from JWT token
     let userId: string | null = null;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       try {
@@ -156,89 +157,188 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
         const { data: { user }, error: userError } = await supabase.auth.getUser(token);
         if (user && !userError) {
           userId = user.id;
-          structuredLog('info', 'Extracted user from JWT', { userId });
+          structuredLog('info', 'User authenticated via JWT', { userId, requestId });
+        } else {
+          structuredLog('warn', 'JWT authentication failed', { error: userError?.message, requestId });
         }
       } catch (jwtError) {
-        structuredLog('warn', 'Failed to extract user from JWT', { error: jwtError });
+        structuredLog('error', 'JWT parsing failed', { error: jwtError.message, requestId });
       }
     }
     
-    // Fallback to test user if no authenticated user
+    // Require authentication - no fallbacks
     if (!userId) {
-      userId = 'ea52a338-c40d-4809-9014-10151b3af9af'; // From network logs
-      structuredLog('info', 'Using fallback test user', { userId });
+      structuredLog('error', 'Authentication required', { requestId });
+      return json({
+        success: false,
+        error: 'Authentication required. Please sign in to execute trades.',
+        code: 'AUTH_REQUIRED'
+      }, 401);
     }
     
-    // Get user's trading account or create one
-    let { data: account, error: accountError } = await supabase
-      .from('user_trading_accounts')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('exchange', 'bybit')
-      .eq('is_active', true)
-      .maybeSingle()
+    // Use the new helper function to get trading account
+    const { data: accounts, error: accountError } = await supabase
+      .rpc('get_user_trading_account', {
+        p_user_id: userId,
+        p_account_type: 'testnet'
+      });
     
-    // If no account exists, create one with environment credentials
+    if (accountError) {
+      structuredLog('error', 'Failed to fetch trading account', { 
+        error: accountError.message, 
+        userId, 
+        requestId 
+      });
+      return json({
+        success: false,
+        error: 'Failed to access trading account: ' + accountError.message
+      }, 500);
+    }
+    
+    let account = accounts?.[0];
+    
+    // If no account exists, try to create one with environment credentials
     if (!account) {
-      const envApiKey = Deno.env.get('BYBIT_API_KEY')
-      const envApiSecret = Deno.env.get('BYBIT_API_SECRET')
+      const envApiKey = Deno.env.get('BYBIT_API_KEY');
+      const envApiSecret = Deno.env.get('BYBIT_API_SECRET');
       
       if (!envApiKey || !envApiSecret) {
+        structuredLog('warn', 'No trading credentials available', { userId, requestId });
         return json({
           success: false,
-          error: 'No trading credentials available',
+          error: 'No trading credentials configured. Please add your Bybit API credentials.',
+          code: 'CREDENTIALS_REQUIRED',
           needsCredentials: true
         }, 400);
       }
       
       // Create account using the restore function
-      const { data: newAccountId, error: createError } = await supabase
-        .rpc('restore_user_trading_account', {
-          p_user_id: userId,
-          p_api_key: envApiKey,
-          p_api_secret: envApiSecret,
-          p_account_type: 'testnet'
+      try {
+        const { data: newAccountId, error: createError } = await supabase
+          .rpc('restore_user_trading_account', {
+            p_user_id: userId,
+            p_api_key: envApiKey,
+            p_api_secret: envApiSecret,
+            p_account_type: 'testnet'
+          });
+        
+        if (createError) {
+          structuredLog('error', 'Failed to create trading account', { 
+            error: createError.message, 
+            userId, 
+            requestId 
+          });
+          return json({
+            success: false,
+            error: 'Failed to create trading account: ' + createError.message
+          }, 500);
+        }
+        
+        // Fetch the newly created account using the helper function
+        const { data: newAccounts } = await supabase
+          .rpc('get_user_trading_account', {
+            p_user_id: userId,
+            p_account_type: 'testnet'
+          });
+        
+        account = newAccounts?.[0];
+        structuredLog('info', 'Created new trading account', { 
+          accountId: newAccountId, 
+          userId, 
+          requestId 
         });
-      
-      if (createError) {
-        structuredLog('error', 'Failed to create trading account', { error: createError.message });
+      } catch (createError) {
+        structuredLog('error', 'Exception creating trading account', { 
+          error: createError.message, 
+          userId, 
+          requestId 
+        });
         return json({
           success: false,
           error: 'Failed to create trading account: ' + createError.message
         }, 500);
       }
-      
-      // Fetch the newly created account
-      const { data: newAccount } = await supabase
-        .from('user_trading_accounts')
-        .select('*')
-        .eq('id', newAccountId)
-        .single();
-      
-      account = newAccount;
-      structuredLog('info', 'Created new trading account', { accountId: newAccountId });
     }
     
     if (!account) {
+      structuredLog('error', 'No trading account available after creation attempt', { 
+        userId, 
+        requestId 
+      });
       return json({
         success: false,
-        error: 'Unable to access trading account'
+        error: 'Unable to access or create trading account',
+        code: 'ACCOUNT_ACCESS_FAILED'
       }, 400);
     }
 
-    // Initialize Bybit client
+    // Validate API credentials
     const apiKey = account.api_key_encrypted;
     const apiSecret = account.api_secret_encrypted;
     
     if (!apiKey || !apiSecret) {
+      structuredLog('error', 'Trading account missing API credentials', { 
+        accountId: account.id, 
+        userId, 
+        requestId 
+      });
       return json({
         success: false,
-        error: 'Trading account missing API credentials',
+        error: 'Trading account missing API credentials. Please update your credentials.',
+        code: 'CREDENTIALS_MISSING',
         needsCredentials: true
       }, 400);
     }
 
+    // Validate credential format
+    if (apiKey.length < 10 || apiSecret.length < 10) {
+      structuredLog('error', 'Invalid API credentials format', { 
+        accountId: account.id, 
+        userId, 
+        requestId 
+      });
+      return json({
+        success: false,
+        error: 'Invalid API credentials format. Please check your credentials.',
+        code: 'CREDENTIALS_INVALID',
+        needsCredentials: true
+      }, 400);
+    }
+
+    // Initialize Bybit client
     const bybit = new BybitV5Client(apiKey, apiSecret);
+    
+    // Validate credentials by testing API connection
+    try {
+      const accountInfo = await bybit.getAccountInfo();
+      if (accountInfo.retCode !== 0) {
+        structuredLog('error', 'Bybit API authentication failed', { 
+          retCode: accountInfo.retCode,
+          retMsg: accountInfo.retMsg,
+          userId, 
+          requestId 
+        });
+        return json({
+          success: false,
+          error: `Bybit API authentication failed: ${accountInfo.retMsg}`,
+          code: 'API_AUTH_FAILED',
+          needsCredentials: true
+        }, 401);
+      }
+      structuredLog('info', 'Bybit API authentication successful', { userId, requestId });
+    } catch (authError) {
+      structuredLog('error', 'Bybit API connection test failed', { 
+        error: authError.message, 
+        userId, 
+        requestId 
+      });
+      return json({
+        success: false,
+        error: `Bybit API connection failed: ${authError.message}`,
+        code: 'API_CONNECTION_FAILED',
+        needsCredentials: true
+      }, 401);
+    }
 
     // Validate symbol and get instrument info
     const instrumentInfo = await bybit.getInstrumentInfo(symbol);

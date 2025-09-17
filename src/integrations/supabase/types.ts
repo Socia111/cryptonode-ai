@@ -571,6 +571,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_trading_account: {
+        Args: { p_account_type?: string; p_user_id: string }
+        Returns: {
+          account_type: string
+          api_key_encrypted: string
+          api_secret_encrypted: string
+          id: string
+          is_active: boolean
+          permissions: string[]
+          risk_settings: Json
+        }[]
+      }
       increment_tokens_sold: {
         Args: { tokens: number }
         Returns: number
