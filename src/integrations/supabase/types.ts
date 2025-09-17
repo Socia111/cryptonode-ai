@@ -238,6 +238,7 @@ export type Database = {
           created_at: string | null
           direction: string
           entry_price: number | null
+          exchange: string | null
           expires_at: string | null
           id: string
           metadata: Json | null
@@ -257,6 +258,7 @@ export type Database = {
           created_at?: string | null
           direction: string
           entry_price?: number | null
+          exchange?: string | null
           expires_at?: string | null
           id?: string
           metadata?: Json | null
@@ -276,6 +278,7 @@ export type Database = {
           created_at?: string | null
           direction?: string
           entry_price?: number | null
+          exchange?: string | null
           expires_at?: string | null
           id?: string
           metadata?: Json | null
