@@ -82,7 +82,7 @@ const BybitTradingAuth = () => {
         body: {
           apiKey: credentials.apiKey.trim(),
           apiSecret: credentials.apiSecret.trim(),
-          isTestnet: useTestnet
+          testnet: useTestnet
         }
       });
 
@@ -90,20 +90,7 @@ const BybitTradingAuth = () => {
         throw new Error(data?.message || error?.message || 'Authentication failed');
       }
 
-      // Save connection state to database
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('user_trading_accounts').upsert({
-          user_id: user.id,
-          exchange: 'bybit',
-          account_type: useTestnet ? 'testnet' : 'mainnet',
-          is_active: true,
-          connected_at: new Date().toISOString(),
-          balance_info: data.balance,
-          permissions: data.permissions || ['read', 'trade'],
-          risk_settings: data.riskSettings
-        }, { onConflict: 'user_id,exchange' });
-      }
+      // Connection already stored by the edge function
 
       setAuthState({
         isAuthenticated: true,

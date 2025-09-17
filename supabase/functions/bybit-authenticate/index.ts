@@ -55,15 +55,15 @@ serve(async (req) => {
         .upsert({
           user_id: user.id,
           exchange: 'bybit',
-          api_key: apiKey,
-          api_secret: apiSecret, // In production, encrypt this
+          api_key_encrypted: apiKey, // In production, encrypt this
+          api_secret_encrypted: apiSecret, // In production, encrypt this
           account_type: testnet ? 'testnet' : 'mainnet',
           balance_info: authResult.balance,
           permissions: authResult.permissions,
           risk_settings: authResult.riskSettings,
           is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          connected_at: new Date().toISOString(),
+          last_used_at: new Date().toISOString()
         });
 
       if (storeError) {

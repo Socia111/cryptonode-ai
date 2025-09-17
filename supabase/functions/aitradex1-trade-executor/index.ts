@@ -279,8 +279,9 @@ serve(async (req) => {
         }, 400);
       }
 
-  // For scalping, use very small minimum order size to avoid balance issues
-  const minOrderSize = scalpMode ? 1 : 5  // Scalp: $1 min | Normal: $5 min
+  // Determine minimum order size based on account type and mode
+  const isTestnet = account.account_type === 'testnet';
+  const minOrderSize = scalpMode ? (isTestnet ? 0.1 : 1) : (isTestnet ? 1 : 5);  // Testnet: much smaller minimums
   const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
 
       structuredLog('info', 'Trade execution request', {
@@ -292,18 +293,59 @@ serve(async (req) => {
       });
 
       try {
-        // Initialize Bybit client
-        const apiKey = Deno.env.get('BYBIT_API_KEY')
-        const apiSecret = Deno.env.get('BYBIT_API_SECRET')
+        // Get user from JWT token
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
         
-        if (!apiKey || !apiSecret) {
-          structuredLog('error', 'Missing Bybit credentials', {
-            hasApiKey: !!apiKey,
-            hasApiSecret: !!apiSecret
+        // Create Supabase client 
+        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.56.0')
+        const supabase = createClient(supabaseUrl, supabaseServiceKey)
+        
+        // Get user from auth token
+        const authHeader = req.headers.get('authorization')
+        if (!authHeader) {
+          return json({ success: false, error: 'No authorization header' }, 401)
+        }
+        
+        const { data: { user }, error: userError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
+        if (userError || !user) {
+          structuredLog('error', 'Invalid auth token', { error: userError?.message })
+          return json({ success: false, error: 'Invalid authentication token' }, 401)
+        }
+        
+        // Get user's trading account
+        const { data: account, error: accountError } = await supabase
+          .from('user_trading_accounts')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('exchange', 'bybit')
+          .eq('is_active', true)
+          .single()
+        
+        if (accountError || !account) {
+          structuredLog('error', 'No trading account found', { 
+            userId: user.id,
+            error: accountError?.message 
           });
           return json({
             success: false,
-            error: 'Bybit API credentials not configured. Please set BYBIT_API_KEY and BYBIT_API_SECRET in edge function secrets.'
+            error: 'No Bybit trading account configured for this user. Please connect your Bybit account first.'
+          }, 400);
+        }
+        
+        // Use stored API credentials (in a real implementation, these would be encrypted)
+        const apiKey = account.api_key_encrypted  // Note: In production, decrypt these
+        const apiSecret = account.api_secret_encrypted
+        
+        if (!apiKey || !apiSecret) {
+          structuredLog('error', 'Missing stored credentials', {
+            hasApiKey: !!apiKey,
+            hasApiSecret: !!apiSecret,
+            userId: user.id
+          });
+          return json({
+            success: false,
+            error: 'API credentials not found in your account. Please reconnect your Bybit account.'
           }, 400);
         }
 
@@ -417,16 +459,39 @@ serve(async (req) => {
           return await client.signedRequest('POST', '/v5/order/create', orderConfig)
         }
         
-        // Enhanced order placement with better error handling
+        // Get account position mode first
+        let positionMode = 0; // Default to OneWay
+        try {
+          const positionInfo = await client.signedRequest('GET', '/v5/position/list', {
+            category: inst.category,
+            symbol
+          });
+          structuredLog('info', 'Position mode check', { positionInfo: positionInfo?.result });
+        } catch (posError: any) {
+          structuredLog('warning', 'Could not check position mode', { error: posError.message });
+        }
+        
+        // Enhanced order placement with balance checks and smaller amounts
         let orderResult = null;
         let lastError = null;
+        
+        // Start with smaller quantity for insufficient balance cases
+        let adjustedQty = qty;
+        if (lastError?.message?.includes('ab not enough')) {
+          adjustedQty = Math.max(qty * 0.1, inst.minOrderQty || 0.001); // Try 10% of original
+          structuredLog('info', 'Adjusting quantity for balance', { 
+            originalQty: qty, 
+            adjustedQty,
+            reason: 'insufficient_balance'
+          });
+        }
         
         const baseOrder = {
           category: inst.category,
           symbol,
           side: side === 'Buy' ? 'Buy' : 'Sell',
           orderType: 'Market',
-          qty: String(qty),
+          qty: String(adjustedQty),
           timeInForce: 'IOC'
         };
         
@@ -443,6 +508,16 @@ serve(async (req) => {
         } catch (cleanError: any) {
           lastError = cleanError;
           structuredLog('warning', { event: 'Clean order failed, trying with position modes', error: cleanError.message });
+          
+          // If insufficient balance, try with even smaller amount
+          if (cleanError.message.includes('ab not enough') && adjustedQty > inst.minOrderQty) {
+            adjustedQty = inst.minOrderQty || 0.001;
+            baseOrder.qty = String(adjustedQty);
+            structuredLog('info', 'Further reducing quantity', { 
+              newQty: adjustedQty,
+              reason: 'balance_insufficient'
+            });
+          }
           
           // Try OneWay mode (positionIdx=0)
           structuredLog('info', { event: 'Attempting order with OneWay mode (0)' });
