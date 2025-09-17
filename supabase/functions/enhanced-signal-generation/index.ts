@@ -100,17 +100,20 @@ serve(async (req) => {
     // Store signals with enhanced data
     if (signals.length > 0) {
       const { data: insertedSignals, error } = await supabase
-        .from('strategy_signals')
+        .from('signals')
         .insert(signals.map(s => ({
-          strategy: s.signal_type,
-          side: s.direction === 'BUY' ? 'LONG' : 'SHORT',
-          market_symbol: s.token,
+          symbol: s.token,
+          direction: s.direction,
+          timeframe: s.timeframe,
+          price: s.entry_price,
+          entry_price: s.entry_price,
+          stop_loss: s.stop_loss,
+          take_profit: s.exit_target,
+          score: Math.round(s.confidence_score),
           confidence: s.confidence_score / 100,
-          score: s.pms_score,
-          entry_hint: s.entry_price,
-          tp_hint: s.exit_target,
-          sl_hint: s.stop_loss,
-          meta: {
+          source: 'system',
+          algo: 'quantum_ai',
+          metadata: {
             timeframe: s.timeframe,
             leverage: s.leverage,
             volume_strength: s.volume_strength,
@@ -118,9 +121,10 @@ serve(async (req) => {
             signal_strength: s.signal_strength,
             risk_level: s.risk_level,
             quantum_probability: s.quantum_probability,
-            stels_analysis: s.stels_analysis
-          },
-          is_active: true
+            stels_analysis: s.stels_analysis,
+            signal_type: s.signal_type,
+            pms_score: s.pms_score
+          }
         })))
         .select()
 

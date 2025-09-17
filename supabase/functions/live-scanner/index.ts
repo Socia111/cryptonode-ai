@@ -602,23 +602,30 @@ serve(async (req) => {
             const score = confidenceScore(longBuckets as any);
 
             const payload = {
-              algo: "AItradeX1",
-              exchange,
               symbol,
+              direction: "BUY",
               timeframe,
-              direction: "LONG",
-              bar_time: new Date(barTime).toISOString(),
               price,
+              bar_time: new Date(barTime).toISOString(),
+              entry_price: price,
+              stop_loss: riskTargets(price, ATR[i], hvpVal).slLong,
+              take_profit: riskTargets(price, ATR[i], hvpVal).longTP,
               score,
-              risk: { atr: ATR[i], tpATR, sl: slLong, tp: longTP },
-              indicators: {
-                adx: ADX[i], diPlus: plusDI[i], diMinus: minusDI[i],
-                k: k[i], d: d[i], hvp: hvpVal, vol_spike: volSpike,
-              },
-              filters: longBuckets,
-              relaxed_mode: relaxed_filters,
-              candle_set_id: candleSetId,
-              unique_key: uniqueKey
+              confidence: score / 100,
+              source: 'system',
+              algo: 'unirail_core',
+              metadata: {
+                algo: "unirail_core",
+                atr: ATR[i],
+                risk: { atr: ATR[i], tpATR, sl: riskTargets(price, ATR[i], hvpVal).slLong, tp: riskTargets(price, ATR[i], hvpVal).longTP },
+                indicators: {
+                  adx: ADX[i], diPlus: plusDI[i], diMinus: minusDI[i],
+                  k: k[i], d: d[i], hvp: hvpVal, vol_spike: volSpike,
+                },
+                filters: longBuckets,
+                relaxed_mode: relaxed_filters,
+                unique_key: uniqueKey
+              }
             };
 
             await saveSignal(payload);
@@ -652,23 +659,30 @@ serve(async (req) => {
             const score = confidenceScore(shortBuckets as any);
 
             const payload = {
-              algo: "AItradeX1",
-              exchange,
               symbol,
+              direction: "SELL", 
               timeframe,
-              direction: "SHORT",
-              bar_time: new Date(barTime).toISOString(),
               price,
+              bar_time: new Date(barTime).toISOString(),
+              entry_price: price,
+              stop_loss: riskTargets(price, ATR[i], hvpVal).slShort,
+              take_profit: riskTargets(price, ATR[i], hvpVal).shortTP,
               score,
-              risk: { atr: ATR[i], tpATR, sl: slShort, tp: shortTP },
-              indicators: {
-                adx: ADX[i], diPlus: plusDI[i], diMinus: minusDI[i],
-                k: k[i], d: d[i], hvp: hvpVal, vol_spike: volSpike,
-              },
-              filters: shortBuckets,
-              relaxed_mode: relaxed_filters,
-              candle_set_id: candleSetId,
-              unique_key: uniqueKey
+              confidence: score / 100,
+              source: 'system',
+              algo: 'unirail_core',
+              metadata: {
+                algo: "unirail_core",
+                atr: ATR[i], 
+                risk: { atr: ATR[i], tpATR, sl: riskTargets(price, ATR[i], hvpVal).slShort, tp: riskTargets(price, ATR[i], hvpVal).shortTP },
+                indicators: {
+                  adx: ADX[i], diPlus: plusDI[i], diMinus: minusDI[i],
+                  k: k[i], d: d[i], hvp: hvpVal, vol_spike: volSpike,
+                },
+                filters: shortBuckets,
+                relaxed_mode: relaxed_filters,
+                unique_key: uniqueKey
+              }
             };
 
             await saveSignal(payload);

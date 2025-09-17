@@ -305,7 +305,7 @@ function evaluateAItradeX1(bars: OHLCV[], cfg = CANONICAL_CONFIG, relaxedMode = 
   const tp = side === 'LONG' ? close + tpATR * atrValue : close - tpATR * atrValue;
   
   return {
-    algo: 'AItradeX1_ORIGINAL',
+    algo: 'unirail_core',
     side,
     price: close,
     score,
@@ -392,17 +392,18 @@ serve(async (req) => {
           
           if (result && result.score >= 75) {
             const signal = {
-              exchange: 'bybit',
               symbol,
-              timeframe: tf,
               direction: result.side === 'LONG' ? 'BUY' : 'SELL',
+              timeframe: tf,
+              price: result.price,
               bar_time: new Date(ohlcv[ohlcv.length - 1].time).toISOString(),
               entry_price: result.price,
               stop_loss: result.risk.sl,
               take_profit: result.risk.tp,
-              confidence_score: result.score,
-              signal_strength: result.score >= 87.5 ? 'VERY_STRONG' : result.score >= 75 ? 'STRONG' : 'MODERATE',
-              risk_level: result.indicators.hvp >= 70 ? 'HIGH' : result.indicators.hvp >= 50 ? 'MEDIUM' : 'LOW',
+              score: Math.round(result.score),
+              confidence: result.score / 100,
+              source: 'system',
+              algo: 'unirail_core',
               metadata: {
                 algo: result.algo,
                 filters: result.filters,
@@ -412,7 +413,9 @@ serve(async (req) => {
                 relaxed_mode: result.relaxed_mode,
                 hvp: result.indicators.hvp,
                 atr: result.indicators.atr,
-                adx: result.indicators.adx
+                adx: result.indicators.adx,
+                signal_strength: result.score >= 87.5 ? 'VERY_STRONG' : result.score >= 75 ? 'STRONG' : 'MODERATE',
+                risk_level: result.indicators.hvp >= 70 ? 'HIGH' : result.indicators.hvp >= 50 ? 'MEDIUM' : 'LOW'
               }
             };
             
@@ -423,9 +426,7 @@ serve(async (req) => {
             // Store in database
             const { error } = await supabaseClient
               .from('signals')
-              .upsert(signal, {
-                onConflict: 'exchange,symbol,timeframe,direction,bar_time'
-              });
+              .insert(signal);
             
             if (error) {
               console.error(`❌ Database error for ${symbol}:`, error);
