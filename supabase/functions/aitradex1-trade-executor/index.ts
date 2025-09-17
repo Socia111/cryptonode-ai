@@ -279,19 +279,6 @@ serve(async (req) => {
         }, 400);
       }
 
-  // Determine minimum order size based on account type and mode
-  const isTestnet = account.account_type === 'testnet';
-  const minOrderSize = scalpMode ? (isTestnet ? 0.1 : 1) : (isTestnet ? 1 : 5);  // Testnet: much smaller minimums
-  const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
-
-      structuredLog('info', 'Trade execution request', {
-        symbol,
-        side,
-        originalAmount: amountUSD,
-        finalAmount: finalAmountUSD,
-        leverage: leverage || 1
-      });
-
       try {
         // Get user from JWT token
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -332,9 +319,22 @@ serve(async (req) => {
             error: 'No Bybit trading account configured for this user. Please connect your Bybit account first.'
           }, 400);
         }
-        
-        // Use stored API credentials (in a real implementation, these would be encrypted)
-        const apiKey = account.api_key_encrypted  // Note: In production, decrypt these
+
+        // Determine minimum order size based on account type and mode
+        const isTestnet = account.account_type === 'testnet';
+        const minOrderSize = scalpMode ? (isTestnet ? 0.1 : 1) : (isTestnet ? 1 : 5);  // Testnet: much smaller minimums
+        const finalAmountUSD = Math.max(amountUSD || minOrderSize, minOrderSize)
+
+        structuredLog('info', 'Trade execution request', {
+          symbol,
+          side,
+          originalAmount: amountUSD,
+          finalAmount: finalAmountUSD,
+          leverage: leverage || 1
+        });
+
+        // Use stored API credentials
+        const apiKey = account.api_key_encrypted
         const apiSecret = account.api_secret_encrypted
         
         if (!apiKey || !apiSecret) {
