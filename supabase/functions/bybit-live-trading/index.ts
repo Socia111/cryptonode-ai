@@ -296,6 +296,67 @@ serve(async (req) => {
       });
     }
 
+    // For testnet/paper trading mode, simulate responses when API credentials are not properly configured
+    if (isTestnet && action === 'balance') {
+      try {
+        // Try to make a test API call
+        const testResponse = await bybitApiCall('/v5/market/time', 'GET', {}, apiKey, apiSecret, isTestnet);
+        if (testResponse.retCode !== 0) {
+          console.log('🧪 API credentials invalid, returning mock balance for testing');
+          return new Response(JSON.stringify({
+            success: true,
+            data: {
+              totalWalletBalance: '10000.00',
+              totalAvailableBalance: '10000.00',
+              coin: [
+                {
+                  coin: 'USDT',
+                  equity: '10000.00',
+                  availableToWithdraw: '10000.00',
+                  totalOrderIM: '0.00',
+                  totalPositionIM: '0.00'
+                }
+              ]
+            },
+            message: 'Mock balance for testing - configure valid API credentials for real data',
+            retCode: 0,
+            testMode: true,
+            live_trading_enabled: liveTrading,
+            mockMode: true
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      } catch (error) {
+        console.log('🧪 API test failed, returning mock balance for testing:', error.message);
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            totalWalletBalance: '10000.00',
+            totalAvailableBalance: '10000.00',
+            coin: [
+              {
+                coin: 'USDT',
+                equity: '10000.00',
+                availableToWithdraw: '10000.00',
+                totalOrderIM: '0.00',
+                totalPositionIM: '0.00'
+              }
+            ]
+          },
+          message: 'Mock balance for testing - configure valid API credentials for real data',
+          retCode: 0,
+          testMode: true,
+          live_trading_enabled: liveTrading,
+          mockMode: true
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     // Master kill switch check
     if (!liveTrading && action === 'place_order') {
       console.log('🔒 Live trading disabled via LIVE_TRADING_ENABLED secret');

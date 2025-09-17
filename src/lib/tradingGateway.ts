@@ -248,6 +248,11 @@ export const TradingGateway = {
         };
       }
       
+      // Handle mock mode responses
+      if (data.mockMode) {
+        console.log('ℹ️ Using mock balance data - configure API credentials for real data');
+      }
+      
       console.log('✅ Balance check successful:', data.data);
       return { ok: true, data: data.data };
       
