@@ -165,14 +165,50 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
 
 function getMockSignals(): Signal[] {
   // For development - show more mock signals when no real signals available
-  const { generateMockSignals } = require('@/lib/mockSignals');
-  const mockData = generateMockSignals();
+  const mockData = [
+    {
+      id: '1',
+      symbol: 'BTCUSDT',
+      direction: 'LONG',
+      price: 91500,
+      tp: 94000,
+      sl: 89000,
+      score: 85,
+      timeframe: '1h',
+      algo: 'AItradeX1',
+      created_at: new Date().toISOString()
+    },
+    {
+      id: '2', 
+      symbol: 'ETHUSDT',
+      direction: 'LONG',
+      price: 3200,
+      tp: 3350,
+      sl: 3100,
+      score: 90,
+      timeframe: '15m',
+      algo: 'AItradeX1',
+      created_at: new Date().toISOString()
+    },
+    {
+      id: '3',
+      symbol: 'SOLUSDT', 
+      direction: 'SHORT',
+      price: 140,
+      tp: 135,
+      sl: 145,
+      score: 82,
+      timeframe: '30m',
+      algo: 'AItradeX1',
+      created_at: new Date().toISOString()
+    }
+  ];
   
   // Generate 3 sets of signals for variety 
   const allMockData = [
     ...mockData,
-    ...generateMockSignals(),
-    ...generateMockSignals()
+    ...mockData.map(signal => ({ ...signal, id: signal.id + '_2', timeframe: '5m' })),
+    ...mockData.map(signal => ({ ...signal, id: signal.id + '_3', timeframe: '4h' }))
   ];
   
   return allMockData.map((mock: any): Signal => ({
