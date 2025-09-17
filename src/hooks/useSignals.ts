@@ -164,11 +164,18 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
 }
 
 function getMockSignals(): Signal[] {
-  // For development - show mock signals when no real signals available
+  // For development - show more mock signals when no real signals available
   const { generateMockSignals } = require('@/lib/mockSignals');
   const mockData = generateMockSignals();
   
-  return mockData.map((mock: any): Signal => ({
+  // Generate 3 sets of signals for variety 
+  const allMockData = [
+    ...mockData,
+    ...generateMockSignals(),
+    ...generateMockSignals()
+  ];
+  
+  return allMockData.map((mock: any): Signal => ({
     id: mock.id,
     token: mock.symbol.replace('USDT', '/USDT'),
     direction: mock.direction === 'LONG' ? 'BUY' : 'SELL',
