@@ -82,6 +82,123 @@ export type Database = {
         }
         Relationships: []
       }
+      markets: {
+        Row: {
+          base_asset: string
+          created_at: string
+          exchange: string
+          id: string
+          max_order_size: number | null
+          min_order_size: number | null
+          price_precision: number | null
+          quantity_precision: number | null
+          quote_asset: string
+          status: string
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          base_asset: string
+          created_at?: string
+          exchange?: string
+          id?: string
+          max_order_size?: number | null
+          min_order_size?: number | null
+          price_precision?: number | null
+          quantity_precision?: number | null
+          quote_asset?: string
+          status?: string
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          base_asset?: string
+          created_at?: string
+          exchange?: string
+          id?: string
+          max_order_size?: number | null
+          min_order_size?: number | null
+          price_precision?: number | null
+          quantity_precision?: number | null
+          quote_asset?: string
+          status?: string
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      newsletter_signups: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          source: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          source?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          source?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      presale_settings: {
+        Row: {
+          created_at: string
+          current_tier: string | null
+          early_bird_limit: number | null
+          end_date: string | null
+          id: string
+          is_active: boolean | null
+          max_purchase_usd: number | null
+          min_purchase_usd: number | null
+          presale_limit: number | null
+          start_date: string | null
+          tokens_sold: number
+          total_tokens_for_sale: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_tier?: string | null
+          early_bird_limit?: number | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_purchase_usd?: number | null
+          min_purchase_usd?: number | null
+          presale_limit?: number | null
+          start_date?: string | null
+          tokens_sold?: number
+          total_tokens_for_sale?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_tier?: string | null
+          early_bird_limit?: number | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_purchase_usd?: number | null
+          min_purchase_usd?: number | null
+          presale_limit?: number | null
+          start_date?: string | null
+          tokens_sold?: number
+          total_tokens_for_sale?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -169,6 +286,57 @@ export type Database = {
           symbol?: string
           take_profit?: number | null
           timeframe?: string
+        }
+        Relationships: []
+      }
+      token_purchases: {
+        Row: {
+          created_at: string
+          id: string
+          price_id: string
+          product_id: string
+          status: string | null
+          stripe_payment_intent_id: string | null
+          stripe_session_id: string | null
+          tier_name: string
+          token_amount: number
+          token_price_usd: number
+          transaction_hash: string | null
+          updated_at: string
+          usd_amount: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          price_id: string
+          product_id: string
+          status?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          tier_name: string
+          token_amount: number
+          token_price_usd: number
+          transaction_hash?: string | null
+          updated_at?: string
+          usd_amount: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          price_id?: string
+          product_id?: string
+          status?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          tier_name?: string
+          token_amount?: number
+          token_price_usd?: number
+          transaction_hash?: string | null
+          updated_at?: string
+          usd_amount?: number
+          user_id?: string
         }
         Relationships: []
       }
@@ -299,12 +467,48 @@ export type Database = {
           },
         ]
       }
+      whitelist_signups: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          investment_amount: string | null
+          is_accredited: boolean | null
+          source: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          investment_amount?: string | null
+          is_accredited?: boolean | null
+          source?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          investment_amount?: string | null
+          is_accredited?: boolean | null
+          source?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_tokens_sold: {
+        Args: { tokens: number }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never

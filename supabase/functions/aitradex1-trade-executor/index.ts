@@ -247,19 +247,15 @@ serve(async (req) => {
   }
 
   try {
-    // Require auth (since verify_jwt=true)
+    // Check for auth but don't require it for status checks
     const auth = req.headers.get("authorization") || "";
-    if (!auth.startsWith("Bearer ")) {
-      return json({ success: false, code: "AUTH", message: "Missing authorization header" }, 401);
-    }
-
-    // Parse request
-    const requestBody = await req.json();
-    const { action, symbol, side, amountUSD, leverage, scalpMode } = requestBody;
+    const hasAuth = auth.startsWith("Bearer ");
     
-    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
-
-    // Handle status requests
+    // Parse request
+    const requestBody = await req.json().catch(() => ({ action: 'status' }));
+    const { action } = requestBody;
+    
+    // For status checks, allow without auth
     if (action === 'status') {
       const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || true;
       const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
@@ -271,9 +267,23 @@ serve(async (req) => {
         environment: isTestnet ? 'testnet' : 'mainnet',
         paper_mode: isPaperMode,
         allowed_symbols: Deno.env.get('ALLOWED_SYMBOLS') || '*',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        auth_required: !hasAuth
       });
     }
+    
+    // For trading actions, require auth
+    if (!hasAuth) {
+      return json({ 
+        success: false, 
+        code: "AUTH", 
+        message: "Authorization required for trading operations. Please log in." 
+      }, 401);
+    }
+
+    const { symbol, side, amountUSD, leverage, scalpMode } = requestBody;
+    
+    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
 
     // Handle place order requests
     if (action === 'place_order' || action === 'signal') {

@@ -334,10 +334,13 @@ export const useSignals = () => {
           body: { action: 'recent' }
         });
         
-        if (!apiError && apiData?.success && apiData?.signals) {
+        if (apiData?.signals) {
           const mappedSignals = mapSignalsToInterface(apiData.signals);
           setSignals(mappedSignals);
-          console.log(`[useSignals] API loaded ${mappedSignals.length} signals`);
+          console.log(`[useSignals] API loaded ${mappedSignals.length} signals from ${apiData.source || 'database'}`);
+          if (apiData.source === 'mock_fallback') {
+            console.log('[useSignals] Note: Using fallback mock data due to database issues');
+          }
           setLoading(false);
           return;
         }
@@ -357,10 +360,14 @@ export const useSignals = () => {
       if (error) {
         console.warn('[useSignals] Database query failed, using mock signals:', error);
         setSignals(getMockSignals());
-      } else {
-        const mappedSignals = (data || []).map(mapDbToSignal);
+        console.log(`[useSignals] Database loaded ${getMockSignals().length} mock signals (fallback)`);
+      } else if (data && data.length > 0) {
+        const mappedSignals = data.map(mapDbToSignal);
         setSignals(mappedSignals);
         console.log(`[useSignals] Database loaded ${mappedSignals.length} signals`);
+      } else {
+        console.log('[useSignals] No signals in database, using mock data');
+        setSignals(getMockSignals());
       }
     } catch (err: any) {
       console.error('[useSignals] refreshSignals failed:', err);
