@@ -38,11 +38,17 @@ class BybitV5Client {
   private apiKey: string
   private apiSecret: string
 
-  constructor(apiKey: string, apiSecret: string) {
-    this.baseURL = Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com'
+  constructor(apiKey: string, apiSecret: string, isTestnet: boolean = true) {
+    // Use testnet for development, mainnet for production
+    this.baseURL = isTestnet ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com'
     this.apiKey = apiKey
     this.apiSecret = apiSecret
-  }
+    
+    structuredLog('info', 'BybitV5Client initialized', { 
+      baseURL: this.baseURL, 
+      isTestnet,
+      keyLength: apiKey?.length || 0 
+    });
 
   private async signRequest(method: string, path: string, params: any = {}): Promise<string> {
     const timestamp = Date.now().toString()
@@ -305,7 +311,8 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
       }, 400);
     }
 
-    // Initialize Bybit client
+    // Initialize Bybit client with testnet for development
+    const bybit = new BybitV5Client(apiKey, apiSecret, true); // Force testnet
     const bybit = new BybitV5Client(apiKey, apiSecret);
     
     // Validate credentials by testing API connection
@@ -341,15 +348,36 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
     }
 
     // Validate symbol and get instrument info
-    const instrumentInfo = await bybit.getInstrumentInfo(symbol);
-    if (!instrumentInfo.result?.list?.length) {
-      return json({
-        success: false,
-        error: `Invalid symbol: ${symbol}`
-      }, 400);
-    }
+    structuredLog('info', 'Validating symbol', { symbol, requestId });
+    
+    try {
+      const instrumentInfo = await bybit.getInstrumentInfo(symbol);
+      structuredLog('info', 'Instrument info response', { 
+        retCode: instrumentInfo?.retCode,
+        retMsg: instrumentInfo?.retMsg,
+        resultLength: instrumentInfo?.result?.list?.length,
+        symbol,
+        requestId 
+      });
+      
+      if (!instrumentInfo.result?.list?.length) {
+        structuredLog('error', 'Symbol validation failed - no instruments found', { 
+          symbol, 
+          instrumentInfo,
+          requestId 
+        });
+        return json({
+          success: false,
+          error: `Invalid symbol: ${symbol}. This symbol may not be available on testnet or may not exist.`
+        }, 400);
+      }
 
     const instrument = instrumentInfo.result.list[0];
+    structuredLog('info', 'Symbol validated successfully', { 
+      symbol, 
+      instrumentName: instrument?.symbol,
+      requestId 
+    });
     
     // Get current price
     const tickerInfo = await bybit.getTicker(symbol);
@@ -358,23 +386,21 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
     // Calculate quantity based on USD amount
     const quantity = (amountUSD / currentPrice).toFixed(6);
     
-    // Prepare order parameters
-    const orderParams = {
-      category: 'linear',
-      symbol: symbol,
-      side: side.charAt(0).toUpperCase() + side.slice(1).toLowerCase(), // Buy/Sell
-      orderType: 'Market',
-      qty: quantity,
-      timeInForce: 'IOC',
-      reduceOnly: false,
-      closeOnTrigger: false
-    };
+    structuredLog('info', 'Trade calculation completed', { 
+      symbol,
+      amountUSD,
+      currentPrice,
+      quantity,
+      testMode,
+      requestId 
+    });
 
     if (testMode) {
       // Return mock successful trade for test mode
+      structuredLog('info', 'Returning test mode result', { requestId });
       return json({
         success: true,
-        message: 'Test trade executed successfully',
+        message: 'Test trade executed successfully (testnet simulation)',
         testMode: true,
         trade: {
           symbol,
@@ -382,7 +408,9 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
           quantity,
           price: currentPrice,
           amountUSD,
-          leverage
+          leverage,
+          orderId: 'test_' + Date.now(),
+          exchange: 'bybit_testnet'
         }
       });
     }

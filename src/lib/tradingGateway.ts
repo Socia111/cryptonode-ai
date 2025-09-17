@@ -123,24 +123,38 @@ export const TradingGateway = {
       // Clean symbol format - remove any slashes or spaces
       const cleanSymbol = params.symbol.replace(/[\/\s]/g, '');
       
-      const payload = {
+      // Clean payload - only include defined values to avoid serialization issues
+      const payload: any = {
         action: 'place_order',
         symbol: cleanSymbol,
         side: params.side,
         amountUSD: amount,
         leverage: leverage,
-        // NEW: limit-order fields
         orderType: params.orderType ?? 'Market',
-        price: params.price,
         timeInForce: params.timeInForce ?? (params.orderType === 'Limit' ? 'PostOnly' : 'GTC'),
         reduceOnly: params.reduceOnly ?? false,
-        // pass-through risk
-        stopLoss: params.stopLoss,
-        takeProfit: params.takeProfit,
         scalpMode: isScalping,
-        entryPrice: params.entryPrice || params.price, // backward compatibility
         meta: params.meta || {}
       };
+      
+      // Only add these fields if they have actual values (not undefined)
+      if (params.price !== undefined && params.price !== null) {
+        payload.price = params.price;
+      }
+      
+      if (params.stopLoss !== undefined && params.stopLoss !== null) {
+        payload.stopLoss = params.stopLoss;
+      }
+      
+      if (params.takeProfit !== undefined && params.takeProfit !== null) {
+        payload.takeProfit = params.takeProfit;
+      }
+      
+      if (params.entryPrice !== undefined && params.entryPrice !== null) {
+        payload.entryPrice = params.entryPrice;
+      } else if (params.price !== undefined && params.price !== null) {
+        payload.entryPrice = params.price; // backward compatibility
+      }
       
       console.log('📤 Request body to edge function:', payload);
 

@@ -7,6 +7,7 @@ import { SystemTestRunner } from '@/components/SystemTestRunner';
 import { AuthenticationTest } from '@/components/AuthenticationTest';
 import { TradingSystemTest } from '@/components/TradingSystemTest';
 import { TradingCredentialsManager } from '@/components/TradingCredentialsManager';
+import { QuickFixTest } from '@/components/QuickFixTest';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Index = () => {
@@ -14,8 +15,9 @@ const Index = () => {
     <MainLayout>
       <div className="container mx-auto p-6 space-y-6">
         <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="fixes">Quick Fixes</TabsTrigger>
             <TabsTrigger value="auth">Authentication</TabsTrigger>
             <TabsTrigger value="credentials">Credentials</TabsTrigger>
             <TabsTrigger value="trading">Trading Tests</TabsTrigger>
@@ -31,6 +33,10 @@ const Index = () => {
                 <TradingTest />
               </div>
             </div>
+          </TabsContent>
+          
+          <TabsContent value="fixes" className="space-y-6">
+            <QuickFixTest />
           </TabsContent>
           
           <TabsContent value="auth" className="space-y-6">
