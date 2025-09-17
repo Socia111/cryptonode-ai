@@ -310,20 +310,25 @@ serve(async (req) => {
       });
 
       try {
-        // Check if paper trading mode is enabled
-        const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
+        // Check trading mode configuration
+        const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true'; // CHANGE THIS TO 'false' FOR LIVE TRADING
+        const liveMode = !isPaperMode;
+        
+        console.log(`🎯 Trading Mode: ${liveMode ? 'LIVE' : 'PAPER'} (PAPER_TRADING=${isPaperMode})`);
         
         if (isPaperMode) {
           structuredLog('info', 'Paper trading mode - simulating trade execution', {
             symbol,
             side,
             finalAmount: finalAmountUSD,
-            leverage: 25
+            leverage: leverage || 1
           });
           
-          // Simulate successful trade execution
+          // Simulate successful trade execution with realistic data
           const simulatedOrderId = 'PAPER_' + Date.now();
-          const simulatedPrice = Math.random() * 100 + 50; // Random price for demo
+          const basePrice = symbol === 'BTCUSDT' ? 60000 : symbol === 'ETHUSDT' ? 3200 : 50;
+          const simulatedPrice = basePrice * (1 + (Math.random() - 0.5) * 0.02); // ±1% price variation
+          const qty = (finalAmountUSD * (leverage || 1)) / simulatedPrice;
           
           return json({
             success: true,
@@ -331,16 +336,19 @@ serve(async (req) => {
               orderId: simulatedOrderId,
               symbol,
               side,
-              qty: (finalAmountUSD * 25 / simulatedPrice).toFixed(6),
-              price: simulatedPrice,
+              qty: qty.toFixed(6),
+              price: simulatedPrice.toFixed(2),
               amount: finalAmountUSD,
-              leverage: 25,
+              leverage: leverage || 1,
               status: 'FILLED',
               paperMode: true,
               message: 'Paper trade executed successfully - no real money involved'
             }
           });
         }
+
+        // ===== LIVE TRADING MODE =====
+        console.log('🔥 LIVE TRADING: Executing real trade with Bybit API');
 
         // Initialize Bybit client for real trading
         const apiKey = Deno.env.get('BYBIT_API_KEY')

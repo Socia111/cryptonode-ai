@@ -32,24 +32,54 @@ serve(async (req) => {
       // Handle 'recent' action - Fetch recent high-confidence signals
       if (action === 'recent') {
         try {
+          // Use service role to bypass RLS - ALREADY CONFIGURED IN LINE 17
           const { data: signals, error } = await supabase
             .from('signals')
             .select('*')
-            .gte('score', 80) // Only high-confidence signals
-            .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Last 4 hours
+            .gte('score', 75) // Lower threshold to find more signals  
+            .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
             .order('created_at', { ascending: false })
             .limit(20);
 
           if (error) {
-            console.error('❌ Recent signals query error:', error);
-            // Return mock data instead of error
-            const mockSignals = generateMockSignals();
+            console.error(`❌ Recent signals query error: ${JSON.stringify(error)}`);
+            
+            // Only return mock data if it's a permission or table error
+            if (error.code === '42501' || error.code === '42P01') {
+              console.log('🔧 Using mock fallback due to permission/table error');
+              const mockSignals = generateMockSignals();
+              return new Response(JSON.stringify({
+                success: true,
+                signals: mockSignals,
+                count: mockSignals.length,
+                source: 'mock_fallback',
+                message: 'Using mock data due to database error',
+                timestamp: new Date().toISOString()
+              }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              });
+            }
+            
+            // For other errors, return the error
+            return new Response(JSON.stringify({
+              success: false,
+              error: error.message
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 500
+            });
+          }
+
+          console.log(`✅ Found ${signals?.length || 0} real signals from database`);
+          
+          if (!signals || signals.length === 0) {
+            console.log('⚠️ No real signals found in database - returning empty array');
             return new Response(JSON.stringify({
               success: true,
-              signals: mockSignals,
-              count: mockSignals.length,
-              source: 'mock_fallback',
-              message: 'Using mock data due to database error',
+              signals: [],
+              count: 0,
+              source: 'database_empty',
+              message: 'No signals found in database',
               timestamp: new Date().toISOString()
             }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }

@@ -6,6 +6,8 @@ import { SignalFeed } from '@/components/SignalFeed';
 import { TradingFixTest } from '@/components/TradingFixTest';
 import { TradingTest } from '@/components/TradingTest';
 import { TradeExecutionTest } from '@/components/TradeExecutionTest';
+import { TradeTestPanel } from '@/components/TradeTestPanel';
+import { SystemStatusPanel } from '@/components/SystemStatusPanel';
 import { useSignals } from '@/hooks/useSignals';
 import LivePrice from '../components/LivePrice';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,13 +47,19 @@ const Trade = () => {
         </div>
 
         {/* Trading Tabs */}
-        <Tabs defaultValue="signals" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="signals">🎯 Live Signals</TabsTrigger>
-            <TabsTrigger value="test">🔧 System Test</TabsTrigger>
-            <TabsTrigger value="trading-test">🧪 Trading Test</TabsTrigger>
-            <TabsTrigger value="execution-test">⚡ Live Test</TabsTrigger>
+        <Tabs defaultValue="status" className="w-full">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="status">📊 Status</TabsTrigger>
+            <TabsTrigger value="signals">🎯 Signals</TabsTrigger>
+            <TabsTrigger value="test">🔧 Test</TabsTrigger>
+            <TabsTrigger value="trading-test">🧪 Trading</TabsTrigger>
+            <TabsTrigger value="execution-test">⚡ Live</TabsTrigger>
+            <TabsTrigger value="pipeline-test">🔄 Pipeline</TabsTrigger>
           </TabsList>
+          
+          <TabsContent value="status" className="mt-6">
+            <SystemStatusPanel />
+          </TabsContent>
           
           <TabsContent value="signals" className="mt-6">
             {loading ? (
@@ -71,6 +79,10 @@ const Trade = () => {
           
           <TabsContent value="execution-test" className="mt-6">
             <TradeExecutionTest />
+          </TabsContent>
+          
+          <TabsContent value="pipeline-test" className="mt-6">
+            <TradeTestPanel />
           </TabsContent>
         </Tabs>
       </div>
