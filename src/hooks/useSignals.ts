@@ -363,40 +363,38 @@ export const useSignals = () => {
     try {
       setError(null);
       
-      // Try signals API first (uses service role)
+      // Try signals API first (uses service role) - NO MOCK FALLBACK
       try {
-        console.log('[useSignals] Fetching via signals API...');
+        console.log('[useSignals] Fetching real signals via API...');
         const { data: apiData, error: apiError } = await supabase.functions.invoke('signals-api', {
           body: { action: 'recent' }
         });
         
-        if (apiData?.signals) {
+        if (apiData?.signals && apiData.signals.length > 0 && apiData.source !== 'mock_fallback') {
           const mappedSignals = mapSignalsToInterface(apiData.signals);
           setSignals(mappedSignals);
-          console.log(`[useSignals] API loaded ${mappedSignals.length} signals from ${apiData.source || 'database'}`);
-          if (apiData.source === 'mock_fallback') {
-            console.log('[useSignals] Note: Using fallback mock data due to database issues');
-          }
+          console.log(`[useSignals] ✅ Loaded ${mappedSignals.length} REAL signals from database`);
           setLoading(false);
           return;
         }
       } catch (apiError) {
-        console.warn('[useSignals] API fallback failed:', apiError);
+        console.warn('[useSignals] API failed:', apiError);
       }
       
-      // Fallback to direct database query
-      console.log('[useSignals] Using direct database query...');
+      // Direct database query for real signals only
+      console.log('[useSignals] Querying database directly for real signals...');
       const { data, error } = await supabase.from('signals')
         .select('*')
-        .gte('score', 80) // Only show 80%+ confidence signals 
-        .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Last 4 hours for fresh signals
+        .gte('score', 75) // Lower threshold to find more signals
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
         .order('created_at', { ascending: false })
-        .limit(20); // Limit to 20 most recent
+        .limit(50); // More results
         
       if (error) {
-        console.warn('[useSignals] Database query failed, using mock signals:', error);
-        setSignals(getMockSignals());
-        console.log(`[useSignals] Database loaded ${getMockSignals().length} mock signals (fallback)`);
+        console.error('[useSignals] ❌ Database query failed:', error);
+        setError('Failed to load signals from database');
+        setSignals([]); // NO MOCK FALLBACK - show empty instead
+        console.log('[useSignals] ❌ No signals loaded - database error');
       } else if (data && data.length > 0) {
         const mappedSignals = data.map(mapDbToSignal);
         setSignals(mappedSignals);
