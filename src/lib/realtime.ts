@@ -116,26 +116,12 @@ export function subscribeSignals(
       console.log('[signals-realtime] Subscription status:', status);
       if (err) {
         console.warn('[signals-realtime] Channel error, retrying...:', err);
-        setTimeout(() => {
-          try {
-            channel.unsubscribe();
-            subscribeSignals(onInsert, onUpdate);
-          } catch (retryErr) {
-            console.warn('[signals-realtime] Retry failed:', retryErr);
-          }
-        }, 3000);
+        // Don't auto-retry immediately to avoid loops
       } else if (status === 'SUBSCRIBED') {
         console.log('[signals-realtime] Successfully subscribed to signals channel');
       } else if (status === 'CHANNEL_ERROR') {
-        console.warn('[signals-realtime] Channel error, retrying...');
-        setTimeout(() => {
-          try {
-            channel.unsubscribe();
-            subscribeSignals(onInsert, onUpdate);
-          } catch (retryErr) {
-            console.warn('[signals-realtime] Retry failed:', retryErr);
-          }
-        }, 3000);
+        console.warn('[signals-realtime] Channel error detected');
+        // Don't auto-retry immediately to avoid loops  
       } else if (status === 'TIMED_OUT') {
         console.info('[signals-realtime] Status: TIMED_OUT');
       } else if (status === 'CLOSED') {
