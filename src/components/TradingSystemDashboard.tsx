@@ -5,6 +5,7 @@ import { TradingTest } from './TradingTest';
 import { TradingConnectionTest } from './TradingConnectionTest';
 import { TradeExecutionTest } from './TradeExecutionTest';
 import { AuthManager } from './AuthManager';
+import { TradingCredentialsManager } from './TradingCredentialsManager';
 
 export function TradingSystemDashboard() {
   return (
@@ -17,8 +18,9 @@ export function TradingSystemDashboard() {
       </div>
 
       <Tabs defaultValue="auth" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="auth">Authentication</TabsTrigger>
+          <TabsTrigger value="credentials">API Setup</TabsTrigger>
           <TabsTrigger value="status">System Status</TabsTrigger>
           <TabsTrigger value="connection">Connection Test</TabsTrigger>
           <TabsTrigger value="execution">Trade Test</TabsTrigger>
@@ -27,6 +29,10 @@ export function TradingSystemDashboard() {
         
         <TabsContent value="auth" className="space-y-4">
           <AuthManager />
+        </TabsContent>
+        
+        <TabsContent value="credentials" className="space-y-4">
+          <TradingCredentialsManager />
         </TabsContent>
         
         <TabsContent value="status" className="space-y-4">

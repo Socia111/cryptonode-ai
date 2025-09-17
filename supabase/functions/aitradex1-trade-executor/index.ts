@@ -342,12 +342,25 @@ serve(async (req) => {
             structuredLog('info', 'Auto-creating trading account for user', { userId: user.id });
             
             try {
+              // Try to get real credentials from environment first
+              const realApiKey = Deno.env.get('BYBIT_API_KEY');
+              const realApiSecret = Deno.env.get('BYBIT_API_SECRET');
+              
+              const useRealCredentials = realApiKey && realApiSecret && 
+                                       realApiKey.length > 10 && 
+                                       realApiSecret.length > 10 &&
+                                       !realApiKey.startsWith('placeholder');
+              
+              const credentials = useRealCredentials 
+                ? { key: realApiKey, secret: realApiSecret }
+                : { key: 'placeholder_key_' + Date.now(), secret: 'placeholder_secret_' + Date.now() };
+              
               const { data: newAccountId, error: createError } = await supabase.rpc(
                 'restore_user_trading_account',
                 {
                   p_user_id: user.id,
-                  p_api_key: 'placeholder_key',
-                  p_api_secret: 'placeholder_secret',
+                  p_api_key: credentials.key,
+                  p_api_secret: credentials.secret,
                   p_account_type: 'testnet'
                 }
               );
@@ -360,16 +373,41 @@ serve(async (req) => {
               } else {
                 structuredLog('info', 'Auto-created trading account', { 
                   userId: user.id,
-                  accountId: newAccountId 
+                  accountId: newAccountId,
+                  hasRealCredentials: useRealCredentials
                 });
                 
-                return json({
-                  success: false,
-                  error: 'Trading account created but API credentials needed',
-                  message: 'A trading account has been created for you. Please configure your Bybit API credentials in settings.',
-                  needsCredentials: true,
-                  accountId: newAccountId
-                }, 201);
+                // If we don't have real credentials, ask user to configure them
+                if (!useRealCredentials) {
+                  return json({
+                    success: false,
+                    error: 'Trading account created but API credentials needed',
+                    message: 'A trading account has been created for you. Please configure your Bybit API credentials in settings.',
+                    needsCredentials: true,
+                    accountId: newAccountId
+                  }, 201);
+                }
+                
+                // If we have real credentials, try to get the account and continue
+                const { data: newAccount, error: getAccountError } = await supabase
+                  .from('user_trading_accounts')
+                  .select('*')
+                  .eq('id', newAccountId)
+                  .single();
+                  
+                if (!getAccountError && newAccount) {
+                  // Set account for use in trading
+                  account = newAccount;
+                  structuredLog('info', 'Using newly created account with real credentials', { 
+                    accountId: newAccountId 
+                  });
+                } else {
+                  return json({
+                    success: false,
+                    error: 'Failed to retrieve created account',
+                    message: 'Account was created but could not be retrieved'
+                  }, 500);
+                }
               }
             } catch (createError) {
               structuredLog('error', 'Exception during auto-create', { 
@@ -377,20 +415,55 @@ serve(async (req) => {
                 error: createError 
               });
             }
+          } else {
+            // User has accounts but none are active or properly configured
+            const inactiveAccount = allAccounts[0];
+            
+            // Check if we can upgrade the account with real credentials
+            const realApiKey = Deno.env.get('BYBIT_API_KEY');
+            const realApiSecret = Deno.env.get('BYBIT_API_SECRET');
+            
+            if (realApiKey && realApiSecret && realApiKey.length > 10 && realApiSecret.length > 10 &&
+                (inactiveAccount.api_key_encrypted.startsWith('placeholder_') || 
+                 inactiveAccount.api_key_encrypted.startsWith('test_key_'))) {
+              
+              // Update with real credentials
+              const { data: updatedAccount, error: updateError } = await supabase
+                .from('user_trading_accounts')
+                .update({
+                  api_key_encrypted: realApiKey,
+                  api_secret_encrypted: realApiSecret,
+                  is_active: true,
+                  last_used_at: new Date().toISOString()
+                })
+                .eq('id', inactiveAccount.id)
+                .select()
+                .single();
+                
+              if (!updateError && updatedAccount) {
+                account = updatedAccount;
+                structuredLog('info', 'Updated existing account with real credentials', { 
+                  accountId: inactiveAccount.id 
+                });
+              }
+            }
           }
           
-          const errorMsg = accountError?.code === 'PGRST116' 
-            ? 'No active Bybit trading account found. Please connect and activate your Bybit account first.'
-            : 'No Bybit trading account configured for this user. Please connect your Bybit account first.';
-          
-          return json({
-            success: false,
-            error: errorMsg,
-            debug: {
-              totalAccounts: allAccounts?.length || 0,
-              hasAnyAccount: (allAccounts?.length || 0) > 0
-            }
-          }, 400);
+          // If we still don't have a working account, return error
+          if (!account) {
+            const errorMsg = accountError?.code === 'PGRST116' 
+              ? 'No active Bybit trading account found. Please connect and activate your Bybit account first.'
+              : 'No Bybit trading account configured for this user. Please connect your Bybit account first.';
+            
+            return json({
+              success: false,
+              error: errorMsg,
+              debug: {
+                totalAccounts: allAccounts?.length || 0,
+                hasAnyAccount: (allAccounts?.length || 0) > 0
+              }
+            }, 400);
+          }
         }
 
         // Determine minimum order size based on account type and mode
@@ -406,14 +479,47 @@ serve(async (req) => {
           leverage: leverage || 1
         });
 
-        // Use stored API credentials
+        // Check if account has valid credentials
         const apiKey = account.api_key_encrypted
         const apiSecret = account.api_secret_encrypted
         
-        if (!apiKey || !apiSecret) {
+        // If account has placeholder credentials, try to update with real ones
+        if (apiKey.startsWith('placeholder_') || apiKey.startsWith('test_key_')) {
+          const realApiKey = Deno.env.get('BYBIT_API_KEY');
+          const realApiSecret = Deno.env.get('BYBIT_API_SECRET');
+          
+          if (realApiKey && realApiSecret && realApiKey.length > 10 && realApiSecret.length > 10) {
+            // Update account with real credentials
+            const { data: updatedAccount, error: updateError } = await supabase
+              .from('user_trading_accounts')
+              .update({
+                api_key_encrypted: realApiKey,
+                api_secret_encrypted: realApiSecret,
+                last_used_at: new Date().toISOString()
+              })
+              .eq('id', account.id)
+              .select()
+              .single();
+              
+            if (!updateError && updatedAccount) {
+              account = updatedAccount;
+              structuredLog('info', 'Updated account with real credentials from environment');
+            }
+          } else {
+            return json({
+              success: false,
+              error: 'Trading account created but API credentials needed',
+              message: 'A trading account has been created for you. Please configure your Bybit API credentials in settings.',
+              needsCredentials: true,
+              accountId: account.id
+            }, 201);
+          }
+        }
+        
+        if (!account.api_key_encrypted || !account.api_secret_encrypted) {
           structuredLog('error', 'Missing stored credentials', {
-            hasApiKey: !!apiKey,
-            hasApiSecret: !!apiSecret,
+            hasApiKey: !!account.api_key_encrypted,
+            hasApiSecret: !!account.api_secret_encrypted,
             userId: user.id
           });
           return json({
@@ -422,7 +528,7 @@ serve(async (req) => {
           }, 400);
         }
 
-        const client = new BybitV5Client(apiKey, apiSecret)
+        const client = new BybitV5Client(account.api_key_encrypted, account.api_secret_encrypted)
 
         // Get instrument info and price
         const inst = await getInstrument(symbol);
