@@ -337,6 +337,48 @@ serve(async (req) => {
             }))
           });
           
+          // Try to auto-create a trading account if none exists
+          if (!allAccounts || allAccounts.length === 0) {
+            structuredLog('info', 'Auto-creating trading account for user', { userId: user.id });
+            
+            try {
+              const { data: newAccountId, error: createError } = await supabase.rpc(
+                'restore_user_trading_account',
+                {
+                  p_user_id: user.id,
+                  p_api_key: 'placeholder_key',
+                  p_api_secret: 'placeholder_secret',
+                  p_account_type: 'testnet'
+                }
+              );
+              
+              if (createError) {
+                structuredLog('error', 'Failed to auto-create trading account', { 
+                  userId: user.id,
+                  error: createError.message 
+                });
+              } else {
+                structuredLog('info', 'Auto-created trading account', { 
+                  userId: user.id,
+                  accountId: newAccountId 
+                });
+                
+                return json({
+                  success: false,
+                  error: 'Trading account created but API credentials needed',
+                  message: 'A trading account has been created for you. Please configure your Bybit API credentials in settings.',
+                  needsCredentials: true,
+                  accountId: newAccountId
+                }, 201);
+              }
+            } catch (createError) {
+              structuredLog('error', 'Exception during auto-create', { 
+                userId: user.id,
+                error: createError 
+              });
+            }
+          }
+          
           const errorMsg = accountError?.code === 'PGRST116' 
             ? 'No active Bybit trading account found. Please connect and activate your Bybit account first.'
             : 'No Bybit trading account configured for this user. Please connect your Bybit account first.';
