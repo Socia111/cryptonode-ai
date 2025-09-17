@@ -240,10 +240,14 @@ export type Database = {
           entry_price: number | null
           exchange: string | null
           expires_at: string | null
+          filters: Json | null
           id: string
+          is_active: boolean | null
           metadata: Json | null
           price: number
           score: number
+          side: string | null
+          signal_type: string | null
           source: string | null
           stop_loss: number | null
           symbol: string
@@ -260,10 +264,14 @@ export type Database = {
           entry_price?: number | null
           exchange?: string | null
           expires_at?: string | null
+          filters?: Json | null
           id?: string
+          is_active?: boolean | null
           metadata?: Json | null
           price: number
           score: number
+          side?: string | null
+          signal_type?: string | null
           source?: string | null
           stop_loss?: number | null
           symbol: string
@@ -280,10 +288,14 @@ export type Database = {
           entry_price?: number | null
           exchange?: string | null
           expires_at?: string | null
+          filters?: Json | null
           id?: string
+          is_active?: boolean | null
           metadata?: Json | null
           price?: number
           score?: number
+          side?: string | null
+          signal_type?: string | null
           source?: string | null
           stop_loss?: number | null
           symbol?: string

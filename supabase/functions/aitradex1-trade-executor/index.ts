@@ -307,7 +307,7 @@ serve(async (req) => {
           .eq('user_id', user.id)
           .eq('exchange', 'bybit')
           .eq('is_active', true)
-          .single()
+          .maybeSingle()
         
         if (accountError || !account) {
           // Enhanced logging for debugging
@@ -388,20 +388,27 @@ serve(async (req) => {
                   }, 201);
                 }
                 
-                // If we have real credentials, try to get the account and continue
+                // Try to get the account and continue
                 const { data: newAccount, error: getAccountError } = await supabase
                   .from('user_trading_accounts')
                   .select('*')
                   .eq('id', newAccountId)
-                  .single();
+                  .maybeSingle();
                   
                 if (!getAccountError && newAccount) {
-                  // Set account for use in trading
-                  account = newAccount;
+                  // Store account for use in trading - use let instead of const
+                  let account = newAccount;
                   structuredLog('info', 'Using newly created account with real credentials', { 
                     accountId: newAccountId 
                   });
+                  
+                  // Continue with trade execution
+                  return await executeTradeWithAccount(account, symbol, side, finalAmountUSD, leverage || 1, scalpMode);
                 } else {
+                  structuredLog('error', 'Failed to retrieve created account', {
+                    newAccountId,
+                    getAccountError: getAccountError?.message
+                  });
                   return json({
                     success: false,
                     error: 'Failed to retrieve created account',
@@ -441,10 +448,13 @@ serve(async (req) => {
                 .single();
                 
               if (!updateError && updatedAccount) {
-                account = updatedAccount;
+                let account = updatedAccount;
                 structuredLog('info', 'Updated existing account with real credentials', { 
                   accountId: inactiveAccount.id 
                 });
+                
+                // Continue with trade execution
+                return await executeTradeWithAccount(account, symbol, side, finalAmountUSD, leverage || 1, scalpMode);
               }
             }
           }
@@ -479,54 +489,78 @@ serve(async (req) => {
           leverage: leverage || 1
         });
 
-        // Check if account has valid credentials
-        const apiKey = account.api_key_encrypted
-        const apiSecret = account.api_secret_encrypted
+        // If we reach here, we have a valid account - continue with execution
+        if (account) {
+          return await executeTradeWithAccount(account, symbol, side, finalAmountUSD, leverage || 1, scalpMode);
+        }
+      } catch (e: any) {
+        structuredLog('error', 'Trade execution error', { error: e.message });
+        return json({ success: false, error: e.message }, 500);
+      }
+    }
+
+    return json({ success: false, error: 'Unknown action' }, 400);
+
+  } catch (error: any) {
+    return json({ success: false, error: error.message }, 500);
+  }
+});
+
+// Separate function to handle trade execution with account
+async function executeTradeWithAccount(account: any, symbol: string, side: string, amountUSD: number, leverage: number, scalpMode: boolean = false) {
+  try {
+    // Check if account has valid credentials
+    const apiKey = account.api_key_encrypted
+    const apiSecret = account.api_secret_encrypted
         
-        // If account has placeholder credentials, try to update with real ones
-        if (apiKey.startsWith('placeholder_') || apiKey.startsWith('test_key_')) {
-          const realApiKey = Deno.env.get('BYBIT_API_KEY');
-          const realApiSecret = Deno.env.get('BYBIT_API_SECRET');
+    // If account has placeholder credentials, try to update with real ones
+    if (apiKey.startsWith('placeholder_') || apiKey.startsWith('test_key_')) {
+      const realApiKey = Deno.env.get('BYBIT_API_KEY');
+      const realApiSecret = Deno.env.get('BYBIT_API_SECRET');
+      
+      if (realApiKey && realApiSecret && realApiKey.length > 10 && realApiSecret.length > 10) {
+        // Update account with real credentials via Supabase
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.56.0')
+        const supabase = createClient(supabaseUrl, supabaseServiceKey)
+        
+        const { data: updatedAccount, error: updateError } = await supabase
+          .from('user_trading_accounts')
+          .update({
+            api_key_encrypted: realApiKey,
+            api_secret_encrypted: realApiSecret,
+            last_used_at: new Date().toISOString()
+          })
+          .eq('id', account.id)
+          .select()
+          .maybeSingle();
           
-          if (realApiKey && realApiSecret && realApiKey.length > 10 && realApiSecret.length > 10) {
-            // Update account with real credentials
-            const { data: updatedAccount, error: updateError } = await supabase
-              .from('user_trading_accounts')
-              .update({
-                api_key_encrypted: realApiKey,
-                api_secret_encrypted: realApiSecret,
-                last_used_at: new Date().toISOString()
-              })
-              .eq('id', account.id)
-              .select()
-              .single();
-              
-            if (!updateError && updatedAccount) {
-              account = updatedAccount;
-              structuredLog('info', 'Updated account with real credentials from environment');
-            }
-          } else {
-            return json({
-              success: false,
-              error: 'Trading account created but API credentials needed',
-              message: 'A trading account has been created for you. Please configure your Bybit API credentials in settings.',
-              needsCredentials: true,
-              accountId: account.id
-            }, 201);
-          }
+        if (!updateError && updatedAccount) {
+          account = updatedAccount;
+          structuredLog('info', 'Updated account with real credentials from environment');
         }
-        
-        if (!account.api_key_encrypted || !account.api_secret_encrypted) {
-          structuredLog('error', 'Missing stored credentials', {
-            hasApiKey: !!account.api_key_encrypted,
-            hasApiSecret: !!account.api_secret_encrypted,
-            userId: user.id
-          });
-          return json({
-            success: false,
-            error: 'API credentials not found in your account. Please reconnect your Bybit account.'
-          }, 400);
-        }
+      } else {
+        return json({
+          success: false,
+          error: 'Trading account created but API credentials needed',
+          message: 'A trading account has been created for you. Please configure your Bybit API credentials in settings.',
+          needsCredentials: true,
+          accountId: account.id
+        }, 201);
+      }
+    }
+    
+    if (!account.api_key_encrypted || !account.api_secret_encrypted) {
+      structuredLog('error', 'Missing stored credentials', {
+        hasApiKey: !!account.api_key_encrypted,
+        hasApiSecret: !!account.api_secret_encrypted
+      });
+      return json({
+        success: false,
+        error: 'API credentials not found in your account. Please reconnect your Bybit account.'
+      }, 400);
+    }
 
         const client = new BybitV5Client(account.api_key_encrypted, account.api_secret_encrypted)
 
@@ -855,8 +889,8 @@ serve(async (req) => {
           error: error.message, 
           symbol, 
           side, 
-          amountUSD: finalAmountUSD, 
-          leverage: scaledLeverage 
+          amountUSD, 
+          leverage 
         });
         return json({
           success: false,
@@ -864,19 +898,14 @@ serve(async (req) => {
           details: error.stack || 'No additional details'
         }, 500);
       }
-    }
-
-    // Unknown action
+  } catch (error: any) {
+    structuredLog('error', 'executeTradeWithAccount failed', { error: error.message });
     return json({
       success: false,
-      message: `Unknown action: ${action}`
-    }, 400);
-
-  } catch (error) {
-    structuredLog('error', 'Execution error', { error: error.message });
-    
-    return json({
-      success: false,
+      error: error.message || 'Trade execution failed'
+    }, 500);
+  }
+}
       message: error.message || 'Internal server error'
     }, 500);
   }
