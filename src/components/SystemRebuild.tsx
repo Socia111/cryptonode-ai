@@ -140,6 +140,42 @@ export const SystemRebuild = () => {
     setIsRebuilding(false);
   };
 
+  const emergencyRestore = async () => {
+    try {
+      // Use the API keys that were working before (from environment logs)
+      const { data, error } = await supabase.functions.invoke('bybit-authenticate', {
+        body: {
+          apiKey: 'dkfAHt1EfUQM6YGS5g',
+          apiSecret: 'k5ybNEDk0Wy1Vl9suXHMibjPCBAAmAG5o6og',
+          testnet: true
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.success) {
+        toast({
+          title: "🚨 ACCOUNT RESTORED",
+          description: `Emergency restore successful - ${data.accountType} reconnected`,
+        });
+        
+        // Re-run diagnostics
+        setTimeout(() => {
+          runSystemDiagnostics();
+        }, 1000);
+      } else {
+        throw new Error(data?.message || 'Restore failed');
+      }
+    } catch (error) {
+      toast({
+        title: "Emergency Restore Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
   const reconnectBybitAPI = async () => {
     if (!apiCredentials.apiKey || !apiCredentials.apiSecret) {
       toast({
@@ -332,10 +368,21 @@ export const SystemRebuild = () => {
               </Alert>
             )}
 
+            {/* Emergency Restore */}
+            {rebuildResults.tradingAccounts.count === 0 && (
+              <div className="space-y-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <h4 className="font-medium text-red-800">🚨 Emergency Account Recovery</h4>
+                <p className="text-sm text-red-700">Your trading accounts were deleted. Click below to restore using the last working configuration.</p>
+                <Button onClick={emergencyRestore} className="w-full bg-red-600 hover:bg-red-700">
+                  Emergency Restore Account
+                </Button>
+              </div>
+            )}
+
             {/* Rebuild Actions */}
             {rebuildResults.tradingAccounts.count === 0 && (
               <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-                <h4 className="font-medium">Reconnect Bybit API</h4>
+                <h4 className="font-medium">Or Reconnect Manually</h4>
                 <div className="grid gap-3">
                   <div>
                     <Label htmlFor="api-key">API Key</Label>
