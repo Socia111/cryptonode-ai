@@ -6,7 +6,7 @@ import { env } from './env';
 const url = env.VITE_SUPABASE_URL;
 const key = env.VITE_SUPABASE_ANON_KEY;
 
-// Create client with fallback handling
+// Create client with enhanced configuration
 let supabase: any;
 
 try {
@@ -14,34 +14,24 @@ try {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
+    },
+    global: {
+      headers: {
+        'x-client-info': 'aitradex1-client',
+      },
     },
   });
+  
+  console.log('[Supabase] Client created successfully with enhanced config');
 } catch (error) {
-  console.warn('[Supabase] Failed to create client, using mock:', error);
-  // Create a mock client for development
-  supabase = {
-    from: () => ({
-      select: () => ({ error: null, data: [] }),
-      insert: () => ({ error: null, data: [] }),
-      update: () => ({ error: null, data: [] }),
-      delete: () => ({ error: null, data: [] }),
-      gte: () => ({ 
-        order: () => ({ 
-          limit: () => ({ error: null, data: [] }) 
-        }) 
-      }),
-      order: () => ({ 
-        limit: () => ({ error: null, data: [] }) 
-      })
-    }),
-    functions: {
-      invoke: () => Promise.resolve({ data: null, error: null })
-    },
-    removeChannel: () => {},
-    channel: () => ({
-      on: () => ({ subscribe: () => {} })
-    })
-  };
+  console.error('[Supabase] Failed to create client:', error);
+  throw new Error('Supabase client initialization failed');
 }
 
 export { supabase };

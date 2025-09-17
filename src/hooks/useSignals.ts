@@ -385,35 +385,28 @@ export const useSignals = () => {
 
       try {
         console.log('[signals] Setting up realtime subscription...');
-        channel = supabase
-          .channel('signals-live')
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'signals',
-              filter: 'score.gte.80'
-            },
-            (payload) => {
-              console.log('[signals-realtime] New signal:', payload.new);
-              if (mounted && payload.new) {
-                const newSignal = mapDbToSignal(payload.new);
-                if (newSignal.confidence_score >= 80) {
-                  setSignals(prev => [newSignal, ...prev].slice(0, 20));
-                  
-                  toast({
-                    title: "🚨 New High-Confidence Signal",
-                    description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
-                    duration: 5000,
-                  });
-                }
+        channel = subscribeSignalsRealtime(
+          (signal) => {
+            console.log('[signals-realtime] New signal via realtime:', signal);
+            if (mounted && signal.confidence_score >= 70) {
+              setSignals(prev => [signal, ...prev].slice(0, 20));
+              
+              if (signal.confidence_score >= 80) {
+                toast({
+                  title: "🚨 New High-Confidence Signal",
+                  description: `${signal.direction} ${signal.token} - ${signal.confidence_score.toFixed(1)}% confidence`,
+                  duration: 5000,
+                });
               }
             }
-          )
-          .subscribe((status) => {
-            console.log('[signals-realtime] Status:', status);
-          });
+          },
+          (signal) => {
+            console.log('[signals-realtime] Signal updated via realtime:', signal);
+            if (mounted) {
+              setSignals(prev => prev.map(s => s.id === signal.id ? signal : s));
+            }
+          }
+        );
       } catch (e) {
         console.warn('[signals] realtime subscribe failed, fallback to polling', e);
       }

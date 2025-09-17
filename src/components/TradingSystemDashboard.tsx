@@ -4,6 +4,7 @@ import { SystemInitializer } from './SystemInitializer';
 import { TradingTest } from './TradingTest';
 import { TradingConnectionTest } from './TradingConnectionTest';
 import { TradeExecutionTest } from './TradeExecutionTest';
+import { AuthManager } from './AuthManager';
 
 export function TradingSystemDashboard() {
   return (
@@ -15,13 +16,18 @@ export function TradingSystemDashboard() {
         </p>
       </div>
 
-      <Tabs defaultValue="status" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue="auth" className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="auth">Authentication</TabsTrigger>
           <TabsTrigger value="status">System Status</TabsTrigger>
           <TabsTrigger value="connection">Connection Test</TabsTrigger>
           <TabsTrigger value="execution">Trade Test</TabsTrigger>
           <TabsTrigger value="comprehensive">Full Test Suite</TabsTrigger>
         </TabsList>
+        
+        <TabsContent value="auth" className="space-y-4">
+          <AuthManager />
+        </TabsContent>
         
         <TabsContent value="status" className="space-y-4">
           <SystemInitializer />
