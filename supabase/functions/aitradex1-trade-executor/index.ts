@@ -247,15 +247,19 @@ serve(async (req) => {
   }
 
   try {
-    // Check for auth but don't require it for status checks
+    // Require auth (since verify_jwt=true)
     const auth = req.headers.get("authorization") || "";
-    const hasAuth = auth.startsWith("Bearer ");
-    
+    if (!auth.startsWith("Bearer ")) {
+      return json({ success: false, code: "AUTH", message: "Missing authorization header" }, 401);
+    }
+
     // Parse request
-    const requestBody = await req.json().catch(() => ({ action: 'status' }));
-    const { action } = requestBody;
+    const requestBody = await req.json();
+    const { action, symbol, side, amountUSD, leverage, scalpMode } = requestBody;
     
-    // For status checks, allow without auth
+    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
+
+    // Handle status requests
     if (action === 'status') {
       const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true' || true;
       const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
@@ -267,34 +271,16 @@ serve(async (req) => {
         environment: isTestnet ? 'testnet' : 'mainnet',
         paper_mode: isPaperMode,
         allowed_symbols: Deno.env.get('ALLOWED_SYMBOLS') || '*',
-        timestamp: new Date().toISOString(),
-        auth_required: !hasAuth
+        timestamp: new Date().toISOString()
       });
     }
-    
-    // For trading actions, require auth
-    if (!hasAuth) {
-      return json({ 
-        success: false, 
-        code: "AUTH", 
-        message: "Authorization required for trading operations. Please log in." 
-      }, 401);
-    }
-
-    const { symbol, side, amountUSD, leverage = 1, scalpMode } = requestBody;
-    
-    // Define leverage early to avoid "not defined" errors
-    const scaledLeverage = Number(leverage) || 1;
-    
-    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage: scaledLeverage });
 
     // Handle place order requests
     if (action === 'place_order' || action === 'signal') {
       if (!symbol || !side || !amountUSD) {
         return json({
           success: false,
-          message: 'Missing required fields: symbol, side, amountUSD',
-          received: { symbol, side, amountUSD, leverage: scaledLeverage }
+          message: 'Missing required fields: symbol, side, amountUSD'
         }, 400);
       }
 
@@ -310,29 +296,24 @@ serve(async (req) => {
         side,
         originalAmount: amountUSD,
         finalAmount: finalAmountUSD,
-        leverage: scaledLeverage
+        leverage: leverage || 1
       });
 
       try {
-        // Check trading mode configuration
-        const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true'; // CHANGE THIS TO 'false' FOR LIVE TRADING
-        const liveMode = !isPaperMode;
-        
-        console.log(`🎯 Trading Mode: ${liveMode ? 'LIVE' : 'PAPER'} (PAPER_TRADING=${isPaperMode})`);
+        // Check if paper trading mode is enabled
+        const isPaperMode = Deno.env.get('PAPER_TRADING') === 'true';
         
         if (isPaperMode) {
           structuredLog('info', 'Paper trading mode - simulating trade execution', {
             symbol,
             side,
             finalAmount: finalAmountUSD,
-            leverage: scaledLeverage
+            leverage: 25
           });
           
-          // Simulate successful trade execution with realistic data
+          // Simulate successful trade execution
           const simulatedOrderId = 'PAPER_' + Date.now();
-          const basePrice = symbol === 'BTCUSDT' ? 60000 : symbol === 'ETHUSDT' ? 3200 : 50;
-          const simulatedPrice = basePrice * (1 + (Math.random() - 0.5) * 0.02); // ±1% price variation
-          const qty = (finalAmountUSD * scaledLeverage) / simulatedPrice;
+          const simulatedPrice = Math.random() * 100 + 50; // Random price for demo
           
           return json({
             success: true,
@@ -340,19 +321,16 @@ serve(async (req) => {
               orderId: simulatedOrderId,
               symbol,
               side,
-              qty: qty.toFixed(6),
-              price: simulatedPrice.toFixed(2),
+              qty: (finalAmountUSD * 25 / simulatedPrice).toFixed(6),
+              price: simulatedPrice,
               amount: finalAmountUSD,
-              leverage: scaledLeverage,
+              leverage: 25,
               status: 'FILLED',
               paperMode: true,
               message: 'Paper trade executed successfully - no real money involved'
             }
           });
         }
-
-        // ===== LIVE TRADING MODE =====
-        console.log('🔥 LIVE TRADING: Executing real trade with Bybit API');
 
         // Initialize Bybit client for real trading
         const apiKey = Deno.env.get('BYBIT_API_KEY')
@@ -371,11 +349,7 @@ serve(async (req) => {
 
         const client = new BybitV5Client(apiKey, apiSecret)
 
-        // STEP 1: Get instrument info and price first (moved up to be available throughout)
-        const inst = await getInstrument(symbol);
-        const price = await getMarkPrice(symbol);
-
-        // STEP 2: Check account balance before placing orders
+        // STEP 1: Check account balance before placing orders
         try {
           structuredLog('info', 'Checking account balance before trade execution', { symbol });
           const balanceResponse = await client.signedRequest('GET', '/v5/account/wallet-balance', {
@@ -408,8 +382,8 @@ serve(async (req) => {
             error: balanceError.message 
           });
         }
-        
-        // STEP 3: Check and set position mode to One-Way (safer for new positions)
+
+        // STEP 2: Check and set position mode to One-Way (safer for new positions)
         if (inst.category === 'linear') {
           try {
             structuredLog('info', 'Setting position mode to One-Way for safe trading', { symbol });
@@ -427,12 +401,17 @@ serve(async (req) => {
             });
           }
         }
+
+        // Get instrument info and price
+        const inst = await getInstrument(symbol);
+        const price = await getMarkPrice(symbol);
         
         // =================== SCALPING VS NORMAL RISK MANAGEMENT ===================
         
         const isScalping = scalpMode === true;
         
-        // Calculate proper quantity with already defined scaledLeverage
+        // Calculate proper quantity with 25x leverage by default
+        const scaledLeverage = leverage || 25; // Default to 25x leverage
         const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
         
         // Enhanced validation with better error messages

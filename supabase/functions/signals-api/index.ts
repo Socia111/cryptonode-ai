@@ -22,98 +22,13 @@ serve(async (req) => {
 
     console.log(`📡 Signals API called: ${req.method} ${path}`);
 
-    // Handle POST requests with action routing
+    // Handle POST requests with path routing
     if (req.method === 'POST') {
       const body = await req.json();
-      const action = body.action;
+      const requestPath = body.path;
       
-      console.log('📥 Signals API request:', { action, body });
-      
-      // Handle 'recent' action - Fetch recent high-confidence signals
-      if (action === 'recent') {
-        try {
-          // Use service role to bypass RLS - ALREADY CONFIGURED IN LINE 17
-          const { data: signals, error } = await supabase
-            .from('signals')
-            .select('*')
-            .gte('score', 75) // Lower threshold to find more signals  
-            .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
-            .order('created_at', { ascending: false })
-            .limit(20);
-
-          if (error) {
-            console.error(`❌ Recent signals query error: ${JSON.stringify(error)}`);
-            
-            // Only return mock data if it's a permission or table error
-            if (error.code === '42501' || error.code === '42P01') {
-              console.log('🔧 Using mock fallback due to permission/table error');
-              const mockSignals = generateMockSignals();
-              return new Response(JSON.stringify({
-                success: true,
-                signals: mockSignals,
-                count: mockSignals.length,
-                source: 'mock_fallback',
-                message: 'Using mock data due to database error',
-                timestamp: new Date().toISOString()
-              }), {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-              });
-            }
-            
-            // For other errors, return the error
-            return new Response(JSON.stringify({
-              success: false,
-              error: error.message
-            }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              status: 500
-            });
-          }
-
-          console.log(`✅ Found ${signals?.length || 0} real signals from database`);
-          
-          if (!signals || signals.length === 0) {
-            console.log('⚠️ No real signals found in database - returning empty array');
-            return new Response(JSON.stringify({
-              success: true,
-              signals: [],
-              count: 0,
-              source: 'database_empty',
-              message: 'No signals found in database',
-              timestamp: new Date().toISOString()
-            }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-          }
-
-          return new Response(JSON.stringify({
-            success: true,
-            signals: signals || [],
-            count: signals?.length || 0,
-            source: 'database',
-            timestamp: new Date().toISOString()
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        } catch (dbError) {
-          console.error('❌ Database connection failed:', dbError);
-          // Return mock data for any database issues
-          const mockSignals = generateMockSignals();
-          return new Response(JSON.stringify({
-            success: true,
-            signals: mockSignals,
-            count: mockSignals.length,
-            source: 'mock_fallback',
-            message: 'Using mock data due to database connection error',
-            timestamp: new Date().toISOString()
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-      }
-      
-      // GET /signals/live - Live signals endpoint (legacy support)
-      if (action === 'live') {
+      // GET /signals/live - Live signals endpoint
+      if (requestPath === '/signals/live') {
         const { data: signals, error } = await supabase
           .from('signals')
           .select('*')
@@ -422,57 +337,15 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Signals API Error:', error);
-    
-    // Return mock data as fallback for any unexpected errors
-    const mockSignals = generateMockSignals();
     return new Response(JSON.stringify({
-      success: true,
-      signals: mockSignals,
-      count: mockSignals.length,
-      source: 'mock_fallback',
-      message: 'Using mock data due to API error',
-      timestamp: new Date().toISOString()
+      success: false,
+      error: error.message
     }), { 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500 
     });
   }
 });
-
-// Mock signal generator function
-function generateMockSignals() {
-  const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'LINKUSDT', 'BNBUSDT', 'XRPUSDT', 'MATICUSDT', 'AVAXUSDT'];
-  const directions = ['LONG', 'SHORT'];
-  const timeframes = ['5m', '15m', '1h'];
-  const algorithms = ['AItradeX1', 'Enhanced', 'Confluence', 'Quantum', 'AIRA'];
-  
-  return symbols.map((symbol, index) => {
-    const direction = directions[index % 2];
-    const price = 50000 + Math.random() * 10000;
-    const entry_price = price * (1 + (Math.random() - 0.5) * 0.02);
-    const multiplier = direction === 'LONG' ? 1.03 : 0.97;
-    const stopMultiplier = direction === 'LONG' ? 0.98 : 1.02;
-    
-    return {
-      id: `mock-${symbol}-${Date.now()}-${index}`,
-      symbol,
-      direction,
-      price: Math.round(price * 100) / 100,
-      entry_price: Math.round(entry_price * 100) / 100,
-      take_profit: Math.round(entry_price * multiplier * 100) / 100,
-      stop_loss: Math.round(entry_price * stopMultiplier * 100) / 100,
-      score: 80 + Math.floor(Math.random() * 20),
-      confidence: 0.8 + Math.random() * 0.2,
-      timeframe: timeframes[index % timeframes.length],
-      source: 'mock',
-      algo: algorithms[index % algorithms.length],
-      created_at: new Date(Date.now() - Math.random() * 3600000).toISOString(),
-      bar_time: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 24 * 3600000).toISOString(),
-      atr: Math.random() * 100,
-      metadata: { mock: true, generated_at: new Date().toISOString() }
-    };
-  });
-}
 
 // ROI Calculation Functions
 function calculateProjectedROI(signal: any): number {

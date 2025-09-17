@@ -37,16 +37,16 @@ function mapDbToSignal(row: any): Signal {
     direction: direction === 'LONG' ? 'BUY' : 'SELL',
     signal_type: `${row.algo ?? row.strategy ?? 'AItradeX1'} ${row.timeframe ?? '1h'}`,
     timeframe: row.timeframe ?? row.meta?.timeframe ?? '1h',
-    entry_price: Number(row.entry_price ?? row.price ?? row.entry_hint ?? 0),
-    exit_target: (row.take_profit ?? row.tp ?? row.tp_hint) != null ? Number(row.take_profit ?? row.tp ?? row.tp_hint) : null,
-    stop_loss: (row.stop_loss ?? row.sl ?? row.sl_hint) != null ? Number(row.stop_loss ?? row.sl ?? row.sl_hint) : null,
+    entry_price: Number(row.price ?? row.entry_hint ?? 0),
+    exit_target: (row.tp ?? row.tp_hint) != null ? Number(row.tp ?? row.tp_hint) : null,
+    stop_loss: (row.sl ?? row.sl_hint) != null ? Number(row.sl ?? row.sl_hint) : null,
     leverage: Number(row.leverage ?? row.meta?.leverage ?? 1),
     confidence_score: Number(row.score ?? row.confidence ?? 0),
     pms_score: Number(row.score ?? 0),
     trend_projection: direction === 'LONG' ? '⬆️' : '⬇️',
     volume_strength: Number(row.volume_strength ?? row.meta?.volume_strength ?? 1.0),
-    roi_projection: (row.take_profit ?? row.tp ?? row.tp_hint) && (row.entry_price ?? row.price ?? row.entry_hint) ? 
-      Math.abs((Number(row.take_profit ?? row.tp ?? row.tp_hint) - Number(row.entry_price ?? row.price ?? row.entry_hint)) / Number(row.entry_price ?? row.price ?? row.entry_hint) * 100) : 10,
+    roi_projection: (row.tp ?? row.tp_hint) && (row.price ?? row.entry_hint) ? 
+      Math.abs((Number(row.tp ?? row.tp_hint) - Number(row.price ?? row.entry_hint)) / Number(row.price ?? row.entry_hint) * 100) : 10,
     signal_strength: row.score > 85 ? 'STRONG' : row.score > 75 ? 'MEDIUM' : 'WEAK',
     risk_level: row.score > 85 ? 'LOW' : row.score > 75 ? 'MEDIUM' : 'HIGH',
     quantum_probability: Number(row.score ?? row.confidence ?? 0) / 100,
@@ -82,28 +82,12 @@ function mapDbSignal(row: any): Signal {
 
 async function fetchSignals(): Promise<Signal[]> {
   try {
-    console.log('[Signals] Fetching live signals via API...');
+    console.log('[Signals] Fetching live signals from database...');
     
-    // Use the signals API endpoint which has service role access
-    try {
-      const response = await fetch('https://codhlwjogfjywmjyjbbn.functions.supabase.co/v1/signals-api/recent');
-      
-      if (response.ok) {
-        const result = await response.json();
-        
-        if (result.success && result.signals) {
-          console.log(`[Signals] API returned ${result.signals.length} signals`);
-          return mapSignalsToInterface(result.signals);
-        }
-      }
-      
-      console.warn('[Signals] API call failed, trying fallback...');
-    } catch (apiError) {
-      console.warn('[Signals] API error, trying fallback:', apiError);
-    }
+    // Direct database query (since functions are now public, no need for complex API)
+    console.log('[Signals] Using direct database query for best performance...');
 
     // Fallback to direct database query
-    console.log('[Signals] Using direct database fallback...');
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
@@ -113,24 +97,22 @@ async function fetchSignals(): Promise<Signal[]> {
       .limit(50);
 
     if (signalsError) {
-      console.error('[Signals] Database query failed:', signalsError.message);
-      // Return mock signals as last resort
-      console.log('[Signals] Using demo signals as fallback');
-      return getMockSignals();
+      console.error('[Signals] Signals query failed:', signalsError.message);
+      return [];
     }
 
     if (allSignals && allSignals.length > 0) {
-      console.log(`[Signals] Database returned ${allSignals.length} signals`);
+      console.log(`[Signals] Found ${allSignals.length} total signals (80%+ confidence)`);
       return mapSignalsToInterface(allSignals);
     }
 
-    // No signals found, use demo
+    // Fallback to mock signals for demo purposes
     console.log('[Signals] No live signals found, using demo signals');
     return getMockSignals();
 
   } catch (e) {
     console.error('[Signals] Failed to fetch signals:', e);
-    return getMockSignals();
+    return [];
   }
 }
 
@@ -145,15 +127,15 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
       direction: item.direction === 'LONG' ? 'BUY' : 'SELL',
       signal_type: `${item.algo || 'AItradeX1'} ${item.timeframe}`,
       timeframe: item.timeframe,
-      entry_price: Number(item.entry_price || item.price),
-      exit_target: item.take_profit ? Number(item.take_profit) : null,
-      stop_loss: item.stop_loss ? Number(item.stop_loss) : null,
+      entry_price: Number(item.price),
+      exit_target: item.tp ? Number(item.tp) : null,
+      stop_loss: item.sl ? Number(item.sl) : null,
       leverage: 1,
       confidence_score: Number(item.score),
       pms_score: Number(item.score),
       trend_projection: item.direction === 'LONG' ? '⬆️' : '⬇️',
       volume_strength: item.indicators?.volSma21 ? Number(item.indicators.volSma21) / 1000000 : 1.0,
-      roi_projection: Math.abs((Number(item.take_profit || item.price * 1.1) - Number(item.entry_price || item.price)) / Number(item.entry_price || item.price) * 100),
+      roi_projection: Math.abs((Number(item.tp || item.price * 1.1) - Number(item.price)) / Number(item.price) * 100),
       signal_strength: item.score > 85 ? 'STRONG' : item.score > 75 ? 'MEDIUM' : 'WEAK',
       risk_level: item.score > 85 ? 'LOW' : item.score > 75 ? 'MEDIUM' : 'HIGH',
       quantum_probability: Number(item.score) / 100,
@@ -164,54 +146,11 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
 }
 
 function getMockSignals(): Signal[] {
-  // For development - show more mock signals when no real signals available
-  const mockData = [
-    {
-      id: '1',
-      symbol: 'BTCUSDT',
-      direction: 'LONG',
-      price: 91500,
-      tp: 94000,
-      sl: 89000,
-      score: 85,
-      timeframe: '1h',
-      algo: 'AItradeX1',
-      created_at: new Date().toISOString()
-    },
-    {
-      id: '2', 
-      symbol: 'ETHUSDT',
-      direction: 'LONG',
-      price: 3200,
-      tp: 3350,
-      sl: 3100,
-      score: 90,
-      timeframe: '15m',
-      algo: 'AItradeX1',
-      created_at: new Date().toISOString()
-    },
-    {
-      id: '3',
-      symbol: 'SOLUSDT', 
-      direction: 'SHORT',
-      price: 140,
-      tp: 135,
-      sl: 145,
-      score: 82,
-      timeframe: '30m',
-      algo: 'AItradeX1',
-      created_at: new Date().toISOString()
-    }
-  ];
+  // For development - show mock signals when no real signals available
+  const { generateMockSignals } = require('@/lib/mockSignals');
+  const mockData = generateMockSignals();
   
-  // Generate 3 sets of signals for variety 
-  const allMockData = [
-    ...mockData,
-    ...mockData.map(signal => ({ ...signal, id: signal.id + '_2', timeframe: '5m' })),
-    ...mockData.map(signal => ({ ...signal, id: signal.id + '_3', timeframe: '4h' }))
-  ];
-  
-  return allMockData.map((mock: any): Signal => ({
+  return mockData.map((mock: any): Signal => ({
     id: mock.id,
     token: mock.symbol.replace('USDT', '/USDT'),
     direction: mock.direction === 'LONG' ? 'BUY' : 'SELL',
@@ -226,8 +165,8 @@ function getMockSignals(): Signal[] {
     trend_projection: mock.direction === 'LONG' ? '⬆️' : '⬇️',
     volume_strength: 1.0,
     roi_projection: Math.abs((mock.tp - mock.price) / mock.price * 100),
-    signal_strength: mock.score > 85 ? 'STRONG' : mock.score > 75 ? 'MEDIUM' : 'WEAK',
-    risk_level: mock.score > 85 ? 'LOW' : mock.score > 75 ? 'MEDIUM' : 'HIGH',
+    signal_strength: mock.score > 90 ? 'STRONG' : mock.score > 85 ? 'MEDIUM' : 'WEAK',
+    risk_level: mock.score > 90 ? 'LOW' : mock.score > 85 ? 'MEDIUM' : 'HIGH',
     quantum_probability: mock.score / 100,
     status: 'active',
     created_at: mock.created_at,
@@ -362,51 +301,21 @@ export const useSignals = () => {
     setLoading(true);
     try {
       setError(null);
-      
-      // Try signals API first (uses service role) - NO MOCK FALLBACK
-      try {
-        console.log('[useSignals] Fetching real signals via API...');
-        const { data: apiData, error: apiError } = await supabase.functions.invoke('signals-api', {
-          body: { action: 'recent' }
-        });
-        
-        if (apiData?.signals && apiData.signals.length > 0 && apiData.source !== 'mock_fallback') {
-          const mappedSignals = mapSignalsToInterface(apiData.signals);
-          setSignals(mappedSignals);
-          console.log(`[useSignals] ✅ Loaded ${mappedSignals.length} REAL signals from database`);
-          setLoading(false);
-          return;
-        }
-      } catch (apiError) {
-        console.warn('[useSignals] API failed:', apiError);
-      }
-      
-      // Direct database query for real signals only
-      console.log('[useSignals] Querying database directly for real signals...');
       const { data, error } = await supabase.from('signals')
         .select('*')
-        .gte('score', 75) // Lower threshold to find more signals
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
+        .gte('score', 80) // Only show 80%+ confidence signals 
+        .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Last 4 hours for fresh signals
         .order('created_at', { ascending: false })
-        .limit(50); // More results
+        .limit(20); // Limit to 20 most recent
         
-      if (error) {
-        console.error('[useSignals] ❌ Database query failed:', error);
-        setError('Failed to load signals from database');
-        setSignals([]); // NO MOCK FALLBACK - show empty instead
-        console.log('[useSignals] ❌ No signals loaded - database error');
-      } else if (data && data.length > 0) {
-        const mappedSignals = data.map(mapDbToSignal);
-        setSignals(mappedSignals);
-        console.log(`[useSignals] Database loaded ${mappedSignals.length} signals`);
-      } else {
-        console.log('[useSignals] No signals in database, using mock data');
-        setSignals(getMockSignals());
-      }
+      if (error) throw error;
+      
+      const mappedSignals = (data || []).map(mapDbToSignal);
+      setSignals(mappedSignals);
+      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database (80%+ confidence only)`);
     } catch (err: any) {
       console.error('[useSignals] refreshSignals failed:', err);
       setError(err.message || 'Failed to fetch signals');
-      setSignals(getMockSignals()); // Always show something
     } finally {
       setLoading(false);
     }

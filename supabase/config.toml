@@ -1,6 +1,12 @@
 project_id = "codhlwjogfjywmjyjbbn"
 
 [functions.aitradex1-trade-executor]
+verify_jwt = true
+
+[functions.bybit-order-execution]
+verify_jwt = false
+
+[functions.bybit-live-trading]
 verify_jwt = false
 
 [functions.live-scanner-production]
@@ -9,7 +15,7 @@ verify_jwt = false
 [functions.signals-api]
 verify_jwt = false
 
-[functions.trading-diagnostics]
+[functions.trade-executor]
 verify_jwt = false
 
 [api]
