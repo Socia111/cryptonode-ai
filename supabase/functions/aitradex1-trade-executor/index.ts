@@ -49,6 +49,7 @@ class BybitV5Client {
       isTestnet,
       keyLength: apiKey?.length || 0 
     });
+  }
 
   private async signRequest(method: string, path: string, params: any = {}): Promise<string> {
     const timestamp = Date.now().toString()
