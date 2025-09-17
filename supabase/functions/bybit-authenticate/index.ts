@@ -49,6 +49,13 @@ serve(async (req) => {
     const authResult = await authenticateBybit({ apiKey, apiSecret, testnet });
 
     if (authResult.success) {
+      // First, deactivate any existing accounts for this user/exchange
+      await supabase
+        .from('user_trading_accounts')
+        .update({ is_active: false })
+        .eq('user_id', user.id)
+        .eq('exchange', 'bybit');
+
       // Store credentials securely in Supabase
       const { error: storeError } = await supabase
         .from('user_trading_accounts')
@@ -64,6 +71,8 @@ serve(async (req) => {
           is_active: true,
           connected_at: new Date().toISOString(),
           last_used_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,exchange,account_type'
         });
 
       if (storeError) {

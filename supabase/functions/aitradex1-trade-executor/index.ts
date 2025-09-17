@@ -310,13 +310,44 @@ serve(async (req) => {
           .single()
         
         if (accountError || !account) {
+          // Enhanced logging for debugging
           structuredLog('error', 'No trading account found', { 
             userId: user.id,
-            error: accountError?.message 
+            userEmail: user.email,
+            error: accountError?.message,
+            errorCode: accountError?.code
           });
+          
+          // Check if there are any accounts at all for this user
+          const { data: allAccounts } = await supabase
+            .from('user_trading_accounts')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('exchange', 'bybit');
+          
+          structuredLog('debug', 'All user accounts', {
+            userId: user.id,
+            totalAccounts: allAccounts?.length || 0,
+            accounts: allAccounts?.map(acc => ({
+              id: acc.id,
+              active: acc.is_active,
+              hasKey: !!acc.api_key_encrypted,
+              hasSecret: !!acc.api_secret_encrypted,
+              accountType: acc.account_type
+            }))
+          });
+          
+          const errorMsg = accountError?.code === 'PGRST116' 
+            ? 'No active Bybit trading account found. Please connect and activate your Bybit account first.'
+            : 'No Bybit trading account configured for this user. Please connect your Bybit account first.';
+          
           return json({
             success: false,
-            error: 'No Bybit trading account configured for this user. Please connect your Bybit account first.'
+            error: errorMsg,
+            debug: {
+              totalAccounts: allAccounts?.length || 0,
+              hasAnyAccount: (allAccounts?.length || 0) > 0
+            }
           }, 400);
         }
 
