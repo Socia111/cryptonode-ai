@@ -560,6 +560,15 @@ export type Database = {
         Args: { tokens: number }
         Returns: number
       }
+      restore_user_trading_account: {
+        Args: {
+          p_account_type?: string
+          p_api_key: string
+          p_api_secret: string
+          p_user_id: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

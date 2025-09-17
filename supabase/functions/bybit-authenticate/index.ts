@@ -49,30 +49,13 @@ serve(async (req) => {
     const authResult = await authenticateBybit({ apiKey, apiSecret, testnet });
 
     if (authResult.success) {
-      // First, deactivate any existing accounts for this user/exchange
-      await supabase
-        .from('user_trading_accounts')
-        .update({ is_active: false })
-        .eq('user_id', user.id)
-        .eq('exchange', 'bybit');
-
-      // Store credentials securely in Supabase
-      const { error: storeError } = await supabase
-        .from('user_trading_accounts')
-        .upsert({
-          user_id: user.id,
-          exchange: 'bybit',
-          api_key_encrypted: apiKey, // In production, encrypt this
-          api_secret_encrypted: apiSecret, // In production, encrypt this
-          account_type: testnet ? 'testnet' : 'mainnet',
-          balance_info: authResult.balance,
-          permissions: authResult.permissions,
-          risk_settings: authResult.riskSettings,
-          is_active: true,
-          connected_at: new Date().toISOString(),
-          last_used_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id,exchange,account_type'
+      // Use the database function to properly store credentials
+      const { data: accountId, error: storeError } = await supabase
+        .rpc('restore_user_trading_account', {
+          p_user_id: user.id,
+          p_api_key: apiKey,
+          p_api_secret: apiSecret,
+          p_account_type: testnet ? 'testnet' : 'mainnet'
         });
 
       if (storeError) {

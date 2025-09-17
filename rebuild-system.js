@@ -31,6 +31,15 @@ async function executeCompleteRebuild() {
     console.log('\n🏦 Step 2: Restore Trading Account');
     console.log('   🔑 Using verified working credentials from Sept 14th...');
     
+    // Use the database function directly to restore trading account
+    const { data: accountResult, error: accountError } = await supabase.rpc('restore_user_trading_account', {
+      p_user_id: session.user.id,
+      p_api_key: 'dkfAHt1EfUQM6YGS5g',
+      p_api_secret: 'k5ybNEDk0Wy1Vl9suXHMibjPCBAAmAG5o6og',
+      p_account_type: 'testnet'
+    });
+
+    // Also call the authenticate function to verify the connection
     const { data: authResult, error: authError } = await supabase.functions.invoke('bybit-authenticate', {
       body: {
         apiKey: 'dkfAHt1EfUQM6YGS5g',
