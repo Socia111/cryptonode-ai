@@ -416,6 +416,16 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
       });
     }
 
+    // Prepare order parameters
+    const orderParams = {
+      category: 'linear',
+      symbol,
+      side,
+      orderType: 'Market',
+      qty: quantity,
+      timeInForce: 'IOC'
+    };
+
     // Execute the trade
     const orderResult = await bybit.placeOrder(orderParams);
     
