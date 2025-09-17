@@ -2,16 +2,44 @@ import { supabase } from '@/integrations/supabase/client';
 import { FEATURES } from '@/config/featureFlags';
 import { tradingSettings } from './tradingSettings';
 
-export type ExecParams = {
+export type Side = 'Buy'|'Sell';
+export type OrderType = 'Market'|'Limit';
+export type OrderTIF = 'GTC'|'IOC'|'FOK'|'PostOnly';
+
+export interface ExecParams {
+  symbol: string;                 // "PEAQUSDT"
+  side: Side;                     // 'Buy' | 'Sell'
+  amountUSD: number;              // 0.10 ... 100
+  leverage: number;               // 1 ... 100
+  orderType?: OrderType;          // default 'Market'
+  timeInForce?: OrderTIF;         // default 'PostOnly' for Limit
+  price?: number;                 // Limit price (usually entry_price)
+  // NEW: pass-through from signal panel (raw)
+  uiEntry?: number;
+  uiTP?: number;
+  uiSL?: number;
+  // optional extras
+  reduceOnly?: boolean;
+  scalpMode?: boolean;
+  meta?: Record<string, any>;
+  // Deprecated fields for backward compatibility
+  notionalUSD?: number;  // deprecated, use amountUSD
+  entryPrice?: number;   // deprecated, use uiEntry
+  stopLoss?: number;     // deprecated, use uiSL
+  takeProfit?: number;   // deprecated, use uiTP
+}
+
+// Legacy interface for backward compatibility
+export type LegacyExecParams = {
   symbol: string
-  side: 'BUY'|'SELL'
-  notionalUSD?: number  // deprecated, use amountUSD
-  amountUSD?: number    // new: USD amount to trade
-  leverage?: number     // new: leverage (1-100x)
-  scalpMode?: boolean   // new: scalping mode for micro trades
-  entryPrice?: number   // signal entry price for limit orders
-  stopLoss?: number     // custom stop loss price
-  takeProfit?: number   // custom take profit price
+  side: 'BUY'|'SELL'|'Buy'|'Sell'
+  notionalUSD?: number
+  amountUSD?: number
+  leverage?: number
+  scalpMode?: boolean
+  entryPrice?: number
+  stopLoss?: number
+  takeProfit?: number
 }
 
 // Get the functions base URL using the hardcoded Supabase URL
@@ -29,13 +57,44 @@ async function getSessionToken(): Promise<string | null> {
   }
 }
 
+// Helper to normalize params from legacy format
+function normalizeParams(params: ExecParams | LegacyExecParams): ExecParams {
+  const normalized: ExecParams = {
+    symbol: params.symbol,
+    side: normalizeSide(params.side),
+    amountUSD: params.amountUSD || (params as any).notionalUSD || 5,
+    leverage: params.leverage || 1,
+    scalpMode: params.scalpMode,
+    // Map legacy fields to new UI fields
+    uiEntry: (params as any).entryPrice || (params as ExecParams).uiEntry,
+    uiTP: (params as any).takeProfit || (params as ExecParams).uiTP,
+    uiSL: (params as any).stopLoss || (params as ExecParams).uiSL,
+  };
+
+  // Copy any additional fields
+  if ('orderType' in params) normalized.orderType = params.orderType;
+  if ('timeInForce' in params) normalized.timeInForce = params.timeInForce;
+  if ('price' in params) normalized.price = params.price;
+  if ('reduceOnly' in params) normalized.reduceOnly = params.reduceOnly;
+  if ('meta' in params) normalized.meta = params.meta;
+
+  return normalized;
+}
+
+function normalizeSide(side: string): Side {
+  if (side === 'BUY' || side === 'Buy') return 'Buy';
+  if (side === 'SELL' || side === 'Sell') return 'Sell';
+  throw new Error(`Invalid side: ${side}`);
+}
+
 export const TradingGateway = {
-  async execute(params: ExecParams) {
+  async execute(inputParams: ExecParams | LegacyExecParams) {
     if (!FEATURES.AUTOTRADE_ENABLED) {
       return { ok: false, code: 'DISABLED', message: 'Auto-trading disabled' }
     }
 
     try {
+      const params = normalizeParams(inputParams);
       console.log('🚀 Executing live trade via Bybit API:', params);
       
       const functionsBase = getFunctionsBaseUrl();
@@ -54,15 +113,11 @@ export const TradingGateway = {
         'authorization': `Bearer ${sessionToken}`,
       };
       
-      // Use smaller amounts for testnet testing to avoid balance issues
-      const isTestnet = true; // Force testnet for now during development
+      // Dynamic minimum based on scalp mode
       const isScalping = params.scalpMode === true;
-      const baseAmount = params.amountUSD || params.notionalUSD;
-      const minAmount = isTestnet 
-        ? (isScalping ? 1 : 5)   // Testnet: $1 scalp, $5 normal  
-        : (isScalping ? 10 : 25) // Mainnet: $10 scalp, $25 normal
-      const amount = Math.max(baseAmount || minAmount, minAmount);
-      const leverage = Math.max(params.leverage || 25, 25); // Force minimum 25x leverage
+      const minAmount = isScalping ? 1 : 5; // $1 for scalping, $5 for normal
+      const amount = Math.max(params.amountUSD, minAmount);
+      const leverage = Math.max(params.leverage, 1);
       
       // Clean symbol format - remove any slashes or spaces
       const cleanSymbol = params.symbol.replace(/[\/\s]/g, '');
@@ -74,28 +129,22 @@ export const TradingGateway = {
         leverage,
         scalpMode: isScalping,
         minAmount,
-        functionsBase
+        functionsBase,
+        uiEntry: params.uiEntry,
+        uiTP: params.uiTP,
+        uiSL: params.uiSL
       });
       
       // Get global trading settings
       const globalSettings = tradingSettings.getSettings();
       
-      // Use provided entry price or signal entry price for limit orders
-      const entryPrice = params.entryPrice;
-      const orderType = entryPrice ? 'limit' : globalSettings.orderType;
+      // Determine order type and price
+      const entryPrice = params.uiEntry || params.price;
+      const orderType = params.orderType || (entryPrice ? 'Limit' : globalSettings.orderType === 'limit' ? 'Limit' : 'Market');
+      const timeInForce = params.timeInForce || (orderType === 'Limit' ? 'PostOnly' : 'GTC');
       
-      // Calculate SL/TP using global settings if not provided
-      let stopLoss = params.stopLoss;
-      let takeProfit = params.takeProfit;
-      
-      if (entryPrice && (!stopLoss || !takeProfit)) {
-        const riskPrices = tradingSettings.calculateRiskPrices(
-          entryPrice, 
-          params.side === 'BUY' ? 'Buy' : 'Sell'
-        );
-        stopLoss = stopLoss || riskPrices.stopLoss;
-        takeProfit = takeProfit || riskPrices.takeProfit;
-      }
+      // Generate idempotency key to avoid duplicates on retries
+      const idempotencyKey = crypto.randomUUID();
 
       const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
@@ -103,14 +152,19 @@ export const TradingGateway = {
         body: JSON.stringify({
           action: 'place_order',
           symbol: cleanSymbol,
-          side: params.side === 'BUY' ? 'Buy' : 'Sell',
+          side: params.side,
           amountUSD: amount,
           leverage: leverage,
-          scalpMode: isScalping,
           orderType,
-          entryPrice,
-          stopLoss,
-          takeProfit
+          timeInForce,
+          price: orderType === 'Limit' ? entryPrice : undefined,
+          // Pass UI values for TP/SL attachment
+          uiEntry: params.uiEntry,
+          uiTP: params.uiTP,
+          uiSL: params.uiSL,
+          scalpMode: isScalping,
+          reduceOnly: params.reduceOnly || false,
+          idempotencyKey
         })
       });
 
@@ -133,19 +187,9 @@ export const TradingGateway = {
         headers: Object.fromEntries(response.headers.entries())
       });
       
-      if (!data.success) {
+      if (!data.success && !data.ok) {
         console.error('❌ Trade execution failed:', data);
-        let errorMessage = data?.error || data?.message || 'Unknown error';
-        
-        // Provide helpful error messages for common issues
-        if (errorMessage.includes('ab not enough')) {
-          errorMessage = `Insufficient balance. ${errorMessage}. Try reducing the amount to $5 or add more funds to your account.`;
-        } else if (errorMessage.includes('reduce-only')) {
-          errorMessage = `Position mode error. ${errorMessage}. The system will retry with different position modes.`;
-        } else if (errorMessage.includes('position idx')) {
-          errorMessage = `Position mode mismatch. ${errorMessage}. The system will attempt to fix this automatically.`;
-        }
-        
+        const errorMessage = data?.error || data?.message || 'Unknown error';
         return { 
           ok: false, 
           code: 'TRADE_FAILED', 
@@ -219,7 +263,7 @@ export const TradingGateway = {
     }
   },
 
-  async bulkExecute(list: ExecParams[]) {
+  async bulkExecute(list: (ExecParams | LegacyExecParams)[]) {
     if (!FEATURES.AUTOTRADE_ENABLED) {
       return { ok: false, code: 'DISABLED', message: 'Auto-trading disabled' }
     }
@@ -230,7 +274,7 @@ export const TradingGateway = {
       // Import trade queue here to avoid circular dependencies
       const { tradeQueue } = await import('./tradeQueue');
       
-      const tradeIds = list.map(params => tradeQueue.addTrade(params));
+      const tradeIds = list.map(params => tradeQueue.addTrade(normalizeParams(params)));
       
       console.log(`📋 ${tradeIds.length} trades queued for execution`);
 

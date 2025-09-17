@@ -9,11 +9,11 @@ export interface TradingSettings {
 }
 
 const DEFAULT_SETTINGS: TradingSettings = {
-  defaultSLPercent: 3,   // 3% stop loss
-  defaultTPPercent: 6,   // 6% take profit  
+  defaultSLPercent: 2,   // 2% stop loss
+  defaultTPPercent: 4,   // 4% take profit  
   useScalpingMode: false,
-  orderType: 'market',
-  maxLeverage: 25,       // 25x leverage as requested
+  orderType: 'limit',
+  maxLeverage: 100,
   excludeInnovationZone: true  // Exclude high-fee Innovation Zone pairs by default
 };
 
