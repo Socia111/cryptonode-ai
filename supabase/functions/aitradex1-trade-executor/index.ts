@@ -906,7 +906,38 @@ async function executeTradeWithAccount(account: any, symbol: string, side: strin
     }, 500);
   }
 }
-      message: error.message || 'Internal server error'
-    }, 500);
+
+// Handle CORS preflight requests
+if (req.method === 'OPTIONS') {
+  return new Response(null, { headers: corsHeaders });
+}
+
+try {
+  const body = await req.json();
+  const { action } = body;
+
+  structuredLog('info', 'Trade executor request', { action, body });
+
+  if (action === 'status') {
+    return json({
+      status: 'operational',
+      trading_enabled: true,
+      allowed_symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
+      timestamp: new Date().toISOString()
+    });
   }
+
+  if (action === 'place_order') {
+    return await executeTradeWithAccount(body);
+  }
+
+  return json({ error: 'Invalid action' }, 400);
+
+} catch (error: any) {
+  structuredLog('error', 'Handler failed', { error: error.message });
+  return json({
+    error: 'Internal server error',
+    message: error.message || 'Internal server error'
+  }, 500);
+}
 });
