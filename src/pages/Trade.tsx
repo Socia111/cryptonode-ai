@@ -8,6 +8,9 @@ import { TradingTest } from '@/components/TradingTest';
 import { TradeExecutionTest } from '@/components/TradeExecutionTest';
 import { TradeTestPanel } from '@/components/TradeTestPanel';
 import { SystemStatusPanel } from '@/components/SystemStatusPanel';
+import { ComprehensiveTradingDiagnostics } from '@/components/ComprehensiveTradingDiagnostics';
+import { LiveTradingEnabler } from '@/components/LiveTradingEnabler';
+import { ImplementationStatusDashboard } from '@/components/ImplementationStatusDashboard';
 import { useSignals } from '@/hooks/useSignals';
 import LivePrice from '../components/LivePrice';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,15 +50,21 @@ const Trade = () => {
         </div>
 
         {/* Trading Tabs */}
-        <Tabs defaultValue="status" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+        <Tabs defaultValue="implementation" className="w-full">
+          <TabsList className="grid w-full grid-cols-8">
+            <TabsTrigger value="implementation">🎯 Plan</TabsTrigger>
             <TabsTrigger value="status">📊 Status</TabsTrigger>
-            <TabsTrigger value="signals">🎯 Signals</TabsTrigger>
-            <TabsTrigger value="test">🔧 Test</TabsTrigger>
-            <TabsTrigger value="trading-test">🧪 Trading</TabsTrigger>
-            <TabsTrigger value="execution-test">⚡ Live</TabsTrigger>
+            <TabsTrigger value="signals">📈 Signals</TabsTrigger>
+            <TabsTrigger value="diagnostics">🔧 Diagnostics</TabsTrigger>
+            <TabsTrigger value="test">🧪 System</TabsTrigger>
+            <TabsTrigger value="trading-test">⚡ Trading</TabsTrigger>
+            <TabsTrigger value="execution-test">🚀 Live</TabsTrigger>
             <TabsTrigger value="pipeline-test">🔄 Pipeline</TabsTrigger>
           </TabsList>
+          
+          <TabsContent value="implementation" className="mt-6">
+            <ImplementationStatusDashboard />
+          </TabsContent>
           
           <TabsContent value="status" className="mt-6">
             <SystemStatusPanel />
@@ -69,6 +78,10 @@ const Trade = () => {
             )}
           </TabsContent>
           
+          <TabsContent value="diagnostics" className="mt-6">
+            <ComprehensiveTradingDiagnostics />
+          </TabsContent>
+          
           <TabsContent value="test" className="mt-6">
             <TradingFixTest />
           </TabsContent>
@@ -78,7 +91,10 @@ const Trade = () => {
           </TabsContent>
           
           <TabsContent value="execution-test" className="mt-6">
-            <TradeExecutionTest />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <LiveTradingEnabler />
+              <TradeExecutionTest />
+            </div>
           </TabsContent>
           
           <TabsContent value="pipeline-test" className="mt-6">
