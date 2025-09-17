@@ -161,5 +161,8 @@ verify_jwt = false
 [functions.3commas-authenticate]
 verify_jwt = true
 
+[functions.bybit-live-trading]
+verify_jwt = false
+
 [functions.bybit-authenticate]
 verify_jwt = true

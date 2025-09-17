@@ -167,6 +167,7 @@ function assertSymbolAllowed(symbol: string) {
     );
   }
 }
+
 const MIN_NOTIONAL_USD = 5;
 const MAX_SPREAD_BPS = 1000; // 10%
 const MAX_FUNDING_RATE = 0.0005; // 0.05% per 8h
