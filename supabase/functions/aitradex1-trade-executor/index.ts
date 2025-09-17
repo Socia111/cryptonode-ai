@@ -136,7 +136,7 @@ class BybitV5Client {
 
 // =================== TRADE EXECUTION LOGIC ===================
 
-async function executeTradeWithAccount(requestBody: any) {
+async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
   try {
     const { symbol, side, amountUSD, leverage = 1, testMode = false } = requestBody;
     
@@ -148,14 +148,32 @@ async function executeTradeWithAccount(requestBody: any) {
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.56.0')
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     
-    // Get user from request (for now, we'll create a test user scenario)
-    const testUserId = 'ea52a338-c40d-4809-9014-10151b3af9af'; // From network logs
+    // Try to get user ID from JWT token if provided
+    let userId: string | null = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+        if (user && !userError) {
+          userId = user.id;
+          structuredLog('info', 'Extracted user from JWT', { userId });
+        }
+      } catch (jwtError) {
+        structuredLog('warn', 'Failed to extract user from JWT', { error: jwtError });
+      }
+    }
+    
+    // Fallback to test user if no authenticated user
+    if (!userId) {
+      userId = 'ea52a338-c40d-4809-9014-10151b3af9af'; // From network logs
+      structuredLog('info', 'Using fallback test user', { userId });
+    }
     
     // Get user's trading account or create one
     let { data: account, error: accountError } = await supabase
       .from('user_trading_accounts')
       .select('*')
-      .eq('user_id', testUserId)
+      .eq('user_id', userId)
       .eq('exchange', 'bybit')
       .eq('is_active', true)
       .maybeSingle()
@@ -176,7 +194,7 @@ async function executeTradeWithAccount(requestBody: any) {
       // Create account using the restore function
       const { data: newAccountId, error: createError } = await supabase
         .rpc('restore_user_trading_account', {
-          p_user_id: testUserId,
+          p_user_id: userId,
           p_api_key: envApiKey,
           p_api_secret: envApiSecret,
           p_account_type: 'testnet'
@@ -323,8 +341,9 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const { action } = body;
+    const authHeader = req.headers.get('authorization');
 
-    structuredLog('info', 'Trade executor request', { action, body });
+    structuredLog('info', 'Trade executor request', { action, body, hasAuth: !!authHeader });
 
     if (action === 'status') {
       return json({
@@ -336,7 +355,7 @@ serve(async (req) => {
     }
 
     if (action === 'place_order') {
-      return await executeTradeWithAccount(body);
+      return await executeTradeWithAccount(body, authHeader);
     }
 
     return json({ error: 'Invalid action' }, 400);

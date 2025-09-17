@@ -29,7 +29,7 @@ export function subscribeSignals(
   console.log('[signals-realtime] Setting up subscription...');
   
   const channel = supabase
-    .channel('signals-realtime-v3')
+    .channel('signals-realtime-v4')
     .on(
       'postgres_changes',
       {
@@ -115,17 +115,15 @@ export function subscribeSignals(
     .subscribe((status: any, err?: any) => {
       console.log('[signals-realtime] Subscription status:', status);
       if (err) {
-        console.warn('[signals-realtime] Channel error, retrying...:', err);
-        // Don't auto-retry immediately to avoid loops
+        console.error('[signals-realtime] Subscription error:', err);
       } else if (status === 'SUBSCRIBED') {
-        console.log('[signals-realtime] Successfully subscribed to signals channel');
+        console.log('[signals-realtime] ✅ Successfully subscribed to signals channel');
       } else if (status === 'CHANNEL_ERROR') {
-        console.warn('[signals-realtime] Channel error detected');
-        // Don't auto-retry immediately to avoid loops  
+        console.error('[signals-realtime] ❌ Channel error detected');
       } else if (status === 'TIMED_OUT') {
-        console.info('[signals-realtime] Status: TIMED_OUT');
+        console.warn('[signals-realtime] ⏰ Subscription timed out');
       } else if (status === 'CLOSED') {
-        console.info('[signals-realtime] Channel closed');
+        console.info('[signals-realtime] 🔌 Channel closed');
       }
     });
 
