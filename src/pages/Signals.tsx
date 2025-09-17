@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { SignalFeed } from '@/components/SignalFeed';
+import { SignalsDebug } from '@/components/SignalsDebug';
 import { useSignals } from '@/hooks/useSignals';
 import { useRankedSignals } from '@/hooks/useRankedSignals';
 import { Button } from '@/components/ui/button';
@@ -84,6 +85,8 @@ const Signals = () => {
             Generate New Signals
           </Button>
         </div>
+
+        <SignalsDebug />
 
         {/* Trading Controls - Centered */}
         {selectedSignal && (
