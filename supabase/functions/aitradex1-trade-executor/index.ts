@@ -283,7 +283,10 @@ serve(async (req) => {
 
     const { symbol, side, amountUSD, leverage = 1, scalpMode } = requestBody;
     
-    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage: Number(leverage) || 1 });
+    // Define leverage early to avoid "not defined" errors
+    const scaledLeverage = Number(leverage) || 1;
+    
+    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage: scaledLeverage });
 
     // Handle place order requests
     if (action === 'place_order' || action === 'signal') {
@@ -291,7 +294,7 @@ serve(async (req) => {
         return json({
           success: false,
           message: 'Missing required fields: symbol, side, amountUSD',
-          received: { symbol, side, amountUSD, leverage }
+          received: { symbol, side, amountUSD, leverage: scaledLeverage }
         }, 400);
       }
 
@@ -307,7 +310,7 @@ serve(async (req) => {
         side,
         originalAmount: amountUSD,
         finalAmount: finalAmountUSD,
-        leverage: leverage || 1
+        leverage: scaledLeverage
       });
 
       try {
@@ -322,15 +325,14 @@ serve(async (req) => {
             symbol,
             side,
             finalAmount: finalAmountUSD,
-            leverage: Number(leverage) || 1
+            leverage: scaledLeverage
           });
           
           // Simulate successful trade execution with realistic data
           const simulatedOrderId = 'PAPER_' + Date.now();
           const basePrice = symbol === 'BTCUSDT' ? 60000 : symbol === 'ETHUSDT' ? 3200 : 50;
           const simulatedPrice = basePrice * (1 + (Math.random() - 0.5) * 0.02); // ±1% price variation
-          const effectiveLeverage = Number(leverage) || 1;
-          const qty = (finalAmountUSD * effectiveLeverage) / simulatedPrice;
+          const qty = (finalAmountUSD * scaledLeverage) / simulatedPrice;
           
           return json({
             success: true,
@@ -341,7 +343,7 @@ serve(async (req) => {
               qty: qty.toFixed(6),
               price: simulatedPrice.toFixed(2),
               amount: finalAmountUSD,
-              leverage: effectiveLeverage,
+              leverage: scaledLeverage,
               status: 'FILLED',
               paperMode: true,
               message: 'Paper trade executed successfully - no real money involved'
@@ -430,8 +432,7 @@ serve(async (req) => {
         
         const isScalping = scalpMode === true;
         
-        // Calculate proper quantity with defined leverage (default to 1x if not provided)
-        const scaledLeverage = Number(leverage) || 1; // Ensure leverage is a number
+        // Calculate proper quantity with already defined scaledLeverage
         const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
         
         // Enhanced validation with better error messages
