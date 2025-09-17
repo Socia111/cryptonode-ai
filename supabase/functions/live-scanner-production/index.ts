@@ -86,7 +86,16 @@ async function getBybit(url:string, tries=3, backoff=300){
   let last:any;
   for (let i=0;i<tries;i++){
     try{
-      const res = await fetch(url, { headers:{ "User-Agent":"aitradex1/1.0" }});
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
+      const res = await fetch(url, { 
+        headers:{ "User-Agent":"aitradex1/1.0" },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (res.ok){
         return await res.json();
       }
@@ -97,9 +106,15 @@ async function getBybit(url:string, tries=3, backoff=300){
         continue;
       }
       break;
-    }catch(e){ last = e; await sleep(backoff*(i+1)); }
+    }catch(e){ 
+      last = e; 
+      if (e.name === 'AbortError') {
+        console.warn(`⏰ Request timeout for ${url} (attempt ${i+1})`);
+      }
+      await sleep(backoff*(i+1)); 
+    }
   }
-  throw new Error(`Bybit API failed: ${last}`);
+  throw new Error(`Bybit API failed after ${tries} attempts: ${last}`);
 }
 
 async function fetchBybitOHLCV(symbol:string, tf:string, limit=300):Promise<K[]>{
@@ -365,11 +380,28 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    console.log(`🔍 AItradeX1 scan: tf=${timeframe} relaxed=${relaxed} symbols=${symbols.length}`);
+    console.log(`🔍 unirail_core scan: tf=${timeframe} relaxed=${relaxed} symbols=${symbols.length}`);
 
     const cfg = relaxed ? AITRADEX1.relaxed : AITRADEX1.tight;
     let signalsFound = 0;
     const results:any[] = [];
+    
+    // Clear old quantum_ai signals to avoid confusion
+    try {
+      const { error: deleteError } = await supabase
+        .from('signals')
+        .delete()
+        .eq('algo', 'quantum_ai')
+        .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+      
+      if (deleteError) {
+        console.warn('⚠️ Failed to clear old quantum_ai signals:', deleteError);
+      } else {
+        console.log('🧹 Cleared old quantum_ai signals');
+      }
+    } catch (e) {
+      console.warn('⚠️ Error clearing old signals:', e);
+    }
 
     for (const symbol of symbols){
       try{
@@ -385,7 +417,7 @@ serve(async (req) => {
         const barTime = new Date(ohlc[i].time).toISOString();
 
         const common = {
-          algo: "AItradeX1",
+          algo: "unirail_core",
           exchange, symbol,
           timeframe,
           price: ohlc[i].close,
