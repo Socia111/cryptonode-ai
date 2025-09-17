@@ -369,7 +369,11 @@ serve(async (req) => {
 
         const client = new BybitV5Client(apiKey, apiSecret)
 
-        // STEP 1: Check account balance before placing orders
+        // STEP 1: Get instrument info and price first (moved up to be available throughout)
+        const inst = await getInstrument(symbol);
+        const price = await getMarkPrice(symbol);
+
+        // STEP 2: Check account balance before placing orders
         try {
           structuredLog('info', 'Checking account balance before trade execution', { symbol });
           const balanceResponse = await client.signedRequest('GET', '/v5/account/wallet-balance', {
@@ -402,10 +406,6 @@ serve(async (req) => {
             error: balanceError.message 
           });
         }
-
-        // STEP 2: Get instrument info and price first
-        const inst = await getInstrument(symbol);
-        const price = await getMarkPrice(symbol);
         
         // STEP 3: Check and set position mode to One-Way (safer for new positions)
         if (inst.category === 'linear') {
