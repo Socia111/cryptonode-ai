@@ -318,7 +318,7 @@ serve(async (req) => {
         const isScalping = scalpMode === true;
         
         // Calculate proper quantity with scalping support
-        const scaledLeverage = isScalping ? Math.min(leverage || 10, 25) : (leverage || 1);
+        const scaledLeverage = isScalping ? Math.min(Number(leverage) || 10, 25) : (Number(leverage) || 1);
         const { qty } = computeOrderQtyUSD(finalAmountUSD, scaledLeverage, price, inst, isScalping);
         
         // Enhanced validation with better error messages

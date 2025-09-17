@@ -74,7 +74,7 @@ export function TradingTest() {
     try {
       const scalpTest = await TradingGateway.execute({
         symbol: 'BTCUSDT',
-        side: 'BUY',
+        side: 'Buy',
         amountUSD: 1,
         leverage: 10,
         scalpMode: true
@@ -100,7 +100,7 @@ export function TradingTest() {
     try {
       const normalTest = await TradingGateway.execute({
         symbol: 'BTCUSDT',
-        side: 'BUY',
+        side: 'Buy',
         amountUSD: 5,
         leverage: 5,
         scalpMode: false
@@ -126,7 +126,7 @@ export function TradingTest() {
     try {
       const symbolTest = await TradingGateway.execute({
         symbol: 'BTC/USDT', // Test with slash format
-        side: 'BUY',
+        side: 'Buy',
         amountUSD: 2,
         leverage: 5,
         scalpMode: true

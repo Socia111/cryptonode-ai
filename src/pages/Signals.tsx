@@ -33,7 +33,7 @@ const Signals = () => {
   const executeTrade = async (signal: any) => {
     setIsExecuting(true);
     try {
-      const side = signal.direction === 'LONG' ? 'BUY' : 'SELL';
+      const side = signal.direction === 'LONG' ? 'Buy' : 'Sell';
       const result = await TradingGateway.execute({
         symbol: signal.token,
         side,
