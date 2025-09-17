@@ -255,7 +255,7 @@ serve(async (req) => {
 
     // Parse request
     const requestBody = await req.json();
-    const { action, symbol, side, amountUSD, leverage, scalpMode, orderType, timeInForce, price, uiEntry, uiTP, uiSL, idempotencyKey } = requestBody;
+    const { action, symbol, side, amountUSD, leverage, scalpMode } = requestBody;
     
     structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
 
@@ -368,25 +368,9 @@ serve(async (req) => {
           takeProfit = price * (1 - takeProfitPercent); // 4% below entry for short
         }
         
-        // Use UI values if provided, otherwise calculate defaults
-        let finalStopLoss = uiSL;
-        let finalTakeProfit = uiTP;
-        const finalEntryPrice = uiEntry || price;
-
-        // Calculate defaults if UI values not provided
-        if (!finalStopLoss || !finalTakeProfit) {
-          if (side === 'Buy') {
-            finalStopLoss = finalStopLoss || (finalEntryPrice * (1 - stopLossPercent));
-            finalTakeProfit = finalTakeProfit || (finalEntryPrice * (1 + takeProfitPercent));
-          } else {
-            finalStopLoss = finalStopLoss || (finalEntryPrice * (1 + stopLossPercent));
-            finalTakeProfit = finalTakeProfit || (finalEntryPrice * (1 - takeProfitPercent));
-          }
-        }
-
         // Round prices to tick size
-        finalStopLoss = roundToStep(finalStopLoss, inst.tickSize);
-        finalTakeProfit = roundToStep(finalTakeProfit, inst.tickSize);
+        stopLoss = roundToStep(stopLoss, inst.tickSize);
+        takeProfit = roundToStep(takeProfit, inst.tickSize);
         
         structuredLog('info', 'Risk management prices calculated', {
           entryPrice: price,
@@ -397,38 +381,16 @@ serve(async (req) => {
           takeProfitPercent: ((side === 'Buy' ? takeProfit - price : price - takeProfit) / price * 100).toFixed(3) + '%'
         });
 
-        // =================== ORDER WITH TP/SL ATTACHMENT ===================
-        const finalOrderType = orderType || 'Market';
-        const isLong = side === 'Buy';
-        
-        // Directional validation
-        const tpValid = finalTakeProfit && (isLong ? finalTakeProfit > finalEntryPrice : finalTakeProfit < finalEntryPrice);
-        const slValid = finalStopLoss && (isLong ? finalStopLoss < finalEntryPrice : finalStopLoss > finalEntryPrice);
-        
+        // =================== MARKET ENTRY ORDER (NO TP/SL YET) ===================
+        // Create clean market order without TP/SL (Bybit doesn't support TP/SL in market orders)
         const orderData: any = {
           category: inst.category,
           symbol,
           side: side === 'Buy' ? 'Buy' : 'Sell',
-          orderType: finalOrderType,
+          orderType: 'Market',
           qty: String(qty),
-          timeInForce: finalOrderType === 'Limit' ? (timeInForce || 'PostOnly') : 'IOC',
-          orderLinkId: `x1_${idempotencyKey || Date.now()}`,
-          reduceOnly: false
-        };
-
-        // Add price for limit orders
-        if (finalOrderType === 'Limit' && finalEntryPrice) {
-          orderData.price = roundToStep(finalEntryPrice, inst.tickSize).toString();
-        }
-
-        // Attach TP/SL if valid (Bybit V5 supports this)
-        if (tpValid) {
-          orderData.takeProfit = finalTakeProfit.toString();
-          orderData.tpTriggerBy = 'MarkPrice';
-        }
-        if (slValid) {
-          orderData.stopLoss = finalStopLoss.toString();
-          orderData.slTriggerBy = 'MarkPrice';
+          timeInForce: 'IOC'
+          // NOTE: TP/SL will be set as separate conditional orders after position opens
         }
 
         // For linear contracts, always open new positions (not reduce-only)
