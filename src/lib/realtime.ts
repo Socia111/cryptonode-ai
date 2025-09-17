@@ -29,7 +29,7 @@ export function subscribeSignals(
   console.log('[signals-realtime] Setting up subscription...');
   
   const channel = supabase
-    .channel('signals-updates-fixed')
+    .channel('signals-realtime-v3')
     .on(
       'postgres_changes',
       {
@@ -39,7 +39,7 @@ export function subscribeSignals(
       },
       (payload) => {
         console.log('[signals-realtime] New signal:', payload.new);
-        if (payload.new && payload.new.score >= 70) {
+        if (payload.new && Number(payload.new.score) >= 70) {
           try {
             const rawSignal = payload.new;
             const mappedSignal: Signal = {
@@ -61,7 +61,7 @@ export function subscribeSignals(
               signal_strength: Number(rawSignal.score) > 85 ? 'STRONG' : Number(rawSignal.score) > 75 ? 'MEDIUM' : 'WEAK',
               risk_level: Number(rawSignal.score) > 85 ? 'LOW' : Number(rawSignal.score) > 75 ? 'MEDIUM' : 'HIGH',
               quantum_probability: Number(rawSignal.score || 0) / 100,
-              status: 'active',
+              status: rawSignal.is_active !== false ? 'active' : 'inactive',
               created_at: rawSignal.created_at || new Date().toISOString(),
             };
             onInsert(mappedSignal);
@@ -80,7 +80,7 @@ export function subscribeSignals(
       },
       (payload) => {
         console.log('[signals-realtime] Updated signal:', payload.new);
-        if (payload.new && payload.new.score >= 70) {
+        if (payload.new && Number(payload.new.score) >= 70) {
           try {
             const rawSignal = payload.new;
             const mappedSignal: Signal = {
@@ -102,7 +102,7 @@ export function subscribeSignals(
               signal_strength: Number(rawSignal.score) > 85 ? 'STRONG' : Number(rawSignal.score) > 75 ? 'MEDIUM' : 'WEAK',
               risk_level: Number(rawSignal.score) > 85 ? 'LOW' : Number(rawSignal.score) > 75 ? 'MEDIUM' : 'HIGH',
               quantum_probability: Number(rawSignal.score || 0) / 100,
-              status: 'active',
+              status: rawSignal.is_active !== false ? 'active' : 'inactive',
               created_at: rawSignal.created_at || new Date().toISOString(),
             };
             onUpdate(mappedSignal);
