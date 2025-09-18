@@ -260,13 +260,13 @@ function calculateQuickIndicators(ticker: any) {
 async function generateSignalsFromAllData(marketData: any[], supabase: any) {
   const signals = [];
   
-  // Only generate signals for top volume coins to avoid spam
+  // Expand to all symbols with minimal volume filter for comprehensive scanning
   const sortedData = marketData
-    .filter(data => data.volume > 1000) // Minimum volume filter
+    .filter(data => data.volume > 100) // Lower minimum volume for more coverage
     .sort((a, b) => (b.volume_quote || 0) - (a.volume_quote || 0))
-    .slice(0, 300); // Top 300 by volume - expanded for comprehensive scanning
+    .slice(0, 1000); // Scan top 1000 symbols by volume for true comprehensive coverage
   
-  console.log(`[Advanced Signal Generation] Processing top ${sortedData.length} symbols by volume using production engine`);
+  console.log(`[COMPREHENSIVE SCANNER] Processing ALL ${sortedData.length} symbols across all exchanges with production-grade signal engine`);
   
   for (const data of sortedData) {
     try {

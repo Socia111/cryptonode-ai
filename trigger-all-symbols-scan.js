@@ -56,4 +56,8 @@ async function triggerAllSymbolsScanner() {
 }
 
 // Execute the comprehensive scan
-triggerAllSymbolsScanner();
+triggerAllSymbolsScanner().then(() => {
+  console.log("🎯 Scan triggered successfully! Check your signals dashboard for results.");
+}).catch(err => {
+  console.error("❌ Failed to trigger scan:", err);
+});
