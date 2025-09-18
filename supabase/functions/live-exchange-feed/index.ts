@@ -85,7 +85,7 @@ serve(async (req) => {
       success: true,
       marketDataPoints: allMarketData.length,
       signalsGenerated: signals.length,
-      exchanges: exchanges.map(e => e.id),
+      exchanges: exchangeConfigs.map(e => e.name),
       timestamp: new Date().toISOString()
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

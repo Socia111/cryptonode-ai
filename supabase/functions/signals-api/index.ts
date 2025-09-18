@@ -20,10 +20,11 @@ Deno.serve(async (req) => {
     const action = url.searchParams.get('action') || 'list'
 
     if (req.method === 'GET' && action === 'list') {
-      // Fetch recent signals
+      // Fetch ONLY real signals (no mock data)
       const { data: signals, error } = await supabase
         .from('signals')
         .select('*')
+        .in('source', ['real_market_data', 'live_market_data', 'complete_algorithm_live', 'technical_indicators_real'])
         .gte('score', 70)
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .order('created_at', { ascending: false })
@@ -33,11 +34,21 @@ Deno.serve(async (req) => {
         throw error
       }
 
+      // Filter out any remaining mock signals
+      const realSignals = (signals || []).filter(signal => {
+        return signal.source !== 'demo' && 
+               signal.source !== 'mock' && 
+               signal.algo !== 'demo_generator' &&
+               !signal.algo?.includes('mock');
+      });
+
       return new Response(
         JSON.stringify({
           success: true,
-          signals: signals || [],
-          count: signals?.length || 0
+          signals: realSignals,
+          count: realSignals.length,
+          data_source: 'real_market_only',
+          filtered_out: (signals?.length || 0) - realSignals.length
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
