@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ExchangeAuthentication } from './ExchangeAuthentication';
 import { TradingExecutionPanel } from './TradingExecutionPanel';
 import { SystemStatusIndicator } from './SystemStatusIndicator';
+import { SystemTestPanel } from './SystemTestPanel';
 import { useSignals } from '@/hooks/useSignals';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthenticationManager } from './AuthenticationManager';
@@ -238,11 +239,12 @@ export const LiveTradingDashboard = () => {
 
       {/* Main Trading Interface */}
       <Tabs defaultValue="signals" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="signals">Live Signals</TabsTrigger>
           <TabsTrigger value="trading">Trade Execution</TabsTrigger>
           <TabsTrigger value="settings">Exchange Setup</TabsTrigger>
           <TabsTrigger value="status">System Status</TabsTrigger>
+          <TabsTrigger value="test">System Test</TabsTrigger>
         </TabsList>
 
         <TabsContent value="signals" className="space-y-4">
@@ -302,6 +304,10 @@ export const LiveTradingDashboard = () => {
 
         <TabsContent value="status">
           <SystemStatusIndicator />
+        </TabsContent>
+
+        <TabsContent value="test">
+          <SystemTestPanel />
         </TabsContent>
       </Tabs>
     </div>
