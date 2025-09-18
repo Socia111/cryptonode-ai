@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
@@ -118,6 +136,78 @@ export type Database = {
         }
         Relationships: []
       }
+      execution_orders: {
+        Row: {
+          amount_usd: number | null
+          created_at: string
+          exchange_order_id: string | null
+          id: string
+          leverage: number | null
+          paper_mode: boolean
+          qty: number | null
+          raw_response: Json | null
+          ret_code: number | null
+          ret_msg: string | null
+          side: string
+          status: string
+          symbol: string
+          user_id: string
+        }
+        Insert: {
+          amount_usd?: number | null
+          created_at?: string
+          exchange_order_id?: string | null
+          id?: string
+          leverage?: number | null
+          paper_mode?: boolean
+          qty?: number | null
+          raw_response?: Json | null
+          ret_code?: number | null
+          ret_msg?: string | null
+          side: string
+          status?: string
+          symbol: string
+          user_id: string
+        }
+        Update: {
+          amount_usd?: number | null
+          created_at?: string
+          exchange_order_id?: string | null
+          id?: string
+          leverage?: number | null
+          paper_mode?: boolean
+          qty?: number | null
+          raw_response?: Json | null
+          ret_code?: number | null
+          ret_msg?: string | null
+          side?: string
+          status?: string
+          symbol?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      instruments_cache: {
+        Row: {
+          category: string
+          fetched_at: string
+          id: string
+          payload: Json
+        }
+        Insert: {
+          category: string
+          fetched_at?: string
+          id?: string
+          payload: Json
+        }
+        Update: {
+          category?: string
+          fetched_at?: string
+          id?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
       live_market_data: {
         Row: {
           adx: number | null
@@ -211,44 +301,62 @@ export type Database = {
       markets: {
         Row: {
           base_asset: string
+          category: string | null
           created_at: string
+          enabled: boolean | null
           exchange: string
           id: string
           max_order_size: number | null
+          min_notional_usd: number | null
           min_order_size: number | null
+          min_qty: number | null
           price_precision: number | null
+          qty_step: number | null
           quantity_precision: number | null
           quote_asset: string
           status: string
           symbol: string
+          tick_size: number | null
           updated_at: string
         }
         Insert: {
           base_asset: string
+          category?: string | null
           created_at?: string
+          enabled?: boolean | null
           exchange?: string
           id?: string
           max_order_size?: number | null
+          min_notional_usd?: number | null
           min_order_size?: number | null
+          min_qty?: number | null
           price_precision?: number | null
+          qty_step?: number | null
           quantity_precision?: number | null
           quote_asset?: string
           status?: string
           symbol: string
+          tick_size?: number | null
           updated_at?: string
         }
         Update: {
           base_asset?: string
+          category?: string | null
           created_at?: string
+          enabled?: boolean | null
           exchange?: string
           id?: string
           max_order_size?: number | null
+          min_notional_usd?: number | null
           min_order_size?: number | null
+          min_qty?: number | null
           price_precision?: number | null
+          qty_step?: number | null
           quantity_precision?: number | null
           quote_asset?: string
           status?: string
           symbol?: string
+          tick_size?: number | null
           updated_at?: string
         }
         Relationships: []
