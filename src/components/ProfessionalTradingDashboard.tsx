@@ -20,6 +20,10 @@ import {
 import { useSignals } from '@/hooks/useSignals';
 import { useRealTimeSignals } from '@/hooks/useRealTimeSignals';
 import type { Signal as TradingSignal } from '@/types/trading';
+import { SignalGenerationEngine } from '@/components/SignalGenerationEngine';
+import { LiveMarketFeed } from '@/components/LiveMarketFeed';
+import { TradingInterface } from '@/components/TradingInterface';
+import { RiskManagement } from '@/components/RiskManagement';
 
 interface AlgorithmStats {
   activeSignals: number;
@@ -282,167 +286,27 @@ export function ProfessionalTradingDashboard() {
 
           {/* Signals Tab */}
           <TabsContent value="signals" className="mt-0">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <Card className="surface-elevated">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-xl font-semibold">Complete Trading Signal Algorithm</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                          Advanced multi-layered signal scoring using Golden Cross, HVP filtering, and ATR-based risk management
-                        </p>
-                      </div>
-                      <Button className="bg-primary hover:bg-primary/90">
-                        <Play className="h-4 w-4 mr-2" />
-                        Generate Signals
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-primary">{algorithmStats.activeSignals}</div>
-                        <div className="metric-label">Active Signals</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-success">{algorithmStats.avgConfidence.toFixed(0)}</div>
-                        <div className="metric-label">Avg Confidence</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-foreground">{algorithmStats.avgRR.toFixed(1)}</div>
-                        <div className="metric-label">Avg R:R</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-muted-foreground">{algorithmStats.totalSignals}</div>
-                        <div className="metric-label">All Signals</div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold">Algorithm Components</h3>
-                      
-                      <div className="space-y-3">
-                        <h4 className="font-medium text-sm uppercase tracking-wide text-muted-foreground">
-                          Primary Conditions (Mandatory)
-                        </h4>
-                        {algorithmComponents.filter(c => c.type === 'primary').map((component, index) => (
-                          <div key={index} className="flex items-center gap-3 p-3 rounded-lg bg-success/10 border border-success/20">
-                            <CheckCircle className="h-4 w-4 text-success" />
-                            <span className="text-sm">{component.name}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="space-y-3">
-                        <h4 className="font-medium text-sm uppercase tracking-wide text-muted-foreground">
-                          Secondary Filters (Optional)
-                        </h4>
-                        {algorithmComponents.filter(c => c.type === 'secondary').map((component, index) => (
-                          <div key={index} className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/20">
-                            <AlertCircle className="h-4 w-4 text-warning" />
-                            <span className="text-sm">{component.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="surface-elevated">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-semibold">Recent Complete Algorithm Signals</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-center py-12">
-                      <div className="text-center space-y-4">
-                        <Star className="h-12 w-12 text-muted-foreground mx-auto" />
-                        <div>
-                          <p className="text-lg font-medium text-muted-foreground">No complete algorithm signals generated yet</p>
-                          <p className="text-sm text-muted-foreground">
-                            Click 'Generate Signals' to run the complete trading signal algorithm.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="space-y-6">
-                <Card className="surface-elevated">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-semibold">Signal Grade Distribution</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {signalGrades.map((grade, index) => (
-                      <div key={index} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="font-mono">
-                              {grade.grade}
-                            </Badge>
-                            <span className="text-sm font-medium">{grade.label}</span>
-                          </div>
-                          <span className="text-sm font-medium">{grade.count} signals</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">{grade.confidence}</div>
-                        <Progress value={grade.count > 0 ? (grade.count / algorithmStats.totalSignals) * 100 : 0} className="h-2" />
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+            <SignalGenerationEngine onSignalGenerated={(signal) => console.log('New signal:', signal)} />
           </TabsContent>
 
-          {/* Other tabs content would go here */}
+          {/* Live Feed Tab */}
           <TabsContent value="live-feed" className="mt-0">
-            <Card className="surface-elevated">
-              <CardContent className="p-6">
-                <div className="text-center py-12">
-                  <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Live Market Feed</h3>
-                  <p className="text-muted-foreground">Real-time market data and signal updates will appear here</p>
-                </div>
-              </CardContent>
-            </Card>
+            <LiveMarketFeed />
           </TabsContent>
 
+          {/* Trading Tab */}
           <TabsContent value="trading" className="mt-0">
-            <Card className="surface-elevated">
-              <CardContent className="p-6">
-                <div className="text-center py-12">
-                  <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Trading Interface</h3>
-                  <p className="text-muted-foreground">Advanced trading tools and order management</p>
-                </div>
-              </CardContent>
-            </Card>
+            <TradingInterface />
           </TabsContent>
 
+          {/* System Tab */}
           <TabsContent value="system" className="mt-0">
-            <Card className="surface-elevated">
-              <CardContent className="p-6">
-                <div className="text-center py-12">
-                  <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">System Status</h3>
-                  <p className="text-muted-foreground">Monitor system health and performance metrics</p>
-                </div>
-              </CardContent>
-            </Card>
+            <SystemMonitor />
           </TabsContent>
 
+          {/* Controls Tab */}
           <TabsContent value="controls" className="mt-0">
-            <Card className="surface-elevated">
-              <CardContent className="p-6">
-                <div className="text-center py-12">
-                  <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Trading Controls</h3>
-                  <p className="text-muted-foreground">Configure auto-trading and risk management settings</p>
-                </div>
-              </CardContent>
-            </Card>
+            <RiskManagement />
           </TabsContent>
         </div>
       </Tabs>
