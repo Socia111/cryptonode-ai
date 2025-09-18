@@ -111,6 +111,15 @@ export const AuthenticationManager = () => {
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
           </TabsList>
 
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg mb-4">
+            <p className="text-sm font-medium text-blue-800">
+              🚀 Quick Test Login
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Use: test@aitradex1.com / password123
+            </p>
+          </div>
+
           <TabsContent value="signin" className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>

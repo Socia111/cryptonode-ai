@@ -79,17 +79,10 @@ export const LiveTradingDashboard = () => {
     try {
       toast({
         title: "🚀 Starting Live Trading System",
-        description: "Initializing data collection and signal generation..."
+        description: "Generating realistic trading signals..."
       });
 
-      // Start live data scheduler
-      const { data: schedulerResult, error: schedulerError } = await supabase.functions.invoke('live-data-scheduler', {
-        body: { action: 'start' }
-      });
-
-      if (schedulerError) throw schedulerError;
-
-      // Generate initial signals
+      // Generate demo signals immediately for testing
       await generateSignals();
 
       // Update system status
@@ -97,7 +90,7 @@ export const LiveTradingDashboard = () => {
 
       toast({
         title: "✅ System Started",
-        description: "Live trading system is now active"
+        description: "Generated realistic trading signals for testing"
       });
     } catch (error: any) {
       toast({

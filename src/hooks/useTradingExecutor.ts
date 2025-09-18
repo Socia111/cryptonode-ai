@@ -42,8 +42,14 @@ export function useTradingExecutor() {
         paperMode: params.paperMode ?? true
       };
 
-      const { data, error } = await supabase.functions.invoke('bybit-order-execution', {
-        body: tradeParams
+      // Get current user for authentication
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { data, error } = await supabase.functions.invoke('paper-trading-executor', {
+        body: {
+          ...tradeParams,
+          userId: user?.id
+        }
       });
 
       if (error) throw error;

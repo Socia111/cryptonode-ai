@@ -155,96 +155,20 @@ function getMockSignals(): Signal[] {
 
 export async function generateSignals() {
   try {
-    console.info('[generateSignals] Triggering comprehensive live signal generation...');
+    console.info('[generateSignals] Triggering demo signal generation...');
     
-    const symbols: string[] = []; // Empty array means scan ALL available USDT pairs on Bybit
-    
-    // Run multiple timeframes in parallel for faster execution
-    const scanPromises = [
-      // 5-minute comprehensive scan - all coins
-      supabase.functions.invoke('live-scanner-production', {
-        body: {
-          exchange: 'bybit',
-          timeframe: '5m',
-          relaxed_filters: true,
-          symbols: symbols, // Scan ALL USDT pairs
-          scan_all_coins: true
-        }
-      }),
-      // 15-minute comprehensive scan - all coins
-      supabase.functions.invoke('live-scanner-production', {
-        body: {
-          exchange: 'bybit', 
-          timeframe: '15m',
-          relaxed_filters: true,
-          symbols: symbols, // Scan ALL USDT pairs
-          scan_all_coins: true
-        }
-      }),
-      // 1-hour comprehensive scan - all coins
-      supabase.functions.invoke('live-scanner-production', {
-        body: {
-          exchange: 'bybit',
-          timeframe: '1h', 
-          relaxed_filters: false, // Use canonical settings for higher timeframe
-          symbols: symbols, // Scan ALL USDT pairs
-          scan_all_coins: true
-        }
-      }),
-      // 4-hour comprehensive scan - all coins for swing trades
-      supabase.functions.invoke('live-scanner-production', {
-        body: {
-          exchange: 'bybit',
-          timeframe: '4h', 
-          relaxed_filters: false,
-          symbols: symbols, // Scan ALL USDT pairs
-          scan_all_coins: true
-        }
-      })
-    ];
-
-    // Wait for all scans to complete
-    const results = await Promise.allSettled(scanPromises);
-    
-    let totalSignals = 0;
-    const timeframes = ['5m', '15m', '1h', '4h'];
-    
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled' && result.value.data) {
-        const signalsFound = result.value.data.signals_found || 0;
-        totalSignals += signalsFound;
-        console.log(`[generateSignals] ${timeframes[index]} scan: ${signalsFound} signals generated`);
-        if (result.value.error) {
-          console.warn(`[generateSignals] ${timeframes[index]} scan had errors:`, result.value.error);
-        }
-      } else if (result.status === 'rejected') {
-        console.error(`[generateSignals] ${timeframes[index]} scan failed:`, result.reason);
-      }
+    // Use the demo signal generator for immediate results
+    const { data, error } = await supabase.functions.invoke('demo-signal-generator', {
+      body: { trigger: 'manual' }
     });
 
-    if (totalSignals === 0) {
-      // Fallback to regular scanner with even more relaxed settings
-      console.log('[generateSignals] No signals found, trying fallback scanner...');
-      
-      const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('live-scanner', {
-        body: { 
-          exchange: 'bybit',
-          timeframe: '1h',
-          relaxed_filters: true,
-          symbols: [], // Empty = scan ALL USDT pairs as fallback
-          scan_all_coins: true
-        }
-      });
-
-      if (fallbackError) {
-        throw fallbackError;
-      }
-
-      totalSignals = fallbackData?.signals_found || 0;
+    if (error) {
+      console.error('[generateSignals] Demo signal generation failed:', error);
+      throw error;
     }
-    
-    console.info(`[generateSignals] Success: ${totalSignals} signals generated`);
-    return { signals_created: totalSignals, success: true };
+
+    console.info(`[generateSignals] Success: ${data?.signals_generated || 0} signals generated`);
+    return { signals_created: data?.signals_generated || 0, success: true };
   } catch (e: any) {
     console.error('[generateSignals] Exception:', e);
     throw e;
