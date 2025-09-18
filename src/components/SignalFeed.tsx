@@ -3,6 +3,8 @@ import { useRankedSignals } from '@/hooks/useRankedSignals';
 import { useSignals } from '@/hooks/useSignals';
 import { TopPicks } from '@/components/TopPicks';
 import { SignalRow } from '@/components/SignalRow';
+import { EnhancedSignalCard } from '@/components/EnhancedSignalCard';
+import { useLiveSignalFeed } from '@/hooks/useLiveSignalFeed';
 import { TradeControls } from '@/components/TradeControls';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -15,12 +17,22 @@ import type { UISignal } from '@/lib/signalScoring';
 export function SignalFeed({ signals: initialSignals }: { signals?: UISignal[] }) {
   const { toast } = useToast();
   const { signals: hookSignals, loading } = useSignals();
+  const { 
+    signals: liveSignals, 
+    loading: liveLoading, 
+    newSignalsCount, 
+    refreshSignals,
+    markSignalsAsRead 
+  } = useLiveSignalFeed();
   const [hideWide, setHideWide] = React.useState(true);
   
-  // Use hookSignals as primary source, fallback to initialSignals
-  const signals = hookSignals.length > 0 ? hookSignals : (initialSignals || []);
-  
-  const ranked = useRankedSignals(signals, { hideWideSpreads: hideWide, maxSpreadBps: 20, hide1MinSignals: true });
+  // Combine all signal sources and ensure UISignal compatibility
+  const combinedSignals = [
+    ...liveSignals.map(s => ({ ...s, token: s.symbol, direction: s.side })),
+    ...hookSignals,
+    ...(initialSignals || [])
+  ];
+  const ranked = useRankedSignals(combinedSignals as UISignal[], { hideWideSpreads: hideWide, maxSpreadBps: 20, hide1MinSignals: true });
   const topPicks = ranked.slice(0,3);
 
   // Auto mode: trades only A+/A
@@ -187,6 +199,24 @@ export function SignalFeed({ signals: initialSignals }: { signals?: UISignal[] }
             <Switch checked={autoMode} onCheckedChange={setAutoMode} />
             Auto (A+/A only)
           </label>
+          <Button 
+            onClick={refreshSignals} 
+            variant="outline" 
+            size="sm"
+            className="h-8"
+          >
+            Refresh ({newSignalsCount > 0 ? newSignalsCount : 0})
+          </Button>
+          {newSignalsCount > 0 && (
+            <Button 
+              onClick={markSignalsAsRead} 
+              variant="ghost" 
+              size="sm"
+              className="h-8 text-xs"
+            >
+              Mark Read
+            </Button>
+          )}
         </div>
       </div>
 
@@ -212,13 +242,20 @@ export function SignalFeed({ signals: initialSignals }: { signals?: UISignal[] }
         }}
       />
 
-      {/* Feed */}
-      <div className="space-y-2">
+      {/* Enhanced Signal Feed */}
+      <div className="space-y-3">
         {ranked.map(s => (
-          <SignalRow key={s.id} signal={s as any} onTrade={(sig) => setSelected(sig)} />
+          <EnhancedSignalCard 
+            key={s.id} 
+            signal={s as any} 
+            onTrade={(sig) => setSelected(sig as any)}
+            onDetails={(signal) => console.log('View technical details for:', signal)}
+          />
         ))}
         {ranked.length === 0 && (
-          <div className="text-sm opacity-70 text-center py-8">No signals (check filters)</div>
+          <div className="text-sm opacity-70 text-center py-8">
+            {loading || liveLoading ? 'Loading signals...' : 'No signals (check filters)'}
+          </div>
         )}
       </div>
 

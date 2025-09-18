@@ -30,6 +30,26 @@ export interface Signal {
   created_at?: string;
 }
 
+// Enhanced TradingSignal interface for trader-ready signals
+export interface TradingSignal {
+  symbol: string;
+  timeframe: '15m' | '30m' | '1h' | '4h' | string;
+  side: 'LONG' | 'SHORT';
+  entry_price: number;
+  stop_loss: number;
+  take_profit_1: number;
+  take_profit_2?: number;
+  r_r_ratio: number;
+  confidence_score: number;
+  volatility?: 'Low' | 'Medium' | 'High';
+  trend_strength?: 'Weak' | 'Moderate' | 'Strong';
+  source: string;
+  generated_at: string;
+  id?: string;
+  score?: number;
+  created_at?: string;
+}
+
 export interface TradeRequest {
   symbol: string;
   side: 'BUY' | 'SELL';
