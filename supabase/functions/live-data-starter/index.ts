@@ -35,8 +35,8 @@ serve(async (req) => {
       console.log('✅ Demo system initialized:', initResult);
     }
 
-    // Step 2: Generate fresh signals with symbols
-    const { data: signalResult, error: signalError } = await supabase.functions.invoke('demo-signal-generator', {
+    // Step 2: Generate fresh signals with enhanced scanner
+    const { data: signalResult, error: signalError } = await supabase.functions.invoke('aitradex1-enhanced-scanner', {
       body: { 
         symbols: defaultSymbols,
         count: 10,

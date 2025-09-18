@@ -183,15 +183,15 @@ function getMockSignals(): Signal[] {
 
 export async function generateSignals() {
   try {
-    console.info('[generateSignals] Triggering demo signal generation...');
+    console.info('[generateSignals] Triggering enhanced signal generation...');
     
-    // Use the demo signal generator for immediate results
-    const { data, error } = await supabase.functions.invoke('demo-signal-generator', {
+    // Use the enhanced scanner for better quality signals
+    const { data, error } = await supabase.functions.invoke('aitradex1-enhanced-scanner', {
       body: { trigger: 'manual' }
     });
 
     if (error) {
-      console.error('[generateSignals] Demo signal generation failed:', error);
+      console.error('[generateSignals] Enhanced signal generation failed:', error);
       throw error;
     }
 

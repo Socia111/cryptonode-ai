@@ -125,12 +125,18 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
   };
 
   const setupRealTimeSubscriptions = () => {
+    // Clean up any existing subscriptions first
+    cleanup();
+    
     try {
       console.log('[RealTimeSignals] Setting up realtime subscriptions...');
       
-      // Subscribe to new signals with improved error handling
+      // Create unique channel name to avoid conflicts
+      const channelName = `live-signals-${Date.now()}`;
+      
+      // Subscribe to new signals with proper error handling
       const signalsChannel = supabase
-        .channel('live-signals-v2')
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
@@ -171,12 +177,24 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
             }
           }
         )
-        .subscribe((status) => {
+        .subscribe((status, err) => {
           console.log('[RealTimeSignals] Subscription status:', status);
           if (status === 'SUBSCRIBED') {
             console.log('[RealTimeSignals] ✅ Successfully subscribed to signals');
           } else if (status === 'CHANNEL_ERROR') {
-            console.warn('[RealTimeSignals] ❌ Channel error - continuing without realtime');
+            console.warn('[RealTimeSignals] ❌ Channel error:', err);
+            // Retry subscription after a delay
+            setTimeout(() => {
+              console.log('[RealTimeSignals] Retrying subscription...');
+              setupRealTimeSubscriptions();
+            }, 5000);
+          } else if (status === 'TIMED_OUT') {
+            console.warn('[RealTimeSignals] ⏰ Subscription timed out, retrying...');
+            setTimeout(() => {
+              setupRealTimeSubscriptions();
+            }, 3000);
+          } else if (status === 'CLOSED') {
+            console.warn('[RealTimeSignals] 🔌 Connection closed, will retry on next component mount');
           }
         });
 
@@ -185,8 +203,20 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
       
     } catch (error) {
       console.error('[RealTimeSignals] Failed to setup realtime:', error);
-      // Continue without realtime - polling will handle updates
+      // Set up polling fallback
+      setupPollingFallback();
     }
+  };
+
+  const setupPollingFallback = () => {
+    console.log('[RealTimeSignals] Setting up polling fallback...');
+    const pollInterval = setInterval(() => {
+      if (!loading) {
+        loadInitialData();
+      }
+    }, 30000); // Poll every 30 seconds
+
+    (window as any).__pollInterval = pollInterval;
   };
 
   const cleanup = () => {
@@ -195,6 +225,12 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
         supabase.removeChannel((window as any).__signalsChannel);
         delete (window as any).__signalsChannel;
         console.log('[RealTimeSignals] Cleaned up signals channel');
+      }
+      
+      if ((window as any).__pollInterval) {
+        clearInterval((window as any).__pollInterval);
+        delete (window as any).__pollInterval;
+        console.log('[RealTimeSignals] Cleaned up polling interval');
       }
     } catch (error) {
       console.error('[RealTimeSignals] Cleanup error:', error);

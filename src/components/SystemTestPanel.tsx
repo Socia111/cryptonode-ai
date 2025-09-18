@@ -39,8 +39,8 @@ export const SystemTestPanel = () => {
         .select('*')
         .limit(5);
 
-      // Test 4: Test demo signal generator
-      const { data: demoResult, error: demoError } = await supabase.functions.invoke('demo-signal-generator');
+      // Test 4: Test enhanced signal generator
+      const { data: demoResult, error: demoError } = await supabase.functions.invoke('aitradex1-enhanced-scanner');
 
       // Test 5: Test paper trading executor
       const { data: tradeResult, error: tradeError } = await supabase.functions.invoke('paper-trading-executor', {
