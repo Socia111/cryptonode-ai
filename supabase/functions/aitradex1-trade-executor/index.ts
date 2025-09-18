@@ -396,6 +396,18 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
         requestId 
       });
 
+    } catch (instrumentError) {
+      structuredLog('error', 'Symbol validation failed', { 
+        error: instrumentError.message, 
+        symbol, 
+        requestId 
+      });
+      return json({
+        success: false,
+        error: `Symbol validation failed: ${instrumentError.message}`
+      }, 400);
+    }
+
     if (testMode) {
       // Return mock successful trade for test mode
       structuredLog('info', 'Returning test mode result', { requestId });
