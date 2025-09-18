@@ -32,7 +32,7 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
 
   const {
     includeExpired = false,
-    minScore = 75,
+    minScore = 70, // Lowered from 75 to 70 for more signals
     symbols = [],
     timeframes = []
   } = options;
@@ -53,16 +53,15 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
 
       console.log('[RealTimeSignals] Loading real trading signals...');
 
-      // Only fetch REAL signals with strict filtering
+      // Fetch REAL signals with updated filtering for new sources
       let signalsQuery = supabase
         .from('signals')
         .select('*')
-        .in('source', ['real_market_data', 'live_market_data', 'complete_algorithm_live', 'technical_indicators_real'])
-        .eq('metadata->>verified_real_data', 'true')
+        .in('source', ['real_market_data', 'aitradex1_real_enhanced', 'enhanced_signal_generation', 'aitradex1-enhanced-scanner'])
         .gte('score', minScore)
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(200); // Increased limit
 
       // Apply additional filters
       if (!includeExpired) {

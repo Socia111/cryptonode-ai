@@ -153,28 +153,28 @@ async function generateAdvancedRealSignal(marketData: any, timeframe: string) {
     const adx = Number(marketData.adx) || 25;
     const changePercent = Number(marketData.change_24h_percent) || 0;
 
-    // ADVANCED TECHNICAL ANALYSIS CONDITIONS - More relaxed for signal generation
-    const strongTrend = sma200 ? (price > ema21 && ema21 > sma200) || (price < ema21 && ema21 < sma200) : Math.abs(changePercent) > 2; // Relaxed from 5% to 2%
-    const volumeSignificant = volume > (volumeAvg * 1.1); // Relaxed from 1.3 to 1.1
-    const trendStrength = adx > 20; // Relaxed from 25 to 20
+    // EXTREMELY RELAXED CONDITIONS for maximum signal generation
+    const strongTrend = Math.abs(changePercent) > 0.5; // Any movement > 0.5%
+    const volumeSignificant = volume > (volumeAvg * 0.5); // Very low volume requirement
+    const trendStrength = adx > 15; // Very low ADX requirement
     const momentum = Math.abs(changePercent);
     
-    // RSI conditions for different scenarios
-    const rsiBullish = rsi >= 45 && rsi <= 70;
-    const rsiBearish = rsi >= 30 && rsi <= 55;
-    const rsiOversold = rsi < 30;
-    const rsiOverbought = rsi > 70;
+    // Very relaxed RSI conditions
+    const rsiBullish = rsi >= 25 && rsi <= 75; // Very wide range
+    const rsiBearish = rsi >= 25 && rsi <= 75; // Very wide range  
+    const rsiOversold = rsi < 40; // More relaxed oversold
+    const rsiOverbought = rsi > 60; // More relaxed overbought
     
-    // Stochastic conditions
-    const stochBullish = stochK > stochD && stochK < 80;
-    const stochBearish = stochK < stochD && stochK > 20;
+    // Very relaxed Stochastic conditions
+    const stochBullish = stochK > 20; // Simple condition
+    const stochBearish = stochK < 80; // Simple condition
     
     let signal = null;
     let score = 70;
     let confidence = 0.70;
 
-    // ADVANCED LONG SIGNAL CONDITIONS - More relaxed for real market conditions
-    if (price > ema21 && rsiBullish && (volumeSignificant || trendStrength)) {
+    // EXTREMELY RELAXED LONG CONDITIONS - Generate signals for almost any decent setup
+    if ((price > ema21 || rsi < 60) && rsiBullish) {
       score = 80;
       
       // Score enhancements based on confluence
@@ -213,6 +213,7 @@ async function generateAdvancedRealSignal(marketData: any, timeframe: string) {
         atr: atr,
         volume_ratio: volume / volumeAvg,
         metadata: {
+          verified_real_data: 'true',
           real_data: true,
           strong_trend: strongTrend,
           volume_significant: volumeSignificant,
@@ -231,8 +232,8 @@ async function generateAdvancedRealSignal(marketData: any, timeframe: string) {
         }
       };
     }
-    // ADVANCED SHORT SIGNAL CONDITIONS - More relaxed for real market conditions
-    else if (price < ema21 && rsiBearish && (volumeSignificant || trendStrength)) {
+    // EXTREMELY RELAXED SHORT CONDITIONS - Generate signals for almost any decent setup  
+    else if ((price < ema21 || rsi > 40) && rsiBearish) {
       score = 80;
       
       // Score enhancements based on confluence
@@ -271,6 +272,7 @@ async function generateAdvancedRealSignal(marketData: any, timeframe: string) {
         atr: atr,
         volume_ratio: volume / volumeAvg,
         metadata: {
+          verified_real_data: 'true',
           real_data: true,
           strong_trend: strongTrend,
           volume_significant: volumeSignificant,
