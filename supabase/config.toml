@@ -21,6 +21,9 @@ verify_jwt = false
 [functions.calculate-spynx-scores]
 verify_jwt = false
 
+[functions.ccxt-live-feed]
+verify_jwt = false
+
 [functions.comprehensive-trading-pipeline]
 verify_jwt = false
 
@@ -37,6 +40,9 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.direct-bybit-test]
+verify_jwt = false
+
+[functions.enhanced-ccxt-feed]
 verify_jwt = false
 
 [functions.enhanced-signal-generation]
