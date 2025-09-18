@@ -23,6 +23,7 @@ import type { Signal as TradingSignal } from '@/types/trading';
 import { SignalGenerationEngine } from '@/components/SignalGenerationEngine';
 import { LiveMarketFeed } from '@/components/LiveMarketFeed';
 import { TradingInterface } from '@/components/TradingInterface';
+import { SystemMonitor } from '@/components/SystemMonitor';
 import { RiskManagement } from '@/components/RiskManagement';
 
 interface AlgorithmStats {
