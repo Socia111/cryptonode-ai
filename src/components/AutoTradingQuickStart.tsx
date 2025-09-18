@@ -37,10 +37,18 @@ export function AutoTradingQuickStart() {
       positionSizeUSD: quickConfig.positionSize,
       stopLossPercent: 3,
       takeProfitPercent: 6,
+      useSignalAggregation: true,
+      consensusRequired: false,
+      minSourcesForTrade: 2,
+      liveTrading: false,
+      paperMode: true,
+      slippageProtection: 0.5,
+      emergencyStopEnabled: true,
       riskManagement: {
         maxDailyLoss: quickConfig.positionSize * 2,
         maxDrawdown: quickConfig.positionSize * 5,
-        dailyProfitTarget: quickConfig.positionSize * 3
+        dailyProfitTarget: quickConfig.positionSize * 3,
+        maxLeverage: 5
       }
     });
 

@@ -1,5 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Signal, TradeExecution } from '@/types/trading';
+import { smartSignalAggregator, AggregatedSignal } from './smartSignalAggregator';
+import { liveTradingManager } from './liveTradingManager';
 
 export interface AutoTradingConfig {
   enabled: boolean;
@@ -11,10 +13,20 @@ export interface AutoTradingConfig {
   positionSizeUSD: number;
   stopLossPercent: number;
   takeProfitPercent: number;
+  // Smart Signal Features
+  useSignalAggregation: boolean;
+  consensusRequired: boolean;
+  minSourcesForTrade: number;
+  // Live Trading Features
+  liveTrading: boolean;
+  paperMode: boolean;
+  slippageProtection: number;
+  emergencyStopEnabled: boolean;
   riskManagement: {
     maxDailyLoss: number;
     maxDrawdown: number;
     dailyProfitTarget?: number;
+    maxLeverage: number;
   };
 }
 
@@ -81,9 +93,32 @@ export class AutomatedTradingEngine {
     
     console.log('📊 Processing new signal:', signal.symbol, signal.direction);
     
-    // Apply filters
-    if (!this.shouldTradeSignal(signal)) {
-      console.log('❌ Signal filtered out:', signal.symbol);
+    let finalSignal: Signal | AggregatedSignal = signal;
+    
+    // Use smart signal aggregation if enabled
+    if (this.config.useSignalAggregation) {
+      const aggregatedSignals = await smartSignalAggregator.aggregateSignals();
+      const matchingAggregated = aggregatedSignals.find(s => s.symbol === signal.symbol);
+      
+      if (matchingAggregated) {
+        // Validate aggregated signal quality
+        const isHighQuality = await smartSignalAggregator.validateSignalQuality(matchingAggregated);
+        if (isHighQuality) {
+          finalSignal = matchingAggregated;
+          console.log('🎯 Using aggregated signal with consensus score:', matchingAggregated.consensusScore);
+        } else {
+          console.log('❌ Aggregated signal failed quality check');
+          return;
+        }
+      } else if (this.config.consensusRequired) {
+        console.log('❌ No consensus found for signal, skipping');
+        return;
+      }
+    }
+    
+    // Apply filters to final signal
+    if (!this.shouldTradeSignal(finalSignal)) {
+      console.log('❌ Signal filtered out:', finalSignal.symbol);
       return;
     }
 
@@ -94,7 +129,7 @@ export class AutomatedTradingEngine {
     }
 
     // Execute trade
-    await this.executeTrade(signal);
+    await this.executeTrade(finalSignal);
   }
 
   private shouldTradeSignal(signal: Signal): boolean {
@@ -128,49 +163,94 @@ export class AutomatedTradingEngine {
     return true;
   }
 
-  private async executeTrade(signal: Signal) {
+  private async executeTrade(signal: Signal | AggregatedSignal) {
     try {
       console.log('🎯 Executing automated trade for:', signal.symbol);
       
-      const tradeParams = {
-        symbol: signal.symbol,
-        side: signal.direction === 'LONG' ? 'Buy' : 'Sell' as 'Buy' | 'Sell',
-        amount: this.config.positionSizeUSD,
-        stopLoss: this.calculateStopLoss(signal),
-        takeProfit: this.calculateTakeProfit(signal),
-        paper_mode: true, // Safety first
-        signal_id: signal.id
-      };
-
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
-        body: {
-          action: 'place_order',
-          ...tradeParams
-        }
-      });
-
-      if (error) throw error;
-
-      // Track position
-      const execution: TradeExecution = {
-        id: data.order_id || `auto-${Date.now()}`,
-        user_id: 'automated',
-        symbol: signal.symbol,
-        side: tradeParams.side === 'Buy' ? 'BUY' : 'SELL',
-        qty: data.quantity || 0,
-        status: 'executed',
-        paper_mode: true
-      };
-
-      this.activePositions.set(signal.symbol, execution);
-      this.dailyTrades++;
+      const tradeAmount = this.config.positionSizeUSD;
       
-      console.log('✅ Trade executed successfully:', execution);
-      this.notifyStatusChange();
+      if (this.config.liveTrading && !this.config.paperMode) {
+        // Use live trading manager for real trades
+        console.log('💰 Executing LIVE trade');
+        
+        try {
+          const result = await liveTradingManager.executeSignalWithLiveTrading(signal, tradeAmount);
+          
+          if (result.ok) {
+            // Track position internally
+            const execution: TradeExecution = {
+              id: result.data.orderId || `live-${Date.now()}`,
+              user_id: 'automated',
+              symbol: signal.symbol,
+              side: signal.direction === 'LONG' ? 'BUY' : 'SELL',
+              qty: result.data.quantity || 0,
+              status: 'executed',
+              paper_mode: false
+            };
+
+            this.activePositions.set(signal.symbol, execution);
+            this.dailyTrades++;
+            
+            console.log('✅ LIVE trade executed successfully:', execution);
+            this.notifyStatusChange();
+            
+            // Update signal source reliability if aggregated
+            if ('sources' in signal) {
+              signal.sources.forEach(source => {
+                smartSignalAggregator.updateSourceReliability(source.id, 0.8); // Assume positive for now
+              });
+            }
+          }
+        } catch (error) {
+          console.error('❌ Live trade failed, falling back to paper trading:', error);
+          await this.executePaperTrade(signal, tradeAmount);
+        }
+      } else {
+        // Execute paper trade
+        await this.executePaperTrade(signal, tradeAmount);
+      }
 
     } catch (error) {
       console.error('❌ Failed to execute automated trade:', error);
     }
+  }
+
+  private async executePaperTrade(signal: Signal | AggregatedSignal, amount: number) {
+    const tradeParams = {
+      symbol: signal.symbol,
+      side: signal.direction === 'LONG' ? 'Buy' : 'Sell' as 'Buy' | 'Sell',
+      amount: amount,
+      stopLoss: this.calculateStopLoss(signal),
+      takeProfit: this.calculateTakeProfit(signal),
+      paper_mode: true,
+      signal_id: signal.id
+    };
+
+    const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
+      body: {
+        action: 'place_order',
+        ...tradeParams
+      }
+    });
+
+    if (error) throw error;
+
+    // Track position
+    const execution: TradeExecution = {
+      id: data.order_id || `paper-${Date.now()}`,
+      user_id: 'automated',
+      symbol: signal.symbol,
+      side: tradeParams.side === 'Buy' ? 'BUY' : 'SELL',
+      qty: data.quantity || 0,
+      status: 'executed',
+      paper_mode: true
+    };
+
+    this.activePositions.set(signal.symbol, execution);
+    this.dailyTrades++;
+    
+    console.log('📝 Paper trade executed successfully:', execution);
+    this.notifyStatusChange();
   }
 
   private calculateStopLoss(signal: Signal): number {
@@ -268,10 +348,20 @@ export const defaultAutoTradingConfig: AutoTradingConfig = {
   positionSizeUSD: 100,
   stopLossPercent: 3,
   takeProfitPercent: 6,
+  // Smart Signal Features
+  useSignalAggregation: true,
+  consensusRequired: false,
+  minSourcesForTrade: 2,
+  // Live Trading Features
+  liveTrading: false,
+  paperMode: true,
+  slippageProtection: 0.5,
+  emergencyStopEnabled: true,
   riskManagement: {
     maxDailyLoss: 200,
     maxDrawdown: 500,
-    dailyProfitTarget: 300
+    dailyProfitTarget: 300,
+    maxLeverage: 10
   }
 };
 
