@@ -4,10 +4,7 @@ import MarketOverview from '../components/MarketOverview';
 import SignalsList from '../components/SignalsList';
 import TradingChart from '../components/TradingChart';
 import PortfolioStats from '../components/PortfolioStats';
-import DatabaseSetup from '../components/DatabaseSetup';
 import SpynxScoreCard from '../components/SpynxScoreCard';
-// TelegramIntegration, BacktestEngine, QuantumAnalysis removed - unused components
-import ScannerDashboard from '../components/ScannerDashboard';
 import UnireliScannerChart from '../components/UnireliScannerChart';
 import { useSignals } from '@/hooks/useSignals';
 import { useRankedSignals } from '@/hooks/useRankedSignals';
@@ -35,14 +32,8 @@ const X = () => {
           </p>
         </div>
         
-        {/* Database Setup */}
-        <DatabaseSetup />
-        
         {/* AItradeX1 Scanner Chart */}
         <UnireliScannerChart />
-        
-        {/* AItradeX1 Scanner Dashboard */}
-        <ScannerDashboard />
         
         {/* Market Overview */}
         <MarketOverview />

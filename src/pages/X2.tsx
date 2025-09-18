@@ -5,10 +5,7 @@ import SignalsList from '../components/SignalsList';
 import LivePrice from '../components/LivePrice';
 import TradingChart from '../components/TradingChart';
 import MarketOverview from '../components/MarketOverview';
-import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
-
 import UnireliStrategyPanel from '../components/UnireliStrategyPanel';
-import DatabaseSetup from '../components/DatabaseSetup';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Zap, Target, Activity, TrendingUp } from 'lucide-react';
 import { useSignals } from '@/hooks/useSignals';
@@ -107,14 +104,7 @@ const X2 = () => {
         {/* Live Signals */}
         <SignalsList />
 
-        {/* Comprehensive Scanner */}
-        <ComprehensiveScannerDashboard />
-
         {/* Automated Trading */}
-        
-        
-        {/* Database Setup */}
-        <DatabaseSetup />
         
         {/* AItradeX1 System Dashboard */}
         <UnireliSystemDashboard />

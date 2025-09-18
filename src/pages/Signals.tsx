@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, TrendingUp, TrendingDown, Target, Zap } from 'lucide-react';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { useToast } from '@/hooks/use-toast';
-import { ComprehensiveScannerTest } from '@/components/ComprehensiveScannerTest';
+
 import { LiveComprehensiveTest } from '@/components/LiveComprehensiveTest';
 import { ComprehensiveTestPanel } from '@/components/ComprehensiveTestPanel';
 
@@ -92,7 +92,7 @@ const Signals = () => {
 
         <ComprehensiveTestPanel />
         <LiveComprehensiveTest />
-        <ComprehensiveScannerTest />
+        
         <SystemRebuild />
         <SignalsDebug />
         
