@@ -73,13 +73,22 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
         signalsQuery = signalsQuery.in('timeframe', timeframes);
       }
 
-      // Build trades query
-      const tradesQuery = supabase
+      // Build trades query - only for authenticated users
+      const { data: { session } } = await supabase.auth.getSession();
+      let tradesQuery = supabase
         .from('execution_orders')
         .select('*')
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .order('created_at', { ascending: false })
         .limit(50);
+
+      // If user is authenticated, filter by user_id
+      if (session?.user) {
+        tradesQuery = tradesQuery.eq('user_id', session.user.id);
+      } else {
+        // For anonymous users, only show paper trades
+        tradesQuery = tradesQuery.eq('paper_mode', true);
+      }
 
       const [signalsResult, tradesResult] = await Promise.all([
         signalsQuery,

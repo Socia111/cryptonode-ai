@@ -836,6 +836,10 @@ export type Database = {
         Args: { tokens: number }
         Returns: number
       }
+      initialize_demo_system: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       restore_user_trading_account: {
         Args: {
           p_account_type?: string

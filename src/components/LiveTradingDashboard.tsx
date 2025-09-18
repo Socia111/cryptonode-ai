@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ExchangeAuthentication } from './ExchangeAuthentication';
 import { TradingExecutionPanel } from './TradingExecutionPanel';
+import { SystemStatusIndicator } from './SystemStatusIndicator';
 import { useSignals } from '@/hooks/useSignals';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthenticationManager } from './AuthenticationManager';
@@ -79,20 +80,30 @@ export const LiveTradingDashboard = () => {
     try {
       toast({
         title: "🚀 Starting Live Trading System",
-        description: "Generating realistic trading signals..."
+        description: "Initializing comprehensive demo system..."
       });
 
-      // Generate demo signals immediately for testing
-      await generateSignals();
+      // Initialize the complete system
+      const { data: initResult, error: initError } = await supabase.functions.invoke('system-initializer');
 
-      // Update system status
-      await checkSystemStatus();
+      if (initError) {
+        throw new Error(initError.message || 'Failed to initialize system');
+      }
+
+      console.log('System initialization result:', initResult);
+
+      // Refresh signals and system status
+      await Promise.all([
+        generateSignals(),
+        checkSystemStatus()
+      ]);
 
       toast({
-        title: "✅ System Started",
-        description: "Generated realistic trading signals for testing"
+        title: "✅ System Started Successfully",
+        description: `Generated ${initResult?.demo_trades_created || 3} demo trades and fresh signals`
       });
     } catch (error: any) {
+      console.error('System start error:', error);
       toast({
         title: "❌ Start Failed",
         description: error.message || 'Failed to start live system',
@@ -222,12 +233,16 @@ export const LiveTradingDashboard = () => {
         </CardContent>
       </Card>
 
+      {/* System Status Monitor */}
+      <SystemStatusIndicator />
+
       {/* Main Trading Interface */}
       <Tabs defaultValue="signals" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="signals">Live Signals</TabsTrigger>
           <TabsTrigger value="trading">Trade Execution</TabsTrigger>
           <TabsTrigger value="settings">Exchange Setup</TabsTrigger>
+          <TabsTrigger value="status">System Status</TabsTrigger>
         </TabsList>
 
         <TabsContent value="signals" className="space-y-4">
@@ -283,6 +298,10 @@ export const LiveTradingDashboard = () => {
 
         <TabsContent value="settings">
           <ExchangeAuthentication />
+        </TabsContent>
+
+        <TabsContent value="status">
+          <SystemStatusIndicator />
         </TabsContent>
       </Tabs>
     </div>

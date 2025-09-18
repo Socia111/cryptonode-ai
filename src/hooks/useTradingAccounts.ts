@@ -36,9 +36,19 @@ export function useTradingAccounts() {
       setLoading(true);
       setError(null);
 
+      // Check if user is authenticated
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        console.log('[useTradingAccounts] No authenticated user, skipping account load');
+        setAccounts([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error: accountError } = await supabase
         .from('user_trading_accounts')
         .select('*')
+        .eq('user_id', session.user.id)
         .eq('is_active', true)
         .order('last_used_at', { ascending: false });
 
