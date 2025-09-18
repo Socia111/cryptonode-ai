@@ -51,12 +51,31 @@ serve(async (req) => {
       }
     ];
 
-    console.log('[All Symbols Scanner] Fetching all available symbols from exchanges...');
+    // Load whitelist settings
+    console.log('[Scanner] Loading whitelist settings...');
+    const { data: whitelistData } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'trading_whitelist')
+      .maybeSingle();
 
-    // Fetch all symbols from each exchange
+    const whitelistSettings = whitelistData?.value || { 
+      whitelist_enabled: false, 
+      whitelist_pairs: [],
+      max_symbols: 2000 
+    };
+
+    console.log(`[Scanner] Whitelist mode: ${whitelistSettings.whitelist_enabled ? 'ENABLED' : 'DISABLED'}`);
+    if (whitelistSettings.whitelist_enabled) {
+      console.log(`[Scanner] Whitelist contains ${whitelistSettings.whitelist_pairs?.length || 0} symbols`);
+    }
+
+    console.log('[All Symbols Scanner] Fetching symbols from exchanges...');
+
+    // Fetch symbols from each exchange with whitelist support
     const exchangePromises = exchangeConfigs.map(({ name, exchange }) =>
       Promise.race([
-        fetchAllSymbolsFromExchange(name, exchange),
+        fetchAllSymbolsFromExchange(name, exchange, whitelistSettings),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Timeout')), TIMEOUT_MS)
         )
@@ -132,34 +151,45 @@ serve(async (req) => {
   }
 });
 
-async function fetchAllSymbolsFromExchange(exchangeName: string, exchange: any) {
+async function fetchAllSymbolsFromExchange(exchangeName: string, exchange: any, whitelistSettings?: any) {
   const marketData = [];
   
   try {
-    console.log(`[${exchangeName}] Loading all markets...`);
+    console.log(`[${exchangeName}] Loading markets...`);
     
     // Load all markets for the exchange
     const markets = await exchange.loadMarkets();
     
-    // Filter for USDT pairs only to focus on liquid markets
-    const usdtSymbols = Object.keys(markets).filter(symbol => 
-      symbol.includes('/USDT') && 
-      markets[symbol].active &&
-      markets[symbol].spot // Only spot markets
-    );
+    // Check if whitelist mode is enabled
+    if (whitelistSettings?.whitelist_enabled && whitelistSettings?.whitelist_pairs?.length > 0) {
+      console.log(`[${exchangeName}] Using whitelist mode: ${whitelistSettings.whitelist_pairs.length} symbols`);
+      const whitelistSymbols = whitelistSettings.whitelist_pairs
+        .map(symbol => symbol.replace('USDT', '/USDT'))
+        .filter(symbol => markets[symbol] && markets[symbol].active);
+      
+      console.log(`[${exchangeName}] Found ${whitelistSymbols.length} whitelisted symbols`);
+      var symbolsToProcess = whitelistSymbols;
+    } else {
+      // Filter for USDT pairs only to focus on liquid markets
+      const usdtSymbols = Object.keys(markets).filter(symbol => 
+        symbol.includes('/USDT') && 
+        markets[symbol].active &&
+        markets[symbol].spot // Only spot markets
+      );
+      console.log(`[${exchangeName}] Found ${usdtSymbols.length} USDT pairs (comprehensive mode)`);
+      var symbolsToProcess = usdtSymbols;
+    }
     
-    console.log(`[${exchangeName}] Found ${usdtSymbols.length} USDT pairs`);
-    
-    // Get tickers for all USDT symbols
+    // Get tickers for selected symbols
     let tickers;
     try {
-      tickers = await exchange.fetchTickers(usdtSymbols);
+      tickers = await exchange.fetchTickers(symbolsToProcess);
     } catch (tickerError) {
       console.log(`[${exchangeName}] Bulk ticker fetch failed, trying individual fetch...`);
       tickers = {};
       
       // Fallback: fetch tickers individually for all symbols (with batching)
-      const symbolsToFetch = usdtSymbols; // Process ALL symbols, not just 100
+      const symbolsToFetch = symbolsToProcess; // Process ALL symbols, not just 100
       
       for (const symbol of symbolsToFetch) {
         try {

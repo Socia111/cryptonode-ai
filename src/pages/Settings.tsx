@@ -7,6 +7,7 @@ import AutoTradingToggle from '@/components/AutoTradingToggle';
 import ThreeCommasAuth from '@/components/ThreeCommasAuth';
 import BybitTradingAuth from '@/components/BybitTradingAuth';
 import { SystemRebuildPanel } from '@/components/SystemRebuildPanel';
+import { WhitelistManager } from '@/components/WhitelistManager';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function Settings() {
@@ -21,8 +22,9 @@ export default function Settings() {
         </div>
         
         <Tabs defaultValue="settings" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="settings">Trading Settings</TabsTrigger>
+            <TabsTrigger value="whitelist">Symbol Whitelist</TabsTrigger>
             <TabsTrigger value="rebuild">System Rebuild</TabsTrigger>
           </TabsList>
 
@@ -62,6 +64,16 @@ export default function Settings() {
                 <h2 className="text-xl font-semibold mb-4">Testnet Testing</h2>
                 <TestnetTradeTest />
               </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="whitelist" className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-semibold mb-4">Symbol Whitelist Management</h2>
+              <p className="text-muted-foreground mb-6">
+                Control which symbols are scanned by the trading system. Toggle between whitelist mode (limited symbols) and comprehensive mode (all symbols).
+              </p>
+              <WhitelistManager />
             </div>
           </TabsContent>
 
