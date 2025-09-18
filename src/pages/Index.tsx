@@ -1,11 +1,11 @@
 import React from 'react';
 import MainLayout from '@/layouts/MainLayout';
-import { ProfessionalTradingDashboard } from '@/components/ProfessionalTradingDashboard';
+import { LiveTradingDashboard } from '@/components/LiveTradingDashboard';
 
 export default function Index() {
   return (
     <MainLayout>
-      <ProfessionalTradingDashboard />
+      <LiveTradingDashboard />
     </MainLayout>
   );
 }
