@@ -14,10 +14,21 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { exchange = 'bybit', timeframe = '15m', symbols = [], relaxed_filters = true } = body;
+    
+    // Default symbols to scan if none provided
+    const defaultSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT', 'XRPUSDT', 'DOTUSDT', 'LINKUSDT'];
+    const { 
+      exchange = 'bybit', 
+      timeframe = '15m', 
+      symbols = defaultSymbols, 
+      relaxed_filters = true 
+    } = body;
 
-    console.log(`🔍 Starting live scanner with params: ${JSON.stringify(body)}`);
-    console.log(`📊 Scanning ${symbols.length} symbols on ${timeframe} timeframe`);
+    // Ensure we have symbols to scan
+    const symbolsToScan = Array.isArray(symbols) && symbols.length > 0 ? symbols : defaultSymbols;
+
+    console.log(`🔍 Starting live scanner with params: ${JSON.stringify({exchange, timeframe, symbols: symbolsToScan, relaxed_filters})}`);
+    console.log(`📊 Scanning ${symbolsToScan.length} symbols on ${timeframe} timeframe`);
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -38,8 +49,8 @@ serve(async (req) => {
       query = query.eq('timeframe', timeframe);
     }
 
-    if (symbols.length > 0) {
-      query = query.in('symbol', symbols);
+    if (symbolsToScan.length > 0) {
+      query = query.in('symbol', symbolsToScan);
     }
 
     const { data: signals, error } = await query;
@@ -59,7 +70,7 @@ serve(async (req) => {
         scan_config: {
           exchange,
           timeframe,
-          symbols,
+          symbols: symbolsToScan,
           relaxed_filters
         }
       }),

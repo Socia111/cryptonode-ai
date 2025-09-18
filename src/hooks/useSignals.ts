@@ -203,6 +203,28 @@ export async function generateSignals() {
   }
 }
 
+export async function generateEnhancedSignals() {
+  try {
+    console.info('[generateEnhancedSignals] Triggering enhanced signal generation...');
+    
+    // Use the enhanced signal generator for comprehensive market analysis
+    const { data, error } = await supabase.functions.invoke('enhanced-signal-generation', {
+      body: { symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT', 'XRPUSDT', 'DOTUSDT', 'LINKUSDT'] }
+    });
+
+    if (error) {
+      console.error('[generateEnhancedSignals] Enhanced signal generation failed:', error);
+      throw error;
+    }
+
+    console.info(`[generateEnhancedSignals] Success: ${data?.signals_generated || 0} enhanced signals generated`);
+    return { signals_created: data?.signals_generated || 0, success: true };
+  } catch (e: any) {
+    console.error('[generateEnhancedSignals] Exception:', e);
+    throw e;
+  }
+}
+
 export async function updateSpynxScores() {
   try {
     console.info('[updateSpynxScores] Calculating Spynx scores for active signals...');
