@@ -1,75 +1,147 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { 
-  TrendingUp, 
-  TrendingDown, 
-  Activity, 
-  BarChart3,
-  Play,
-  Star,
-  CheckCircle,
-  AlertCircle,
-  Search,
-  LogIn
+  TrendingUp, TrendingDown, Activity, DollarSign, 
+  Target, Shield, Zap, BarChart3, Clock, Users,
+  Play, Pause, Settings, RefreshCw, AlertTriangle,
+  CheckCircle, ExternalLink, Wifi, WifiOff
 } from 'lucide-react';
-import { useSignals } from '@/hooks/useSignals';
 import { useRealTimeSignals } from '@/hooks/useRealTimeSignals';
-import type { Signal as TradingSignal } from '@/types/trading';
-import { SignalGenerationEngine } from '@/components/SignalGenerationEngine';
-import { LiveMarketFeed } from '@/components/LiveMarketFeed';
-import { TradingInterface } from '@/components/TradingInterface';
-import { SystemMonitor } from '@/components/SystemMonitor';
-import { RiskManagement } from '@/components/RiskManagement';
-import { LiveCCXTController } from '@/components/LiveCCXTController';
-import { ExchangeAuthentication } from '@/components/ExchangeAuthentication';
-import { TradingExecutionPanel } from '@/components/TradingExecutionPanel';
-import { LiveTradingDashboard } from '@/components/LiveTradingDashboard';
+import { useTradingExecutor } from '@/hooks/useTradingExecutor';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-interface AlgorithmStats {
-  activeSignals: number;
-  avgConfidence: number;
-  avgRR: number;
-  totalSignals: number;
-}
-
-interface TradePosition {
-  id: string;
+interface LiveSignal {
+  id?: string;
   symbol: string;
-  side: 'buy' | 'sell';
-  pnl: number;
-  status: 'profitable' | 'pending' | 'loss';
-  entry: number;
-  current: number;
+  direction: 'LONG' | 'SHORT';
+  score: number;
+  price: number;
+  entry_price?: number;
+  stop_loss?: number;
+  take_profit?: number;
+  timeframe: string;
+  created_at?: string;
+  source?: string;
+  confidence?: number;
 }
 
 export function ProfessionalTradingDashboard() {
+  const { signals, loading, error, stats, lastUpdate } = useRealTimeSignals({
+    minScore: 70,
+    includeExpired: false
+  });
+  const { executeTrade, executing, lastTrade } = useTradingExecutor();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  // Show login prompt if not authenticated
+  const [autoTradingEnabled, setAutoTradingEnabled] = useState(false);
+  const [selectedSignal, setSelectedSignal] = useState<LiveSignal | null>(null);
+  const [tradeAmount, setTradeAmount] = useState(100);
+  const [liveFeedStatus, setLiveFeedStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+  const [realTimeData, setRealTimeData] = useState({
+    marketDataPoints: 0,
+    signalsGenerated: 0,
+    lastSignalTime: null as Date | null
+  });
+
+  // Initialize live feeds on component mount
+  useEffect(() => {
+    initializeLiveFeeds();
+    const interval = setInterval(triggerLiveDataRefresh, 60000); // Refresh every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  const initializeLiveFeeds = async () => {
+    try {
+      setLiveFeedStatus('connecting');
+      toast({
+        title: "🚀 Starting Live Feeds",
+        description: "Initializing real-time market data and signal generation..."
+      });
+
+      // Trigger live exchange feed
+      await supabase.functions.invoke('live-exchange-feed', {
+        body: {
+          symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'XRPUSDT', 'BNBUSDT', 'DOTUSDT', 'LINKUSDT'],
+          exchanges: ['bybit', 'binance', 'okx']
+        }
+      });
+
+      // Trigger enhanced signal generation
+      await supabase.functions.invoke('enhanced-signal-generation', {
+        body: { trigger: 'live_dashboard' }
+      });
+
+      // Trigger comprehensive pipeline
+      await supabase.functions.invoke('comprehensive-trading-pipeline', {
+        body: { mode: 'live_production' }
+      });
+
+      setLiveFeedStatus('connected');
+      toast({
+        title: "✅ Live Feeds Active",
+        description: "Real-time market data and signal generation are now running"
+      });
+
+    } catch (error) {
+      console.error('Failed to initialize live feeds:', error);
+      setLiveFeedStatus('disconnected');
+      toast({
+        title: "❌ Feed Error",
+        description: "Failed to start live feeds. Using existing data.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const triggerLiveDataRefresh = async () => {
+    try {
+      // Trigger live scanner
+      const scannerResult = await supabase.functions.invoke('aitradex1-enhanced-scanner', {
+        body: { trigger: 'auto_refresh' }
+      });
+
+      if (scannerResult.data?.signals_generated) {
+        setRealTimeData(prev => ({
+          ...prev,
+          signalsGenerated: prev.signalsGenerated + scannerResult.data.signals_generated,
+          lastSignalTime: new Date()
+        }));
+      }
+    } catch (error) {
+      console.error('Live data refresh failed:', error);
+    }
+  };
+
+  // Show login prompt if user is not authenticated
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="flex items-center justify-center gap-2">
-              <LogIn className="h-6 w-6" />
-              Sign In Required
+            <CardTitle className="flex items-center gap-2 justify-center">
+              <Shield className="h-5 w-5" />
+              Authentication Required
             </CardTitle>
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <p className="text-muted-foreground">
-              Please sign in to access the trading dashboard
+              Please sign in to access the live trading platform
             </p>
-            <Button onClick={() => navigate('/auth')} className="w-full">
+            <Button 
+              onClick={() => navigate('/auth')}
+              className="w-full"
+            >
               Go to Sign In
             </Button>
           </CardContent>
@@ -77,333 +149,419 @@ export function ProfessionalTradingDashboard() {
       </div>
     );
   }
-  const { signals } = useSignals();
-  const { signals: liveSignals } = useRealTimeSignals();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT');
-  const [tradeAmount, setTradeAmount] = useState('100');
 
-  // Mock data for demonstration - in real app this would come from your trading API
-  const portfolioValue = 12345.67;
-  const dailyPnL = 234.56;
-  const pnlPercent = 1.93;
-  
-  const activePositions: TradePosition[] = [
-    { id: '1', symbol: 'BTC/USDT', side: 'buy', pnl: 150.25, status: 'profitable', entry: 42000, current: 42150 },
-    { id: '2', symbol: 'ETH/USDT', side: 'sell', pnl: 84.31, status: 'profitable', entry: 2500, current: 2484 },
-    { id: '3', symbol: 'SOL/USDT', side: 'buy', pnl: 0, status: 'pending', entry: 95.50, current: 95.48 }
-  ];
-
-  const algorithmStats: AlgorithmStats = {
-    activeSignals: signals?.length || 0,
-    avgConfidence: signals?.reduce((acc, s) => acc + (s.confidence_score || 0), 0) / (signals?.length || 1) || 0,
-    avgRR: 1.5,
-    totalSignals: signals?.length || 0
+  const handleExecuteTrade = async (signal: LiveSignal | any) => {
+    try {
+      await executeTrade({
+        symbol: signal.symbol,
+        side: signal.direction === 'LONG' ? 'buy' : 'sell',
+        amount: tradeAmount,
+        orderType: 'market',
+        stopLoss: signal.stop_loss,
+        takeProfit: signal.take_profit,
+        paperMode: true
+      });
+      
+      toast({
+        title: "📊 Trade Executed",
+        description: `${signal.direction} ${signal.symbol} for $${tradeAmount}`
+      });
+    } catch (error) {
+      console.error('Trade execution failed:', error);
+      toast({
+        title: "❌ Trade Failed",
+        description: "Failed to execute trade. Check your account connection.",
+        variant: "destructive"
+      });
+    }
   };
-
-  const signalGrades = [
-    { grade: 'A+', label: 'Exceptional signals', confidence: '>90, RR >1.4', count: 0, color: 'bg-success' },
-    { grade: 'A', label: 'Strong signals', confidence: '≥85, RR ≥1.3', count: 0, color: 'bg-primary' },
-    { grade: 'B', label: 'Good signals', confidence: '≥80', count: 0, color: 'bg-warning' },
-    { grade: 'C', label: 'Fair signals', confidence: '60-80', count: 0, color: 'bg-muted-foreground' }
-  ];
-
-  const algorithmComponents = [
-    { name: 'Golden Cross / Death Cross (21 EMA x 200 SMA)', status: 'active', type: 'primary' },
-    { name: 'Volume Surge (≥1.5x average)', status: 'active', type: 'primary' },
-    { name: 'High Volatility Regime (HVP > 50)', status: 'active', type: 'primary' },
-    { name: 'Stochastic Momentum Filter', status: 'optional', type: 'secondary' },
-    { name: 'DMI/ADX Trend Strength (ADX > 20)', status: 'optional', type: 'secondary' },
-    { name: 'ATR-Based Risk Management', status: 'optional', type: 'secondary' }
-  ];
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground brand-display">
-                Unireli Professional Trading Platform
-              </h1>
-              <p className="text-muted-foreground">
-                Advanced Multi-Exchange Signal Detection with Real-Time Analytics & Risk Management
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search markets..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-64"
-                />
-              </div>
-            </div>
+      <div className="container mx-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Live Trading Platform
+            </h1>
+            <p className="text-muted-foreground mt-1 flex items-center gap-2">
+              <span>Real-time signals • Automated execution • Professional grade</span>
+              {liveFeedStatus === 'connected' ? (
+                <Wifi className="h-4 w-4 text-success" />
+              ) : liveFeedStatus === 'connecting' ? (
+                <RefreshCw className="h-4 w-4 animate-spin text-warning" />
+              ) : (
+                <WifiOff className="h-4 w-4 text-destructive" />
+              )}
+            </p>
           </div>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <Tabs defaultValue="live-trading" className="w-full">
-        <div className="border-b border-border bg-card">
-          <div className="container mx-auto px-6">
-            <TabsList className="h-12 bg-transparent grid w-full grid-cols-9">
-              <TabsTrigger value="live-trading" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                🚀 Live Trading
-              </TabsTrigger>
-              <TabsTrigger value="signals" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                📊 Signals
-              </TabsTrigger>
-              <TabsTrigger value="live-feed" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                📡 Live Feed
-              </TabsTrigger>
-              <TabsTrigger value="trading" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                ⚡ Trading
-              </TabsTrigger>
-              <TabsTrigger value="auth" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                🔐 Auth
-              </TabsTrigger>
-              <TabsTrigger value="execution" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                🎯 Execute
-              </TabsTrigger>
-              <TabsTrigger value="system" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                🔧 System
-              </TabsTrigger>
-              <TabsTrigger value="ccxt-feed" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                🚀 CCXT Feed
-              </TabsTrigger>
-              <TabsTrigger value="dashboard" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                📈 Dashboard
-              </TabsTrigger>
-            </TabsList>
+          <div className="flex gap-3">
+            <Button 
+              variant="outline"
+              onClick={initializeLiveFeeds}
+              disabled={liveFeedStatus === 'connecting'}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${liveFeedStatus === 'connecting' ? 'animate-spin' : ''}`} />
+              Refresh Feeds
+            </Button>
+            <Button 
+              variant={autoTradingEnabled ? "destructive" : "default"}
+              onClick={() => setAutoTradingEnabled(!autoTradingEnabled)}
+              className="gap-2"
+            >
+              {autoTradingEnabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              {autoTradingEnabled ? 'Stop Auto' : 'Start Auto'}
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => navigate('/settings')}>
+              <Settings className="h-4 w-4" />
+              Settings
+            </Button>
           </div>
         </div>
 
-        <div className="container mx-auto px-6 py-6">
-          {/* Live Trading Tab */}
-          <TabsContent value="live-trading" className="mt-0">
-            <LiveTradingDashboard />
-          </TabsContent>
-
-          {/* Dashboard Tab */}
-          <TabsContent value="dashboard" className="mt-0">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Portfolio Overview */}
-              <div className="lg:col-span-2 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card className="surface-elevated">
-                    <CardContent className="p-6">
-                      <div className="space-y-2">
-                        <p className="metric-label">Portfolio Value</p>
-                        <p className="price-display text-foreground">${portfolioValue.toLocaleString()}</p>
-                        <p className="text-sm text-success">+2.4% from last hour</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="surface-elevated">
-                    <CardContent className="p-6">
-                      <div className="space-y-2">
-                        <p className="metric-label">Active Trades</p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-3xl font-bold text-foreground">{activePositions.length}</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {activePositions.filter(p => p.status === 'profitable').length} profitable, {activePositions.filter(p => p.status === 'pending').length} pending
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="surface-elevated">
-                    <CardContent className="p-6">
-                      <div className="space-y-2">
-                        <p className="metric-label">Daily P&L</p>
-                        <div className="flex items-center gap-2">
-                          <TrendingUp className="h-5 w-5 text-success" />
-                          <span className="price-display text-success">+${dailyPnL}</span>
-                        </div>
-                        <p className="text-sm text-success">+{pnlPercent}% today</p>
-                      </div>
-                    </CardContent>
-                  </Card>
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Live Status</p>
+                  <p className="text-lg font-bold flex items-center gap-2">
+                    {liveFeedStatus === 'connected' ? (
+                      <>
+                        <span className="text-success">LIVE</span>
+                        <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+                      </>
+                    ) : liveFeedStatus === 'connecting' ? (
+                      <span className="text-warning">CONNECTING</span>
+                    ) : (
+                      <span className="text-destructive">OFFLINE</span>
+                    )}
+                  </p>
                 </div>
-
-                {/* Execute Trade Section */}
-                <Card className="surface-elevated">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-semibold">Execute Trade</CardTitle>
-                    <p className="text-sm text-muted-foreground">Test the trading system with a simulated order</p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <label className="metric-label">Symbol</label>
-                        <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="BTC/USDT">BTC/USDT</SelectItem>
-                            <SelectItem value="ETH/USDT">ETH/USDT</SelectItem>
-                            <SelectItem value="SOL/USDT">SOL/USDT</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="metric-label">Side</label>
-                        <Select defaultValue="Buy">
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Buy">Buy</SelectItem>
-                            <SelectItem value="Sell">Sell</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="metric-label">Amount (USD)</label>
-                        <Input
-                          value={tradeAmount}
-                          onChange={(e) => setTradeAmount(e.target.value)}
-                          placeholder="100"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex gap-4">
-                      <Button className="bg-primary hover:bg-primary/90 flex-1">
-                        Execute Test Trade
-                      </Button>
-                      <Button variant="outline">
-                        Check Status
-                      </Button>
-                    </div>
-
-                    <div className="flex items-center gap-2 p-3 bg-info/10 border border-info/20 rounded-md">
-                      <Badge variant="secondary" className="bg-info/20 text-info border-info/30">
-                        Test Mode
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">
-                        This is a simulated trade execution for testing purposes
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
+                {liveFeedStatus === 'connected' ? (
+                  <Wifi className="h-8 w-8 text-success" />
+                ) : (
+                  <WifiOff className="h-8 w-8 text-destructive" />
+                )}
               </div>
+            </CardContent>
+          </Card>
 
-              {/* Active Positions */}
-              <div className="space-y-6">
-                <Card className="surface-elevated">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-semibold">Active Trades</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {activePositions.map((position) => (
-                      <div key={position.id} className="p-3 rounded-lg bg-muted/50 border border-border">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium">{position.symbol}</span>
-                          <Badge 
-                            variant={position.status === 'profitable' ? 'default' : 'secondary'}
-                            className={position.status === 'profitable' ? 'bg-success/20 text-success border-success/30' : ''}
-                          >
-                            {position.status === 'profitable' ? 'Profitable' : 'Pending'}
-                          </Badge>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Active Signals</p>
+                  <p className="text-2xl font-bold">{stats.activeSignals}</p>
+                </div>
+                <Activity className="h-8 w-8 text-primary" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Avg Score</p>
+                  <p className="text-2xl font-bold">{stats.avgScore}%</p>
+                </div>
+                <Target className="h-8 w-8 text-success" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Generated Today</p>
+                  <p className="text-2xl font-bold">{realTimeData.signalsGenerated}</p>
+                </div>
+                <Zap className="h-8 w-8 text-info" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Last Update</p>
+                  <p className="text-sm font-medium">
+                    {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : 'Never'}
+                  </p>
+                </div>
+                <Clock className="h-8 w-8 text-warning" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs defaultValue="signals" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="signals">Live Signals</TabsTrigger>
+            <TabsTrigger value="execution">Quick Trade</TabsTrigger>
+            <TabsTrigger value="positions">Positions</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="signals">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Live Trading Signals
+                  </CardTitle>
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+                    {signals.length} Active
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                    {loading && (
+                      <div className="text-center py-8">
+                        <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-primary" />
+                        <p className="text-muted-foreground">Loading live signals...</p>
+                      </div>
+                    )}
+
+                    {error && (
+                      <div className="text-center py-8">
+                        <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-destructive" />
+                        <p className="text-destructive">{error}</p>
+                        <Button 
+                          variant="outline" 
+                          className="mt-2"
+                          onClick={initializeLiveFeeds}
+                        >
+                          Restart Live Feeds
+                        </Button>
+                      </div>
+                    )}
+
+                    {!loading && !error && signals.length === 0 && (
+                      <div className="text-center py-8">
+                        <Activity className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-muted-foreground mb-2">No live signals available</p>
+                        <Button 
+                          onClick={initializeLiveFeeds}
+                          disabled={liveFeedStatus === 'connecting'}
+                        >
+                          Start Live Feeds
+                        </Button>
+                      </div>
+                    )}
+
+                    {!loading && signals.length > 0 && signals.map((signal, index) => (
+                      <div key={signal.id || index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className={`p-2 rounded-full ${signal.direction === 'LONG' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
+                            {signal.direction === 'LONG' ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{signal.symbol}</span>
+                              <Badge variant={signal.direction === 'LONG' ? 'default' : 'destructive'}>
+                                {signal.direction}
+                              </Badge>
+                              <Badge variant="outline">{signal.timeframe}</Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Score: {signal.score}% • Price: ${signal.price?.toFixed(4) || 'N/A'}
+                              {signal.source && ` • ${signal.source}`}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">
-                            {position.side === 'buy' ? '↗️' : '↘️'} {position.side.toUpperCase()}
-                          </span>
-                          <span className={position.pnl >= 0 ? 'text-success' : 'text-destructive'}>
-                            {position.pnl >= 0 ? '+' : ''}${position.pnl.toFixed(2)}
-                          </span>
+                        
+                        <div className="flex items-center gap-2">
+                          <Progress value={signal.score} className="w-16" />
+                          <span className="text-sm font-medium w-12 text-right">{signal.score}%</span>
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleExecuteTrade(signal as LiveSignal)}
+                            disabled={executing}
+                            className="ml-2"
+                          >
+                            {executing ? 'Trading...' : 'Trade'}
+                          </Button>
                         </div>
                       </div>
                     ))}
-                  </CardContent>
-                </Card>
-              </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="execution">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Quick Trade Execution
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Symbol</Label>
+                    <Input placeholder="BTCUSDT" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Side</Label>
+                    <select className="w-full p-2 border rounded">
+                      <option>BUY</option>
+                      <option>SELL</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Amount (USD)</Label>
+                    <Input 
+                      type="number" 
+                      value={tradeAmount}
+                      onChange={(e) => setTradeAmount(Number(e.target.value))}
+                      placeholder="100"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Order Type</Label>
+                    <select className="w-full p-2 border rounded">
+                      <option>Market</option>
+                      <option>Limit</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <Button 
+                  className="w-full" 
+                  size="lg"
+                  disabled={executing}
+                >
+                  {executing ? 'Executing...' : 'Execute Trade'}
+                </Button>
+                
+                <div className="flex items-center gap-2 p-3 bg-warning/10 border border-warning/20 rounded">
+                  <AlertTriangle className="h-4 w-4 text-warning" />
+                  <span className="text-sm">Paper trading mode - No real money at risk</span>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="positions">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Active Positions
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <DollarSign className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-muted-foreground">No active positions</p>
+                  <p className="text-sm text-muted-foreground mt-1">Execute trades to see positions here</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Performance Overview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between">
+                      <span>Total Signals</span>
+                      <span className="font-bold">{stats.totalSignals}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Average Score</span>
+                      <span className="font-bold">{stats.avgScore}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Success Rate</span>
+                      <span className="font-bold">{stats.successRate}%</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>System Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span>Live Feed Status</span>
+                      <Badge variant={liveFeedStatus === 'connected' ? 'default' : 'destructive'}>
+                        {liveFeedStatus}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Auto Trading</span>
+                      <Badge variant={autoTradingEnabled ? 'default' : 'secondary'}>
+                        {autoTradingEnabled ? 'Enabled' : 'Disabled'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Paper Mode</span>
+                      <Badge variant="outline">Active</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
-          {/* Signals Tab */}
-          <TabsContent value="signals" className="mt-0">
-            <SignalGenerationEngine onSignalGenerated={(signal) => console.log('New signal:', signal)} />
+          <TabsContent value="settings">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Trading Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Default Trade Amount</Label>
+                    <Input 
+                      type="number" 
+                      value={tradeAmount}
+                      onChange={(e) => setTradeAmount(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Auto Trading</Label>
+                    <Button 
+                      variant={autoTradingEnabled ? "destructive" : "outline"}
+                      onClick={() => setAutoTradingEnabled(!autoTradingEnabled)}
+                      className="w-full"
+                    >
+                      {autoTradingEnabled ? 'Disable' : 'Enable'}
+                    </Button>
+                  </div>
+                </div>
+                
+                <Button onClick={() => navigate('/auth')} variant="outline" className="w-full">
+                  Manage Account
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
-
-          {/* Live Feed Tab */}
-          <TabsContent value="live-feed" className="mt-0">
-            <LiveMarketFeed />
-          </TabsContent>
-
-          {/* Trading Tab */}
-          <TabsContent value="trading" className="mt-0">
-            <TradingInterface />
-          </TabsContent>
-
-          {/* Exchange Authentication Tab */}
-          <TabsContent value="auth" className="mt-0">
-            <ExchangeAuthentication />
-          </TabsContent>
-
-          {/* Trading Execution Tab */}
-          <TabsContent value="execution" className="mt-0">
-            <TradingExecutionPanel signals={signals} />
-          </TabsContent>
-
-          {/* System Tab */}
-          <TabsContent value="system" className="mt-0">
-            <SystemMonitor />
-          </TabsContent>
-
-          {/* CCXT Feed Tab */}
-          <TabsContent value="ccxt-feed" className="mt-0">
-            <LiveCCXTController />
-          </TabsContent>
-        </div>
-      </Tabs>
-
-      {/* Bottom Live Signals Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border">
-        <div className="container mx-auto px-6 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Badge className="bg-success/20 text-success border-success/30">
-                ⚡ Live Signals
-              </Badge>
-              <span className="text-sm text-muted-foreground">
-                38 Active (15m-4h)
-              </span>
-            </div>
-            
-            <div className="flex items-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30">BUY</Badge>
-                <span>22 $BTC</span>
-                <Badge variant="outline" className="bg-success/20 text-success border-success/30">$92.1K+</Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30">BUY</Badge>
-                <span>DOGE/USDT</span>
-                <Badge variant="outline" className="bg-success/20 text-success border-success/30">$0.424</Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-destructive/20 text-destructive border-destructive/30">SELL</Badge>
-                <span>SHIB</span>
-                <Badge variant="outline" className="bg-destructive/20 text-destructive border-destructive/30">-3% 4h</Badge>
-              </div>
-              <Button size="sm" className="bg-primary hover:bg-primary/90">
-                Generate
-              </Button>
-            </div>
-          </div>
-        </div>
+        </Tabs>
       </div>
     </div>
   );
