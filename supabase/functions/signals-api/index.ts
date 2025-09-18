@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
       const { data: signals, error } = await supabase
         .from('signals')
         .select('*')
-        .in('source', ['real_market_data', 'live_market_data', 'complete_algorithm_live', 'technical_indicators_real'])
+        .in('source', ['real_market_data', 'live_market_data', 'complete_algorithm_live', 'technical_indicators_real', 'aitradex1_real_enhanced', 'enhanced_signal_generation'])
         .gte('score', 70)
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .order('created_at', { ascending: false })
@@ -46,9 +46,51 @@ Deno.serve(async (req) => {
         JSON.stringify({
           success: true,
           signals: realSignals,
+          items: realSignals, // Add items field for LiveSignalsPanel compatibility
           count: realSignals.length,
           data_source: 'real_market_only',
           filtered_out: (signals?.length || 0) - realSignals.length
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // Handle /signals/live endpoint for LiveSignalsPanel
+    if (req.method === 'GET' && action === 'live') {
+      const { data: signals, error } = await supabase
+        .from('signals')
+        .select('*')
+        .in('source', ['real_market_data', 'live_market_data', 'complete_algorithm_live', 'technical_indicators_real', 'aitradex1_real_enhanced', 'enhanced_signal_generation'])
+        .gte('score', 75) // Higher threshold for live trading
+        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (error) {
+        throw error
+      }
+
+      // Map to expected format for LiveSignalsPanel
+      const liveSignals = (signals || []).map(signal => ({
+        id: signal.id,
+        symbol: signal.symbol,
+        direction: signal.direction,
+        price: signal.price || signal.entry_price,
+        entry_price: signal.entry_price || signal.price,
+        sl: signal.stop_loss,
+        tp: signal.take_profit,
+        score: signal.score,
+        timeframe: signal.timeframe,
+        created_at: signal.created_at
+      }));
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          items: liveSignals,
+          count: liveSignals.length
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

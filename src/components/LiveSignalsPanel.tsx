@@ -34,11 +34,14 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
 
   const fetchLiveSignals = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase.functions.invoke('signals-api', {
-        body: { path: '/signals/live' }
+        body: { action: 'live' }
       });
 
       if (error) throw error;
+
+      console.log('Live signals response:', data);
 
       if (data.success && data.items) {
         // Convert the API format to our Signal interface
@@ -49,18 +52,21 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
             id: item.id,
             symbol: item.symbol,
             direction: item.direction === 'SHORT' ? 'SHORT' : 'LONG',
-            entry_price: item.price,
-            sl: item.sl,
-            tp: item.tp,
+            entry_price: item.entry_price || item.price,
+            sl: item.sl || item.stop_loss,
+            tp: item.tp || item.take_profit,
             score: item.score,
             timeframe: item.timeframe,
             created_at: item.created_at
           }));
         
         setSignals(formattedSignals);
+        console.log(`Updated live signals: ${formattedSignals.length} signals`);
       }
     } catch (error) {
       console.error('Failed to fetch live signals:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
