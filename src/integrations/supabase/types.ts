@@ -82,6 +82,132 @@ export type Database = {
         }
         Relationships: []
       }
+      exchange_feed_status: {
+        Row: {
+          created_at: string
+          error_count: number | null
+          exchange: string
+          id: string
+          last_error: string | null
+          last_update: string | null
+          status: string
+          symbols_tracked: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error_count?: number | null
+          exchange: string
+          id?: string
+          last_error?: string | null
+          last_update?: string | null
+          status?: string
+          symbols_tracked?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error_count?: number | null
+          exchange?: string
+          id?: string
+          last_error?: string | null
+          last_update?: string | null
+          status?: string
+          symbols_tracked?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      live_market_data: {
+        Row: {
+          adx: number | null
+          ask: number | null
+          atr_14: number | null
+          base_asset: string
+          bid: number | null
+          change_24h: number | null
+          change_24h_percent: number | null
+          created_at: string
+          ema21: number | null
+          exchange: string
+          high_24h: number | null
+          id: string
+          low_24h: number | null
+          minus_di: number | null
+          plus_di: number | null
+          price: number
+          quote_asset: string
+          raw_data: Json | null
+          rsi_14: number | null
+          sma200: number | null
+          stoch_d: number | null
+          stoch_k: number | null
+          symbol: string
+          updated_at: string
+          volume: number | null
+          volume_avg_20: number | null
+          volume_quote: number | null
+        }
+        Insert: {
+          adx?: number | null
+          ask?: number | null
+          atr_14?: number | null
+          base_asset: string
+          bid?: number | null
+          change_24h?: number | null
+          change_24h_percent?: number | null
+          created_at?: string
+          ema21?: number | null
+          exchange: string
+          high_24h?: number | null
+          id?: string
+          low_24h?: number | null
+          minus_di?: number | null
+          plus_di?: number | null
+          price: number
+          quote_asset?: string
+          raw_data?: Json | null
+          rsi_14?: number | null
+          sma200?: number | null
+          stoch_d?: number | null
+          stoch_k?: number | null
+          symbol: string
+          updated_at?: string
+          volume?: number | null
+          volume_avg_20?: number | null
+          volume_quote?: number | null
+        }
+        Update: {
+          adx?: number | null
+          ask?: number | null
+          atr_14?: number | null
+          base_asset?: string
+          bid?: number | null
+          change_24h?: number | null
+          change_24h_percent?: number | null
+          created_at?: string
+          ema21?: number | null
+          exchange?: string
+          high_24h?: number | null
+          id?: string
+          low_24h?: number | null
+          minus_di?: number | null
+          plus_di?: number | null
+          price?: number
+          quote_asset?: string
+          raw_data?: Json | null
+          rsi_14?: number | null
+          sma200?: number | null
+          stoch_d?: number | null
+          stoch_k?: number | null
+          symbol?: string
+          updated_at?: string
+          volume?: number | null
+          volume_avg_20?: number | null
+          volume_quote?: number | null
+        }
+        Relationships: []
+      }
       markets: {
         Row: {
           base_asset: string
@@ -239,20 +365,24 @@ export type Database = {
           direction: string
           entry_price: number | null
           exchange: string | null
+          exchange_source: string | null
           expires_at: string | null
           filters: Json | null
+          hvp_value: number | null
           id: string
           is_active: boolean | null
           metadata: Json | null
           price: number
           score: number
           side: string | null
+          signal_grade: string | null
           signal_type: string | null
           source: string | null
           stop_loss: number | null
           symbol: string
           take_profit: number | null
           timeframe: string
+          volume_ratio: number | null
         }
         Insert: {
           algo?: string | null
@@ -263,20 +393,24 @@ export type Database = {
           direction: string
           entry_price?: number | null
           exchange?: string | null
+          exchange_source?: string | null
           expires_at?: string | null
           filters?: Json | null
+          hvp_value?: number | null
           id?: string
           is_active?: boolean | null
           metadata?: Json | null
           price: number
           score: number
           side?: string | null
+          signal_grade?: string | null
           signal_type?: string | null
           source?: string | null
           stop_loss?: number | null
           symbol: string
           take_profit?: number | null
           timeframe: string
+          volume_ratio?: number | null
         }
         Update: {
           algo?: string | null
@@ -287,20 +421,24 @@ export type Database = {
           direction?: string
           entry_price?: number | null
           exchange?: string | null
+          exchange_source?: string | null
           expires_at?: string | null
           filters?: Json | null
+          hvp_value?: number | null
           id?: string
           is_active?: boolean | null
           metadata?: Json | null
           price?: number
           score?: number
           side?: string | null
+          signal_grade?: string | null
           signal_type?: string | null
           source?: string | null
           stop_loss?: number | null
           symbol?: string
           take_profit?: number | null
           timeframe?: string
+          volume_ratio?: number | null
         }
         Relationships: []
       }
