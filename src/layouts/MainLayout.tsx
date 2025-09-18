@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import TopNavigation from '@/components/TopNavigation';
 import BottomSignalsBar from '@/components/BottomSignalsBar';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Home } from 'lucide-react';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -11,6 +14,7 @@ interface MainLayoutProps {
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <SidebarProvider defaultOpen={false}>
@@ -46,6 +50,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <div className="lg:hidden">
             <BottomSignalsBar />
           </div>
+        </div>
+        
+        {/* Return to Main Page Button - Fixed Bottom Right */}
+        <div className="fixed bottom-4 right-4 z-50">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 bg-background/95 backdrop-blur-sm border-border hover:bg-accent shadow-lg transition-all duration-200 hover:scale-105"
+          >
+            <Home className="h-4 w-4" />
+            <span className="hidden sm:inline">Home</span>
+          </Button>
         </div>
       </div>
     </SidebarProvider>
