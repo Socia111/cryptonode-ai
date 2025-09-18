@@ -26,6 +26,8 @@ import { TradingInterface } from '@/components/TradingInterface';
 import { SystemMonitor } from '@/components/SystemMonitor';
 import { RiskManagement } from '@/components/RiskManagement';
 import { LiveCCXTController } from '@/components/LiveCCXTController';
+import { ExchangeAuthentication } from '@/components/ExchangeAuthentication';
+import { TradingExecutionPanel } from '@/components/TradingExecutionPanel';
 
 interface AlgorithmStats {
   activeSignals: number;
@@ -118,7 +120,7 @@ export function ProfessionalTradingDashboard() {
       <Tabs defaultValue="signals" className="w-full">
         <div className="border-b border-border bg-card">
           <div className="container mx-auto px-6">
-            <TabsList className="h-12 bg-transparent grid w-full grid-cols-7">
+            <TabsList className="h-12 bg-transparent grid w-full grid-cols-8">
               <TabsTrigger value="signals" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 📊 Signals
               </TabsTrigger>
@@ -128,11 +130,14 @@ export function ProfessionalTradingDashboard() {
               <TabsTrigger value="trading" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 ⚡ Trading
               </TabsTrigger>
+              <TabsTrigger value="auth" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                🔐 Auth
+              </TabsTrigger>
+              <TabsTrigger value="execution" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                🎯 Execute
+              </TabsTrigger>
               <TabsTrigger value="system" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 🔧 System
-              </TabsTrigger>
-              <TabsTrigger value="controls" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                🎯 Controls
               </TabsTrigger>
               <TabsTrigger value="ccxt-feed" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 🚀 CCXT Feed
@@ -304,14 +309,19 @@ export function ProfessionalTradingDashboard() {
             <TradingInterface />
           </TabsContent>
 
+          {/* Exchange Authentication Tab */}
+          <TabsContent value="auth" className="mt-0">
+            <ExchangeAuthentication />
+          </TabsContent>
+
+          {/* Trading Execution Tab */}
+          <TabsContent value="execution" className="mt-0">
+            <TradingExecutionPanel signals={signals} />
+          </TabsContent>
+
           {/* System Tab */}
           <TabsContent value="system" className="mt-0">
             <SystemMonitor />
-          </TabsContent>
-
-          {/* Controls Tab */}
-          <TabsContent value="controls" className="mt-0">
-            <RiskManagement />
           </TabsContent>
 
           {/* CCXT Feed Tab */}
