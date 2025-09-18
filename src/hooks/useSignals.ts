@@ -173,11 +173,7 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
     .slice(0, 20); // Limit to 20 most recent signals
 }
 
-function getMockSignals(): Signal[] {
-  // ❌ DEPRECATED: Mock signals are disabled - use only live AITRADEX1 signals
-  console.warn('[useSignals] Mock signals disabled - implement live CCXT feed for real data');
-  return [];
-}
+// Mock signals function removed - using only real signals
 
 // Function removed - now using subscribeSignalsRealtime from @/lib/realtime
 

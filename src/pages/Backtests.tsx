@@ -1,6 +1,6 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
-import BacktestEngine from '../components/BacktestEngine';
+// BacktestEngine removed - unused component
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TestTube, TrendingUp, BarChart3 } from 'lucide-react';
 
@@ -60,8 +60,10 @@ const Backtests = () => {
           </Card>
         </div>
 
-        {/* Backtest Engine */}
-        <BacktestEngine />
+        {/* Backtest Engine - Component removed */}
+        <div className="text-center py-8 text-muted-foreground">
+          <p>Backtest engine has been removed to simplify the interface.</p>
+        </div>
       </div>
     </MainLayout>
   );

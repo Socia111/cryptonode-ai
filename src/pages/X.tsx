@@ -6,10 +6,7 @@ import TradingChart from '../components/TradingChart';
 import PortfolioStats from '../components/PortfolioStats';
 import DatabaseSetup from '../components/DatabaseSetup';
 import SpynxScoreCard from '../components/SpynxScoreCard';
-import TelegramIntegration from '../components/TelegramIntegration';
-import TradingPanel from '../components/TradingPanel';
-import BacktestEngine from '../components/BacktestEngine';
-import QuantumAnalysis from '../components/QuantumAnalysis';
+// TelegramIntegration, BacktestEngine, QuantumAnalysis removed - unused components
 import ScannerDashboard from '../components/ScannerDashboard';
 import UnireliScannerChart from '../components/UnireliScannerChart';
 import { useSignals } from '@/hooks/useSignals';
@@ -53,17 +50,18 @@ const X = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Trading Chart */}
           <div className="lg:col-span-2 space-y-6">
-            <TradingChart />
-            <BacktestEngine />
+            {/* Components removed for simplification */}
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Some components have been removed to simplify the interface.</p>
+            </div>
           </div>
           
           {/* Signals Panel */}
           <div className="space-y-6">
-            <PortfolioStats />
-            <TradingPanel />
-            <TelegramIntegration />
-            <QuantumAnalysis />
-            <SpynxScoreCard />
+            {/* Components removed for simplification */}
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Some components have been removed to simplify the interface.</p>
+            </div>
             <SignalsList />
           </div>
         </div>

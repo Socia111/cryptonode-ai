@@ -3,7 +3,7 @@ import MainLayout from '../layouts/MainLayout';
 import TradingPanel from '../components/TradingPanel';
 import TradingChart from '../components/TradingChart';
 import { SignalFeed } from '@/components/SignalFeed';
-import { TradingFixTest } from '@/components/TradingFixTest';
+// TradingFixTest removed - unused component
 import { TradingTest } from '@/components/TradingTest';
 import { TradeExecutionTest } from '@/components/TradeExecutionTest';
 import { useSignals } from '@/hooks/useSignals';
@@ -106,7 +106,9 @@ const Trade = () => {
           </TabsContent>
           
           <TabsContent value="test" className="mt-6">
-            <TradingFixTest />
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Trading fix test has been removed to simplify the interface.</p>
+            </div>
           </TabsContent>
           
           <TabsContent value="trading-test" className="mt-6">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { EnhancedTradeTest } from './EnhancedTradeTest';
+// EnhancedTradeTest removed - unused testing component
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -335,9 +335,13 @@ export function LiveTradingEnabler() {
           </Card>
         </TabsContent>
 
-        {/* Testing Tab */}
+        {/* Testing Tab - Testing component removed */}
         <TabsContent value="testing" className="space-y-4">
-          <EnhancedTradeTest />
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-muted-foreground">Testing features have been removed to simplify the interface.</p>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Monitoring Tab */}
