@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { SignalFeed } from '@/components/SignalFeed';
-import { SimpleSignalFeed } from '@/components/SimpleSignalFeed';
 import { SignalsDebug } from '@/components/SignalsDebug';
 import { SystemRebuild } from '@/components/SystemRebuild';
 import { useSignals } from '@/hooks/useSignals';
@@ -97,7 +96,7 @@ const Signals = () => {
             <CardTitle>Live Signal Feed (Enhanced)</CardTitle>
           </CardHeader>
           <CardContent>
-            <SimpleSignalFeed />
+            <SignalFeed />
           </CardContent>
         </Card>
 
