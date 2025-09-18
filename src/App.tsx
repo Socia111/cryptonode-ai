@@ -5,6 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import Index from "./pages/Index";
+import Trade from "./pages/Trade";
+import Auth from "./pages/Auth";
+import AuthGuard from "./components/AuthGuard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,8 +27,22 @@ function App() {
           <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="*" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/" element={
+                <AuthGuard>
+                  <Index />
+                </AuthGuard>
+              } />
+              <Route path="/trade" element={
+                <AuthGuard>
+                  <Trade />
+                </AuthGuard>
+              } />
+              <Route path="*" element={
+                <AuthGuard>
+                  <Index />
+                </AuthGuard>
+              } />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>

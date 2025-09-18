@@ -2,13 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
-import { Loader2 } from 'lucide-react';
 
 interface AuthGuardProps {
   children: React.ReactNode;
 }
 
-const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
+export default function AuthGuard({ children }: AuthGuardProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -21,9 +20,8 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-
-        // Redirect to auth if no session
-        if (!session) {
+        
+        if (!session && event !== 'INITIAL_SESSION') {
           navigate('/auth');
         }
       }
@@ -34,8 +32,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-
-      // Redirect to auth if no session
+      
       if (!session) {
         navigate('/auth');
       }
@@ -46,9 +43,9 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -56,10 +53,8 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   }
 
   if (!user || !session) {
-    return null; // Will redirect to auth
+    return null; // Will redirect to auth page
   }
 
   return <>{children}</>;
-};
-
-export default AuthGuard;
+}

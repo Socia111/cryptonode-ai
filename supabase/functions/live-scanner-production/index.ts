@@ -1,542 +1,345 @@
-// supabase/functions/live-scanner-production/index.ts
-// deno-lint-ignore-file no-explicit-any
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
 
-// Environment configuration - same as trading engine
-const ENV = {
-  BYBIT_API_KEY: "BYBIT_API_KEY",
-  BYBIT_API_SECRET: "BYBIT_API_SECRET",
-} as const;
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
-function getEnvOrNull(key: string): string | null {
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+interface ScanRequest {
+  exchange?: string;
+  timeframe?: string;
+  symbols?: string[];
+  relaxed_filters?: boolean;
+  min_score?: number;
+  scan_all_coins?: boolean;
+}
+
+interface Signal {
+  symbol: string;
+  direction: 'LONG' | 'SHORT';
+  timeframe: string;
+  entry_price: number;
+  stop_loss?: number;
+  take_profit?: number;
+  score: number;
+  confidence: number;
+  source: string;
+  algo: string;
+  bar_time: string;
+  meta: any;
+}
+
+// Technical indicators calculation functions
+function calculateSMA(prices: number[], period: number): number {
+  if (prices.length < period) return 0;
+  const sum = prices.slice(-period).reduce((a, b) => a + b, 0);
+  return sum / period;
+}
+
+function calculateEMA(prices: number[], period: number): number {
+  if (prices.length < period) return prices[prices.length - 1] || 0;
+  
+  const k = 2 / (period + 1);
+  let ema = calculateSMA(prices.slice(0, period), period);
+  
+  for (let i = period; i < prices.length; i++) {
+    ema = (prices[i] * k) + (ema * (1 - k));
+  }
+  
+  return ema;
+}
+
+function calculateRSI(prices: number[], period: number = 14): number {
+  if (prices.length < period + 1) return 50;
+  
+  let gains = 0;
+  let losses = 0;
+  
+  for (let i = 1; i <= period; i++) {
+    const change = prices[prices.length - i] - prices[prices.length - i - 1];
+    if (change > 0) gains += change;
+    else losses -= change;
+  }
+  
+  const avgGain = gains / period;
+  const avgLoss = losses / period;
+  
+  if (avgLoss === 0) return 100;
+  
+  const rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+}
+
+function calculateATR(highs: number[], lows: number[], closes: number[], period: number = 14): number {
+  if (highs.length < period + 1) return 0;
+  
+  const trueRanges = [];
+  for (let i = 1; i < highs.length; i++) {
+    const tr1 = highs[i] - lows[i];
+    const tr2 = Math.abs(highs[i] - closes[i - 1]);
+    const tr3 = Math.abs(lows[i] - closes[i - 1]);
+    trueRanges.push(Math.max(tr1, tr2, tr3));
+  }
+  
+  return calculateSMA(trueRanges, period);
+}
+
+// UNIRELI CORE Algorithm - Sept 14th Version
+function analyzeWithUnireliCore(marketData: any): Signal | null {
+  const { symbol, prices, volumes, highs, lows, closes, timeframe } = marketData;
+  
+  if (!prices || prices.length < 50) return null;
+  
+  const currentPrice = prices[prices.length - 1];
+  const ema21 = calculateEMA(prices, 21);
+  const ema50 = calculateEMA(prices, 50);
+  const sma200 = calculateSMA(prices, 200);
+  const rsi = calculateRSI(prices);
+  const atr = calculateATR(highs, lows, closes);
+  
+  // Volume analysis
+  const avgVolume = calculateSMA(volumes.slice(-20), 20);
+  const currentVolume = volumes[volumes.length - 1];
+  const volumeRatio = currentVolume / avgVolume;
+  
+  // Trend detection
+  const trendUp = ema21 > ema50 && ema50 > sma200;
+  const trendDown = ema21 < ema50 && ema50 < sma200;
+  
+  // Momentum checks
+  const bullishMomentum = rsi > 45 && rsi < 75 && currentPrice > ema21;
+  const bearishMomentum = rsi < 55 && rsi > 25 && currentPrice < ema21;
+  
+  // Signal strength calculation
+  let score = 50;
+  let confidence = 0.5;
+  let direction: 'LONG' | 'SHORT' | null = null;
+  
+  // LONG signal conditions
+  if (trendUp && bullishMomentum && volumeRatio > 1.2) {
+    direction = 'LONG';
+    score += 20; // Trend alignment
+    score += Math.min(15, (rsi - 50) * 0.5); // RSI momentum
+    score += Math.min(10, (volumeRatio - 1) * 10); // Volume boost
+    confidence = Math.min(0.95, 0.6 + (score - 70) * 0.01);
+  }
+  
+  // SHORT signal conditions
+  if (trendDown && bearishMomentum && volumeRatio > 1.2) {
+    direction = 'SHORT';
+    score += 20; // Trend alignment
+    score += Math.min(15, (50 - rsi) * 0.5); // RSI momentum
+    score += Math.min(10, (volumeRatio - 1) * 10); // Volume boost
+    confidence = Math.min(0.95, 0.6 + (score - 70) * 0.01);
+  }
+  
+  // Enhanced scoring for strong patterns
+  if (direction) {
+    // Price action confirmation
+    const priceNearEMA = Math.abs(currentPrice - ema21) / currentPrice < 0.02;
+    if (priceNearEMA) score += 5;
+    
+    // ATR-based volatility boost
+    const atrPercent = (atr / currentPrice) * 100;
+    if (atrPercent > 1 && atrPercent < 5) score += 5;
+    
+    // Time-based scoring (higher scores for longer timeframes)
+    const timeframeMultiplier = {
+      '1m': 0.8,
+      '5m': 1.0,
+      '15m': 1.2,
+      '1h': 1.5,
+      '4h': 1.8
+    }[timeframe] || 1.0;
+    
+    score = Math.round(score * timeframeMultiplier);
+    score = Math.min(100, Math.max(0, score));
+  }
+  
+  if (!direction || score < 75) return null;
+  
+  // Calculate targets
+  const stopLossDistance = atr * 2;
+  const takeProfitDistance = atr * 3;
+  
+  const stopLoss = direction === 'LONG' 
+    ? currentPrice - stopLossDistance 
+    : currentPrice + stopLossDistance;
+    
+  const takeProfit = direction === 'LONG' 
+    ? currentPrice + takeProfitDistance 
+    : currentPrice - takeProfitDistance;
+  
+  return {
+    symbol,
+    direction,
+    timeframe,
+    entry_price: currentPrice,
+    stop_loss: stopLoss,
+    take_profit: takeProfit,
+    score,
+    confidence,
+    source: 'live_scanner_production',
+    algo: 'unirail_core',
+    bar_time: new Date().toISOString(),
+    meta: {
+      ema21,
+      ema50,
+      sma200,
+      rsi,
+      atr,
+      volumeRatio,
+      trendUp,
+      trendDown,
+      timeframeMultiplier: timeframe
+    }
+  };
+}
+
+async function fetchMarketData(symbol: string, timeframe: string): Promise<any> {
   try {
-    return Deno.env.get(key) ?? null;
-  } catch {
+    // Fetch from Bybit API
+    const response = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=${timeframe}&limit=200`);
+    const data = await response.json();
+    
+    if (data.retCode !== 0 || !data.result.list) {
+      throw new Error(`Failed to fetch data for ${symbol}: ${data.retMsg}`);
+    }
+    
+    const klines = data.result.list.reverse(); // Bybit returns newest first
+    
+    return {
+      symbol,
+      timeframe,
+      prices: klines.map((k: any) => parseFloat(k[4])), // Close prices
+      volumes: klines.map((k: any) => parseFloat(k[5])),
+      highs: klines.map((k: any) => parseFloat(k[2])),
+      lows: klines.map((k: any) => parseFloat(k[3])),
+      closes: klines.map((k: any) => parseFloat(k[4])),
+      timestamps: klines.map((k: any) => parseInt(k[0]))
+    };
+  } catch (error) {
+    console.error(`Failed to fetch market data for ${symbol}:`, error);
     return null;
   }
 }
 
-// Bybit API configuration - using same credentials as trading engine
-const BYBIT_API_KEY = getEnvOrNull(ENV.BYBIT_API_KEY);
-const BYBIT_API_SECRET = getEnvOrNull(ENV.BYBIT_API_SECRET);
-
-// Debug credential loading
-console.log('🔧 Live Scanner - Loading Bybit credentials...');
-console.log('  - API Key present:', !!BYBIT_API_KEY);
-console.log('  - API Secret present:', !!BYBIT_API_SECRET);
-if (BYBIT_API_KEY) {
-  console.log('  - API Key preview:', BYBIT_API_KEY.substring(0, 8) + '...');
-}
-if (!BYBIT_API_KEY || !BYBIT_API_SECRET) {
-  console.error('❌ Missing Bybit credentials for live scanner');
-}
-
-type K = { time:number; open:number; high:number; low:number; close:number; volume:number };
-type ScanReq = {
-  exchange?: "bybit";
-  timeframe?: "1m"|"3m"|"5m"|"15m"|"30m"|"1h"|"2h"|"4h";
-  symbols?: string[];
-  relaxed_filters?: boolean;
-};
-
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST,OPTIONS",
-};
-
-const AITRADEX1 = {
-  // canonical (tight) - LOWERED EXPECTATIONS
-  tight: {
-    adxThreshold: 20,
-    volSpikeMult: 1.3,
-    hvpLower: 40,
-    hvpUpper: 95,
-    breakoutLen: 3,
-    spreadMaxPct: 0.15,
-    useDailyTrendFilter: false,
-  },
-  // relaxed (for discovery/quiet markets) - VERY RELAXED
-  relaxed: {
-    adxThreshold: 15,
-    volSpikeMult: 1.1,
-    hvpLower: 30,
-    hvpUpper: 98,
-    breakoutLen: 2,
-    spreadMaxPct: 0.20,
-    useDailyTrendFilter: false,
-  }
-};
-
-// ---------- Utilities
-
-const bybitIntervalMap: Record<string,string> = {
-  "1m":"1","3m":"3","5m":"5","15m":"15","30m":"30","1h":"60","2h":"120","4h":"240",
-};
-
-function floorToTf(ts:number, tf:string):number {
-  const ms = { "1m":60e3, "3m":180e3, "5m":300e3, "15m":900e3, "30m":1800e3, "1h":3600e3, "2h":7200e3, "4h":14400e3 }[tf];
-  return Math.floor(ts/ms)*ms;
-}
-
-async function sleep(ms:number){ return new Promise(r=>setTimeout(r,ms)); }
-
-async function getBybit(url:string, tries=3, backoff=300){
-  let last:any;
-  for (let i=0;i<tries;i++){
-    try{
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-      
-      const res = await fetch(url, { 
-        headers:{ "User-Agent":"aitradex1/1.0" },
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (res.ok){
-        return await res.json();
-      }
-      const txt = await res.text();
-      last = txt;
-      if (res.status===429 || res.status>=500){
-        await sleep(backoff*(i+1));
-        continue;
-      }
-      break;
-    }catch(e){ 
-      last = e; 
-      if (e.name === 'AbortError') {
-        console.warn(`⏰ Request timeout for ${url} (attempt ${i+1})`);
-      }
-      await sleep(backoff*(i+1)); 
-    }
-  }
-  throw new Error(`Bybit API failed after ${tries} attempts: ${last}`);
-}
-
-async function fetchBybitOHLCV(symbol:string, tf:string, limit=300):Promise<K[]>{
-  const interval = bybitIntervalMap[tf];
-  if (!interval) throw new Error(`Unsupported tf ${tf}`);
-
-  // Pull up to `limit`, but ensure last candle is CLOSED
-  const now = Date.now();
-  const end = floorToTf(now, tf); // end at last closed bar time
-  // Bybit v5 kline: you can pass start/end; but we can simply request limit and drop the last if still open.
-  const params = new URLSearchParams({
-    category: "linear",
-    symbol,
-    interval,
-    limit: String(limit),
-  });
-  const url = `https://api.bybit.com/v5/market/kline?${params}`;
-  const data = await getBybit(url);
-
-  if (data.retCode !== 0) throw new Error(`Bybit error: ${data.retMsg || data.retCode}`);
-
-  const list:any[] = (data?.result?.list) || [];
-  // Bybit returns newest->oldest; reverse to oldest->newest
-  const rows = list.reverse().map((item:any)=>({
-    time: parseInt(item[0]), open: +item[1], high: +item[2], low: +item[3], close: +item[4], volume: +item[5]
-  })) as K[];
-
-  // drop any candle that appears newer than the last closed boundary
-  return rows.filter(k => k.time <= end - 1);
-}
-
-// ---------- Indicators (minimal, efficient)
-
-function SMA(arr:number[], len:number){ if (arr.length<len) return Array(arr.length).fill(NaN); const out:number[]=[]; let s=0; for(let i=0;i<arr.length;i++){ s+=arr[i]; if(i>=len) s-=arr[i-len]; out.push(i>=len-1? s/len : NaN); } return out; }
-function EMA(arr:number[], len:number){ const out:number[]=[]; const a=2/(len+1); let e=arr[0]; for(let i=0;i<arr.length;i++){ if(i===0){ out.push(NaN); } else { e=a*arr[i]+(1-a)*e; out.push(i<len?NaN:e); } } return out; }
-function TR(o:K[], i:number){ if(i===0)return o[0].high-o[0].low; const prevClose=o[i-1].close; return Math.max(o[i].high-o[i].low, Math.abs(o[i].high-prevClose), Math.abs(o[i].low-prevClose)); }
-function ATR(ohlc:K[], len=14){ const out:number[]=[]; let sum=0; for(let i=0;i<ohlc.length;i++){ const v=TR(ohlc,i); sum+=v; if(i>=len) sum-=TR(ohlc,i-len); out.push(i>=len? sum/len : NaN); } return out; }
-function DMI_ADX(ohlc:K[], len=14){
-  const dmPlus:number[] = [], dmMinus:number[] = [], tr:number[]=[];
-  for(let i=0;i<ohlc.length;i++){
-    if(i===0){ dmPlus.push(0); dmMinus.push(0); tr.push(0); continue; }
-    const up = ohlc[i].high - ohlc[i-1].high;
-    const dn = ohlc[i-1].low  - ohlc[i].low;
-    dmPlus.push( (up>dn && up>0) ? up : 0 );
-    dmMinus.push( (dn>up && dn>0) ? dn : 0 );
-    tr.push(TR(ohlc,i));
-  }
-  // Wilder smooth
-  const smooth = (arr:number[])=>{
-    const out:number[]=[]; let s=0; for(let i=0;i<arr.length;i++){ s += arr[i]; if(i>=len) s -= arr[i-len]; out.push(i>=len? s : NaN); } return out;
-  };
-  const dmP = smooth(dmPlus), dmM = smooth(dmMinus), trS = smooth(tr);
-  const diP:number[] = [], diM:number[]=[];
-  for(let i=0;i<ohlc.length;i++){
-    if (isNaN(trS[i]) || trS[i]===0){ diP.push(NaN); diM.push(NaN); }
-    else { diP.push(100*(dmP[i]/trS[i])); diM.push(100*(dmM[i]/trS[i])); }
-  }
-  const dx = diP.map((v,i)=> (isNaN(v)||isNaN(diM[i])) ? NaN : 100*Math.abs(v-diM[i])/(v+diM[i]));
-  const adx = SMA(dx.filter((_,i)=>!isNaN(dx[i])), len); // quick approx
-  // pad adx to same length
-  const pad:number[] = Array(ohlc.length - adx.length).fill(NaN).concat(adx);
-  return { diP, diM, adx: pad };
-}
-function STOCH(ohlc:K[], len=14, kS=3, dS=3){
-  const k:number[]=[];
-  for(let i=0;i<ohlc.length;i++){
-    const a = Math.max(0, i-len+1);
-    const slice = ohlc.slice(a,i+1);
-    const hh = Math.max(...slice.map(x=>x.high));
-    const ll = Math.min(...slice.map(x=>x.low));
-    const v = (hh===ll) ? 50 : 100*(ohlc[i].close-ll)/(hh-ll);
-    k.push(v);
-  }
-  const smooth = (arr:number[], n:number)=> SMA(arr, n);
-  const kSm = smooth(k, kS);
-  const d = smooth(kSm, dS);
-  return { k: kSm, d };
-}
-function OBV(ohlc:K[]){
-  const out:number[]=[0];
-  for (let i=1;i<ohlc.length;i++){
-    const dir = ohlc[i].close>ohlc[i-1].close ? 1 : ohlc[i].close<ohlc[i-1].close ? -1 : 0;
-    out.push(out[i-1] + dir*ohlc[i].volume);
-  }
-  return out;
-}
-// HVP: 21-day stdev of returns vs max over 252d
-function HVP(ohlc:K[]){
-  const ret:number[] = [];
-  for (let i=1;i<ohlc.length;i++) ret.push((ohlc[i].close-ohlc[i-1].close)/ohlc[i-1].close);
-  const stdev = (arr:number[], n:number)=>{
-    const out:number[]=[]; for(let i=0;i<arr.length;i++){
-      const a = i-n+1; if (a<0){ out.push(NaN); continue; }
-      const seg = arr.slice(a,i+1); const m = seg.reduce((s,v)=>s+v,0)/n;
-      const v = Math.sqrt(seg.reduce((s,v)=>s+(v-m)*(v-m),0)/n);
-      out.push(v * Math.sqrt(252)); // annualize
-    } return out;
-  };
-  const v21 = stdev(ret,21);
-  const hvp:number[]=[];
-  for (let i=0;i<v21.length;i++){
-    const a = Math.max(0, i-252+1);
-    const max = Math.max(...v21.slice(a,i+1).filter(x=>!isNaN(x)));
-    hvp.push(isFinite(max)&&max>0 ? 100*(v21[i]/max) : NaN);
-  }
-  // pad to OHLC length (add 1 because returns shorter)
-  return [NaN].concat(hvp);
-}
-
-// ---------- Core evaluation
-
-function evalAItradeX1(ohlc:K[], tfCfg:typeof AITRADEX1.tight){
-  const close = ohlc.map(k=>k.close);
-  const vol   = ohlc.map(k=>k.volume);
-
-  const ema21 = EMA(close,21);
-  const sma200= SMA(close,200);
-  const { diP, diM, adx } = DMI_ADX(ohlc,14);
-  const { k, d } = STOCH(ohlc,14,3,3);
-  const volSma21 = SMA(vol,21);
-  const obv = OBV(ohlc);
-  const obvEma21 = EMA(obv,21);
-  const hvp = HVP(ohlc);
-  const i = ohlc.length-1; // last closed bar
-
-  const bullishTrend = ema21[i] > sma200[i] && ema21[i] > ema21[i-3];
-  const bearishTrend = ema21[i] < sma200[i] && ema21[i] < ema21[i-3];
-
-  const adxStrong = adx[i] >= tfCfg.adxThreshold;
-  const bullDMI = diP[i] > diM[i]; // Removed strict trend requirement
-  const bearDMI = diM[i] > diP[i]; // Removed strict trend requirement
-
-  const stochBull = k[i] > d[i] && k[i] < 50; // Relaxed from 35
-  const stochBear = k[i] < d[i] && k[i] > 50; // Relaxed from 65
-
-  const volSpike = vol[i] > tfCfg.volSpikeMult * volSma21[i];
-  const obvBull  = obv[i] > obvEma21[i]; // Removed trend requirement
-  const obvBear  = obv[i] < obvEma21[i]; // Removed trend requirement
-
-  const hvpOk    = hvp[i] >= tfCfg.hvpLower && hvp[i] <= tfCfg.hvpUpper;
-
-  const spreadPct = Math.abs(ohlc[i].close - ohlc[i].open) / ohlc[i].open * 100;
-  const spreadOk = spreadPct < tfCfg.spreadMaxPct;
-
-  // Breakout windows (exclude current)
-  const hh = Math.max(...ohlc.slice(i-tfCfg.breakoutLen, i).map(x=>x.high));
-  const ll = Math.min(...ohlc.slice(i-tfCfg.breakoutLen, i).map(x=>x.low));
-  const breakoutLong  = ohlc[i].close > hh;
-  const breakoutShort = ohlc[i].close < ll;
-
-  // Extremely relaxed signal requirements - only need 3 out of 9 conditions
-  const longConditions = [bullishTrend, adxStrong, bullDMI, stochBull, volSpike, obvBull, hvpOk, spreadOk, breakoutLong];
-  const shortConditions = [bearishTrend, adxStrong, bearDMI, stochBear, volSpike, obvBear, hvpOk, spreadOk, breakoutShort];
-  
-  const longOk = longConditions.filter(Boolean).length >= 3;
-  const shortOk = shortConditions.filter(Boolean).length >= 3;
-
-  // Dynamic scoring: Base score + weighted bonuses for different conditions
-  const longBuckets  = [bullishTrend, adxStrong, bullDMI, stochBull, volSpike, obvBull, hvpOk, spreadOk, breakoutLong];
-  const shortBuckets = [bearishTrend, adxStrong, bearDMI, stochBear, volSpike, obvBear, hvpOk, spreadOk, breakoutShort];
-  
-  // Enhanced scoring with weighted conditions
-  const calculateScore = (conditions: boolean[], adxVal: number, hvpVal: number, volRatio: number) => {
-    let score = 0;
-    const passedCount = conditions.filter(Boolean).length;
-    
-    // Base score from passed conditions (70% of total)
-    score += (passedCount / 9) * 70;
-    
-    // Bonus points for quality indicators (30% of total)
-    if (adxVal > 35) score += 8; // Strong trend
-    else if (adxVal > 25) score += 5; // Moderate trend
-    
-    if (hvpVal > 80) score += 10; // High volatility
-    else if (hvpVal > 60) score += 6; // Moderate volatility
-    
-    if (volRatio > 2.0) score += 7; // Strong volume
-    else if (volRatio > 1.5) score += 4; // Good volume
-    
-    // Extra bonus for having many conditions (confluence)
-    if (passedCount >= 7) score += 8;
-    else if (passedCount >= 6) score += 5;
-    else if (passedCount >= 5) score += 3;
-    
-    return Math.min(100, Math.max(0, score));
-  };
-  
-  const volRatio = vol[i] / (volSma21[i] || 1);
-  const longScore  = calculateScore(longBuckets, adx[i], hvp[i] || 0, volRatio);
-  const shortScore = calculateScore(shortBuckets, adx[i], hvp[i] || 0, volRatio);
-
-  const atr = ATR(ohlc,14)[i];
-  const hvpVal = hvp[i] || 0;
-  const tpATR = hvpVal > 75 ? 3.5 : hvpVal > 65 ? 3.0 : 2.5;
-
-  return {
-    i, ema21, sma200, adx, diP, diM, k, d, hvp, obv, obvEma21, volSma21,
-    longOk, shortOk, longScore, shortScore,
-    risk: {
-      atr,
-      slLong: ohlc[i].close - 1.5*atr,
-      tpLong: ohlc[i].close + tpATR*atr,
-      slShort: ohlc[i].close + 1.5*atr,
-      tpShort: ohlc[i].close - tpATR*atr,
-    },
-    filters: {
-      trend: longOk ? bullishTrend : shortOk ? bearishTrend : false,
-      adx: adxStrong,
-      dmi: longOk ? bullDMI : shortOk ? bearDMI : false,
-      stoch: longOk ? stochBull : shortOk ? stochBear : false,
-      volume: volSpike,
-      obv: longOk ? obvBull : shortOk ? obvBear : false,
-      hvp: hvpOk,
-      spread: spreadOk,
-      breakout: longOk ? breakoutLong : shortOk ? breakoutShort : false,
-    }
-  };
-}
-
-// ---------- Edge function
-
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
 
-  try{
-    const body = (req.method==="POST") ? await req.json() as ScanReq : {};
-    const exchange = "bybit";
-    const timeframe = body.timeframe ?? "15m";
-    const relaxed = !!body.relaxed_filters;
-    let symbols = body.symbols;
+  try {
+    const scanRequest: ScanRequest = await req.json();
     
-    // If no symbols provided, fetch all USDT pairs from Bybit
-    if (!symbols || symbols.length === 0) {
+    console.log('🔍 Starting live scanner with params:', scanRequest);
+    
+    const {
+      exchange = 'bybit',
+      timeframe = '15m',
+      symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT'],
+      relaxed_filters = false,
+      min_score = 80,
+      scan_all_coins = false
+    } = scanRequest;
+
+    let symbolsToScan = symbols;
+    
+    // If scan_all_coins is true, get symbols from markets table
+    if (scan_all_coins) {
+      const { data: markets } = await supabase
+        .from('markets')
+        .select('symbol')
+        .eq('enabled', true)
+        .eq('exchange', exchange)
+        .limit(50);
+        
+      if (markets && markets.length > 0) {
+        symbolsToScan = markets.map(m => m.symbol);
+      }
+    }
+
+    console.log(`📊 Scanning ${symbolsToScan.length} symbols on ${timeframe} timeframe`);
+
+    const signals: Signal[] = [];
+    const scanPromises = symbolsToScan.map(async (symbol) => {
       try {
-        console.log("🔍 Fetching all USDT trading pairs from Bybit...");
-        const symbolsUrl = "https://api.bybit.com/v5/market/instruments-info?category=linear";
-        const symbolsData = await getBybit(symbolsUrl);
+        const marketData = await fetchMarketData(symbol, timeframe);
+        if (!marketData) return null;
+
+        const signal = analyzeWithUnireliCore(marketData);
+        if (!signal) return null;
+
+        // Apply score filtering
+        const scoreThreshold = relaxed_filters ? min_score - 10 : min_score;
+        if (signal.score >= scoreThreshold) {
+          return signal;
+        }
         
-        if (symbolsData.retCode === 0) {
-          const allSymbols = symbolsData.result.list
-            .filter((instrument: any) => 
-              instrument.symbol.endsWith('USDT') && 
-              instrument.status === 'Trading' &&
-              instrument.symbol !== 'USDC' // Exclude stablecoins
-            )
-            .map((instrument: any) => instrument.symbol)
-            .sort();
-          
-          console.log(`📊 Found ${allSymbols.length} active USDT trading pairs`);
-          symbols = allSymbols;
-        } else {
-          console.warn("⚠️ Failed to fetch symbols, using defaults");
-          symbols = ["BTCUSDT","ETHUSDT","SOLUSDT","ADAUSDT","DOTUSDT","BNBUSDT","XRPUSDT"];
-        }
-      } catch (e) {
-        console.error("❌ Error fetching symbols:", e);
-        symbols = ["BTCUSDT","ETHUSDT","SOLUSDT","ADAUSDT","DOTUSDT","BNBUSDT","XRPUSDT"];
+        return null;
+      } catch (error) {
+        console.error(`Error analyzing ${symbol}:`, error);
+        return null;
       }
-    }
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!, 
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    console.log(`🔍 unirail_core scan: tf=${timeframe} relaxed=${relaxed} symbols=${symbols.length}`);
-
-    const cfg = relaxed ? AITRADEX1.relaxed : AITRADEX1.tight;
-    let signalsFound = 0;
-    const results:any[] = [];
-    
-    // Clear old quantum_ai signals to avoid confusion
-    try {
-      const { error: deleteError } = await supabase
-        .from('signals')
-        .delete()
-        .eq('algo', 'quantum_ai')
-        .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-      
-      if (deleteError) {
-        console.warn('⚠️ Failed to clear old quantum_ai signals:', deleteError);
-      } else {
-        console.log('🧹 Cleared old quantum_ai signals');
-      }
-    } catch (e) {
-      console.warn('⚠️ Error clearing old signals:', e);
-    }
-
-    for (const symbol of symbols){
-      try{
-        console.log(`📊 Analyzing ${symbol}...`);
-        const ohlc = await fetchBybitOHLCV(symbol, timeframe, 300);
-        if (ohlc.length < 210){ 
-          console.warn(`⚠️ Insufficient REAL data for ${symbol}: ${ohlc.length} bars`); 
-          continue; 
-        }
-
-        const ev = evalAItradeX1(ohlc, cfg);
-        const i = ev.i;
-        const barTime = new Date(ohlc[i].time).toISOString();
-
-        const common = {
-          algo: "unirail_core",
-          exchange, symbol,
-          timeframe,
-          price: ohlc[i].close,
-          score: Math.max(ev.longScore, ev.shortScore),
-          bar_time: barTime,
-          atr: ev.risk.atr,
-          hvp: ev.hvp[i] || 0,
-          filters: ev.filters,
-          indicators: {
-            adx: ev.adx[i], 
-            diPlus: ev.diP[i], 
-            diMinus: ev.diM[i],
-            k: ev.k[i], 
-            d: ev.d[i], 
-            hvp: ev.hvp[i],
-            volSma21: ev.volSma21[i],
-            ema21: ev.ema21[i],
-            sma200: ev.sma200[i],
-            obv: ev.obv[i],
-            obvEma21: ev.obvEma21[i]
-          },
-          relaxed_mode: relaxed,
-          created_at: new Date().toISOString(),
-        };
-
-        // Try LONG - Only save high-quality signals (score >= 80%)
-        if (ev.longOk && ev.longScore >= 80){
-          const payload = {
-            ...common,
-            direction: "LONG",
-            score: ev.longScore,
-            sl: ev.risk.slLong,
-            tp: ev.risk.tpLong,
-          };
-          const { error } = await supabase
-            .from("signals")
-            .insert(payload)
-            .select()
-            .maybeSingle();
-          if (error && !String(error.message).match(/duplicate key|unique/i)) {
-            console.warn(`Insert LONG ${symbol} failed: ${error.message}`);
-          } else {
-            signalsFound++;
-            results.push({ symbol, direction:"LONG", score: ev.longScore, bar_time: barTime });
-            console.log(`✅ ${symbol} LONG signal saved (score: ${ev.longScore.toFixed(1)}%)`);
-          }
-        }
-
-        // Try SHORT - Only save high-quality signals (score >= 80%)
-        if (ev.shortOk && ev.shortScore >= 80){
-          const payload = {
-            ...common,
-            direction: "SHORT",
-            score: ev.shortScore,
-            sl: ev.risk.slShort,
-            tp: ev.risk.tpShort,
-          };
-          const { error } = await supabase
-            .from("signals")
-            .insert(payload)
-            .select()
-            .maybeSingle();
-          if (error && !String(error.message).match(/duplicate key|unique/i)) {
-            console.warn(`Insert SHORT ${symbol} failed: ${error.message}`);
-          } else {
-            signalsFound++;
-            results.push({ symbol, direction:"SHORT", score: ev.shortScore, bar_time: barTime });
-            console.log(`✅ ${symbol} SHORT signal saved (score: ${ev.shortScore.toFixed(1)}%)`);
-          }
-        }
-
-        // Debug logging for no signals
-        if (!ev.longOk && !ev.shortOk) {
-          const passedFilters = Object.values(ev.filters).filter(Boolean).length;
-          console.log(`[DEBUG] ${symbol} no-signal (${passedFilters}/9 filters passed)`);
-        }
-
-      }catch(e){
-        console.error(`❌ ${symbol}:`, e);
-        
-        // Log errors to database
-        await supabase.from('errors_log').insert({
-          where_at: 'live-scanner-production',
-          symbol,
-          details: { error: e.message, stack: e.stack }
-        });
-      }
-
-      // modest pacing to avoid rate limits
-      await sleep(150);
-    }
-
-    console.log(`✅ Production scan completed: ${signalsFound} signals found, 0 processed, 0 cooldown-skipped`);
-
-    const resp = {
-      success: true,
-      algorithm: 'AItradeX1-Production-RealData',
-      exchange, 
-      timeframe, 
-      relaxed_filters: relaxed,
-      symbols_scanned: symbols.length,
-      signals_found: signalsFound,
-      signals_processed: signalsFound,
-      cooldown_skipped: 0,
-      results,
-      timestamp: new Date().toISOString(),
-    };
-
-    return new Response(JSON.stringify(resp), { 
-      headers: { ...cors, "Content-Type":"application/json" }
     });
-  }catch(e:any){
-    console.error("Scanner error:", e);
-    return new Response(JSON.stringify({ 
-      success:false, 
-      error:String(e?.message||e) 
-    }), { 
-      status:500, 
-      headers: { ...cors, "Content-Type":"application/json" }
+
+    const scanResults = await Promise.allSettled(scanPromises);
+    
+    // Collect successful signals
+    scanResults.forEach((result) => {
+      if (result.status === 'fulfilled' && result.value) {
+        signals.push(result.value);
+      }
+    });
+
+    console.log(`✅ Found ${signals.length} signals meeting criteria`);
+
+    // Store signals in database if any found
+    if (signals.length > 0) {
+      const { error: insertError } = await supabase.functions.invoke('signals-api', {
+        body: {
+          action: 'insert',
+          signals: signals
+        }
+      });
+
+      if (insertError) {
+        console.error('Failed to store signals:', insertError);
+      } else {
+        console.log(`💾 Stored ${signals.length} signals in database`);
+      }
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      signals_found: signals.length,
+      signals: signals,
+      scan_params: {
+        exchange,
+        timeframe,
+        symbols_scanned: symbolsToScan.length,
+        min_score: min_score,
+        relaxed_filters
+      },
+      timestamp: new Date().toISOString()
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Error in live scanner:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      signals_found: 0
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

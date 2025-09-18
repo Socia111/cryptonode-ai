@@ -4,6 +4,7 @@ import { TradingDashboard } from '@/components/TradingDashboard';
 import { SystemHealth } from '@/components/SystemHealth';
 import { CompleteSignalDashboard } from '@/components/CompleteSignalDashboard';
 import { LiveExchangeFeed } from '@/components/LiveExchangeFeed';
+import { LiveTradingEnabler } from '@/components/LiveTradingEnabler';
 import { useSignals } from '@/hooks/useSignals';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -24,11 +25,12 @@ export default function Index() {
           </div>
           
           <Tabs defaultValue="complete" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="complete">Complete Algorithm</TabsTrigger>
-              <TabsTrigger value="live-feed">Live Exchange Feed</TabsTrigger>
-              <TabsTrigger value="trading">Trading Dashboard</TabsTrigger>
-              <TabsTrigger value="system">System Health</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="complete">📊 Signals</TabsTrigger>
+              <TabsTrigger value="live-feed">📡 Live Feed</TabsTrigger>
+              <TabsTrigger value="trading">⚡ Trading</TabsTrigger>
+              <TabsTrigger value="system">🔧 System</TabsTrigger>
+              <TabsTrigger value="live-trading">🎯 Live Control</TabsTrigger>
             </TabsList>
             
             <TabsContent value="complete" className="space-y-6">
@@ -45,6 +47,10 @@ export default function Index() {
             
             <TabsContent value="system" className="space-y-6">
               <SystemHealth />
+            </TabsContent>
+            
+            <TabsContent value="live-trading" className="space-y-6">
+              <LiveTradingEnabler />
             </TabsContent>
           </Tabs>
         </div>

@@ -1,429 +1,289 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
-  'Access-Control-Max-Age': '86400',
 };
 
-function json(body: any, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders },
-  });
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+interface TradeRequest {
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  qty?: number;
+  amount_usd?: number;
+  leverage?: number;
+  paper_mode?: boolean;
+  user_id?: string;
+  signal_id?: string;
 }
 
-const log = (level: string, message: string, data: any = {}) => {
-  console.log(JSON.stringify({
-    timestamp: new Date().toISOString(),
-    level,
-    message,
-    ...data
-  }));
-};
+interface BybitCredentials {
+  api_key: string;
+  api_secret: string;
+  testnet: boolean;
+}
 
-// =================== STRUCTURED LOGGING ===================
+async function getUserCredentials(userId: string): Promise<BybitCredentials | null> {
+  try {
+    const { data, error } = await supabase
+      .from('user_trading_accounts')
+      .select('api_key_encrypted, api_secret_encrypted, account_type')
+      .eq('user_id', userId)
+      .eq('exchange', 'bybit')
+      .eq('is_active', true)
+      .single();
 
-const structuredLog = (level: string, message: string, data: Record<string, any> = {}) => {
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    level,
-    message,
-    requestId: data.requestId || crypto.randomUUID(),
-    ...data
+    if (error || !data) {
+      console.log('No user credentials found:', error?.message);
+      return null;
+    }
+
+    return {
+      api_key: data.api_key_encrypted,
+      api_secret: data.api_secret_encrypted,
+      testnet: data.account_type === 'testnet'
+    };
+  } catch (error) {
+    console.error('Error fetching user credentials:', error);
+    return null;
+  }
+}
+
+async function getSystemCredentials(): Promise<BybitCredentials> {
+  const isTestnet = Deno.env.get('PAPER_TRADING') === 'true' || Deno.env.get('BYBIT_TESTNET') === 'true';
+  
+  return {
+    api_key: Deno.env.get('BYBIT_API_KEY') || '',
+    api_secret: Deno.env.get('BYBIT_API_SECRET') || '',
+    testnet: isTestnet
   };
-  console.log(JSON.stringify(logEntry));
-  return logEntry.requestId;
-};
+}
 
-// =================== BYBIT V5 API INTEGRATION ===================
+function createBybitSignature(params: string, secret: string, timestamp: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(timestamp + 'BYBIT_API_KEY' + '5000' + params);
+  const key = encoder.encode(secret);
+  
+  return crypto.subtle.importKey(
+    'raw',
+    key,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  ).then(cryptoKey => 
+    crypto.subtle.sign('HMAC', cryptoKey, data)
+  ).then(signature => 
+    Array.from(new Uint8Array(signature))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+  );
+}
 
-class BybitV5Client {
-  private baseURL: string
-  private apiKey: string
-  private apiSecret: string
+async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredentials) {
+  const timestamp = Date.now().toString();
+  const baseUrl = credentials.testnet 
+    ? 'https://api-testnet.bybit.com' 
+    : 'https://api.bybit.com';
 
-  constructor(apiKey: string, apiSecret: string, isTestnet: boolean = true) {
-    this.baseURL = isTestnet ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com'
-    this.apiKey = apiKey
-    this.apiSecret = apiSecret
-    
-    structuredLog('info', 'BybitV5Client initialized', { 
-      baseURL: this.baseURL, 
-      isTestnet,
-      keyLength: apiKey?.length || 0 
-    });
+  // Validate symbol first
+  const symbolResponse = await fetch(`${supabaseUrl}/functions/v1/symbol-validator`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseServiceKey}`
+    },
+    body: JSON.stringify({ symbol: trade.symbol })
+  });
+
+  const symbolResult = await symbolResponse.json();
+  if (!symbolResult.success) {
+    throw new Error(`Invalid symbol: ${trade.symbol}`);
   }
 
-  private async signRequest(timestamp: string, params: any = {}): Promise<string> {
-    const paramString = Object.keys(params).length 
-      ? JSON.stringify(params)
-      : ''
+  // Calculate quantity if amount_usd is provided
+  let qty = trade.qty;
+  if (!qty && trade.amount_usd) {
+    // Get current price to calculate qty
+    const priceResponse = await fetch(`${baseUrl}/v5/market/tickers?category=linear&symbol=${trade.symbol}`);
+    const priceData = await priceResponse.json();
     
-    const message = timestamp + this.apiKey + '5000' + paramString
-
-    const encoder = new TextEncoder()
-    const keyData = encoder.encode(this.apiSecret)
-    const messageData = encoder.encode(message)
-    
-    const cryptoKey = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    )
-    
-    const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData)
-    return Array.from(new Uint8Array(signature), b => b.toString(16).padStart(2, '0')).join('')
+    if (priceData.retCode === 0 && priceData.result.list.length > 0) {
+      const currentPrice = parseFloat(priceData.result.list[0].lastPrice);
+      qty = trade.amount_usd / currentPrice;
+    } else {
+      throw new Error('Could not fetch current price for quantity calculation');
+    }
   }
 
-  async makeRequest(method: string, endpoint: string, params: any = {}) {
-    const timestamp = Date.now().toString()
-    const signature = await this.signRequest(timestamp, params)
-    
-    const headers = {
-      'X-BAPI-API-KEY': this.apiKey,
+  const orderParams = {
+    category: 'linear',
+    symbol: trade.symbol,
+    side: trade.side,
+    orderType: 'Market',
+    qty: qty?.toFixed(6),
+    timeInForce: 'IOC'
+  };
+
+  const paramsString = Object.entries(orderParams)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('&');
+
+  const signature = await createBybitSignature(paramsString, credentials.api_secret, timestamp);
+
+  const response = await fetch(`${baseUrl}/v5/order/create`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-BAPI-API-KEY': credentials.api_key,
       'X-BAPI-SIGN': signature,
       'X-BAPI-SIGN-TYPE': '2',
       'X-BAPI-TIMESTAMP': timestamp,
-      'X-BAPI-RECV-WINDOW': '5000',
-      'Content-Type': 'application/json'
-    }
+      'X-BAPI-RECV-WINDOW': '5000'
+    },
+    body: JSON.stringify(orderParams)
+  });
 
-    const url = `${this.baseURL}${endpoint}`
-    
-    try {
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: method === 'POST' ? JSON.stringify(params) : undefined
-      })
-      
-      const data = await response.json()
-      
-      structuredLog('info', `Bybit API ${method} ${endpoint}`, {
-        status: response.status,
-        retCode: data.retCode,
-        retMsg: data.retMsg?.substring(0, 100)
-      });
-      
-      if (!response.ok || data.retCode !== 0) {
-        throw new Error(`Bybit API error: ${data.retMsg || response.statusText}`)
-      }
-      
-      return data
-    } catch (error: any) {
-      structuredLog('error', 'Bybit API request failed', { 
-        endpoint, 
-        error: error.message,
-        params: JSON.stringify(params).substring(0, 200)
-      })
-      throw error
-    }
-  }
-
-  async getAccountInfo() {
-    return this.makeRequest('GET', '/v5/account/info')
-  }
-
-  async getWalletBalance() {
-    return this.makeRequest('GET', '/v5/account/wallet-balance', { accountType: 'UNIFIED' })
-  }
-
-  async placeOrder(params: any) {
-    return this.makeRequest('POST', '/v5/order/create', params)
-  }
-
-  async getInstrumentInfo(symbol: string) {
-    return this.makeRequest('GET', '/v5/market/instruments-info', {
-      category: 'linear',
-      symbol
-    })
-  }
-
-  async getTicker(symbol: string) {
-    return this.makeRequest('GET', '/v5/market/tickers', {
-      category: 'linear',
-      symbol
-    })
-  }
+  return await response.json();
 }
 
-// =================== TRADE EXECUTION LOGIC ===================
-
-async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
-  const requestId = structuredLog('info', 'Trade execution started', { requestBody });
+async function executePaperTrade(trade: TradeRequest) {
+  // Simulate paper trade execution
+  const mockOrderId = `paper_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
-  try {
-    const { symbol, side, amountUSD, leverage = 1, testMode = false } = requestBody;
-    
-    // Initialize Supabase client with service role key
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      structuredLog('error', 'Missing Supabase configuration', { requestId });
-      return json({
-        success: false,
-        error: 'Server configuration error. Missing Supabase credentials.'
-      }, 500);
-    }
-    
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.56.0');
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
-    // Extract user ID from JWT token
-    let userId: string | null = null;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.split(' ')[1];
-        const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-        if (user && !userError) {
-          userId = user.id;
-          structuredLog('info', 'User authenticated via JWT', { userId, requestId });
-        } else {
-          structuredLog('warn', 'JWT authentication failed', { error: userError?.message, requestId });
-        }
-      } catch (jwtError: any) {
-        structuredLog('error', 'JWT parsing failed', { error: jwtError.message, requestId });
-      }
-    }
-    
-    // For development, try to use environment credentials if no user auth
-    let apiKey: string | undefined;
-    let apiSecret: string | undefined;
-    
-    if (userId) {
-      // Try to get user credentials from database
-      const { data: accounts, error: accountError } = await supabase
-        .rpc('get_user_trading_account', {
-          p_user_id: userId,
-          p_account_type: 'testnet'
-        });
-      
-      if (!accountError && accounts?.[0]) {
-        const account = accounts[0];
-        apiKey = account.api_key_encrypted;
-        apiSecret = account.api_secret_encrypted;
-        structuredLog('info', 'Using user trading account', { userId, accountId: account.id, requestId });
-      }
-    }
-    
-    // Fallback to environment credentials for development/testing
-    if (!apiKey || !apiSecret) {
-      apiKey = Deno.env.get('BYBIT_API_KEY');
-      apiSecret = Deno.env.get('BYBIT_API_SECRET');
-      structuredLog('info', 'Using environment credentials', { 
-        hasKey: !!apiKey, 
-        hasSecret: !!apiSecret,
-        keyLength: apiKey?.length || 0,
-        requestId 
-      });
-    }
-    
-    if (!apiKey || !apiSecret) {
-      structuredLog('error', 'No trading credentials available', { userId, requestId });
-      return json({
-        success: false,
-        error: 'No trading credentials configured. Please add your Bybit API credentials.',
-        code: 'CREDENTIALS_REQUIRED',
-        needsCredentials: true
-      }, 400);
-    }
-    
-    // Validate credential format
-    if (apiKey.length < 10 || apiSecret.length < 10) {
-      structuredLog('error', 'Invalid API credentials format', { 
-        keyLength: apiKey.length,
-        secretLength: apiSecret.length,
-        requestId 
-      });
-      return json({
-        success: false,
-        error: 'Invalid API credentials format. Please check your credentials.',
-        code: 'CREDENTIALS_INVALID',
-        needsCredentials: true
-      }, 400);
-    }
-
-    // Initialize Bybit client with testnet for development
-    const bybit = new BybitV5Client(apiKey, apiSecret, true);
-    
-    // Test API connection first
-    try {
-      const accountInfo = await bybit.getAccountInfo();
-      structuredLog('info', 'Bybit API authentication successful', { 
-        retCode: accountInfo.retCode, 
-        requestId 
-      });
-    } catch (authError: any) {
-      structuredLog('error', 'Bybit API authentication failed', { 
-        error: authError.message, 
-        requestId 
-      });
-      return json({
-        success: false,
-        error: `Bybit API authentication failed: ${authError.message}`,
-        code: 'API_AUTH_FAILED',
-        needsCredentials: true
-      }, 401);
-    }
-    
-    // Validate symbol and get current price
-    let currentPrice: number;
-    let quantity: string;
-    
-    try {
-      const instrumentInfo = await bybit.getInstrumentInfo(symbol);
-      
-      if (!instrumentInfo.result?.list?.length) {
-        structuredLog('error', 'Invalid symbol', { symbol, requestId });
-        return json({
-          success: false,
-          error: `Invalid symbol: ${symbol}. This symbol may not be available on testnet.`
-        }, 400);
-      }
-
-      const tickerInfo = await bybit.getTicker(symbol);
-      currentPrice = parseFloat(tickerInfo.result.list[0].lastPrice);
-      quantity = (amountUSD / currentPrice).toFixed(6);
-      
-      structuredLog('info', 'Trade calculation completed', { 
-        symbol,
-        amountUSD,
-        currentPrice,
-        quantity,
-        testMode,
-        requestId 
-      });
-
-    } catch (instrumentError: any) {
-      structuredLog('error', 'Symbol validation failed', { 
-        error: instrumentError.message, 
-        symbol, 
-        requestId 
-      });
-      return json({
-        success: false,
-        error: `Symbol validation failed: ${instrumentError.message}`
-      }, 400);
-    }
-
-    if (testMode) {
-      // Return mock successful trade for test mode
-      structuredLog('info', 'Returning test mode result', { requestId });
-      return json({
-        success: true,
-        message: 'Test trade executed successfully (testnet simulation)',
-        testMode: true,
-        trade: {
-          symbol,
-          side,
-          quantity,
-          price: currentPrice,
-          amountUSD,
-          leverage,
-          orderId: 'test_' + Date.now(),
-          exchange: 'bybit_testnet'
-        }
-      });
-    }
-
-    // Prepare order parameters
-    const orderParams = {
-      category: 'linear',
-      symbol,
-      side,
-      orderType: 'Market',
-      qty: quantity,
-      timeInForce: 'IOC'
-    };
-
-    // Execute the trade
-    const orderResult = await bybit.placeOrder(orderParams);
-    
-    structuredLog('info', 'Trade executed successfully', {
-      symbol,
-      side,
-      quantity,
-      price: currentPrice,
-      orderId: orderResult.result.orderId,
-      requestId
-    });
-
-    return json({
-      success: true,
-      message: 'Trade executed successfully',
-      trade: {
-        orderId: orderResult.result.orderId,
-        symbol,
-        side,
-        quantity,
-        price: currentPrice,
-        amountUSD,
-        leverage
-      }
-    });
-
-  } catch (error: any) {
-    structuredLog('error', 'Trade execution failed', { 
-      error: error.message,
-      stack: error.stack?.substring(0, 500),
-      requestId
-    });
-    
-    return json({
-      success: false,
-      error: error.message || 'Trade execution failed'
-    }, 500);
-  }
+  return {
+    retCode: 0,
+    retMsg: 'Paper trade executed successfully',
+    result: {
+      orderId: mockOrderId,
+      orderLinkId: `paper_link_${mockOrderId}`,
+      symbol: trade.symbol,
+      side: trade.side,
+      qty: trade.qty?.toString() || '0',
+      price: '0', // Market order
+      orderStatus: 'Filled'
+    },
+    paper_mode: true
+  };
 }
-
-// =================== MAIN HANDLER ===================
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const body = await req.json();
-    const { action } = body;
-    const authHeader = req.headers.get('authorization');
+    const { action, ...payload } = await req.json();
 
-    structuredLog('info', 'Trade executor request', { 
-      action, 
-      hasAuth: !!authHeader,
-      method: req.method,
-      url: req.url
-    });
+    switch (action) {
+      case 'execute_trade': {
+        const trade: TradeRequest = payload;
+        
+        console.log('🎯 Executing trade:', trade);
 
-    if (action === 'status') {
-      return json({
-        status: 'operational',
-        trading_enabled: true,
-        allowed_symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
-        timestamp: new Date().toISOString()
-      });
+        // Determine if this is paper trading
+        const isPaperMode = trade.paper_mode ?? (Deno.env.get('PAPER_TRADING') === 'true');
+        
+        let result;
+        let credentials = null;
+
+        if (isPaperMode) {
+          result = await executePaperTrade(trade);
+        } else {
+          // Get credentials (user first, then system fallback)
+          if (trade.user_id) {
+            credentials = await getUserCredentials(trade.user_id);
+          }
+          
+          if (!credentials) {
+            credentials = await getSystemCredentials();
+          }
+
+          if (!credentials.api_key || !credentials.api_secret) {
+            throw new Error('No valid trading credentials found');
+          }
+
+          result = await executeBybitTrade(trade, credentials);
+        }
+
+        // Log the trade execution
+        const { error: logError } = await supabase
+          .from('execution_orders')
+          .insert({
+            user_id: trade.user_id || '00000000-0000-0000-0000-000000000000',
+            symbol: trade.symbol,
+            side: trade.side,
+            qty: trade.qty,
+            amount_usd: trade.amount_usd,
+            leverage: trade.leverage || 1,
+            paper_mode: isPaperMode,
+            status: result.retCode === 0 ? 'executed' : 'failed',
+            exchange_order_id: result.result?.orderId || null,
+            ret_code: result.retCode,
+            ret_msg: result.retMsg,
+            raw_response: result
+          });
+
+        if (logError) {
+          console.error('Failed to log trade execution:', logError);
+        }
+
+        return new Response(JSON.stringify({
+          success: result.retCode === 0,
+          trade_id: result.result?.orderId || result.result?.orderLinkId,
+          paper_mode: isPaperMode,
+          result: result,
+          message: result.retMsg || 'Trade executed successfully'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      case 'validate_credentials': {
+        const { user_id } = payload;
+        
+        let credentials = null;
+        if (user_id) {
+          credentials = await getUserCredentials(user_id);
+        }
+        
+        if (!credentials) {
+          credentials = await getSystemCredentials();
+        }
+
+        const hasValidCredentials = !!(credentials?.api_key && credentials?.api_secret);
+
+        return new Response(JSON.stringify({
+          success: true,
+          has_credentials: hasValidCredentials,
+          testnet: credentials?.testnet || false,
+          paper_mode: Deno.env.get('PAPER_TRADING') === 'true'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      default:
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Unknown action'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
     }
-
-    if (action === 'place_order') {
-      return await executeTradeWithAccount(body, authHeader);
-    }
-
-    return json({ error: 'Invalid action' }, 400);
-
-  } catch (error: any) {
-    structuredLog('error', 'Handler failed', { 
-      error: error.message,
-      stack: error.stack?.substring(0, 500)
+  } catch (error) {
+    console.error('Error in trade executor:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-    return json({
-      error: 'Internal server error',
-      message: error.message || 'Internal server error'
-    }, 500);
   }
 });
