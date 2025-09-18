@@ -158,8 +158,8 @@ async function fetchAllSymbolsFromExchange(exchangeName: string, exchange: any) 
       console.log(`[${exchangeName}] Bulk ticker fetch failed, trying individual fetch...`);
       tickers = {};
       
-      // Fallback: fetch tickers individually for first 100 symbols
-      const symbolsToFetch = usdtSymbols.slice(0, 100);
+      // Fallback: fetch tickers individually for all symbols (with batching)
+      const symbolsToFetch = usdtSymbols; // Process ALL symbols, not just 100
       
       for (const symbol of symbolsToFetch) {
         try {

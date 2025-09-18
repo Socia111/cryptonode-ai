@@ -40,14 +40,20 @@ export function ComprehensiveTestPanel() {
     try {
       toast({
         title: "🚀 Starting Comprehensive Scanner",
-        description: "Triggering scan of 2000+ symbols across all exchanges...",
+        description: "Processing ALL USDT pairs (2000+ symbols) from Bybit, Binance & CoinEx...",
       });
 
       setProgress(20);
 
-      // Trigger the all-symbols-scanner
+      // Trigger the all-symbols-scanner with 2000+ symbol parameters
       const { data, error } = await supabase.functions.invoke('all-symbols-scanner', {
-        body: { comprehensive: true, mode: 'production' }
+        body: { 
+          trigger: 'comprehensive_all_symbols',
+          max_symbols: 2000,
+          exchanges: ['bybit', 'binance', 'coinex'],
+          force_scan: true,
+          batch_size: 50
+        }
       });
 
       setProgress(50);
@@ -168,7 +174,7 @@ export function ComprehensiveTestPanel() {
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
             >
               <Play className="h-4 w-4 mr-2" />
-              {isScanning ? 'Scanning...' : 'Trigger Comprehensive Scanner'}
+              {isScanning ? 'Scanning 2000+ Symbols...' : 'Trigger Comprehensive Scanner (2000+ Symbols)'}
             </Button>
             
             <Button 
