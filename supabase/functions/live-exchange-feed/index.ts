@@ -22,11 +22,24 @@ serve(async (req) => {
 
     console.log('Starting optimized live exchange feed...');
 
-    // Reduced symbol list for performance
-    const symbols = [
-      'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'ADA/USDT', 
-      'BNB/USDT', 'XRP/USDT', 'DOT/USDT', 'LINK/USDT'
-    ];
+    const body = await req.json().catch(() => ({}));
+    
+    // Allow custom symbols or use all available symbols
+    const { symbols: customSymbols, useAllSymbols = false } = body;
+    
+    let symbols;
+    if (useAllSymbols) {
+      // Will fetch all available USDT pairs from each exchange
+      symbols = null; // Indicates to fetch all symbols
+    } else if (customSymbols && Array.isArray(customSymbols)) {
+      symbols = customSymbols;
+    } else {
+      // Default symbol list
+      symbols = [
+        'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'ADA/USDT', 
+        'BNB/USDT', 'XRP/USDT', 'DOT/USDT', 'LINK/USDT'
+      ];
+    }
 
     const allMarketData = [];
     const TIMEOUT_MS = 7000; // 7 seconds max per exchange
@@ -316,14 +329,46 @@ async function generateSignalsFromLiveData(marketData: any[], supabase: any) {
   return signals;
 }
 
-async function fetchExchangeDataOptimized(exchangeName: string, exchange: any, symbols: string[]) {
+async function fetchExchangeDataOptimized(exchangeName: string, exchange: any, symbols: string[] | null) {
   const marketData = [];
   
   try {
     console.log(`Fetching from ${exchangeName}...`);
     
-    // Get tickers for specified symbols only
-    const tickers = await exchange.fetchTickers(symbols);
+    let tickers;
+    if (symbols === null) {
+      // Fetch all available USDT pairs
+      await exchange.loadMarkets();
+      const allSymbols = Object.keys(exchange.markets).filter(symbol => 
+        symbol.includes('/USDT') && 
+        exchange.markets[symbol].active &&
+        exchange.markets[symbol].spot
+      );
+      console.log(`${exchangeName}: Found ${allSymbols.length} USDT pairs`);
+      
+      try {
+        tickers = await exchange.fetchTickers(allSymbols);
+      } catch (error) {
+        // Fallback: fetch first 50 symbols individually
+        console.log(`${exchangeName}: Bulk fetch failed, using fallback...`);
+        tickers = {};
+        const symbolsToFetch = allSymbols.slice(0, 50);
+        
+        for (const symbol of symbolsToFetch) {
+          try {
+            const ticker = await exchange.fetchTicker(symbol);
+            if (ticker && ticker.last) {
+              tickers[symbol] = ticker;
+            }
+          } catch (individualError) {
+            continue;
+          }
+        }
+      }
+    } else {
+      // Get tickers for specified symbols only
+      tickers = await exchange.fetchTickers(symbols);
+    }
     
     for (const [symbol, ticker] of Object.entries(tickers)) {
       if (!ticker || !ticker.last) continue;

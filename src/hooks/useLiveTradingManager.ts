@@ -45,11 +45,16 @@ export function useLiveTradingManager() {
         description: "Initializing real-time market feeds and signal generation..."
       });
 
-      // Start live exchange feed
+      // Start comprehensive all-symbols scanner
+      const allSymbolsResult = await supabase.functions.invoke('all-symbols-scanner', {
+        body: { trigger: 'comprehensive_scan' }
+      });
+
+      // Start live exchange feed for all symbols
       const exchangeFeedResult = await supabase.functions.invoke('live-exchange-feed', {
         body: {
-          symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'XRPUSDT', 'BNBUSDT', 'DOTUSDT', 'LINKUSDT'],
-          exchanges: ['bybit', 'binance', 'okx'],
+          useAllSymbols: true,
+          exchanges: ['bybit', 'binance', 'coinex'],
           trigger: 'live_dashboard'
         }
       });
@@ -88,15 +93,15 @@ export function useLiveTradingManager() {
       // Update metrics based on results
       setMetrics(prev => ({
         ...prev,
-        marketDataPoints: exchangeFeedResult.data?.market_data_points || 0,
+        marketDataPoints: (exchangeFeedResult.data?.marketDataPoints || 0) + (allSymbolsResult.data?.marketDataPoints || 0),
         signalsGenerated: signalResult.data?.signals_generated || 0,
-        activePairs: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'XRPUSDT', 'BNBUSDT'],
-        exchangesConnected: ['Bybit', 'Binance', 'OKX']
+        activePairs: ['All USDT Pairs'],
+        exchangesConnected: ['Bybit', 'Binance', 'CoinEx']
       }));
 
       toast({
-        title: "✅ Live Trading System Active",
-        description: "Real-time feeds are now running and generating signals"
+        title: "✅ Comprehensive Scanner Active",
+        description: `Now scanning ALL listed coins from Bybit, Binance & CoinEx exchanges`
       });
 
     } catch (error) {
