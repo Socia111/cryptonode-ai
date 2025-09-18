@@ -1,6 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
-// CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -17,6 +16,15 @@ function json(body: any, status = 200) {
     },
   });
 }
+
+const log = (level: string, message: string, data: any = {}) => {
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    ...data
+  }));
+};
 
 // =================== STRUCTURED LOGGING ===================
 

@@ -362,12 +362,15 @@ serve(async (req) => {
   }
 
   try {
+    const requestId = crypto.randomUUID();
+    console.log(`[${requestId}] AItradeX1 Scanner request started`);
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { symbols, timeframes, relaxed_filters } = await req.json();
+    const { symbols, timeframes, relaxed_filters, algorithm } = await req.json();
     
     const targetSymbols = symbols || ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'LINKUSDT', 'MATICUSDT', 'AVAXUSDT'];
     const targetTimeframes = timeframes || ['1h', '4h'];
