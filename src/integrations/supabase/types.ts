@@ -836,7 +836,7 @@ export type Database = {
         Args: { tokens: number }
         Returns: number
       }
-      initialize_demo_system: {
+      initialize_real_system: {
         Args: Record<PropertyKey, never>
         Returns: Json
       }

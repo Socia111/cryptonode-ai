@@ -276,9 +276,25 @@ export const useSignals = () => {
     let mounted = true;
     let channel: any = null;
     let pollId: number | null = null;
-    const POLL_MS = 30000;
+    const POLL_MS = 15000; // More frequent updates for real-time data
 
     const boot = async () => {
+      // Initialize live signal generation on first load
+      try {
+        console.log('[signals] Triggering live signal orchestrator...')
+        const { data, error } = await supabase.functions.invoke('live-signal-orchestrator', {
+          body: { initialize: true }
+        })
+        
+        if (error) {
+          console.log('[signals] Live signal orchestrator error:', error)
+        } else {
+          console.log('[signals] Live signal orchestrator response:', data)
+        }
+      } catch (error) {
+        console.log('[signals] Error triggering live signal orchestrator:', error)
+      }
+
       try {
         await refreshSignals();
       } catch (e) {

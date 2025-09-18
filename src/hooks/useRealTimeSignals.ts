@@ -51,6 +51,24 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
       setLoading(true);
       setError(null);
 
+      // First trigger live signal generation if no recent signals exist
+      const { data: recentSignals } = await supabase
+        .from('signals')
+        .select('id')
+        .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+        .limit(1);
+
+      if (!recentSignals || recentSignals.length === 0) {
+        console.log('No recent signals found, triggering live signal orchestrator...')
+        try {
+          await supabase.functions.invoke('live-signal-orchestrator', {
+            body: { initialize: true }
+          });
+        } catch (error) {
+          console.log('Error triggering live signals:', error);
+        }
+      }
+
       // Build signals query
       let signalsQuery = supabase
         .from('signals')
