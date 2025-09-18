@@ -11,6 +11,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { ExchangeAuthentication } from './ExchangeAuthentication';
 import { TradingExecutionPanel } from './TradingExecutionPanel';
 import { useSignals } from '@/hooks/useSignals';
+import { useAuth } from '@/contexts/AuthContext';
+import { AuthenticationManager } from './AuthenticationManager';
 
 interface SystemStatus {
   dataCollection: 'active' | 'inactive' | 'error';
@@ -20,6 +22,7 @@ interface SystemStatus {
 }
 
 export const LiveTradingDashboard = () => {
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const { signals, loading, refreshSignals, generateSignals } = useSignals();
   const [autoTradingEnabled, setAutoTradingEnabled] = useState(false);
@@ -121,6 +124,34 @@ export const LiveTradingDashboard = () => {
         return 'bg-slate-500';
     }
   };
+
+  // Show authentication first if not logged in
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Authentication Required
+            </CardTitle>
+            <CardDescription>
+              Please sign in to access the live trading system
+            </CardDescription>
+          </CardHeader>
+        </Card>
+        <AuthenticationManager />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
