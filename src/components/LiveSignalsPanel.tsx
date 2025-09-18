@@ -28,8 +28,32 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
 
   useEffect(() => {
     fetchLiveSignals();
+    
+    // Set up real-time subscription for new signals
+    const channel = supabase
+      .channel('live-signals-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'signals'
+        },
+        (payload) => {
+          console.log('New signal received:', payload.new);
+          if (payload.new && payload.new.score >= 75) {
+            fetchLiveSignals(); // Refresh signals when new high-confidence signal arrives
+          }
+        }
+      )
+      .subscribe();
+
     const interval = setInterval(fetchLiveSignals, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
+    
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchLiveSignals = async () => {
