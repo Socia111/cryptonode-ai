@@ -5,14 +5,22 @@ import { SignalRow } from '@/components/SignalRow';
 import { TradeControls } from '@/components/TradeControls';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { TradingGateway } from '@/lib/tradingGateway';
 import type { UISignal } from '@/lib/signalScoring';
 
 // Props: provide raw signals array
-export function SignalFeed({ signals }: { signals: UISignal[] }) {
+export function SignalFeed({ signals: initialSignals }: { signals: UISignal[] }) {
   const { toast } = useToast();
   const [hideWide, setHideWide] = React.useState(true);
+  const [signals, setSignals] = React.useState<UISignal[]>(initialSignals);
+  
+  // Update signals when initialSignals change
+  React.useEffect(() => {
+    setSignals(initialSignals);
+  }, [initialSignals]);
+  
   const ranked = useRankedSignals(signals, { hideWideSpreads: hideWide, maxSpreadBps: 20, hide1MinSignals: true });
   const topPicks = ranked.slice(0,3);
 
@@ -20,6 +28,49 @@ export function SignalFeed({ signals }: { signals: UISignal[] }) {
   const [autoMode, setAutoMode] = React.useState(false);
   const [executingId, setExecutingId] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<UISignal & { _score: number; _grade: any } | null>(null);
+
+  // Set up real-time subscription for new signals
+  React.useEffect(() => {
+    const channel = supabase
+      .channel('signal-feed-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'signals'
+        },
+        (payload) => {
+          console.log('New signal in feed:', payload.new);
+          if (payload.new && payload.new.score >= 70) {
+            // Show toast notification
+            toast({
+              title: "📈 New Signal Detected",
+              description: `${payload.new.symbol} ${payload.new.direction} - Score: ${payload.new.score}%`,
+              duration: 4000,
+            });
+            
+            // Add to signals list
+            const newSignal = {
+              ...payload.new,
+              ts: payload.new.created_at,
+              token: payload.new.symbol,
+              rr: payload.new.take_profit && payload.new.stop_loss && payload.new.entry_price ? 
+                Math.abs(payload.new.take_profit - payload.new.entry_price) / Math.abs(payload.new.entry_price - payload.new.stop_loss) : 
+                null,
+              spread_bps: payload.new.spread_bps || 10
+            };
+            
+            setSignals(prev => [newSignal, ...prev].slice(0, 100)); // Keep latest 100
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [toast]);
 
   // =================== PROFIT-OPTIMIZED AUTO-TRADING ===================
   // Auto-exec on ONLY A+/A signals with additional quality filters

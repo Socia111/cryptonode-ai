@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Play, Clock, Target, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface Signal {
   id: number;
@@ -25,6 +26,7 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(false);
   const [executingSignals, setExecutingSignals] = useState<Set<number>>(new Set());
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchLiveSignals();
@@ -42,7 +44,27 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
         (payload) => {
           console.log('New signal received:', payload.new);
           if (payload.new && payload.new.score >= 75) {
-            fetchLiveSignals(); // Refresh signals when new high-confidence signal arrives
+            // Show toast notification for new high-confidence signal
+            toast({
+              title: "🎯 New High-Confidence Signal",
+              description: `${payload.new.symbol} ${payload.new.direction} - Score: ${payload.new.score}%`,
+              duration: 5000,
+            });
+            
+            // Add new signal to the top of the list
+            const newSignal: Signal = {
+              id: payload.new.id,
+              symbol: payload.new.symbol,
+              direction: payload.new.direction,
+              entry_price: payload.new.entry_price || payload.new.price,
+              sl: payload.new.stop_loss,
+              tp: payload.new.take_profit,
+              score: payload.new.score,
+              timeframe: payload.new.timeframe,
+              created_at: payload.new.created_at
+            };
+            
+            setSignals(prev => [newSignal, ...prev.slice(0, 9)]); // Keep only top 10
           }
         }
       )
