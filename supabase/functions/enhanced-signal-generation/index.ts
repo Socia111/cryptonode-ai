@@ -102,8 +102,8 @@ serve(async (req) => {
       const { data: insertedSignals, error } = await supabase
         .from('signals')
         .insert(signals.map(s => ({
-          symbol: s.token,
-          direction: s.direction,
+          symbol: s.token.replace('/USDT', 'USDT'),
+          direction: s.direction === 'BUY' ? 'LONG' : 'SHORT',
           timeframe: s.timeframe,
           price: s.entry_price,
           entry_price: s.entry_price,
@@ -111,8 +111,11 @@ serve(async (req) => {
           take_profit: s.exit_target,
           score: Math.round(s.confidence_score),
           confidence: s.confidence_score / 100,
-          source: 'system',
-          algo: 'quantum_ai',
+          source: 'enhanced_signal_generation',
+          algo: 'quantum_ai_enhanced',
+          bar_time: new Date().toISOString(),
+          side: s.direction,
+          signal_type: 'technical_analysis',
           metadata: {
             timeframe: s.timeframe,
             leverage: s.leverage,
