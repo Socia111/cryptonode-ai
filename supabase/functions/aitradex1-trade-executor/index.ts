@@ -314,7 +314,6 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
 
     // Initialize Bybit client with testnet for development
     const bybit = new BybitV5Client(apiKey, apiSecret, true); // Force testnet
-    const bybit = new BybitV5Client(apiKey, apiSecret);
     
     // Validate credentials by testing API connection
     try {
@@ -348,8 +347,12 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
       }, 401);
     }
 
+    
     // Validate symbol and get instrument info
     structuredLog('info', 'Validating symbol', { symbol, requestId });
+    
+    let currentPrice: number;
+    let quantity: string;
     
     try {
       const instrumentInfo = await bybit.getInstrumentInfo(symbol);
@@ -382,10 +385,10 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
       
       // Get current price
       const tickerInfo = await bybit.getTicker(symbol);
-      const currentPrice = parseFloat(tickerInfo.result.list[0].lastPrice);
+      currentPrice = parseFloat(tickerInfo.result.list[0].lastPrice);
       
       // Calculate quantity based on USD amount
-      const quantity = (amountUSD / currentPrice).toFixed(6);
+      quantity = (amountUSD / currentPrice).toFixed(6);
       
       structuredLog('info', 'Trade calculation completed', { 
         symbol,
