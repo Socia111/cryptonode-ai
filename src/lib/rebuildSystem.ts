@@ -141,7 +141,8 @@ export const CORE_FILES = {
 // Environment variables required for rebuild
 export const REQUIRED_ENV_VARS = {
   'VITE_SUPABASE_URL': 'https://codhlwjogfjywmjyjbbn.supabase.co',
-  'VITE_SUPABASE_ANON_KEY': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  'VITE_SUPABASE_ANON_KEY': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0',
+  'VITE_SUPABASE_PROJECT_ID': 'codhlwjogfjywmjyjbbn',
   'SUPABASE_SERVICE_ROLE_KEY': 'Service role key for backend functions',
   'BYBIT_API_KEY': 'Optional: Bybit trading credentials',
   'BYBIT_API_SECRET': 'Optional: Bybit trading credentials',
@@ -181,14 +182,14 @@ export const DATABASE_SCHEMA = {
 export const REBUILD_STEPS = [
   {
     step: 1,
-    title: 'Environment Setup',
+    title: 'GitHub Repository Sync',
     commands: [
-      'git clone <repository-url>',
-      'cd aitradex1',
+      'git clone https://github.com/Socia111/cryptonode-ai.git',
+      'cd cryptonode-ai',
       'npm install',
       'cp .env.example .env'
     ],
-    description: 'Clone repository and install dependencies'
+    description: 'Clone and sync from official GitHub repository'
   },
   {
     step: 2,
