@@ -248,7 +248,10 @@ export function SignalFeed({ signals: initialSignals }: { signals?: UISignal[] }
           <EnhancedSignalCard 
             key={s.id} 
             signal={s as any} 
-            onTrade={(sig) => setSelected(sig as any)}
+            onTrade={(sig) => {
+              console.log('🚀 Signal trade clicked:', sig);
+              setSelected(sig as any);
+            }}
             onDetails={(signal) => console.log('View technical details for:', signal)}
           />
         ))}

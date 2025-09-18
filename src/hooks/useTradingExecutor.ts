@@ -45,10 +45,21 @@ export function useTradingExecutor() {
       // Get current user for authentication
       const { data: { user } } = await supabase.auth.getUser();
       
+      console.log('📡 Calling paper-trading-executor with:', { ...tradeParams, userId: user?.id });
+      
       const { data, error } = await supabase.functions.invoke('paper-trading-executor', {
         body: {
-          ...tradeParams,
-          userId: user?.id
+          symbol: tradeParams.symbol,
+          side: tradeParams.side,
+          amount: tradeParams.amount,
+          quantity: tradeParams.amount, // Add both amount and quantity
+          orderType: tradeParams.orderType || 'Market',
+          testMode: tradeParams.paperMode,
+          paperMode: tradeParams.paperMode,
+          userId: user?.id,
+          leverage: tradeParams.leverage,
+          stopLoss: tradeParams.stopLoss,
+          takeProfit: tradeParams.takeProfit
         }
       });
 
@@ -95,17 +106,28 @@ export function useTradingExecutor() {
   };
 
   const executeSignalTrade = async (signal: any, amount: number, paperMode: boolean = true): Promise<TradeResult> => {
+    console.log('🔥 ExecuteSignalTrade called with:', { signal, amount, paperMode });
+    
+    // Handle both 'side' and 'direction' fields for signal direction
+    const direction = signal.side || signal.direction;
+    const side = direction === 'LONG' ? 'buy' : direction === 'SHORT' ? 'sell' : direction?.toLowerCase();
+    
+    if (!side || !['buy', 'sell'].includes(side)) {
+      throw new Error(`Invalid signal direction: ${direction}. Expected LONG/SHORT or buy/sell`);
+    }
+    
     const tradeParams: TradeParams = {
       symbol: signal.symbol,
-      side: signal.direction === 'LONG' ? 'buy' : 'sell',
+      side: side as 'buy' | 'sell',
       amount,
       leverage: signal.leverage || 1,
       orderType: 'market',
       stopLoss: signal.stop_loss,
-      takeProfit: signal.take_profit,
+      takeProfit: signal.take_profit_1 || signal.take_profit,
       paperMode
     };
 
+    console.log('📊 Converted trade params:', tradeParams);
     return executeTrade(tradeParams);
   };
 
