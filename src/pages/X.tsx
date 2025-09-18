@@ -11,7 +11,7 @@ import TradingPanel from '../components/TradingPanel';
 import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
-import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
+import UnireliScannerChart from '../components/UnireliScannerChart';
 import { useSignals } from '@/hooks/useSignals';
 import { useRankedSignals } from '@/hooks/useRankedSignals';
 
@@ -31,7 +31,7 @@ const X = () => {
         {/* Page Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            AItradeX1 Advanced Platform
+            Unireli Advanced Platform
           </h1>
           <p className="text-muted-foreground">
             Real-time crypto trading system with trend, momentum, volatility, and adaptive AI weighting
@@ -42,7 +42,7 @@ const X = () => {
         <DatabaseSetup />
         
         {/* AItradeX1 Scanner Chart */}
-        <AItradeX1ScannerChart />
+        <UnireliScannerChart />
         
         {/* AItradeX1 Scanner Dashboard */}
         <ScannerDashboard />

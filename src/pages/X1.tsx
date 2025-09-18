@@ -11,7 +11,7 @@ import TradingPanel from '../components/TradingPanel';
 import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
-import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
+import UnireliScannerChart from '../components/UnireliScannerChart';
 import { useSignals } from '@/hooks/useSignals';
 import { useRankedSignals } from '@/hooks/useRankedSignals';
 
@@ -31,7 +31,7 @@ const X1 = () => {
         {/* Page Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            AItradeX1 Confluence Platform
+            Unireli Confluence Platform
           </h1>
           <p className="text-muted-foreground">
             Multi-indicator confluence model with EMA stack, ADX/DMI, Stochastic, HVP, and weighted scoring system
@@ -42,7 +42,7 @@ const X1 = () => {
         <DatabaseSetup />
         
         {/* AItradeX1 Scanner Chart */}
-        <AItradeX1ScannerChart />
+        <UnireliScannerChart />
         
         {/* AItradeX1 Scanner Dashboard */}
         <ScannerDashboard />

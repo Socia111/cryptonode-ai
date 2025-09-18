@@ -11,7 +11,7 @@ import TradingPanel from '../components/TradingPanel';
 import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
-import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
+import UnireliScannerChart from '../components/UnireliScannerChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Zap, Target, Settings } from 'lucide-react';
@@ -36,13 +36,13 @@ const AItradeX1Original = () => {
           <CardHeader>
             <CardTitle className="flex items-center space-x-3 text-2xl">
               <Zap className="h-8 w-8 text-primary" />
-              <span>AItradeX1 ORIGINAL - Canonical Implementation</span>
+              <span>Unireli ORIGINAL - Canonical Implementation</span>
               <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
                 v1.0 SPEC
               </Badge>
             </CardTitle>
             <div className="text-muted-foreground space-y-2">
-              <p className="text-lg">Pure canonical AItradeX1 algorithm with exact original formulas and criteria</p>
+              <p className="text-lg">Pure canonical Unireli algorithm with exact original formulas and criteria</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                 <div className="flex items-center space-x-2">
                   <Target className="h-5 w-5 text-green-500" />
@@ -65,7 +65,7 @@ const AItradeX1Original = () => {
         <DatabaseSetup />
         
         {/* AItradeX1 Scanner Chart */}
-        <AItradeX1ScannerChart />
+        <UnireliScannerChart />
         
         {/* AItradeX1 Scanner Dashboard */}
         <ScannerDashboard />

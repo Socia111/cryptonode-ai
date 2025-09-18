@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { TrendingUp, TrendingDown, Activity, BarChart3, Volume2, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-interface AItradeX1Signal {
+interface UnireliSignal {
   symbol: string;
   timeframe: string;
   signal_type: 'BUY' | 'SELL';
@@ -32,8 +32,8 @@ interface AItradeX1Signal {
   timestamp: string;
 }
 
-const AItradeX1SystemDashboard = () => {
-  const [signals, setSignals] = useState<AItradeX1Signal[]>([]);
+const UnireliSystemDashboard = () => {
+  const [signals, setSignals] = useState<UnireliSignal[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [activeTab, setActiveTab] = useState('signals');
@@ -77,7 +77,7 @@ const AItradeX1SystemDashboard = () => {
 
       // Mock data for demonstration
       setTimeout(() => {
-        const mockSignals: AItradeX1Signal[] = [
+        const mockSignals: UnireliSignal[] = [
           {
             symbol: 'BTCUSDT',
             timeframe: '15m',
@@ -165,7 +165,7 @@ const AItradeX1SystemDashboard = () => {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Zap className="h-5 w-5 text-primary" />
-                AItradeX1 Advanced System
+                Unireli Advanced System
               </CardTitle>
               <CardDescription>
                 Multi-indicator confluence system with adaptive AI weighting and real-time signal generation
@@ -211,7 +211,7 @@ const AItradeX1SystemDashboard = () => {
         <TabsContent value="signals" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Active AItradeX1 Signals</CardTitle>
+              <CardTitle>Active Unireli Signals</CardTitle>
               <CardDescription>
                 Real-time signals based on 7-condition confluence system
               </CardDescription>
@@ -270,12 +270,12 @@ const AItradeX1SystemDashboard = () => {
                           <div
                             key={condition.key}
                             className={`text-xs p-2 rounded text-center ${
-                              signal[condition.key as keyof AItradeX1Signal] 
+                              signal[condition.key as keyof UnireliSignal]
                                 ? 'bg-green-100 text-green-700' 
                                 : 'bg-red-100 text-red-700'
                             }`}
                           >
-                            {signal[condition.key as keyof AItradeX1Signal] ? '✓' : '✗'} {condition.label}
+                            {signal[condition.key as keyof UnireliSignal] ? '✓' : '✗'} {condition.label}
                           </div>
                         ))}
                       </div>
@@ -418,4 +418,4 @@ const AItradeX1SystemDashboard = () => {
   );
 };
 
-export default AItradeX1SystemDashboard;
+export default UnireliSystemDashboard;

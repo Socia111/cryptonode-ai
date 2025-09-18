@@ -48,7 +48,7 @@ interface TradeMetrics {
   currentStreak: number;
 }
 
-const AItradeX1StrategyPanel = () => {
+const UnireliStrategyPanel = () => {
   const { signals } = useSignals();
   const { toast } = useToast();
   
@@ -164,7 +164,7 @@ const AItradeX1StrategyPanel = () => {
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Zap className="w-5 h-5 text-primary" />
-              <span>AItradeX1 Strategy Engine</span>
+              <span>Unireli Strategy Engine</span>
               <Badge variant={isActive ? "default" : "secondary"}>
                 {isActive ? "ACTIVE" : "STANDBY"}
               </Badge>
@@ -478,7 +478,7 @@ const AItradeX1StrategyPanel = () => {
             <div className="flex items-start space-x-2">
               <AlertTriangle className="w-4 h-4 text-warning mt-0.5" />
               <div className="text-xs">
-                <p className="font-medium text-warning">AItradeX1 Strategy Active</p>
+                <p className="font-medium text-warning">Unireli Strategy Active</p>
                 <p className="text-muted-foreground">
                   • {strategy.leverage}x leverage on {strategy.timeframe} signals
                   • Risk: {strategy.riskPerTrade}% per trade, max {strategy.maxOpenTrades} positions
@@ -494,4 +494,4 @@ const AItradeX1StrategyPanel = () => {
   );
 };
 
-export default AItradeX1StrategyPanel;
+export default UnireliStrategyPanel;

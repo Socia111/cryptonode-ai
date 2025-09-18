@@ -16,10 +16,10 @@ export default function Index() {
         <div className="container mx-auto py-8 space-y-8">
           <div className="text-center">
             <h1 className="text-4xl font-bold text-foreground mb-2">
-              AItradeX1 Complete Trading System
+              Unireli Professional Trading Platform
             </h1>
             <p className="text-xl text-muted-foreground">
-              Advanced Multi-Layer Signal Detection with Golden Cross, HVP & ATR Risk Management
+              Advanced Multi-Exchange Signal Detection with Real-Time Analytics & Risk Management
             </p>
           </div>
           

@@ -20,13 +20,13 @@ interface Signal {
   roi_projection: number;
 }
 
-const AItradeX1ScannerChart: React.FC = () => {
+const UnireliScannerChart: React.FC = () => {
   const { signals } = useSignals();
   const [currentSignalIndex, setCurrentSignalIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(60);
   const [isActive, setIsActive] = useState(false);
 
-  // Filter for AItradeX1 signals: 15m and 30m timeframes with ROI over 5%
+  // Filter for Unireli signals: 15m and 30m timeframes with ROI over 5%
   const activeSignals = signals.filter(signal => 
     signal.status === 'active' && 
     signal.confidence_score >= 70 &&
@@ -72,7 +72,7 @@ const AItradeX1ScannerChart: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Zap className="h-5 w-5 text-primary" />
-            <span>AItradeX1 Scanner</span>
+            <span>Unireli Scanner</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -245,4 +245,4 @@ const AItradeX1ScannerChart: React.FC = () => {
   );
 };
 
-export default AItradeX1ScannerChart;
+export default UnireliScannerChart;
