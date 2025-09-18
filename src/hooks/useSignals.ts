@@ -177,8 +177,19 @@ export async function generateSignals() {
 
 export async function updateSpynxScores() {
   try {
-    console.info('[updateSpynxScores] Function disabled - focusing on live signals');
-    return { message: 'Spynx scores functionality disabled', success: true };
+    console.info('[updateSpynxScores] Calculating Spynx scores for active signals...');
+    
+    const { data, error } = await supabase.functions.invoke('calculate-spynx-scores', {
+      body: { trigger: 'manual' }
+    });
+
+    if (error) {
+      console.error('[updateSpynxScores] Spynx calculation failed:', error);
+      throw error;
+    }
+
+    console.info(`[updateSpynxScores] Success: ${data?.scores_calculated || 0} scores calculated`);
+    return { scores_calculated: data?.scores_calculated || 0, success: true };
   } catch (e: any) {
     console.error('[updateSpynxScores] Exception:', e);
     throw e;
@@ -391,7 +402,9 @@ export const useSpynxScores = () => {
   const updateSpynxScores = async () => {
     try {
       console.log('[SPYNX] Calling calculate-spynx-scores function...');
-      const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
+      const { data, error } = await supabase.functions.invoke('calculate-spynx-scores', {
+        body: { trigger: 'manual' }
+      });
       if (error) throw error;
       
       console.log('[SPYNX] Scores updated successfully:', data);

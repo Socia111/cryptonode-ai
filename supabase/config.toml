@@ -110,6 +110,9 @@ verify_jwt = false
 [functions.calculate-spynx-scores]
 verify_jwt = false
 
+[functions.aitradex1-enhanced-scanner]
+verify_jwt = false
+
 [functions.quantum-analysis]
 verify_jwt = false
 
