@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 type Item = {
   id: string;
   token: string;
-  direction: 'Buy'|'Sell'|'BUY'|'SELL';
+  direction: 'Buy'|'Sell'|'BUY'|'SELL'|'LONG'|'SHORT';
   _score: number;
   _grade: 'A+'|'A'|'B'|'C';
 };
