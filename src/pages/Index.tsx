@@ -1,30 +1,38 @@
 
 import React from 'react';
-import MainLayout from '../layouts/MainLayout';
-import { CleanTradingDashboard } from '../components/CleanTradingDashboard';
-import { CleanSystemTest } from '../components/CleanSystemTest';
+import { TradingDashboard } from '@/components/TradingDashboard';
+import { SystemHealth } from '@/components/SystemHealth';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Index = () => {
   return (
-    <MainLayout>
-      <div className="container mx-auto p-6 space-y-6">
-        <Tabs defaultValue="dashboard" className="w-full">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-6">
+        <div className="mb-6">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            AItradeX1 Trading System
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Advanced algorithmic trading platform powered by AI
+          </p>
+        </div>
+
+        <Tabs defaultValue="trading" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="dashboard">Trading Dashboard</TabsTrigger>
-            <TabsTrigger value="system-test">System Test</TabsTrigger>
+            <TabsTrigger value="trading">Trading Dashboard</TabsTrigger>
+            <TabsTrigger value="health">System Health</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="dashboard" className="space-y-6">
-            <CleanTradingDashboard />
+          <TabsContent value="trading" className="space-y-6">
+            <TradingDashboard />
           </TabsContent>
           
-          <TabsContent value="system-test" className="space-y-6">
-            <CleanSystemTest />
+          <TabsContent value="health" className="space-y-6">
+            <SystemHealth />
           </TabsContent>
         </Tabs>
       </div>
-    </MainLayout>
+    </div>
   );
 };
 

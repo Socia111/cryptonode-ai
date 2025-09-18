@@ -10,10 +10,7 @@ const corsHeaders = {
 function json(body: any, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: {
-      'Content-Type': 'application/json',
-      ...corsHeaders,
-    },
+    headers: { 'Content-Type': 'application/json', ...corsHeaders },
   });
 }
 
