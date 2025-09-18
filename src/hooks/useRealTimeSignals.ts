@@ -131,12 +131,9 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
     try {
       console.log('[RealTimeSignals] Setting up realtime subscriptions...');
       
-      // Create unique channel name to avoid conflicts
-      const channelName = `live-signals-${Date.now()}`;
-      
-      // Subscribe to new signals with proper error handling
+      // Use a simpler, more stable subscription approach
       const signalsChannel = supabase
-        .channel(channelName)
+        .channel('public:signals')
         .on(
           'postgres_changes',
           {
@@ -144,7 +141,7 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
             schema: 'public',
             table: 'signals'
           },
-          (payload: RealTimeUpdate<Signal>) => {
+          (payload: any) => {
             console.log('[RealTimeSignals] 📡 New signal received:', payload.new);
             
             if (payload.new && payload.new.score >= minScore) {
@@ -164,7 +161,7 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
             schema: 'public',
             table: 'signals'
           },
-          (payload: RealTimeUpdate<Signal>) => {
+          (payload: any) => {
             console.log('[RealTimeSignals] 📡 Signal updated:', payload.new);
             
             if (payload.new) {
@@ -177,24 +174,21 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
             }
           }
         )
-        .subscribe((status, err) => {
+        .subscribe((status: string) => {
           console.log('[RealTimeSignals] Subscription status:', status);
+          
           if (status === 'SUBSCRIBED') {
             console.log('[RealTimeSignals] ✅ Successfully subscribed to signals');
+            setError(null);
           } else if (status === 'CHANNEL_ERROR') {
-            console.warn('[RealTimeSignals] ❌ Channel error:', err);
-            // Retry subscription after a delay
-            setTimeout(() => {
-              console.log('[RealTimeSignals] Retrying subscription...');
-              setupRealTimeSubscriptions();
-            }, 5000);
+            console.warn('[RealTimeSignals] ❌ Channel error - setting up polling fallback');
+            setupPollingFallback();
           } else if (status === 'TIMED_OUT') {
-            console.warn('[RealTimeSignals] ⏰ Subscription timed out, retrying...');
-            setTimeout(() => {
-              setupRealTimeSubscriptions();
-            }, 3000);
+            console.warn('[RealTimeSignals] ⏰ Subscription timed out - using polling fallback');
+            setupPollingFallback();
           } else if (status === 'CLOSED') {
-            console.warn('[RealTimeSignals] 🔌 Connection closed, will retry on next component mount');
+            console.warn('[RealTimeSignals] 🔌 Connection closed - using polling fallback');
+            setupPollingFallback();
           }
         });
 
@@ -203,18 +197,25 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
       
     } catch (error) {
       console.error('[RealTimeSignals] Failed to setup realtime:', error);
-      // Set up polling fallback
+      // Fall back to polling immediately on error
       setupPollingFallback();
     }
   };
 
   const setupPollingFallback = () => {
     console.log('[RealTimeSignals] Setting up polling fallback...');
+    
+    // Clear any existing polling interval
+    if ((window as any).__pollInterval) {
+      clearInterval((window as any).__pollInterval);
+    }
+    
     const pollInterval = setInterval(() => {
       if (!loading) {
+        console.log('[RealTimeSignals] 🔄 Polling for new signals...');
         loadInitialData();
       }
-    }, 30000); // Poll every 30 seconds
+    }, 15000); // Poll every 15 seconds for better responsiveness
 
     (window as any).__pollInterval = pollInterval;
   };
