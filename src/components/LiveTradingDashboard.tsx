@@ -80,19 +80,19 @@ export const LiveTradingDashboard = () => {
     try {
       toast({
         title: "🚀 Starting Live Trading System",
-        description: "Initializing comprehensive demo system..."
+        description: "Activating live data feeds and signal generation..."
       });
 
-      // Initialize the complete system
-      const { data: initResult, error: initError } = await supabase.functions.invoke('system-initializer');
+      // Start the live data system
+      const { data: liveDataResult, error: liveDataError } = await supabase.functions.invoke('live-data-starter');
 
-      if (initError) {
-        throw new Error(initError.message || 'Failed to initialize system');
+      if (liveDataError) {
+        throw new Error(liveDataError.message || 'Failed to start live data system');
       }
 
-      console.log('System initialization result:', initResult);
+      console.log('Live data system result:', liveDataResult);
 
-      // Refresh signals and system status
+      // Refresh all data
       await Promise.all([
         generateSignals(),
         checkSystemStatus()
@@ -100,7 +100,7 @@ export const LiveTradingDashboard = () => {
 
       toast({
         title: "✅ System Started Successfully",
-        description: `Generated ${initResult?.demo_trades_created || 3} demo trades and fresh signals`
+        description: `Activated ${liveDataResult?.symbols_activated?.length || 10} symbols with ${liveDataResult?.signals_generated || 15} signals`
       });
     } catch (error: any) {
       console.error('System start error:', error);
