@@ -53,7 +53,7 @@ export class LiveCCXTFeed {
     try {
       console.log('📊 [CCXT Feed] Triggering data collection...');
 
-      const { data, error } = await supabase.functions.invoke('ccxt-live-feed', {
+      const { data, error } = await supabase.functions.invoke('live-exchange-feed', {
         body: { action: 'scan' }
       });
 
@@ -70,7 +70,7 @@ export class LiveCCXTFeed {
 
   async getStatus(): Promise<CCXTFeedStatus> {
     try {
-      const { data, error } = await supabase.functions.invoke('ccxt-live-feed', {
+      const { data, error } = await supabase.functions.invoke('live-exchange-feed', {
         body: { action: 'status' }
       });
 

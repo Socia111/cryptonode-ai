@@ -10,9 +10,9 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-function createBybitSignature(params: string, secret: string, timestamp: string): Promise<string> {
+function createBybitSignature(params: string, secret: string, timestamp: string, apiKey: string): Promise<string> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(timestamp + 'BYBIT_API_KEY' + '5000' + params);
+  const data = encoder.encode(timestamp + apiKey + '5000' + params);
   const key = encoder.encode(secret);
   
   return crypto.subtle.importKey(
@@ -37,7 +37,7 @@ async function validateBybitCredentials(apiKey: string, apiSecret: string, testn
   try {
     // Test with account info endpoint
     const params = '';
-    const signature = await createBybitSignature(params, apiSecret, timestamp);
+    const signature = await createBybitSignature(params, apiSecret, timestamp, apiKey);
 
     const response = await fetch(`${baseUrl}/v5/account/wallet-balance?accountType=UNIFIED`, {
       method: 'GET',
