@@ -41,18 +41,18 @@ const RealtimeSignalsFeed: React.FC = () => {
           const newSignal = payload.new as any;
           
           // Only show signals that aren't 5m timeframe and have decent confidence
-          if (newSignal.timeframe !== '5m' && newSignal.confidence_score >= 70) {
+          if (newSignal.timeframe !== '5m' && (newSignal.score || newSignal.confidence_score) >= 70) {
             const formattedSignal: RealtimeSignal = {
               id: newSignal.id,
-              token: newSignal.token || newSignal.symbol,
-              direction: newSignal.direction,
-              entry_price: newSignal.entry_price,
-              sl: newSignal.sl,
-              tp: newSignal.tp,
-              confidence_score: newSignal.confidence_score,
+              token: newSignal.symbol || newSignal.token,
+              direction: newSignal.direction === 'LONG' ? 'BUY' : 'SELL',
+              entry_price: newSignal.price || newSignal.entry_price,
+              sl: newSignal.sl || newSignal.sl_price,
+              tp: newSignal.tp || newSignal.tp_price,
+              confidence_score: newSignal.score || newSignal.confidence_score,
               timeframe: newSignal.timeframe,
               created_at: newSignal.created_at,
-              exchange: newSignal.exchange || 'Bybit',
+              exchange: 'Bybit',
               reason: newSignal.reason
             };
 
