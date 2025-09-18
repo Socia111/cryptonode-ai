@@ -151,7 +151,7 @@ export type Database = {
           side: string
           status: string
           symbol: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           amount_usd?: number | null
@@ -167,7 +167,7 @@ export type Database = {
           side: string
           status?: string
           symbol: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           amount_usd?: number | null
@@ -183,7 +183,7 @@ export type Database = {
           side?: string
           status?: string
           symbol?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
