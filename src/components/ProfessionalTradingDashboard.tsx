@@ -28,6 +28,7 @@ import { RiskManagement } from '@/components/RiskManagement';
 import { LiveCCXTController } from '@/components/LiveCCXTController';
 import { ExchangeAuthentication } from '@/components/ExchangeAuthentication';
 import { TradingExecutionPanel } from '@/components/TradingExecutionPanel';
+import { LiveTradingDashboard } from '@/components/LiveTradingDashboard';
 
 interface AlgorithmStats {
   activeSignals: number;
@@ -117,10 +118,13 @@ export function ProfessionalTradingDashboard() {
       </div>
 
       {/* Navigation Tabs */}
-      <Tabs defaultValue="signals" className="w-full">
+      <Tabs defaultValue="live-trading" className="w-full">
         <div className="border-b border-border bg-card">
           <div className="container mx-auto px-6">
-            <TabsList className="h-12 bg-transparent grid w-full grid-cols-8">
+            <TabsList className="h-12 bg-transparent grid w-full grid-cols-9">
+              <TabsTrigger value="live-trading" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                🚀 Live Trading
+              </TabsTrigger>
               <TabsTrigger value="signals" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 📊 Signals
               </TabsTrigger>
@@ -150,6 +154,11 @@ export function ProfessionalTradingDashboard() {
         </div>
 
         <div className="container mx-auto px-6 py-6">
+          {/* Live Trading Tab */}
+          <TabsContent value="live-trading" className="mt-0">
+            <LiveTradingDashboard />
+          </TabsContent>
+
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="mt-0">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
