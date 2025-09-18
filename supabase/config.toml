@@ -1,8 +1,5 @@
 project_id = "codhlwjogfjywmjyjbbn"
 
-[functions.demo-signal-generator]
-verify_jwt = false
-
 [functions.aitradex1-enhanced-scanner]
 verify_jwt = false
 
