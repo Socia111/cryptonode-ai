@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { EnhancedTradeTest } from './EnhancedTradeTest';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -336,94 +337,7 @@ export function LiveTradingEnabler() {
 
         {/* Testing Tab */}
         <TabsContent value="testing" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Trade Execution Test
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="test-symbol">Test Symbol</Label>
-                  <Input
-                    id="test-symbol"
-                    value={testSymbol}
-                    onChange={(e) => setTestSymbol(e.target.value.toUpperCase())}
-                    placeholder="BTCUSDT"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="test-amount">Test Amount ($)</Label>
-                  <Input
-                    id="test-amount"
-                    type="number"
-                    min="1"
-                    value={testAmount}
-                    onChange={(e) => setTestAmount(parseInt(e.target.value))}
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => executeTestTrade('BUY')}
-                  disabled={isTestingTrade}
-                  className="flex-1"
-                  variant="default"
-                >
-                  <TrendingUp className="h-4 w-4 mr-2" />
-                  Test BUY Order
-                </Button>
-
-                <Button
-                  onClick={() => executeTestTrade('SELL')}
-                  disabled={isTestingTrade}
-                  className="flex-1"
-                  variant="outline"
-                >
-                  <TrendingDown className="h-4 w-4 mr-2" />
-                  Test SELL Order
-                </Button>
-              </div>
-
-              {/* Test Result */}
-              {testResult && (
-                <Card className={testResult.success ? "border-green-200" : "border-red-200"}>
-                  <CardContent className="pt-6">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">Test Result:</span>
-                        <Badge variant={testResult.success ? "default" : "destructive"}>
-                          {testResult.success ? "Success" : "Failed"}
-                        </Badge>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Mode:</span>
-                        <Badge variant="outline">
-                          {testResult.paper_mode ? "Paper Trading" : "Live Trading"}
-                        </Badge>
-                      </div>
-                      
-                      {testResult.trade_id && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Trade ID:</span>
-                          <code className="text-xs bg-muted px-2 py-1 rounded">
-                            {testResult.trade_id}
-                          </code>
-                        </div>
-                      )}
-                      
-                      <p className="text-sm">{testResult.message}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </CardContent>
-          </Card>
+          <EnhancedTradeTest />
         </TabsContent>
 
         {/* Monitoring Tab */}

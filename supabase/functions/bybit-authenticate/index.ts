@@ -74,7 +74,10 @@ serve(async (req) => {
   }
 
   try {
-    const { action, ...payload } = await req.json();
+    const requestBody = await req.json();
+    const { action, ...payload } = requestBody;
+
+    console.log('🔐 Bybit authenticate request:', { action, hasPayload: !!payload });
 
     switch (action) {
       case 'validate_and_save': {

@@ -29,6 +29,8 @@ interface BybitCredentials {
 
 async function getUserCredentials(userId: string): Promise<BybitCredentials | null> {
   try {
+    console.log(`🔍 Fetching credentials for user: ${userId}`);
+    
     const { data, error } = await supabase
       .from('user_trading_accounts')
       .select('api_key_encrypted, api_secret_encrypted, account_type')
@@ -38,27 +40,40 @@ async function getUserCredentials(userId: string): Promise<BybitCredentials | nu
       .single();
 
     if (error || !data) {
-      console.log('No user credentials found:', error?.message);
+      console.log('❌ No user credentials found:', error?.message);
       return null;
     }
 
+    // Note: In production, these should be properly encrypted/decrypted
+    // For now, we're storing them as plain text (not recommended for production)
+    console.log(`✅ Found user credentials for ${data.account_type} account`);
+    
     return {
       api_key: data.api_key_encrypted,
       api_secret: data.api_secret_encrypted,
       testnet: data.account_type === 'testnet'
     };
   } catch (error) {
-    console.error('Error fetching user credentials:', error);
+    console.error('❌ Error fetching user credentials:', error);
     return null;
   }
 }
 
 async function getSystemCredentials(): Promise<BybitCredentials> {
   const isTestnet = Deno.env.get('PAPER_TRADING') === 'true' || Deno.env.get('BYBIT_TESTNET') === 'true';
+  const apiKey = Deno.env.get('BYBIT_API_KEY') || '';
+  const apiSecret = Deno.env.get('BYBIT_API_SECRET') || '';
+  
+  console.log(`🔧 Using system credentials for ${isTestnet ? 'testnet' : 'mainnet'}`);
+  console.log(`🔑 System API key available: ${apiKey ? 'YES' : 'NO'}`);
+  
+  if (!apiKey || !apiSecret) {
+    throw new Error('System credentials not configured. Please set BYBIT_API_KEY and BYBIT_API_SECRET environment variables.');
+  }
   
   return {
-    api_key: Deno.env.get('BYBIT_API_KEY') || '',
-    api_secret: Deno.env.get('BYBIT_API_SECRET') || '',
+    api_key: apiKey,
+    api_secret: apiSecret,
     testnet: isTestnet
   };
 }
@@ -89,7 +104,9 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
     ? 'https://api-testnet.bybit.com' 
     : 'https://api.bybit.com';
 
-  // Validate symbol first
+  console.log(`🔄 Executing ${trade.side} trade for ${trade.symbol}`);
+
+  // 1. Validate symbol and get instrument info
   const symbolResponse = await fetch(`${supabaseUrl}/functions/v1/symbol-validator`, {
     method: 'POST',
     headers: {
@@ -101,32 +118,58 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
 
   const symbolResult = await symbolResponse.json();
   if (!symbolResult.success) {
-    throw new Error(`Invalid symbol: ${trade.symbol}`);
+    throw new Error(`Invalid symbol: ${trade.symbol} - ${symbolResult.error}`);
   }
 
-  // Calculate quantity if amount_usd is provided
+  const { minQty, qtyStep, tickSize, minNotional } = symbolResult;
+  console.log(`📊 Symbol info: minQty=${minQty}, qtyStep=${qtyStep}, tickSize=${tickSize}`);
+
+  // 2. Calculate quantity if amount_usd is provided
   let qty = trade.qty;
+  let currentPrice = 0;
+
   if (!qty && trade.amount_usd) {
     // Get current price to calculate qty
     const priceResponse = await fetch(`${baseUrl}/v5/market/tickers?category=linear&symbol=${trade.symbol}`);
     const priceData = await priceResponse.json();
     
     if (priceData.retCode === 0 && priceData.result.list.length > 0) {
-      const currentPrice = parseFloat(priceData.result.list[0].lastPrice);
+      currentPrice = parseFloat(priceData.result.list[0].lastPrice);
       qty = trade.amount_usd / currentPrice;
+      
+      // Apply quantity precision based on qtyStep
+      const qtyStepPrecision = qtyStep.toString().split('.')[1]?.length || 0;
+      qty = Math.floor(qty / parseFloat(qtyStep)) * parseFloat(qtyStep);
+      qty = parseFloat(qty.toFixed(qtyStepPrecision));
+      
+      console.log(`💰 Calculated qty: ${qty} (price: ${currentPrice}, amount: ${trade.amount_usd})`);
     } else {
       throw new Error('Could not fetch current price for quantity calculation');
     }
   }
 
+  // 3. Validate calculated quantity
+  if (!qty || qty < parseFloat(minQty)) {
+    throw new Error(`Quantity ${qty} is below minimum ${minQty} for ${trade.symbol}`);
+  }
+
+  // 4. Calculate notional value for validation
+  const notionalValue = qty * (currentPrice || 1);
+  if (notionalValue < parseFloat(minNotional)) {
+    throw new Error(`Notional value ${notionalValue} is below minimum ${minNotional} for ${trade.symbol}`);
+  }
+
+  // 5. Create order parameters with proper precision
   const orderParams = {
     category: 'linear',
     symbol: trade.symbol,
     side: trade.side,
     orderType: 'Market',
-    qty: qty?.toFixed(6),
+    qty: qty.toString(),
     timeInForce: 'IOC'
   };
+
+  console.log(`📋 Order params:`, orderParams);
 
   const paramsString = Object.entries(orderParams)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -134,6 +177,8 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
     .join('&');
 
   const signature = await createBybitSignature(paramsString, credentials.api_secret, timestamp);
+
+  console.log(`🔐 Sending order to ${baseUrl}/v5/order/create`);
 
   const response = await fetch(`${baseUrl}/v5/order/create`, {
     method: 'POST',
@@ -148,12 +193,42 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
     body: JSON.stringify(orderParams)
   });
 
-  return await response.json();
+  const result = await response.json();
+  console.log(`📊 Bybit response:`, result);
+  
+  return result;
 }
 
 async function executePaperTrade(trade: TradeRequest) {
-  // Simulate paper trade execution
+  console.log(`📝 Executing paper trade: ${trade.side} ${trade.qty || trade.amount_usd} ${trade.symbol}`);
+  
+  // Simulate realistic trade execution
   const mockOrderId = `paper_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const executionDelay = Math.random() * 1000 + 500; // 500-1500ms delay
+  
+  await new Promise(resolve => setTimeout(resolve, executionDelay));
+  
+  // Get current market price for realistic simulation
+  let currentPrice = 0;
+  try {
+    const priceResponse = await fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${trade.symbol}`);
+    const priceData = await priceResponse.json();
+    
+    if (priceData.retCode === 0 && priceData.result.list.length > 0) {
+      currentPrice = parseFloat(priceData.result.list[0].lastPrice);
+    }
+  } catch (error) {
+    console.warn('Could not fetch real price for paper trade, using mock price');
+    currentPrice = Math.random() * 50000 + 10000; // Mock price
+  }
+  
+  // Calculate executed quantity
+  let executedQty = trade.qty;
+  if (!executedQty && trade.amount_usd && currentPrice) {
+    executedQty = trade.amount_usd / currentPrice;
+  }
+  
+  console.log(`✅ Paper trade executed: ${executedQty} ${trade.symbol} at $${currentPrice}`);
   
   return {
     retCode: 0,
@@ -163,11 +238,14 @@ async function executePaperTrade(trade: TradeRequest) {
       orderLinkId: `paper_link_${mockOrderId}`,
       symbol: trade.symbol,
       side: trade.side,
-      qty: trade.qty?.toString() || '0',
-      price: '0', // Market order
-      orderStatus: 'Filled'
+      qty: executedQty?.toString() || '0',
+      price: currentPrice.toString(),
+      orderStatus: 'Filled',
+      avgPrice: currentPrice.toString(),
+      cumExecQty: executedQty?.toString() || '0'
     },
-    paper_mode: true
+    paper_mode: true,
+    execution_time_ms: executionDelay
   };
 }
 
@@ -177,68 +255,109 @@ serve(async (req) => {
   }
 
   try {
-    const { action, ...payload } = await req.json();
+    const requestBody = await req.json();
+    const { action, ...payload } = requestBody;
+    
+    console.log('🎯 Trade executor request:', { action, hasPayload: !!payload });
 
     switch (action) {
       case 'execute_trade': {
         const trade: TradeRequest = payload;
         
-        console.log('🎯 Executing trade:', trade);
+        console.log('🎯 Trade execution request:', {
+          symbol: trade.symbol,
+          side: trade.side,
+          qty: trade.qty,
+          amount_usd: trade.amount_usd,
+          user_id: trade.user_id ? 'provided' : 'system',
+          paper_mode: trade.paper_mode
+        });
 
         // Determine if this is paper trading
         const isPaperMode = trade.paper_mode ?? (Deno.env.get('PAPER_TRADING') === 'true');
+        const liveTradeEnabled = Deno.env.get('LIVE_TRADING_ENABLED') === 'true';
+        
+        // Safety check: prevent live trading if not explicitly enabled
+        if (!isPaperMode && !liveTradeEnabled) {
+          console.warn('⚠️ Live trading attempted but not enabled, forcing paper mode');
+          // Force paper mode if live trading is not enabled
+          trade.paper_mode = true;
+        }
         
         let result;
         let credentials = null;
+        const startTime = Date.now();
 
-        if (isPaperMode) {
+        if (isPaperMode || trade.paper_mode) {
+          console.log('📝 Executing paper trade...');
           result = await executePaperTrade(trade);
         } else {
-          // Get credentials (user first, then system fallback)
+          console.log('💰 Executing live trade...');
+          
+          // Get credentials with user preference first, then system fallback
           if (trade.user_id) {
+            console.log('🔍 Attempting to use user credentials...');
             credentials = await getUserCredentials(trade.user_id);
           }
           
           if (!credentials) {
+            console.log('🔧 Falling back to system credentials...');
             credentials = await getSystemCredentials();
-          }
-
-          if (!credentials.api_key || !credentials.api_secret) {
-            throw new Error('No valid trading credentials found');
           }
 
           result = await executeBybitTrade(trade, credentials);
         }
 
-        // Log the trade execution
+        const executionTime = Date.now() - startTime;
+
+        // Enhanced trade logging with more details
+        const logData = {
+          user_id: trade.user_id || '00000000-0000-0000-0000-000000000000',
+          symbol: trade.symbol,
+          side: trade.side,
+          qty: trade.qty || (result.result?.cumExecQty ? parseFloat(result.result.cumExecQty) : null),
+          amount_usd: trade.amount_usd,
+          leverage: trade.leverage || 1,
+          paper_mode: isPaperMode || trade.paper_mode || false,
+          status: result.retCode === 0 ? 'executed' : 'failed',
+          exchange_order_id: result.result?.orderId || null,
+          ret_code: result.retCode,
+          ret_msg: result.retMsg,
+          raw_response: result,
+          execution_time_ms: executionTime,
+          avg_price: result.result?.avgPrice || result.result?.price || null,
+          credentials_source: credentials ? (trade.user_id ? 'user' : 'system') : 'none'
+        };
+
         const { error: logError } = await supabase
           .from('execution_orders')
-          .insert({
-            user_id: trade.user_id || '00000000-0000-0000-0000-000000000000',
-            symbol: trade.symbol,
-            side: trade.side,
-            qty: trade.qty,
-            amount_usd: trade.amount_usd,
-            leverage: trade.leverage || 1,
-            paper_mode: isPaperMode,
-            status: result.retCode === 0 ? 'executed' : 'failed',
-            exchange_order_id: result.result?.orderId || null,
-            ret_code: result.retCode,
-            ret_msg: result.retMsg,
-            raw_response: result
-          });
+          .insert(logData);
 
         if (logError) {
-          console.error('Failed to log trade execution:', logError);
+          console.error('❌ Failed to log trade execution:', logError);
+        } else {
+          console.log('📊 Trade logged successfully');
         }
 
-        return new Response(JSON.stringify({
+        const responseData = {
           success: result.retCode === 0,
           trade_id: result.result?.orderId || result.result?.orderLinkId,
-          paper_mode: isPaperMode,
+          paper_mode: isPaperMode || trade.paper_mode || false,
           result: result,
-          message: result.retMsg || 'Trade executed successfully'
-        }), {
+          message: result.retMsg || 'Trade executed successfully',
+          execution_time_ms: executionTime,
+          avg_price: result.result?.avgPrice || result.result?.price || null,
+          executed_qty: result.result?.cumExecQty || result.result?.qty || null
+        };
+
+        console.log('✅ Trade execution completed:', {
+          success: responseData.success,
+          trade_id: responseData.trade_id,
+          paper_mode: responseData.paper_mode,
+          execution_time: `${executionTime}ms`
+        });
+
+        return new Response(JSON.stringify(responseData), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -262,6 +381,17 @@ serve(async (req) => {
           has_credentials: hasValidCredentials,
           testnet: credentials?.testnet || false,
           paper_mode: Deno.env.get('PAPER_TRADING') === 'true'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      case 'status': {
+        return new Response(JSON.stringify({
+          success: true,
+          status: 'active',
+          paper_mode: Deno.env.get('PAPER_TRADING') === 'true',
+          timestamp: new Date().toISOString()
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
