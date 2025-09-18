@@ -27,6 +27,9 @@ verify_jwt = false
 [functions.bybit-authenticate]
 verify_jwt = false
 
+[functions.paper-trading-executor]
+verify_jwt = false
+
 [functions.live-scanner-production]
 verify_jwt = false
 

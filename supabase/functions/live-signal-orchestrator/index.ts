@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
           const signal = {
             symbol,
             timeframe: '15m',
-            direction: change24h > 0 ? 'BUY' : 'SELL',
+            direction: change24h > 0 ? 'LONG' : 'SHORT',
             price,
             entry_price: price * (change24h > 0 ? 0.999 : 1.001),
             take_profit: price * (change24h > 0 ? 1.02 : 0.98),

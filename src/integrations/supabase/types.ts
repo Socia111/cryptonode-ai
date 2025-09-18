@@ -661,6 +661,51 @@ export type Database = {
         }
         Relationships: []
       }
+      trading_configs: {
+        Row: {
+          account_type: string
+          auto_trading_enabled: boolean
+          created_at: string
+          exchange: string
+          id: string
+          leverage: number | null
+          max_position_size: number | null
+          risk_per_trade: number | null
+          stop_loss_enabled: boolean | null
+          take_profit_enabled: boolean | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          account_type?: string
+          auto_trading_enabled?: boolean
+          created_at?: string
+          exchange?: string
+          id?: string
+          leverage?: number | null
+          max_position_size?: number | null
+          risk_per_trade?: number | null
+          stop_loss_enabled?: boolean | null
+          take_profit_enabled?: boolean | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          account_type?: string
+          auto_trading_enabled?: boolean
+          created_at?: string
+          exchange?: string
+          id?: string
+          leverage?: number | null
+          max_position_size?: number | null
+          risk_per_trade?: number | null
+          stop_loss_enabled?: boolean | null
+          take_profit_enabled?: boolean | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       trading_preferences: {
         Row: {
           created_at: string | null
