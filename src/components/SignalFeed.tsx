@@ -1,5 +1,6 @@
 import React from 'react';
 import { useRankedSignals } from '@/hooks/useRankedSignals';
+import { useSignals } from '@/hooks/useSignals';
 import { TopPicks } from '@/components/TopPicks';
 import { SignalRow } from '@/components/SignalRow';
 import { TradeControls } from '@/components/TradeControls';
@@ -10,16 +11,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { TradingGateway } from '@/lib/tradingGateway';
 import type { UISignal } from '@/lib/signalScoring';
 
-// Props: provide raw signals array
-export function SignalFeed({ signals: initialSignals }: { signals: UISignal[] }) {
+// Load signals directly using useSignals hook for consistency
+export function SignalFeed({ signals: initialSignals }: { signals?: UISignal[] }) {
   const { toast } = useToast();
+  const { signals: hookSignals, loading } = useSignals();
   const [hideWide, setHideWide] = React.useState(true);
-  const [signals, setSignals] = React.useState<UISignal[]>(initialSignals);
   
-  // Update signals when initialSignals change
-  React.useEffect(() => {
-    setSignals(initialSignals);
-  }, [initialSignals]);
+  // Use hookSignals as primary source, fallback to initialSignals
+  const signals = hookSignals.length > 0 ? hookSignals : (initialSignals || []);
   
   const ranked = useRankedSignals(signals, { hideWideSpreads: hideWide, maxSpreadBps: 20, hide1MinSignals: true });
   const topPicks = ranked.slice(0,3);
@@ -57,26 +56,15 @@ export function SignalFeed({ signals: initialSignals }: { signals: UISignal[] })
                                  !payload.new.source.includes('mock') &&
                                  !payload.new.source.includes('demo'));
             
-            if (isRealSignal) {
-              // Show toast notification
+            if (payload.new.score >= 70) {
+              // Show toast notification for ALL signals above 70%
               toast({
-                title: "📈 New Signal Detected",
+                title: "📈 New Trading Signal",
                 description: `${payload.new.symbol} ${payload.new.direction} - Score: ${payload.new.score}%`,
                 duration: 4000,
               });
               
-              // Add to signals list
-              const newSignal = {
-                ...payload.new,
-                ts: payload.new.created_at,
-                token: payload.new.symbol,
-                rr: payload.new.take_profit && payload.new.stop_loss && payload.new.entry_price ? 
-                  Math.abs(payload.new.take_profit - payload.new.entry_price) / Math.abs(payload.new.entry_price - payload.new.stop_loss) : 
-                  null,
-                spread_bps: payload.new.spread_bps || 10
-              };
-              
-              setSignals(prev => [newSignal, ...prev].slice(0, 100)); // Keep latest 100
+              console.log('New signal added to feed:', payload.new.symbol, payload.new.source);
             }
           }
         }

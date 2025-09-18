@@ -120,7 +120,7 @@ async function fetchSignals(): Promise<Signal[]> {
       .from('signals')
       .select('*')
       .gte('score', 70) // Lower threshold to show more signals
-      .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
+      .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours only
       .order('created_at', { ascending: false })
       .limit(50);
 

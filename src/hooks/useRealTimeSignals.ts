@@ -53,15 +53,14 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
 
       console.log('[RealTimeSignals] Loading real trading signals...');
 
-      // Fetch REAL signals with correct source names from database
+      // Use ALL signals - don't filter by source to get maximum signals
       let signalsQuery = supabase
         .from('signals')
         .select('*')
-        .in('source', ['aitradex1_real_enhanced', 'real_market_data', 'enhanced_signal_generation', 'live_market_data', 'complete_algorithm_live', 'technical_indicators_real'])
         .gte('score', minScore)
-        .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()) // Last 6 hours for more recent signals
+        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours for real-time signals
         .order('created_at', { ascending: false })
-        .limit(100); // Focus on quality over quantity
+        .limit(100);
 
       // Apply additional filters
       if (!includeExpired) {

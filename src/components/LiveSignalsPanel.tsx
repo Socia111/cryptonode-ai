@@ -43,44 +43,29 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
         },
         (payload) => {
           console.log('New signal received:', payload.new);
-          if (payload.new && payload.new.score >= 75) {
-            // Check if it's a real signal using correct source names
-            const isRealSignal = payload.new.source === 'aitradex1_real_enhanced' ||
-                                payload.new.source === 'real_market_data' ||
-                                payload.new.source === 'enhanced_signal_generation' ||
-                                payload.new.source === 'live_market_data' ||
-                                payload.new.source === 'complete_algorithm_live' ||
-                                payload.new.source === 'technical_indicators_real' ||
-                                (payload.new.source && 
-                                 payload.new.source !== 'demo' && 
-                                 payload.new.source !== 'mock' && 
-                                 payload.new.source !== 'system' &&
-                                 !payload.new.source.includes('mock') &&
-                                 !payload.new.source.includes('demo'));
+          if (payload.new && payload.new.score >= 70) {
+            // Show toast notification for ALL signals above 70%
+            toast({
+              title: "🚨 New Trading Signal",
+              description: `${payload.new.symbol} ${payload.new.direction} - Score: ${payload.new.score}%`,
+              duration: 4000,
+            });
             
-            if (isRealSignal) {
-              // Show toast notification for new high-confidence signal
-              toast({
-                title: "🎯 New High-Confidence Signal",
-                description: `${payload.new.symbol} ${payload.new.direction} - Score: ${payload.new.score}%`,
-                duration: 5000,
-              });
-              
-              // Add new signal to the top of the list
-              const newSignal: Signal = {
-                id: payload.new.id,
-                symbol: payload.new.symbol,
-                direction: payload.new.direction,
-                entry_price: payload.new.entry_price || payload.new.price,
-                sl: payload.new.stop_loss,
-                tp: payload.new.take_profit,
-                score: payload.new.score,
-                timeframe: payload.new.timeframe,
-                created_at: payload.new.created_at
-              };
-              
-              setSignals(prev => [newSignal, ...prev.slice(0, 9)]); // Keep only top 10
-            }
+            // Add new signal to the top of the list
+            const newSignal: Signal = {
+              id: payload.new.id,
+              symbol: payload.new.symbol,
+              direction: payload.new.direction,
+              entry_price: payload.new.entry_price || payload.new.price,
+              sl: payload.new.stop_loss,
+              tp: payload.new.take_profit,
+              score: payload.new.score,
+              timeframe: payload.new.timeframe,
+              created_at: payload.new.created_at
+            };
+            
+             setSignals(prev => [newSignal, ...prev.slice(0, 14)]); // Keep top 15
+            console.log('[LiveSignalsPanel] 🔥 New signal added:', newSignal.symbol, newSignal.score + '%');
           }
         }
       )
@@ -97,36 +82,45 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
   const fetchLiveSignals = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.functions.invoke('signals-api', {
-        body: { action: 'live' }
-      });
+      console.log('[LiveSignalsPanel] Fetching signals directly from database...');
+      
+      // Direct database query for better reliability
+      const { data: signalsData, error } = await supabase
+        .from('signals')
+        .select('*')
+        .gte('score', 70)
+        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[LiveSignalsPanel] Database error:', error);
+        setLoading(false);
+        return;
+      }
 
-      console.log('Live signals response:', data);
+      if (signalsData && signalsData.length > 0) {
+        // Map database signals to LiveSignalsPanel format
+        const mappedSignals = signalsData.map((signal: any) => ({
+          id: signal.id,
+          symbol: signal.symbol,
+          direction: signal.direction,
+          entry_price: signal.price || signal.entry_price,
+          sl: signal.stop_loss || signal.sl,
+          tp: signal.take_profit || signal.tp,
+          score: signal.score,
+          timeframe: signal.timeframe,
+          created_at: signal.created_at
+        }));
 
-      if (data.success && data.items) {
-        // Convert the API format to our Signal interface
-        const formattedSignals: Signal[] = data.items
-          .filter((item: any) => item.score >= 75 && item.timeframe !== '5m') // Only high-confidence signals, exclude 5m
-          .slice(0, 10) // Limit to 10 most recent
-          .map((item: any) => ({
-            id: item.id,
-            symbol: item.symbol,
-            direction: item.direction === 'SHORT' ? 'SHORT' : 'LONG',
-            entry_price: item.entry_price || item.price,
-            sl: item.sl || item.stop_loss,
-            tp: item.tp || item.take_profit,
-            score: item.score,
-            timeframe: item.timeframe,
-            created_at: item.created_at
-          }));
-        
-        setSignals(formattedSignals);
-        console.log(`Updated live signals: ${formattedSignals.length} signals`);
+        console.log(`[LiveSignalsPanel] Loaded ${mappedSignals.length} signals from database`);
+        setSignals(mappedSignals);
+      } else {
+        console.log('[LiveSignalsPanel] No signals found');
+        setSignals([]);
       }
     } catch (error) {
-      console.error('Failed to fetch live signals:', error);
+      console.error('[LiveSignalsPanel] Error fetching signals:', error);
     } finally {
       setLoading(false);
     }
