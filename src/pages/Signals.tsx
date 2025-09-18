@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, TrendingUp, TrendingDown, Target, Zap } from 'lucide-react';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { useToast } from '@/hooks/use-toast';
+import { ComprehensiveScannerTest } from '@/components/ComprehensiveScannerTest';
 
 const Signals = () => {
   const { signals, loading, generateSignals } = useSignals();
@@ -87,6 +88,7 @@ const Signals = () => {
           </Button>
         </div>
 
+        <ComprehensiveScannerTest />
         <SystemRebuild />
         <SignalsDebug />
         
