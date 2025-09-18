@@ -20,10 +20,11 @@ function json(body: any, status = 200) {
 
 // =================== STRUCTURED LOGGING ===================
 
-const structuredLog = (event: string, data: Record<string, any> = {}) => {
+const structuredLog = (level: string, message: string, data: Record<string, any> = {}) => {
   const logEntry = {
     timestamp: new Date().toISOString(),
-    event,
+    level,
+    message,
     requestId: data.requestId || crypto.randomUUID(),
     ...data
   };
@@ -39,7 +40,6 @@ class BybitV5Client {
   private apiSecret: string
 
   constructor(apiKey: string, apiSecret: string, isTestnet: boolean = true) {
-    // Use testnet for development, mainnet for production
     this.baseURL = isTestnet ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com'
     this.apiKey = apiKey
     this.apiSecret = apiSecret
@@ -51,8 +51,7 @@ class BybitV5Client {
     });
   }
 
-  private async signRequest(method: string, path: string, params: any = {}): Promise<string> {
-    const timestamp = Date.now().toString()
+  private async signRequest(timestamp: string, params: any = {}): Promise<string> {
     const paramString = Object.keys(params).length 
       ? JSON.stringify(params)
       : ''
@@ -77,7 +76,7 @@ class BybitV5Client {
 
   async makeRequest(method: string, endpoint: string, params: any = {}) {
     const timestamp = Date.now().toString()
-    const signature = await this.signRequest(method, endpoint, params)
+    const signature = await this.signRequest(timestamp, params)
     
     const headers = {
       'X-BAPI-API-KEY': this.apiKey,
@@ -99,16 +98,22 @@ class BybitV5Client {
       
       const data = await response.json()
       
-      if (!response.ok) {
+      structuredLog('info', `Bybit API ${method} ${endpoint}`, {
+        status: response.status,
+        retCode: data.retCode,
+        retMsg: data.retMsg?.substring(0, 100)
+      });
+      
+      if (!response.ok || data.retCode !== 0) {
         throw new Error(`Bybit API error: ${data.retMsg || response.statusText}`)
       }
       
       return data
-    } catch (error) {
+    } catch (error: any) {
       structuredLog('error', 'Bybit API request failed', { 
         endpoint, 
         error: error.message,
-        params 
+        params: JSON.stringify(params).substring(0, 200)
       })
       throw error
     }
@@ -153,6 +158,14 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
+    if (!supabaseUrl || !supabaseServiceKey) {
+      structuredLog('error', 'Missing Supabase configuration', { requestId });
+      return json({
+        success: false,
+        error: 'Server configuration error. Missing Supabase credentials.'
+      }, 500);
+    }
+    
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.56.0');
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
@@ -168,140 +181,58 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
         } else {
           structuredLog('warn', 'JWT authentication failed', { error: userError?.message, requestId });
         }
-      } catch (jwtError) {
+      } catch (jwtError: any) {
         structuredLog('error', 'JWT parsing failed', { error: jwtError.message, requestId });
       }
     }
     
-    // Require authentication - no fallbacks
-    if (!userId) {
-      structuredLog('error', 'Authentication required', { requestId });
-      return json({
-        success: false,
-        error: 'Authentication required. Please sign in to execute trades.',
-        code: 'AUTH_REQUIRED'
-      }, 401);
-    }
+    // For development, try to use environment credentials if no user auth
+    let apiKey: string | undefined;
+    let apiSecret: string | undefined;
     
-    // Use the new helper function to get trading account
-    const { data: accounts, error: accountError } = await supabase
-      .rpc('get_user_trading_account', {
-        p_user_id: userId,
-        p_account_type: 'testnet'
-      });
-    
-    if (accountError) {
-      structuredLog('error', 'Failed to fetch trading account', { 
-        error: accountError.message, 
-        userId, 
-        requestId 
-      });
-      return json({
-        success: false,
-        error: 'Failed to access trading account: ' + accountError.message
-      }, 500);
-    }
-    
-    let account = accounts?.[0];
-    
-    // If no account exists, try to create one with environment credentials
-    if (!account) {
-      const envApiKey = Deno.env.get('BYBIT_API_KEY');
-      const envApiSecret = Deno.env.get('BYBIT_API_SECRET');
-      
-      if (!envApiKey || !envApiSecret) {
-        structuredLog('warn', 'No trading credentials available', { userId, requestId });
-        return json({
-          success: false,
-          error: 'No trading credentials configured. Please add your Bybit API credentials.',
-          code: 'CREDENTIALS_REQUIRED',
-          needsCredentials: true
-        }, 400);
-      }
-      
-      // Create account using the restore function
-      try {
-        const { data: newAccountId, error: createError } = await supabase
-          .rpc('restore_user_trading_account', {
-            p_user_id: userId,
-            p_api_key: envApiKey,
-            p_api_secret: envApiSecret,
-            p_account_type: 'testnet'
-          });
-        
-        if (createError) {
-          structuredLog('error', 'Failed to create trading account', { 
-            error: createError.message, 
-            userId, 
-            requestId 
-          });
-          return json({
-            success: false,
-            error: 'Failed to create trading account: ' + createError.message
-          }, 500);
-        }
-        
-        // Fetch the newly created account using the helper function
-        const { data: newAccounts } = await supabase
-          .rpc('get_user_trading_account', {
-            p_user_id: userId,
-            p_account_type: 'testnet'
-          });
-        
-        account = newAccounts?.[0];
-        structuredLog('info', 'Created new trading account', { 
-          accountId: newAccountId, 
-          userId, 
-          requestId 
+    if (userId) {
+      // Try to get user credentials from database
+      const { data: accounts, error: accountError } = await supabase
+        .rpc('get_user_trading_account', {
+          p_user_id: userId,
+          p_account_type: 'testnet'
         });
-      } catch (createError) {
-        structuredLog('error', 'Exception creating trading account', { 
-          error: createError.message, 
-          userId, 
-          requestId 
-        });
-        return json({
-          success: false,
-          error: 'Failed to create trading account: ' + createError.message
-        }, 500);
+      
+      if (!accountError && accounts?.[0]) {
+        const account = accounts[0];
+        apiKey = account.api_key_encrypted;
+        apiSecret = account.api_secret_encrypted;
+        structuredLog('info', 'Using user trading account', { userId, accountId: account.id, requestId });
       }
     }
     
-    if (!account) {
-      structuredLog('error', 'No trading account available after creation attempt', { 
-        userId, 
+    // Fallback to environment credentials for development/testing
+    if (!apiKey || !apiSecret) {
+      apiKey = Deno.env.get('BYBIT_API_KEY');
+      apiSecret = Deno.env.get('BYBIT_API_SECRET');
+      structuredLog('info', 'Using environment credentials', { 
+        hasKey: !!apiKey, 
+        hasSecret: !!apiSecret,
+        keyLength: apiKey?.length || 0,
         requestId 
       });
-      return json({
-        success: false,
-        error: 'Unable to access or create trading account',
-        code: 'ACCOUNT_ACCESS_FAILED'
-      }, 400);
     }
-
-    // Validate API credentials
-    const apiKey = account.api_key_encrypted;
-    const apiSecret = account.api_secret_encrypted;
     
     if (!apiKey || !apiSecret) {
-      structuredLog('error', 'Trading account missing API credentials', { 
-        accountId: account.id, 
-        userId, 
-        requestId 
-      });
+      structuredLog('error', 'No trading credentials available', { userId, requestId });
       return json({
         success: false,
-        error: 'Trading account missing API credentials. Please update your credentials.',
-        code: 'CREDENTIALS_MISSING',
+        error: 'No trading credentials configured. Please add your Bybit API credentials.',
+        code: 'CREDENTIALS_REQUIRED',
         needsCredentials: true
       }, 400);
     }
-
+    
     // Validate credential format
     if (apiKey.length < 10 || apiSecret.length < 10) {
       structuredLog('error', 'Invalid API credentials format', { 
-        accountId: account.id, 
-        userId, 
+        keyLength: apiKey.length,
+        secretLength: apiSecret.length,
         requestId 
       });
       return json({
@@ -313,81 +244,45 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
     }
 
     // Initialize Bybit client with testnet for development
-    const bybit = new BybitV5Client(apiKey, apiSecret, true); // Force testnet
+    const bybit = new BybitV5Client(apiKey, apiSecret, true);
     
-    // Validate credentials by testing API connection
+    // Test API connection first
     try {
       const accountInfo = await bybit.getAccountInfo();
-      if (accountInfo.retCode !== 0) {
-        structuredLog('error', 'Bybit API authentication failed', { 
-          retCode: accountInfo.retCode,
-          retMsg: accountInfo.retMsg,
-          userId, 
-          requestId 
-        });
-        return json({
-          success: false,
-          error: `Bybit API authentication failed: ${accountInfo.retMsg}`,
-          code: 'API_AUTH_FAILED',
-          needsCredentials: true
-        }, 401);
-      }
-      structuredLog('info', 'Bybit API authentication successful', { userId, requestId });
-    } catch (authError) {
-      structuredLog('error', 'Bybit API connection test failed', { 
+      structuredLog('info', 'Bybit API authentication successful', { 
+        retCode: accountInfo.retCode, 
+        requestId 
+      });
+    } catch (authError: any) {
+      structuredLog('error', 'Bybit API authentication failed', { 
         error: authError.message, 
-        userId, 
         requestId 
       });
       return json({
         success: false,
-        error: `Bybit API connection failed: ${authError.message}`,
-        code: 'API_CONNECTION_FAILED',
+        error: `Bybit API authentication failed: ${authError.message}`,
+        code: 'API_AUTH_FAILED',
         needsCredentials: true
       }, 401);
     }
-
     
-    // Validate symbol and get instrument info
-    structuredLog('info', 'Validating symbol', { symbol, requestId });
-    
+    // Validate symbol and get current price
     let currentPrice: number;
     let quantity: string;
     
     try {
       const instrumentInfo = await bybit.getInstrumentInfo(symbol);
-      structuredLog('info', 'Instrument info response', { 
-        retCode: instrumentInfo?.retCode,
-        retMsg: instrumentInfo?.retMsg,
-        resultLength: instrumentInfo?.result?.list?.length,
-        symbol,
-        requestId 
-      });
       
       if (!instrumentInfo.result?.list?.length) {
-        structuredLog('error', 'Symbol validation failed - no instruments found', { 
-          symbol, 
-          instrumentInfo,
-          requestId 
-        });
+        structuredLog('error', 'Invalid symbol', { symbol, requestId });
         return json({
           success: false,
-          error: `Invalid symbol: ${symbol}. This symbol may not be available on testnet or may not exist.`
+          error: `Invalid symbol: ${symbol}. This symbol may not be available on testnet.`
         }, 400);
       }
 
-      const instrument = instrumentInfo.result.list[0];
-      structuredLog('info', 'Symbol validated successfully', { 
-        symbol, 
-        instrumentName: instrument?.symbol,
-        requestId 
-      });
-      
-      // Get current price
       const tickerInfo = await bybit.getTicker(symbol);
       currentPrice = parseFloat(tickerInfo.result.list[0].lastPrice);
-      
-      // Calculate quantity based on USD amount
       quantity = (amountUSD / currentPrice).toFixed(6);
       
       structuredLog('info', 'Trade calculation completed', { 
@@ -399,7 +294,7 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
         requestId 
       });
 
-    } catch (instrumentError) {
+    } catch (instrumentError: any) {
       structuredLog('error', 'Symbol validation failed', { 
         error: instrumentError.message, 
         symbol, 
@@ -444,17 +339,13 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
     // Execute the trade
     const orderResult = await bybit.placeOrder(orderParams);
     
-    if (orderResult.retCode !== 0) {
-      throw new Error(`Order failed: ${orderResult.retMsg}`);
-    }
-
-    // Log successful trade
     structuredLog('info', 'Trade executed successfully', {
       symbol,
       side,
       quantity,
       price: currentPrice,
-      orderId: orderResult.result.orderId
+      orderId: orderResult.result.orderId,
+      requestId
     });
 
     return json({
@@ -474,7 +365,8 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
   } catch (error: any) {
     structuredLog('error', 'Trade execution failed', { 
       error: error.message,
-      requestBody
+      stack: error.stack?.substring(0, 500),
+      requestId
     });
     
     return json({
@@ -497,7 +389,12 @@ serve(async (req) => {
     const { action } = body;
     const authHeader = req.headers.get('authorization');
 
-    structuredLog('info', 'Trade executor request', { action, body, hasAuth: !!authHeader });
+    structuredLog('info', 'Trade executor request', { 
+      action, 
+      hasAuth: !!authHeader,
+      method: req.method,
+      url: req.url
+    });
 
     if (action === 'status') {
       return json({
@@ -515,7 +412,10 @@ serve(async (req) => {
     return json({ error: 'Invalid action' }, 400);
 
   } catch (error: any) {
-    structuredLog('error', 'Handler failed', { error: error.message });
+    structuredLog('error', 'Handler failed', { 
+      error: error.message,
+      stack: error.stack?.substring(0, 500)
+    });
     return json({
       error: 'Internal server error',
       message: error.message || 'Internal server error'

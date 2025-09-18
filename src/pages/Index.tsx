@@ -7,7 +7,7 @@ import { SystemTestRunner } from '@/components/SystemTestRunner';
 import { AuthenticationTest } from '@/components/AuthenticationTest';
 import { TradingSystemTest } from '@/components/TradingSystemTest';
 import { TradingCredentialsManager } from '@/components/TradingCredentialsManager';
-import { ComprehensiveFixTest } from '@/components/ComprehensiveFixTest';
+import { SystemDiagnostics } from '@/components/SystemDiagnostics';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Index = () => {
@@ -17,7 +17,7 @@ const Index = () => {
         <Tabs defaultValue="dashboard" className="w-full">
           <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="system-validation">System Test</TabsTrigger>
+            <TabsTrigger value="system-validation">Diagnostics</TabsTrigger>
             <TabsTrigger value="auth">Authentication</TabsTrigger>
             <TabsTrigger value="credentials">Credentials</TabsTrigger>
             <TabsTrigger value="trading">Trading Tests</TabsTrigger>
@@ -36,7 +36,7 @@ const Index = () => {
           </TabsContent>
           
           <TabsContent value="system-validation" className="space-y-6">
-            <ComprehensiveFixTest />
+            <SystemDiagnostics />
           </TabsContent>
           
           <TabsContent value="auth" className="space-y-6">
