@@ -43,25 +43,35 @@ export function SignalFeed({ signals: initialSignals }: { signals: UISignal[] })
         (payload) => {
           console.log('New signal in feed:', payload.new);
           if (payload.new && payload.new.score >= 70) {
-            // Show toast notification
-            toast({
-              title: "📈 New Signal Detected",
-              description: `${payload.new.symbol} ${payload.new.direction} - Score: ${payload.new.score}%`,
-              duration: 4000,
-            });
+            // Check if it's a real signal (updated sources)
+            const isRealSignal = payload.new.source === 'aitradex1_real_enhanced' ||
+                                payload.new.source === 'real_market_data' ||
+                                payload.new.source === 'enhanced_signal_generation' ||
+                                (payload.new.source !== 'demo' && 
+                                 payload.new.source !== 'mock' && 
+                                 payload.new.source !== 'system');
             
-            // Add to signals list
-            const newSignal = {
-              ...payload.new,
-              ts: payload.new.created_at,
-              token: payload.new.symbol,
-              rr: payload.new.take_profit && payload.new.stop_loss && payload.new.entry_price ? 
-                Math.abs(payload.new.take_profit - payload.new.entry_price) / Math.abs(payload.new.entry_price - payload.new.stop_loss) : 
-                null,
-              spread_bps: payload.new.spread_bps || 10
-            };
-            
-            setSignals(prev => [newSignal, ...prev].slice(0, 100)); // Keep latest 100
+            if (isRealSignal) {
+              // Show toast notification
+              toast({
+                title: "📈 New Signal Detected",
+                description: `${payload.new.symbol} ${payload.new.direction} - Score: ${payload.new.score}%`,
+                duration: 4000,
+              });
+              
+              // Add to signals list
+              const newSignal = {
+                ...payload.new,
+                ts: payload.new.created_at,
+                token: payload.new.symbol,
+                rr: payload.new.take_profit && payload.new.stop_loss && payload.new.entry_price ? 
+                  Math.abs(payload.new.take_profit - payload.new.entry_price) / Math.abs(payload.new.entry_price - payload.new.stop_loss) : 
+                  null,
+                spread_bps: payload.new.spread_bps || 10
+              };
+              
+              setSignals(prev => [newSignal, ...prev].slice(0, 100)); // Keep latest 100
+            }
           }
         }
       )

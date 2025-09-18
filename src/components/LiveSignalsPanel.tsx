@@ -44,27 +44,37 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
         (payload) => {
           console.log('New signal received:', payload.new);
           if (payload.new && payload.new.score >= 75) {
-            // Show toast notification for new high-confidence signal
-            toast({
-              title: "🎯 New High-Confidence Signal",
-              description: `${payload.new.symbol} ${payload.new.direction} - Score: ${payload.new.score}%`,
-              duration: 5000,
-            });
+            // Check if it's a real signal (updated sources) 
+            const isRealSignal = payload.new.source === 'aitradex1_real_enhanced' ||
+                                payload.new.source === 'real_market_data' ||
+                                payload.new.source === 'enhanced_signal_generation' ||
+                                (payload.new.source !== 'demo' && 
+                                 payload.new.source !== 'mock' && 
+                                 payload.new.source !== 'system');
             
-            // Add new signal to the top of the list
-            const newSignal: Signal = {
-              id: payload.new.id,
-              symbol: payload.new.symbol,
-              direction: payload.new.direction,
-              entry_price: payload.new.entry_price || payload.new.price,
-              sl: payload.new.stop_loss,
-              tp: payload.new.take_profit,
-              score: payload.new.score,
-              timeframe: payload.new.timeframe,
-              created_at: payload.new.created_at
-            };
-            
-            setSignals(prev => [newSignal, ...prev.slice(0, 9)]); // Keep only top 10
+            if (isRealSignal) {
+              // Show toast notification for new high-confidence signal
+              toast({
+                title: "🎯 New High-Confidence Signal",
+                description: `${payload.new.symbol} ${payload.new.direction} - Score: ${payload.new.score}%`,
+                duration: 5000,
+              });
+              
+              // Add new signal to the top of the list
+              const newSignal: Signal = {
+                id: payload.new.id,
+                symbol: payload.new.symbol,
+                direction: payload.new.direction,
+                entry_price: payload.new.entry_price || payload.new.price,
+                sl: payload.new.stop_loss,
+                tp: payload.new.take_profit,
+                score: payload.new.score,
+                timeframe: payload.new.timeframe,
+                created_at: payload.new.created_at
+              };
+              
+              setSignals(prev => [newSignal, ...prev.slice(0, 9)]); // Keep only top 10
+            }
           }
         }
       )
