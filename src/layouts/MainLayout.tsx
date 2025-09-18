@@ -52,16 +52,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </div>
         
-        {/* Return to Main Page Button - Fixed Bottom Right */}
+        {/* Red Return Button - Fixed Bottom Right */}
         <div className="fixed bottom-20 right-4 lg:bottom-4 z-[9999]">
           <Button
-            variant="default"
-            size="sm"
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all duration-200 hover:scale-105 border-2 border-primary-foreground/20"
+            className="bg-red-600 hover:bg-red-700 text-white shadow-lg transition-all duration-200 hover:scale-105 rounded-full h-12 w-12 p-0"
           >
-            <Home className="h-4 w-4" />
-            <span className="text-sm font-medium">Home</span>
+            <Home className="h-5 w-5" />
           </Button>
         </div>
       </div>
