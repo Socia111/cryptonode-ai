@@ -1,107 +1,106 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-
-interface CCXTFeedStatus {
-  isRunning: boolean;
-  exchanges: string[];
-  symbols: string[];
-  updateInterval: number;
-}
+import { liveCCXTFeed, type CCXTFeedStatus } from '@/lib/liveCCXTFeed';
 
 export function useLiveCCXTFeed() {
   const [status, setStatus] = useState<CCXTFeedStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const workerRef = useRef<Worker | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Initialize web worker for CCXT feed
-    try {
-      workerRef.current = new Worker(
-        new URL('@/workers/liveCCXTWorker.ts', import.meta.url),
-        { type: 'module' }
-      );
+    // Get initial status
+    getStatus();
 
-      workerRef.current.onmessage = (event) => {
-        const { type, data, error } = event.data;
+    // Check status every 30 seconds
+    const interval = setInterval(getStatus, 30000);
 
-        switch (type) {
-          case 'STATUS':
-            setStatus(data);
-            break;
-          case 'SUCCESS':
-            setLoading(false);
-            setError(null);
-            break;
-          case 'ERROR':
-            setLoading(false);
-            setError(error);
-            console.error('CCXT Worker error:', error);
-            break;
-        }
-      };
-
-      workerRef.current.onerror = (error) => {
-        setError('Worker failed to initialize');
-        console.error('Worker error:', error);
-      };
-
-      // Get initial status
-      getStatus();
-
-    } catch (err) {
-      console.error('Failed to initialize CCXT worker:', err);
-      setError('Failed to initialize CCXT worker');
-    }
-
-    return () => {
-      if (workerRef.current) {
-        workerRef.current.terminate();
-      }
-    };
+    return () => clearInterval(interval);
   }, []);
-
-  const sendWorkerMessage = (type: string, payload?: any) => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({ type, payload });
-    } else {
-      setError('Worker not initialized');
-    }
-  };
 
   const startFeed = async () => {
     setLoading(true);
-    sendWorkerMessage('START');
+    setError(null);
     
-    toast({
-      title: "🟢 Starting CCXT Feed",
-      description: "Initializing live market data stream..."
-    });
+    try {
+      await liveCCXTFeed.start();
+      
+      toast({
+        title: "🟢 CCXT Feed Started",
+        description: "Live market data streaming with AITRADEX1 algorithm"
+      });
+
+      await getStatus();
+    } catch (err: any) {
+      setError(err.message);
+      toast({
+        title: "❌ Failed to Start",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const stopFeed = async () => {
     setLoading(true);
-    sendWorkerMessage('STOP');
+    setError(null);
     
-    toast({
-      title: "🔴 Stopping CCXT Feed",
-      description: "Halting live market data stream..."
-    });
+    try {
+      await liveCCXTFeed.stop();
+      
+      toast({
+        title: "🔴 CCXT Feed Stopped",
+        description: "Live market data stream halted"
+      });
+
+      await getStatus();
+    } catch (err: any) {
+      setError(err.message);
+      toast({
+        title: "❌ Failed to Stop",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getStatus = () => {
-    sendWorkerMessage('STATUS');
+  const getStatus = async () => {
+    try {
+      const currentStatus = await liveCCXTFeed.getStatus();
+      setStatus(currentStatus);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
-  const triggerManualScan = () => {
+  const triggerManualScan = async () => {
     setLoading(true);
-    sendWorkerMessage('MANUAL_SCAN');
+    setError(null);
     
-    toast({
-      title: "🔍 Manual Scan Triggered",
-      description: "Forcing immediate market data collection..."
-    });
+    try {
+      await liveCCXTFeed.triggerManualScan();
+      
+      toast({
+        title: "🔍 Manual Scan Complete",
+        description: "AITRADEX1 analysis triggered successfully"
+      });
+
+      await getStatus();
+    } catch (err: any) {
+      setError(err.message);
+      toast({
+        title: "❌ Scan Failed",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return {

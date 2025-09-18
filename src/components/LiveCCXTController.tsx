@@ -7,12 +7,12 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertCircle, Activity, Database, TrendingUp, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { liveCCXTFeed } from '@/lib/liveCCXTFeed';
+import { liveCCXTFeed, type CCXTFeedStatus } from '@/lib/liveCCXTFeed';
 import { supabase } from '@/lib/supabaseClient';
 
 export function LiveCCXTController() {
   const [isRunning, setIsRunning] = useState(false);
-  const [feedStatus, setFeedStatus] = useState<any>(null);
+  const [feedStatus, setFeedStatus] = useState<CCXTFeedStatus | null>(null);
   const [marketStats, setMarketStats] = useState<any>(null);
   const [signalStats, setSignalStats] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -31,10 +31,14 @@ export function LiveCCXTController() {
     return () => clearInterval(interval);
   }, []);
 
-  const checkFeedStatus = () => {
-    const status = liveCCXTFeed.getStatus();
-    setFeedStatus(status);
-    setIsRunning(status.isRunning);
+  const checkFeedStatus = async () => {
+    try {
+      const status = await liveCCXTFeed.getStatus();
+      setFeedStatus(status);
+      setIsRunning(status.isRunning);
+    } catch (error) {
+      console.error('Failed to check feed status:', error);
+    }
   };
 
   const loadStats = async () => {
@@ -45,7 +49,7 @@ export function LiveCCXTController() {
         .select('*')
         .gte('updated_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()); // Last 30 minutes
 
-      // Load signal stats
+      // Load signal stats  
       const { data: signalData } = await supabase
         .from('signals')
         .select('*')
@@ -89,7 +93,7 @@ export function LiveCCXTController() {
         });
       }
       
-      checkFeedStatus();
+      await checkFeedStatus();
       await loadStats();
     } catch (error) {
       console.error('Failed to toggle feed:', error);
@@ -107,8 +111,7 @@ export function LiveCCXTController() {
     setLoading(true);
     try {
       // Force a manual data collection cycle
-      await liveCCXTFeed.start();
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+      await liveCCXTFeed.triggerManualScan();
       await loadStats();
       
       toast({
@@ -158,7 +161,7 @@ export function LiveCCXTController() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <div className="text-sm text-muted-foreground">Update Interval</div>
-              <div className="text-lg font-semibold">5 seconds</div>
+              <div className="text-lg font-semibold">30 seconds</div>
             </div>
             <div className="space-y-2">
               <div className="text-sm text-muted-foreground">Exchanges</div>
@@ -168,9 +171,7 @@ export function LiveCCXTController() {
             </div>
             <div className="space-y-2">
               <div className="text-sm text-muted-foreground">Symbols Tracked</div>
-              <div className="text-lg font-semibold">
-                {feedStatus?.symbols?.length || 0} pairs
-              </div>
+              <div className="text-lg font-semibold">15 pairs</div>
             </div>
           </div>
 
@@ -198,8 +199,8 @@ export function LiveCCXTController() {
                 <Database className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{marketStats?.totalSymbols || 0}</div>
-                <p className="text-xs text-muted-foreground">Last 30 minutes</p>
+                <div className="text-2xl font-bold">{feedStatus?.marketDataPoints || 0}</div>
+                <p className="text-xs text-muted-foreground">Last hour</p>
               </CardContent>
             </Card>
 
@@ -235,17 +236,17 @@ export function LiveCCXTController() {
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">Live</div>
-                <p className="text-xs text-muted-foreground">Real-time feed</p>
+                <div className="text-2xl font-bold text-green-600">AITRADEX1</div>
+                <p className="text-xs text-muted-foreground">Algorithm active</p>
               </CardContent>
             </Card>
           </div>
 
-          {marketStats?.lastUpdate && (
+          {feedStatus?.lastUpdate && (
             <Card>
               <CardContent className="pt-6">
                 <div className="text-sm text-muted-foreground">
-                  Last market data update: {new Date(marketStats.lastUpdate).toLocaleString()}
+                  Last AITRADEX1 scan: {new Date(feedStatus.lastUpdate).toLocaleString()}
                 </div>
               </CardContent>
             </Card>
@@ -260,7 +261,7 @@ export function LiveCCXTController() {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{signalStats?.totalSignals || 0}</div>
+                <div className="text-2xl font-bold">{feedStatus?.signalsGenerated || 0}</div>
                 <p className="text-xs text-muted-foreground">Last hour</p>
               </CardContent>
             </Card>
@@ -362,14 +363,17 @@ export function LiveCCXTController() {
               </ul>
             </div>
             <div>
-              <div className="font-medium mb-2">AITRADEX1 Algorithm Features:</div>
+              <div className="font-medium mb-2">AITRADEX1 Algorithm (v2.0) Features:</div>
               <ul className="space-y-1 text-muted-foreground">
-                <li>• EMA 21/200 trend analysis</li>
-                <li>• RSI momentum filtering</li>
-                <li>• ADX trend strength</li>
-                <li>• Volume confirmation</li>
-                <li>• ATR-based risk management</li>
-                <li>• Real-time signal scoring</li>
+                <li>• EMA21/SMA200 Golden/Death Cross detection</li>
+                <li>• Volume surge confirmation (1.5x average)</li>
+                <li>• Historical Volatility Percentile filtering</li>
+                <li>• Stochastic momentum confirmation</li>
+                <li>• DMI/ADX trend strength validation</li>
+                <li>• ATR-based dynamic risk management</li>
+                <li>• Confidence scoring and signal grading</li>
+                <li>• Predictive crossover analysis</li>
+                <li>• Multi-timeframe signal generation</li>
               </ul>
             </div>
           </div>
