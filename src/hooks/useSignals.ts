@@ -3,6 +3,9 @@ import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { subscribeSignals as subscribeSignalsRealtime } from '@/lib/realtime';
 
+import { Signal as TradingSignal } from '@/types/trading';
+
+// UI-specific Signal type that extends the trading signal
 type Signal = {
   id: string;
   token: string;
@@ -37,16 +40,16 @@ function mapDbToSignal(row: any): Signal {
     direction: direction === 'LONG' ? 'BUY' : 'SELL',
     signal_type: `${row.algo ?? row.strategy ?? 'AItradeX1'} ${row.timeframe ?? '1h'}`,
     timeframe: row.timeframe ?? row.meta?.timeframe ?? '1h',
-    entry_price: Number(row.price ?? row.entry_hint ?? 0),
-    exit_target: (row.tp ?? row.tp_hint) != null ? Number(row.tp ?? row.tp_hint) : null,
-    stop_loss: (row.sl ?? row.sl_hint) != null ? Number(row.sl ?? row.sl_hint) : null,
+    entry_price: Number(row.price ?? row.entry_price ?? 0),
+    exit_target: (row.take_profit ?? row.tp ?? row.tp_hint) != null ? Number(row.take_profit ?? row.tp ?? row.tp_hint) : null,
+    stop_loss: (row.stop_loss ?? row.sl ?? row.sl_hint) != null ? Number(row.stop_loss ?? row.sl ?? row.sl_hint) : null,
     leverage: Number(row.leverage ?? row.meta?.leverage ?? 1),
     confidence_score: Number(row.score ?? row.confidence ?? 0),
     pms_score: Number(row.score ?? 0),
     trend_projection: direction === 'LONG' ? '⬆️' : '⬇️',
     volume_strength: Number(row.volume_strength ?? row.meta?.volume_strength ?? 1.0),
-    roi_projection: (row.tp ?? row.tp_hint) && (row.price ?? row.entry_hint) ? 
-      Math.abs((Number(row.tp ?? row.tp_hint) - Number(row.price ?? row.entry_hint)) / Number(row.price ?? row.entry_hint) * 100) : 10,
+    roi_projection: (row.take_profit ?? row.tp ?? row.tp_hint) && (row.price ?? row.entry_price) ? 
+      Math.abs((Number(row.take_profit ?? row.tp ?? row.tp_hint) - Number(row.price ?? row.entry_price)) / Number(row.price ?? row.entry_price) * 100) : 10,
     signal_strength: row.score > 85 ? 'STRONG' : row.score > 75 ? 'MEDIUM' : 'WEAK',
     risk_level: row.score > 85 ? 'LOW' : row.score > 75 ? 'MEDIUM' : 'HIGH',
     quantum_probability: Number(row.score ?? row.confidence ?? 0) / 100,
@@ -63,20 +66,45 @@ function mapDbSignal(row: any): Signal {
     direction: direction === 'LONG' ? 'BUY' : 'SELL',
     signal_type: row.signal_type ?? 'AI Strategy',
     timeframe: row.timeframe ?? '1h',
-    entry_price: Number(row.entry_price ?? 0),
-    exit_target: row.tp_price != null ? Number(row.tp_price) : null,
-    stop_loss: row.sl_price != null ? Number(row.sl_price) : null,
+    entry_price: Number(row.price ?? row.entry_price ?? 0),
+    exit_target: row.take_profit != null ? Number(row.take_profit) : null,
+    stop_loss: row.stop_loss != null ? Number(row.stop_loss) : null,
     leverage: Number(row.leverage ?? 1),
-    confidence_score: Number(row.confidence_score ?? 0),
+    confidence_score: Number(row.confidence ?? row.score ?? 0),
     pms_score: Number(row.score ?? 0),
     trend_projection: direction === 'LONG' ? '⬆️' : '⬇️',
     volume_strength: Number(row.volume_strength ?? 1.0),
     roi_projection: Number(row.roi_projection ?? 10),
     signal_strength: (row.signal_strength ?? 'MEDIUM').toUpperCase() as 'WEAK' | 'MEDIUM' | 'STRONG',
     risk_level: (row.risk_level ?? 'MEDIUM').toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH',
-    quantum_probability: Number(row.confidence_score ?? 0) / 100,
+    quantum_probability: Number(row.confidence ?? row.score ?? 0) / 100,
     status: row.is_active ? 'active' : 'inactive',
     created_at: row.created_at ?? new Date().toISOString(),
+  };
+}
+
+// Convert realtime signal to UI signal
+function convertRealtimeSignal(realtimeSignal: any): Signal {
+  return {
+    id: realtimeSignal.id,
+    token: realtimeSignal.token,
+    direction: realtimeSignal.direction === 'LONG' ? 'BUY' : 'SELL',
+    signal_type: realtimeSignal.signal_type,
+    timeframe: realtimeSignal.timeframe,
+    entry_price: realtimeSignal.entry_price,
+    exit_target: realtimeSignal.exit_target,
+    stop_loss: realtimeSignal.stop_loss,
+    leverage: realtimeSignal.leverage,
+    confidence_score: realtimeSignal.confidence_score,
+    pms_score: realtimeSignal.pms_score,
+    trend_projection: realtimeSignal.trend_projection,
+    volume_strength: realtimeSignal.volume_strength,
+    roi_projection: realtimeSignal.roi_projection,
+    signal_strength: realtimeSignal.signal_strength,
+    risk_level: realtimeSignal.risk_level,
+    quantum_probability: realtimeSignal.quantum_probability,
+    status: realtimeSignal.status,
+    created_at: realtimeSignal.created_at,
   };
 }
 
@@ -296,13 +324,14 @@ export const useSignals = () => {
         channel = subscribeSignalsRealtime(
           (signal) => {
             console.log('[signals-realtime] New signal via realtime:', signal);
-            if (mounted && signal.confidence_score >= 70) {
-              setSignals(prev => [signal, ...prev].slice(0, 20));
+            const uiSignal = convertRealtimeSignal(signal);
+            if (mounted && uiSignal.confidence_score >= 70) {
+              setSignals(prev => [uiSignal, ...prev].slice(0, 20));
               
-              if (signal.confidence_score >= 80) {
+              if (uiSignal.confidence_score >= 80) {
                 toast({
                   title: "🚨 New High-Confidence Signal",
-                  description: `${signal.direction} ${signal.token} - ${signal.confidence_score.toFixed(1)}% confidence`,
+                  description: `${uiSignal.direction} ${uiSignal.token} - ${uiSignal.confidence_score.toFixed(1)}% confidence`,
                   duration: 5000,
                 });
               }
@@ -310,8 +339,9 @@ export const useSignals = () => {
           },
           (signal) => {
             console.log('[signals-realtime] Signal updated via realtime:', signal);
+            const uiSignal = convertRealtimeSignal(signal);
             if (mounted) {
-              setSignals(prev => prev.map(s => s.id === signal.id ? signal : s));
+              setSignals(prev => prev.map(s => s.id === uiSignal.id ? uiSignal : s));
             }
           }
         );
