@@ -17,6 +17,7 @@ import { TradingGateway } from '@/lib/tradingGateway';
 import { useToast } from '@/hooks/use-toast';
 import { ComprehensiveScannerTest } from '@/components/ComprehensiveScannerTest';
 import { LiveComprehensiveTest } from '@/components/LiveComprehensiveTest';
+import { ComprehensiveSignalTester } from '@/components/ComprehensiveSignalTester';
 
 const Signals = () => {
   const { signals, loading, generateSignals } = useSignals();
@@ -89,7 +90,9 @@ const Signals = () => {
           </Button>
         </div>
 
+        <ComprehensiveSignalTester />
         <LiveComprehensiveTest />
+        <ComprehensiveScannerTest />
         <SystemRebuild />
         <SignalsDebug />
         
