@@ -51,72 +51,73 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
       setLoading(true);
       setError(null);
 
-      console.log('[RealTimeSignals] Loading initial data...');
+      console.log('[RealTimeSignals] Loading real trading signals...');
 
-      // Use proper error handling and retry logic
-      let signalsResult;
-      try {
-        // Build signals query with proper client
-        let signalsQuery = supabase
-          .from('signals')
-          .select('*')
-          .gte('score', minScore)
-          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-          .order('created_at', { ascending: false })
-          .limit(100);
+      // Focus on real data signals only
+      let signalsQuery = supabase
+        .from('signals')
+        .select('*')
+        .gte('score', minScore)
+        .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Last 4 hours
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-        // Apply filters
-        if (!includeExpired) {
-          signalsQuery = signalsQuery.or('expires_at.is.null,expires_at.gt.' + new Date().toISOString());
-        }
+      // Filter for real data sources
+      signalsQuery = signalsQuery.or(
+        'source.ilike.%real%,source.eq.enhanced_signal_generation,source.eq.aitradex1_enhanced_scanner,source.eq.complete_algorithm_live'
+      );
 
-        if (symbols.length > 0) {
-          signalsQuery = signalsQuery.in('symbol', symbols);
-        }
+      // Apply additional filters
+      if (!includeExpired) {
+        signalsQuery = signalsQuery.or('expires_at.is.null,expires_at.gt.' + new Date().toISOString());
+      }
 
-        if (timeframes.length > 0) {
-          signalsQuery = signalsQuery.in('timeframe', timeframes);
-        }
+      if (symbols.length > 0) {
+        signalsQuery = signalsQuery.in('symbol', symbols);
+      }
 
-        signalsResult = await signalsQuery;
+      if (timeframes.length > 0) {
+        signalsQuery = signalsQuery.in('timeframe', timeframes);
+      }
+
+      const signalsResult = await signalsQuery;
+      
+      if (signalsResult.error) {
+        console.error('[RealTimeSignals] Error loading real signals:', signalsResult.error);
         
-        if (signalsResult.error) {
-          console.error('[RealTimeSignals] Signals query error:', signalsResult.error);
-          throw signalsResult.error;
-        }
-
-        console.log(`[RealTimeSignals] Loaded ${signalsResult.data?.length || 0} signals`);
-        
-      } catch (queryError) {
-        console.error('[RealTimeSignals] Direct query failed, using fallback:', queryError);
-        
-        // Fallback: Try with minimal query
+        // Fallback to basic query
         const fallbackResult = await supabase
           .from('signals')
           .select('*')
-          .limit(20)
+          .limit(50)
           .order('created_at', { ascending: false });
           
         if (fallbackResult.error) {
           throw new Error(`Database connection failed: ${fallbackResult.error.message}`);
         }
         
-        signalsResult = fallbackResult;
-        console.log(`[RealTimeSignals] Fallback loaded ${signalsResult.data?.length || 0} signals`);
+        // Filter for real signals from fallback
+        const realSignals = (fallbackResult.data || []).filter(signal => 
+          signal.source?.includes('real') || 
+          signal.source === 'enhanced_signal_generation' ||
+          signal.source === 'aitradex1_enhanced_scanner' ||
+          signal.source === 'complete_algorithm_live' ||
+          signal.metadata?.real_data === true
+        );
+        
+        setSignals(realSignals);
+        console.log(`[RealTimeSignals] Fallback: ${realSignals.length}/${fallbackResult.data?.length || 0} real signals`);
+      } else {
+        setSignals(signalsResult.data || []);
+        console.log(`[RealTimeSignals] Loaded ${signalsResult.data?.length || 0} real signals`);
       }
 
-      // Skip trades query for now - focus on signals
-      const tradesResult = { data: [], error: null };
-
-      setSignals(signalsResult.data || []);
-      setRecentTrades(tradesResult?.data || []);
+      setRecentTrades([]); // Skip trades for now
       setLastUpdate(new Date());
 
     } catch (err: any) {
-      console.error('[RealTimeSignals] Failed to load signals data:', err);
-      setError(err.message || 'Failed to load data');
-      
-      // Set empty arrays on error
+      console.error('[RealTimeSignals] Failed to load signals:', err);
+      setError(err.message || 'Failed to load real trading signals');
       setSignals([]);
       setRecentTrades([]);
     } finally {
@@ -145,12 +146,25 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
             console.log('[RealTimeSignals] 📡 New signal received:', payload.new);
             
             if (payload.new && payload.new.score >= minScore) {
+              // Only accept real data signals
+              const isRealSignal = payload.new.source?.includes('real') || 
+                payload.new.source === 'enhanced_signal_generation' ||
+                payload.new.source === 'aitradex1_enhanced_scanner' ||
+                payload.new.source === 'complete_algorithm_live' ||
+                payload.new.metadata?.real_data === true;
+              
+              if (!isRealSignal) {
+                console.log('[RealTimeSignals] Skipping mock signal:', payload.new.source);
+                return;
+              }
+              
               // Apply filters
               if (symbols.length > 0 && !symbols.includes(payload.new.symbol)) return;
               if (timeframes.length > 0 && !timeframes.includes(payload.new.timeframe)) return;
 
               setSignals(prev => [payload.new as Signal, ...prev].slice(0, 100));
               setLastUpdate(new Date());
+              console.log('[RealTimeSignals] ✅ Added real signal:', payload.new.symbol);
             }
           }
         )
