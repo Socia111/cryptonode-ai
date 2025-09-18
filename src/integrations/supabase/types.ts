@@ -479,6 +479,7 @@ export type Database = {
           hvp_value: number | null
           id: string
           is_active: boolean | null
+          meta: Json | null
           metadata: Json | null
           price: number
           score: number
@@ -507,6 +508,7 @@ export type Database = {
           hvp_value?: number | null
           id?: string
           is_active?: boolean | null
+          meta?: Json | null
           metadata?: Json | null
           price: number
           score: number
@@ -535,6 +537,7 @@ export type Database = {
           hvp_value?: number | null
           id?: string
           is_active?: boolean | null
+          meta?: Json | null
           metadata?: Json | null
           price?: number
           score?: number
