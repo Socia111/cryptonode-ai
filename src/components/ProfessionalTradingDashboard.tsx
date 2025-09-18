@@ -15,7 +15,8 @@ import {
   Star,
   CheckCircle,
   AlertCircle,
-  Search
+  Search,
+  LogIn
 } from 'lucide-react';
 import { useSignals } from '@/hooks/useSignals';
 import { useRealTimeSignals } from '@/hooks/useRealTimeSignals';
@@ -29,6 +30,8 @@ import { LiveCCXTController } from '@/components/LiveCCXTController';
 import { ExchangeAuthentication } from '@/components/ExchangeAuthentication';
 import { TradingExecutionPanel } from '@/components/TradingExecutionPanel';
 import { LiveTradingDashboard } from '@/components/LiveTradingDashboard';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 interface AlgorithmStats {
   activeSignals: number;
@@ -48,6 +51,32 @@ interface TradePosition {
 }
 
 export function ProfessionalTradingDashboard() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Show login prompt if not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-2">
+              <LogIn className="h-6 w-6" />
+              Sign In Required
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-muted-foreground">
+              Please sign in to access the trading dashboard
+            </p>
+            <Button onClick={() => navigate('/auth')} className="w-full">
+              Go to Sign In
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   const { signals } = useSignals();
   const { signals: liveSignals } = useRealTimeSignals();
   const [searchTerm, setSearchTerm] = useState('');
