@@ -20,11 +20,41 @@ serve(async (req) => {
     )
 
     const body = await req.json().catch(() => ({}))
-    const { symbol, side, quantity, orderType = 'Market', testMode = true } = body
+    const { symbol, side, quantity, amount, orderType = 'Market', testMode = true } = body
     
-    console.log('[paper-trading-executor] Executing paper trade:', { symbol, side, quantity, orderType })
+    // Handle both quantity and amount parameters
+    let tradeQuantity = quantity;
+    if (!tradeQuantity && amount) {
+      // Convert amount to quantity based on current market price
+      try {
+        const { data: marketPrice } = await supabase
+          .from('live_market_data')
+          .select('price')
+          .eq('symbol', symbol)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (marketPrice?.price) {
+          tradeQuantity = amount / Number(marketPrice.price);
+        }
+      } catch (err) {
+        console.warn('[paper-trading-executor] Could not fetch price for amount conversion:', err);
+      }
+    }
     
-    if (!symbol || !side || !quantity) {
+    // Default quantities for different assets if no quantity provided
+    if (!tradeQuantity) {
+      if (symbol.includes('BTC')) tradeQuantity = 0.001;
+      else if (symbol.includes('ETH')) tradeQuantity = 0.01;
+      else if (symbol.includes('SOL')) tradeQuantity = 1;
+      else if (symbol.includes('ADA') || symbol.includes('DOGE')) tradeQuantity = 100;
+      else tradeQuantity = 0.1;
+    }
+    
+    console.log('[paper-trading-executor] Executing paper trade:', { symbol, side, quantity: tradeQuantity, orderType })
+    
+    if (!symbol || !side || !tradeQuantity) {
       throw new Error('Missing required parameters: symbol, side, quantity')
     }
 
@@ -64,16 +94,16 @@ serve(async (req) => {
       .insert({
         symbol,
         side: side.toUpperCase(),
-        qty: quantity,
+        qty: tradeQuantity,
         status: 'filled',
         paper_mode: true,
         exchange_order_id: orderId,
-        amount_usd: quantity * executionPrice,
+        amount_usd: tradeQuantity * executionPrice,
         raw_response: {
           orderId,
           symbol,
           side,
-          quantity,
+          quantity: tradeQuantity,
           price: executionPrice,
           status: 'FILLED',
           executionTime: new Date().toISOString(),
@@ -96,7 +126,7 @@ serve(async (req) => {
         orderId,
         symbol,
         side,
-        quantity,
+        quantity: tradeQuantity,
         executionPrice,
         status: 'filled',
         type: 'paper_trade',

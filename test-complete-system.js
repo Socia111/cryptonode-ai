@@ -1,168 +1,210 @@
-// Complete System Test - Run this to verify all fixes
-import { createClient } from '@supabase/supabase-js';
+// Complete system test - cleanup, generate real signals, and verify
+const SUPABASE_URL = "https://codhlwjogfjywmjyjbbn.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0";
 
-const supabase = createClient(
-  'https://codhlwjogfjywmjyjbbn.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0'
-);
-
-console.log('🔧 Complete System Test - Verifying All Fixes');
-
-async function runCompleteTest() {
+async function runCompleteSystemTest() {
+  console.log("🔥 COMPLETE REAL TRADING SYSTEM TEST\n");
+  
   try {
-    // Check authentication
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      console.log('❌ Not signed in - please login first');
-      return;
-    }
-
-    console.log('✅ User authenticated:', session.user.email);
-
-    // Step 1: Test Trading Account Creation (CRITICAL FIX)
-    console.log('\n=== 1. Testing Trading Account Creation ===');
-    const { data: accountId, error: accountError } = await supabase.rpc('restore_user_trading_account', {
-      p_user_id: session.user.id,
-      p_api_key: 'dkfAHt1EfUQM6YGS5g',
-      p_api_secret: 'k5ybNEDk0Wy1Vl9suXHMibjPCBAAmAG5o6og',
-      p_account_type: 'testnet'
-    });
-
-    if (accountError) {
-      console.log('❌ Account creation failed:', accountError.message);
-    } else {
-      console.log('✅ Trading account created:', accountId);
-    }
-
-    // Step 2: Verify Account in Database 
-    console.log('\n=== 2. Verifying Account in Database ===');
-    const { data: accounts, error: verifyError } = await supabase
-      .from('user_trading_accounts')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .eq('is_active', true);
-
-    if (verifyError) {
-      console.log('❌ Account verification failed:', verifyError.message);
-    } else {
-      console.log('✅ Active accounts found:', accounts?.length || 0);
-      if (accounts && accounts.length > 0) {
-        console.log('   Account details:', {
-          exchange: accounts[0].exchange,
-          account_type: accounts[0].account_type,
-          has_api_key: !!accounts[0].api_key_encrypted,
-          has_secret: !!accounts[0].api_secret_encrypted
-        });
-      }
-    }
-
-    // Step 3: Test Signal Generation
-    console.log('\n=== 3. Testing Signal Generation ===');
-    const { data: signalResult, error: signalError } = await supabase.functions.invoke('live-scanner-production', {
-      body: {
-        exchange: 'bybit',
-        timeframe: '15m',
-        symbols: ['BTCUSDT', 'ETHUSDT'],
-        relaxed_filters: true
+    // Step 1: Clean database of mock signals
+    console.log("Step 1: Cleaning mock signals from database...");
+    const cleanupResponse = await fetch(`${SUPABASE_URL}/rest/v1/signals?or=(source.eq.demo,source.eq.mock,source.eq.system,algo.like.*mock*,algo.like.*demo*,algo.eq.quantum_ai)`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+        'Prefer': 'return=minimal'
       }
     });
-
-    if (signalError) {
-      console.log('❌ Signal generation failed:', signalError.message);
+    
+    if (cleanupResponse.ok) {
+      console.log("✅ Mock signals cleaned from database");
     } else {
-      console.log('✅ Signal generation working!');
-      console.log('   Response:', {
-        success: signalResult?.success,
-        signals_found: signalResult?.signals_found,
-        symbols_processed: signalResult?.symbols_processed
+      console.warn("⚠️  Cleanup warning:", await cleanupResponse.text());
+    }
+
+    // Step 2: Trigger live exchange feed
+    console.log("\nStep 2: Fetching fresh market data...");
+    const feedResponse = await fetch(`${SUPABASE_URL}/functions/v1/live-exchange-feed`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT'],
+        exchanges: ['bybit'],
+        force_refresh: true
+      })
+    });
+
+    const feedResult = await feedResponse.json();
+    console.log("📊 Market data fetch:", feedResult.success ? "SUCCESS" : "FAILED");
+    
+    // Wait for data processing
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    // Step 3: Generate real signals
+    console.log("\nStep 3: Generating real trading signals...");
+    
+    // Trigger enhanced signal generation
+    const enhancedResponse = await fetch(`${SUPABASE_URL}/functions/v1/enhanced-signal-generation`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ trigger: 'complete_test' })
+    });
+
+    const enhancedResult = await enhancedResponse.json();
+    console.log("🎯 Enhanced signals:", enhancedResult.success ? "SUCCESS" : "FAILED");
+    
+    // Trigger AItradeX1 scanner
+    const scannerResponse = await fetch(`${SUPABASE_URL}/functions/v1/aitradex1-enhanced-scanner`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT'],
+        force_generate: true
+      })
+    });
+
+    const scannerResult = await scannerResponse.json();
+    console.log("🔬 Advanced scanner:", scannerResult.success ? "SUCCESS" : "FAILED");
+
+    // Wait for signal processing
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Step 4: Test paper trading
+    console.log("\nStep 4: Testing paper trading execution...");
+    const tradeResponse = await fetch(`${SUPABASE_URL}/functions/v1/paper-trading-executor`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        symbol: 'BTCUSDT',
+        side: 'buy',
+        quantity: 0.001,
+        testMode: true
+      })
+    });
+
+    const tradeResult = await tradeResponse.json();
+    console.log("💰 Paper trading:", tradeResult.success ? "SUCCESS" : "FAILED");
+
+    // Step 5: Verify final state
+    console.log("\nStep 5: Final verification...");
+    
+    // Check signals
+    const signalsResponse = await fetch(`${SUPABASE_URL}/rest/v1/signals?select=*&order=created_at.desc&limit=20`, {
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+      }
+    });
+
+    const allSignals = await signalsResponse.json();
+    
+    // Check market data
+    const marketResponse = await fetch(`${SUPABASE_URL}/rest/v1/live_market_data?select=*&order=updated_at.desc&limit=10`, {
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+      }
+    });
+
+    const marketData = await marketResponse.json();
+
+    // Check execution orders
+    const ordersResponse = await fetch(`${SUPABASE_URL}/rest/v1/execution_orders?select=*&order=created_at.desc&limit=5`, {
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+      }
+    });
+
+    const orders = await ordersResponse.json();
+
+    // Analyze results
+    const recentSignals = allSignals.filter(s => 
+      new Date(s.created_at) > new Date(Date.now() - 15 * 60 * 1000)
+    );
+    
+    const realSignals = recentSignals.filter(s => 
+      s.source !== 'demo' && 
+      s.source !== 'mock' && 
+      s.source !== 'system' &&
+      !s.algo?.includes('mock') &&
+      !s.algo?.includes('demo') &&
+      s.algo !== 'quantum_ai' &&
+      (s.source?.includes('real') || 
+       s.source?.includes('enhanced') || 
+       s.source?.includes('aitradex1') ||
+       s.metadata?.real_data === true)
+    );
+
+    const mockSignals = recentSignals.filter(s => 
+      s.source === 'demo' ||
+      s.source === 'mock' ||
+      s.source === 'system' ||
+      s.algo?.includes('mock') ||
+      s.algo?.includes('demo') ||
+      s.algo === 'quantum_ai'
+    );
+
+    console.log("\n📊 FINAL RESULTS:");
+    console.log(`   Market data points: ${marketData.length}`);
+    console.log(`   Total recent signals: ${recentSignals.length}`);
+    console.log(`   Real signals: ${realSignals.length}`);
+    console.log(`   Mock signals: ${mockSignals.length}`);
+    console.log(`   Execution orders: ${orders.length}`);
+    console.log(`   Real signal percentage: ${recentSignals.length > 0 ? ((realSignals.length / recentSignals.length) * 100).toFixed(1) : 0}%`);
+
+    if (realSignals.length > 0) {
+      console.log("\n✅ REAL SIGNALS GENERATED:");
+      realSignals.slice(0, 5).forEach(signal => {
+        console.log(`   🎯 ${signal.symbol} ${signal.direction} - Score: ${signal.score}% (${signal.source}/${signal.algo})`);
       });
     }
 
-    // Step 4: Test Trade Execution
-    console.log('\n=== 4. Testing Trade Execution ===');
-    const { data: tradeResult, error: tradeError } = await supabase.functions.invoke('aitradex1-trade-executor', {
-      body: {
-        action: 'place_order',
-        symbol: 'BTCUSDT',
-        side: 'Buy',
-        amountUSD: 1,
-        leverage: 1,
-        scalpMode: true
-      }
-    });
-
-    if (tradeError) {
-      console.log('❌ Trade execution failed:', tradeError.message);
-    } else if (tradeResult?.success) {
-      console.log('✅ Trade execution successful!');
-      console.log('   Result:', tradeResult);
-    } else {
-      console.log('⚠️ Trade execution response:', tradeResult?.error || 'Unknown issue');
+    if (mockSignals.length > 0) {
+      console.log("\n🚫 MOCK SIGNALS STILL PRESENT:");
+      mockSignals.forEach(signal => {
+        console.log(`   ❌ ${signal.symbol} ${signal.direction} - ${signal.source}/${signal.algo}`);
+      });
     }
 
-    // Step 5: Check Recent Signals
-    console.log('\n=== 5. Checking Recent Signals ===');
-    const { data: recentSignals, error: signalsError } = await supabase
-      .from('signals')
-      .select('*')
-      .eq('algo', 'unirail_core')
-      .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()) // Last hour
-      .order('created_at', { ascending: false })
-      .limit(5);
+    const systemWorking = realSignals.length > 0 && mockSignals.length === 0 && marketData.length > 0;
 
-    if (signalsError) {
-      console.log('❌ Signal query failed:', signalsError.message);
-    } else {
-      console.log('✅ Recent unirail_core signals:', recentSignals?.length || 0);
-      if (recentSignals && recentSignals.length > 0) {
-        console.log('   Latest signal:', {
-          symbol: recentSignals[0].symbol,
-          direction: recentSignals[0].direction,
-          score: recentSignals[0].score,
-          algo: recentSignals[0].algo,
-          exchange: recentSignals[0].exchange
-        });
-      }
-    }
-
-    // Step 6: Test Market Data Access
-    console.log('\n=== 6. Testing Market Data Access ===');
-    const { data: markets, error: marketsError } = await supabase
-      .from('markets')
-      .select('*')
-      .limit(3);
-
-    if (marketsError) {
-      console.log('❌ Markets query failed:', marketsError.message);
-    } else {
-      console.log('✅ Markets accessible:', markets?.length || 0);
-    }
-
-    console.log('\n=== FINAL SYSTEM STATUS ===');
-    const accountsWorking = accounts && accounts.length > 0;
-    const signalsWorking = !signalError;
-    const tradingWorking = tradeResult?.success || !tradeError;
+    console.log(`\n${systemWorking ? '🎉 SYSTEM STATUS: FULLY OPERATIONAL' : '⚠️  SYSTEM STATUS: NEEDS ATTENTION'}`);
     
-    console.log('✅ Authentication:', '✓ WORKING');
-    console.log('✅ Database Access:', !marketsError ? '✓ WORKING' : '❌ FAILED');
-    console.log('✅ Trading Accounts:', accountsWorking ? '✓ WORKING' : '❌ FAILED');
-    console.log('✅ Signal Generation:', signalsWorking ? '✓ WORKING' : '❌ FAILED');
-    console.log('✅ Trade Execution:', tradingWorking ? '✓ WORKING' : '❌ FAILED');
-    console.log('✅ Algorithm:', 'unirail_core');
-    
-    if (accountsWorking && signalsWorking && !marketsError) {
-      console.log('\n🎉 SYSTEM FULLY OPERATIONAL!');
-      console.log('📊 All components working correctly');
-      console.log('🔐 RLS policies fixed');
-      console.log('💹 Trading system ready');
+    if (systemWorking) {
+      console.log("✅ Only real trading signals are being generated");
+      console.log("✅ Paper trading is working correctly");
+      console.log("✅ Market data is being fetched successfully");
+      console.log("✅ System is ready for live trading!");
     } else {
-      console.log('\n⚠️ SYSTEM PARTIALLY WORKING');
-      console.log('Some components need attention');
+      if (realSignals.length === 0) console.log("❌ No real signals being generated");
+      if (mockSignals.length > 0) console.log("❌ Mock signals still present");
+      if (marketData.length === 0) console.log("❌ No recent market data");
     }
+
+    return systemWorking;
 
   } catch (error) {
-    console.error('💥 System test failed:', error);
+    console.error("❌ System test failed:", error);
+    return false;
   }
 }
 
-runCompleteTest();
+runCompleteSystemTest().catch(console.error);

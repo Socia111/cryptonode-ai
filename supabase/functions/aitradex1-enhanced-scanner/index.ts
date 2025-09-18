@@ -153,10 +153,10 @@ async function generateAdvancedRealSignal(marketData: any, timeframe: string) {
     const adx = Number(marketData.adx) || 25;
     const changePercent = Number(marketData.change_24h_percent) || 0;
 
-    // ADVANCED TECHNICAL ANALYSIS CONDITIONS
-    const strongTrend = sma200 ? (price > ema21 && ema21 > sma200) || (price < ema21 && ema21 < sma200) : Math.abs(changePercent) > 5;
-    const volumeSignificant = volume > (volumeAvg * 1.3);
-    const trendStrength = adx > 25;
+    // ADVANCED TECHNICAL ANALYSIS CONDITIONS - More relaxed for signal generation
+    const strongTrend = sma200 ? (price > ema21 && ema21 > sma200) || (price < ema21 && ema21 < sma200) : Math.abs(changePercent) > 2; // Relaxed from 5% to 2%
+    const volumeSignificant = volume > (volumeAvg * 1.1); // Relaxed from 1.3 to 1.1
+    const trendStrength = adx > 20; // Relaxed from 25 to 20
     const momentum = Math.abs(changePercent);
     
     // RSI conditions for different scenarios
@@ -173,8 +173,8 @@ async function generateAdvancedRealSignal(marketData: any, timeframe: string) {
     let score = 70;
     let confidence = 0.70;
 
-    // ADVANCED LONG SIGNAL CONDITIONS
-    if (price > ema21 && rsiBullish && volumeSignificant && strongTrend) {
+    // ADVANCED LONG SIGNAL CONDITIONS - More relaxed for real market conditions
+    if (price > ema21 && rsiBullish && (volumeSignificant || trendStrength)) {
       score = 80;
       
       // Score enhancements based on confluence
@@ -231,8 +231,8 @@ async function generateAdvancedRealSignal(marketData: any, timeframe: string) {
         }
       };
     }
-    // ADVANCED SHORT SIGNAL CONDITIONS  
-    else if (price < ema21 && rsiBearish && volumeSignificant && strongTrend) {
+    // ADVANCED SHORT SIGNAL CONDITIONS - More relaxed for real market conditions
+    else if (price < ema21 && rsiBearish && (volumeSignificant || trendStrength)) {
       score = 80;
       
       // Score enhancements based on confluence

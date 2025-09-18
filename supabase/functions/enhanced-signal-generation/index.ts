@@ -165,17 +165,17 @@ async function generateRealSignal(marketData: any, timeframe: string) {
     
     // REAL trend analysis
     const priceAboveEMA = price > ema21;
-    const volumeSurge = volume > (volumeAvg * 1.5);
-    const oversoldRSI = rsi < 35;
-    const overboughtRSI = rsi > 65;
-    const neutralRSI = rsi >= 35 && rsi <= 65;
+    const volumeSurge = volume > (volumeAvg * 1.2); // More relaxed
+    const oversoldRSI = rsi < 40;
+    const overboughtRSI = rsi > 60;
+    const neutralRSI = rsi >= 35 && rsi <= 70; // More relaxed range
     
     // REAL signal conditions
     let signal = null;
     let confidence = 0;
     
-    // LONG signal conditions (using real data)
-    if (priceAboveEMA && neutralRSI && volumeSurge) {
+    // LONG signal conditions (using real data) - More relaxed conditions
+    if (priceAboveEMA && (neutralRSI || oversoldRSI) && (volumeSurge || volume > volumeAvg)) {
       signal = {
         symbol: marketData.symbol,
         direction: 'LONG',
@@ -214,8 +214,8 @@ async function generateRealSignal(marketData: any, timeframe: string) {
       if (rsi > 40 && rsi < 60) confidence += 5;
       
     } 
-    // SHORT signal conditions (using real data)
-    else if (!priceAboveEMA && neutralRSI && volumeSurge) {
+    // SHORT signal conditions (using real data) - More relaxed conditions
+    else if (!priceAboveEMA && (neutralRSI || overboughtRSI) && (volumeSurge || volume > volumeAvg)) {
       signal = {
         symbol: marketData.symbol,
         direction: 'SHORT',

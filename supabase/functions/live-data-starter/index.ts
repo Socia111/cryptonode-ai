@@ -60,9 +60,10 @@ serve(async (req) => {
           body: {
             symbol,
             side,
-            amount: 100 + (i * 50),
+            quantity: symbol.includes('BTC') ? 0.001 : symbol.includes('ETH') ? 0.01 : symbol.includes('SOL') ? 1 : symbol.includes('ADA') ? 100 : 0.1,
             leverage: 1,
             paperMode: true,
+            testMode: true,
             userId: null // Anonymous demo trade
           }
         });
