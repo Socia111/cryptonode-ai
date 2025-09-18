@@ -106,9 +106,9 @@ async function fetchSignals(): Promise<Signal[]> {
       return mapSignalsToInterface(allSignals);
     }
 
-    // Fallback to mock signals for demo purposes
-    console.log('[Signals] No live signals found, using demo signals');
-    return getMockSignals();
+    // No fallback to mock signals - force real data only
+    console.warn('[Signals] No live signals found - start CCXT feed for real data');
+    return [];
 
   } catch (e) {
     console.error('[Signals] Failed to fetch signals:', e);
@@ -146,31 +146,9 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
 }
 
 function getMockSignals(): Signal[] {
-  // For development - show mock signals when no real signals available
-  const { generateMockSignals } = require('@/lib/mockSignals');
-  const mockData = generateMockSignals();
-  
-  return mockData.map((mock: any): Signal => ({
-    id: mock.id,
-    token: mock.symbol.replace('USDT', '/USDT'),
-    direction: mock.direction === 'LONG' ? 'BUY' : 'SELL',
-    signal_type: `${mock.algo} ${mock.timeframe}`,
-    timeframe: mock.timeframe,
-    entry_price: mock.price,
-    exit_target: mock.tp,
-    stop_loss: mock.sl,
-    leverage: 1,
-    confidence_score: mock.score,
-    pms_score: mock.score,
-    trend_projection: mock.direction === 'LONG' ? '⬆️' : '⬇️',
-    volume_strength: 1.0,
-    roi_projection: Math.abs((mock.tp - mock.price) / mock.price * 100),
-    signal_strength: mock.score > 90 ? 'STRONG' : mock.score > 85 ? 'MEDIUM' : 'WEAK',
-    risk_level: mock.score > 90 ? 'LOW' : mock.score > 85 ? 'MEDIUM' : 'HIGH',
-    quantum_probability: mock.score / 100,
-    status: 'active',
-    created_at: mock.created_at,
-  }));
+  // ❌ DEPRECATED: Mock signals are disabled - use only live AITRADEX1 signals
+  console.warn('[useSignals] Mock signals disabled - implement live CCXT feed for real data');
+  return [];
 }
 
 // Function removed - now using subscribeSignalsRealtime from @/lib/realtime

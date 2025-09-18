@@ -25,6 +25,7 @@ import { LiveMarketFeed } from '@/components/LiveMarketFeed';
 import { TradingInterface } from '@/components/TradingInterface';
 import { SystemMonitor } from '@/components/SystemMonitor';
 import { RiskManagement } from '@/components/RiskManagement';
+import { LiveCCXTController } from '@/components/LiveCCXTController';
 
 interface AlgorithmStats {
   activeSignals: number;
@@ -117,7 +118,7 @@ export function ProfessionalTradingDashboard() {
       <Tabs defaultValue="signals" className="w-full">
         <div className="border-b border-border bg-card">
           <div className="container mx-auto px-6">
-            <TabsList className="h-12 bg-transparent grid w-full grid-cols-6">
+            <TabsList className="h-12 bg-transparent grid w-full grid-cols-7">
               <TabsTrigger value="signals" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 📊 Signals
               </TabsTrigger>
@@ -132,6 +133,9 @@ export function ProfessionalTradingDashboard() {
               </TabsTrigger>
               <TabsTrigger value="controls" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 🎯 Controls
+              </TabsTrigger>
+              <TabsTrigger value="ccxt-feed" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                🚀 CCXT Feed
               </TabsTrigger>
               <TabsTrigger value="dashboard" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 📈 Dashboard
@@ -308,6 +312,11 @@ export function ProfessionalTradingDashboard() {
           {/* Controls Tab */}
           <TabsContent value="controls" className="mt-0">
             <RiskManagement />
+          </TabsContent>
+
+          {/* CCXT Feed Tab */}
+          <TabsContent value="ccxt-feed" className="mt-0">
+            <LiveCCXTController />
           </TabsContent>
         </div>
       </Tabs>
