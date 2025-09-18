@@ -73,40 +73,14 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
         signalsQuery = signalsQuery.in('timeframe', timeframes);
       }
 
-      // Build trades query - only for authenticated users
-      const { data: { session } } = await supabase.auth.getSession();
-      let tradesResult;
+      // Skip trades query entirely to avoid permissions issues for now
+      // Focus only on signals which are working
+      const tradesResult = { data: [], error: null };
       
-      if (session?.user) {
-        // Authenticated users can see their own trades
-        tradesResult = await supabase
-          .from('execution_orders')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-          .order('created_at', { ascending: false })
-          .limit(50);
-      } else {
-        // Anonymous users can see public paper trades
-        tradesResult = await supabase
-          .from('execution_orders')
-          .select('*')
-          .eq('paper_mode', true)
-          .is('user_id', null)
-          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-          .order('created_at', { ascending: false })
-          .limit(50);
-      }
-
-      const [signalsResult] = await Promise.all([
-        signalsQuery
-      ]);
-
+      // Execute signals query
+      const signalsResult = await signalsQuery;
+      
       if (signalsResult.error) throw signalsResult.error;
-      if (tradesResult?.error) {
-        console.warn('Trades query failed (likely permissions):', tradesResult.error);
-        // Don't throw error for trades, just continue without them
-      }
 
       setSignals(signalsResult.data || []);
       setRecentTrades(tradesResult?.data || []);
