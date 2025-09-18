@@ -10,6 +10,7 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Type definitions matching the frontend interfaces
 interface TradeRequest {
   symbol: string;
   side: 'BUY' | 'SELL';
@@ -19,6 +20,22 @@ interface TradeRequest {
   paper_mode?: boolean;
   user_id?: string;
   signal_id?: string;
+  order_type?: 'Market' | 'Limit';
+  time_in_force?: 'GTC' | 'IOC' | 'FOK';
+  reduce_only?: boolean;
+}
+
+interface TradeExecutionResult {
+  success: boolean;
+  trade_id?: string;
+  paper_mode: boolean;
+  result: any;
+  message: string;
+  execution_time_ms?: number;
+  avg_price?: string;
+  executed_qty?: string;
+  error_code?: string;
+  retry_count?: number;
 }
 
 interface BybitCredentials {

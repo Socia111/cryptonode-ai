@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { TradeRequest, TradeExecutionResult } from '@/types/trading';
 import { 
   Play, 
   Square, 
@@ -18,20 +19,9 @@ import {
   TrendingDown
 } from 'lucide-react';
 
-interface TradeResult {
-  success: boolean;
-  trade_id?: string;
-  paper_mode: boolean;
-  message: string;
-  execution_time_ms?: number;
-  avg_price?: string;
-  executed_qty?: string;
-  result?: any;
-}
-
 export function EnhancedTradeTest() {
   const [isExecuting, setIsExecuting] = useState(false);
-  const [testResult, setTestResult] = useState<TradeResult | null>(null);
+  const [testResult, setTestResult] = useState<TradeExecutionResult | null>(null);
   
   // Test parameters
   const [symbol, setSymbol] = useState('BTCUSDT');
@@ -51,20 +41,24 @@ export function EnhancedTradeTest() {
       
       const { data: { user } } = await supabase.auth.getUser();
       
-      const tradePayload = {
-        action: 'execute_trade',
+      const tradePayload: TradeRequest = {
         symbol: symbol.toUpperCase(),
         side,
         amount_usd: amountUsd,
         leverage,
         paper_mode: paperMode,
-        user_id: user?.id
+        user_id: user?.id,
+        order_type: 'Market',
+        time_in_force: 'IOC'
       };
 
       console.log('📋 Trade payload:', tradePayload);
 
       const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
-        body: tradePayload
+        body: {
+          action: 'execute_trade',
+          ...tradePayload
+        }
       });
 
       if (error) {
@@ -83,10 +77,11 @@ export function EnhancedTradeTest() {
     } catch (error) {
       console.error('❌ Trade test failed:', error);
       
-      const errorResult: TradeResult = {
+      const errorResult: TradeExecutionResult = {
         success: false,
         paper_mode: paperMode,
-        message: error.message || 'Unknown error occurred'
+        message: error.message || 'Unknown error occurred',
+        result: {}
       };
       
       setTestResult(errorResult);

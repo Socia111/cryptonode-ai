@@ -19,6 +19,7 @@ interface ScanRequest {
   scan_all_coins?: boolean;
 }
 
+// Type definitions matching the frontend interfaces
 interface Signal {
   symbol: string;
   direction: 'LONG' | 'SHORT';
@@ -32,6 +33,20 @@ interface Signal {
   algo: string;
   bar_time: string;
   meta: any;
+}
+
+interface SignalProcessingResult {
+  success: boolean;
+  signals_found: number;
+  signals: Signal[];
+  scan_params: {
+    exchange: string;
+    timeframe: string;
+    symbols_scanned: number;
+    min_score: number;
+    relaxed_filters: boolean;
+  };
+  timestamp: string;
 }
 
 // Technical indicators calculation functions
