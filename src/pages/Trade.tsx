@@ -51,7 +51,7 @@ const Trade = () => {
         </div>
 
         {/* Trading Tabs */}
-        <Tabs defaultValue="debug" className="w-full">
+        <Tabs defaultValue="signals" className="w-full">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="debug">🔍 Debug</TabsTrigger>
             <TabsTrigger value="signals">🎯 Live Signals ({stats.totalSignals})</TabsTrigger>

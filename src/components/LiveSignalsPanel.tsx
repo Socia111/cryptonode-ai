@@ -32,6 +32,7 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('[LiveSignalsPanel] Component mounted, fetching signals...');
     fetchLiveSignals();
     
     // Set up real-time subscription for new signals
@@ -189,7 +190,7 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
       {signals.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>No {type === 'whitelist' ? 'whitelist' : 'live'} signals available</p>
+          <p>No {type === 'whitelist' ? 'whitelist' : 'all'} signals available</p>
           <p className="text-xs">Signals appear when confidence ≥ 70%</p>
         </div>
       ) : (
