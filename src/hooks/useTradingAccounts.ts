@@ -91,15 +91,30 @@ export function useTradingAccounts() {
     try {
       setLoading(true);
 
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       const { data, error } = await supabase.functions.invoke('bybit-authenticate', {
         body: {
+          action: 'validate_and_save',
+          user_id: user.id,
           api_key: apiKey,
           api_secret: apiSecret,
           account_type: accountType
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw new Error(error.message || 'Connection failed');
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Connection failed');
+      }
 
       toast({
         title: "✅ Account Connected",
