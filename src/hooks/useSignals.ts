@@ -177,16 +177,8 @@ export async function generateSignals() {
 
 export async function updateSpynxScores() {
   try {
-    console.info('[updateSpynxScores] Invoking calculate-spynx-scores...');
-    const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
-    
-    if (error) {
-      console.error('[updateSpynxScores] calculate-spynx-scores failed:', error.message);
-      throw error;
-    }
-    
-    console.info('[updateSpynxScores] Success:', data);
-    return data;
+    console.info('[updateSpynxScores] Function disabled - focusing on live signals');
+    return { message: 'Spynx scores functionality disabled', success: true };
   } catch (e: any) {
     console.error('[updateSpynxScores] Exception:', e);
     throw e;

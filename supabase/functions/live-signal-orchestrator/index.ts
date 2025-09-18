@@ -30,12 +30,10 @@ Deno.serve(async (req) => {
       console.log('Warning: Could not clear demo data:', clearError)
     }
 
-    // Trigger multiple live signal generation functions
+    // Trigger existing signal generation functions only
     const functions = [
-      { name: 'live-crypto-feed', body: { start_aitradex1: true, start_aira: true } },
       { name: 'enhanced-signal-generation', body: { enhanced_mode: true } },
-      { name: 'realtime-crypto-scanner', body: { enable_live_feed: true } },
-      { name: 'free-crypto-api-integration', body: { action: 'generate_enhanced_signals' } }
+      { name: 'aitradex1-enhanced-scanner', body: { symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT'] } }
     ]
 
     const results = []

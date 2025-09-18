@@ -1,9 +1,30 @@
 project_id = "codhlwjogfjywmjyjbbn"
 
-[functions.connect-bybit]
-verify_jwt = true
+[functions.demo-signal-generator]
+verify_jwt = false
+
+[functions.signals-api]
+verify_jwt = false
+
+[functions.live-signal-orchestrator]
+verify_jwt = false
 
 [functions.aitradex1-trade-executor]
+verify_jwt = true
+
+[functions.aitradex1-enhanced-scanner]
+verify_jwt = false
+
+[functions.enhanced-signal-generation]
+verify_jwt = false
+
+[functions.live-scanner-production]
+verify_jwt = false
+
+[functions.debug-trading-status]
+verify_jwt = false
+
+[functions.bybit-authenticate]
 verify_jwt = true
 
 [functions.bybit-broker]

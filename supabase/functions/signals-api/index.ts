@@ -1,144 +1,124 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-// Initialize Supabase client with service role for inserts
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-interface Signal {
-  id?: string;
-  symbol: string;
-  direction: 'BUY' | 'SELL';
-  timeframe: string;
-  entry_price?: number;
-  stop_loss?: number;
-  take_profit?: number;
-  score: number;
-  confidence?: number;
-  source?: string;
-  algo?: string;
-  bar_time?: string;
-  meta?: any;
 }
 
-serve(async (req) => {
-  // Handle CORS preflight requests
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { action, ...payload } = await req.json();
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    switch (action) {
-      case 'recent': {
-        const { limit = 50, minScore = 70 } = payload;
-        
-        const { data: signals, error } = await supabase
-          .from('signals')
-          .select('*')
-          .gte('score', minScore)
-          .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-          .order('created_at', { ascending: false })
-          .limit(limit);
+    const url = new URL(req.url)
+    const action = url.searchParams.get('action') || 'list'
 
-        if (error) throw error;
+    if (req.method === 'GET' && action === 'list') {
+      // Fetch recent signals
+      const { data: signals, error } = await supabase
+        .from('signals')
+        .select('*')
+        .gte('score', 70)
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order('created_at', { ascending: false })
+        .limit(100)
 
-        return new Response(JSON.stringify({ 
-          success: true, 
-          signals: signals || [] 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      if (error) {
+        throw error
       }
 
-      case 'insert': {
-        const { signals } = payload as { signals: Signal[] };
-        
-        if (!Array.isArray(signals) || signals.length === 0) {
-          return new Response(JSON.stringify({ 
-            success: false, 
-            error: 'No signals provided' 
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          signals: signals || [],
+          count: signals?.length || 0
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
+      )
+    }
 
-        // Transform signals to match database schema
-        const transformedSignals = signals.map(signal => ({
-          symbol: signal.symbol,
-          direction: signal.direction,
-          timeframe: signal.timeframe,
-          price: signal.entry_price || 0,
-          entry_price: signal.entry_price,
-          stop_loss: signal.stop_loss,
-          take_profit: signal.take_profit,
-          score: signal.score,
-          confidence: signal.confidence,
-          source: signal.source || 'system',
-          algo: signal.algo || 'unirail_core',
-          bar_time: signal.bar_time ? new Date(signal.bar_time).toISOString() : new Date().toISOString(),
-          metadata: signal.meta || {},
-          exchange: 'bybit'
-        }));
-
+    if (req.method === 'POST') {
+      const body = await req.json()
+      
+      if (action === 'create') {
+        // Create new signal
         const { data, error } = await supabase
           .from('signals')
-          .insert(transformedSignals)
-          .select();
+          .insert(body.signal)
+          .select()
 
-        if (error) throw error;
+        if (error) {
+          throw error
+        }
 
-        return new Response(JSON.stringify({ 
-          success: true, 
-          inserted: data?.length || 0 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({
+            success: true,
+            signal: data[0],
+            message: 'Signal created successfully'
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
       }
 
-      case 'status': {
-        // Get signal counts for last 1h and 24h
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      if (action === 'bulk_create') {
+        // Create multiple signals
+        const { data, error } = await supabase
+          .from('signals')
+          .insert(body.signals)
+          .select()
 
-        const [{ count: last1h }, { count: last24h }] = await Promise.all([
-          supabase.from('signals').select('*', { count: 'exact', head: true }).gte('created_at', oneHourAgo),
-          supabase.from('signals').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo)
-        ]);
+        if (error) {
+          throw error
+        }
 
-        return new Response(JSON.stringify({ 
-          success: true, 
-          counts: { last1h: last1h || 0, last24h: last24h || 0 }
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({
+            success: true,
+            signals: data,
+            count: data.length,
+            message: 'Signals created successfully'
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
       }
-
-      default:
-        return new Response(JSON.stringify({ 
-          success: false, 
-          error: 'Unknown action' 
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
     }
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Invalid action or method'
+      }),
+      { 
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    )
+
   } catch (error) {
-    console.error('Error in signals-api:', error);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: error.message 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('Error in signals API:', error)
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message
+      }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    )
   }
-});
+})

@@ -1,155 +1,115 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+}
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('[demo-signal-generator] Generating realistic trading signals...');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Major crypto symbols with realistic prices
-    const symbols = [
-      { symbol: 'BTCUSDT', basePrice: 92100, name: 'Bitcoin' },
-      { symbol: 'ETHUSDT', basePrice: 3420, name: 'Ethereum' },
-      { symbol: 'ADAUSDT', basePrice: 1.24, name: 'Cardano' },
-      { symbol: 'SOLUSDT', basePrice: 243, name: 'Solana' },
-      { symbol: 'DOGEUSDT', basePrice: 0.424, name: 'Dogecoin' },
-      { symbol: 'XRPUSDT', basePrice: 2.67, name: 'Ripple' },
-      { symbol: 'DOTUSDT', basePrice: 8.45, name: 'Polkadot' },
-      { symbol: 'LINKUSDT', basePrice: 25.89, name: 'Chainlink' },
-      { symbol: 'MATICUSDT', basePrice: 0.624, name: 'Polygon' },
-      { symbol: 'AVAXUSDT', basePrice: 54.32, name: 'Avalanche' }
-    ];
+    console.log('🎯 Demo signal generator triggered')
 
-    const timeframes = ['5m', '15m', '1h', '4h'];
-    const algorithms = ['unirail_core', 'aitradex1', 'quantum_ai'];
-    
-    const signals = [];
-    const currentTime = new Date();
+    // Generate demo signals with real market data
+    const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT']
+    const timeframes = ['15m', '30m', '1h']
+    const signalsGenerated = []
 
-    // Generate 15-25 realistic signals
-    const signalCount = 15 + Math.floor(Math.random() * 10);
-    
-    for (let i = 0; i < signalCount; i++) {
-      const symbol = symbols[Math.floor(Math.random() * symbols.length)];
-      const timeframe = timeframes[Math.floor(Math.random() * timeframes.length)];
-      const algo = algorithms[Math.floor(Math.random() * algorithms.length)];
+    for (let i = 0; i < 5; i++) {
+      const symbol = symbols[Math.floor(Math.random() * symbols.length)]
+      const timeframe = timeframes[Math.floor(Math.random() * timeframes.length)]
       
-      // Create realistic price movements
-      const priceVariation = (Math.random() - 0.5) * 0.02; // ±1% variation
-      const currentPrice = symbol.basePrice * (1 + priceVariation);
-      
-      // Determine signal direction and confidence
-      const direction = Math.random() > 0.5 ? 'LONG' : 'SHORT';
-      const baseConfidence = 70 + Math.random() * 25; // 70-95%
-      const score = Math.floor(baseConfidence);
-      
-      // Calculate take profit and stop loss
-      const riskReward = 1.2 + Math.random() * 0.8; // 1.2-2.0 R:R
-      const riskPercent = 0.01 + Math.random() * 0.02; // 1-3% risk
-      
-      let takeProfit, stopLoss;
-      if (direction === 'LONG') {
-        stopLoss = currentPrice * (1 - riskPercent);
-        takeProfit = currentPrice * (1 + riskPercent * riskReward);
-      } else {
-        stopLoss = currentPrice * (1 + riskPercent);
-        takeProfit = currentPrice * (1 - riskPercent * riskReward);
-      }
+      // Fetch real price data
+      try {
+        const priceResponse = await fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`)
+        const priceData = await priceResponse.json()
+        const ticker = priceData.result?.list?.[0]
+        
+        if (ticker) {
+          const currentPrice = parseFloat(ticker.lastPrice)
+          const change24h = parseFloat(ticker.price24hPcnt) * 100
+          const volume = parseFloat(ticker.volume24h)
+          
+          // Generate realistic signal
+          const direction = Math.random() > 0.5 ? 'LONG' : 'SHORT'
+          const score = Math.floor(Math.random() * 20) + 75 // 75-95 range
+          
+          const signal = {
+            symbol,
+            timeframe,
+            direction,
+            price: currentPrice,
+            entry_price: currentPrice * (direction === 'LONG' ? 0.999 : 1.001),
+            take_profit: currentPrice * (direction === 'LONG' ? 1.025 : 0.975),
+            stop_loss: currentPrice * (direction === 'LONG' ? 0.985 : 1.015),
+            score,
+            confidence: score / 100,
+            source: 'demo',
+            algo: 'aitradex1_demo',
+            exchange: 'bybit',
+            side: direction === 'LONG' ? 'BUY' : 'SELL',
+            signal_type: 'momentum',
+            signal_grade: score > 85 ? 'A' : score > 80 ? 'B' : 'C',
+            is_active: true,
+            metadata: {
+              demo: true,
+              real_price: true,
+              change_24h: change24h,
+              volume_24h: volume,
+              generated_at: new Date().toISOString()
+            },
+            bar_time: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString() // 6 hours
+          }
 
-      // Create signal timestamp (within last 5 minutes)
-      const signalTime = new Date(currentTime.getTime() - Math.random() * 5 * 60 * 1000);
+          const { error: insertError } = await supabase
+            .from('signals')
+            .insert(signal)
 
-      const signal = {
-        symbol: symbol.symbol,
-        timeframe,
-        direction,
-        side: direction, // Alias for compatibility
-        algo,
-        source: 'aitradex1',
-        exchange: 'bybit',
-        price: Number(currentPrice.toFixed(symbol.basePrice > 1000 ? 0 : 4)),
-        entry_price: Number(currentPrice.toFixed(symbol.basePrice > 1000 ? 0 : 4)),
-        take_profit: Number(takeProfit.toFixed(symbol.basePrice > 1000 ? 0 : 4)),
-        stop_loss: Number(stopLoss.toFixed(symbol.basePrice > 1000 ? 0 : 4)),
-        score,
-        confidence: baseConfidence,
-        signal_type: `${algo}_${timeframe}`,
-        signal_grade: score > 85 ? 'A' : score > 80 ? 'B' : 'C',
-        bar_time: signalTime.toISOString(),
-        created_at: signalTime.toISOString(),
-        expires_at: new Date(currentTime.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-        is_active: true,
-        metadata: {
-          symbol_name: symbol.name,
-          risk_reward: Number(riskReward.toFixed(2)),
-          risk_percent: Number((riskPercent * 100).toFixed(2)),
-          generated_by: 'demo_signal_generator',
-          market_condition: score > 80 ? 'trending' : 'ranging'
+          if (!insertError) {
+            signalsGenerated.push(signal)
+            console.log(`✅ Generated demo signal: ${symbol} ${direction} at ${currentPrice}`)
+          } else {
+            console.error(`Error inserting signal:`, insertError)
+          }
         }
-      };
-
-      signals.push(signal);
+      } catch (err) {
+        console.log(`Error fetching price for ${symbol}:`, err.message)
+      }
     }
 
-    // Insert signals into database
-    console.log(`[demo-signal-generator] Inserting ${signals.length} signals...`);
-    
-    const { data: insertedSignals, error: insertError } = await supabase
-      .from('signals')
-      .insert(signals)
-      .select();
-
-    if (insertError) {
-      console.error('[demo-signal-generator] Insert error:', insertError);
-      throw insertError;
-    }
-
-    console.log(`[demo-signal-generator] ✅ Successfully generated ${insertedSignals?.length || 0} signals`);
-
-    // Update exchange feed status
-    await supabase.from('exchange_feed_status').upsert({
-      exchange: 'aitradex1_demo',
-      status: 'active',
-      last_update: currentTime.toISOString(),
-      symbols_tracked: symbols.length,
-      error_count: 0
-    });
-
-    return new Response(JSON.stringify({
-      success: true,
-      signals_generated: insertedSignals?.length || 0,
-      timeframes_scanned: timeframes,
-      symbols_analyzed: symbols.length,
-      message: `Generated ${insertedSignals?.length || 0} realistic trading signals`,
-      timestamp: currentTime.toISOString()
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Demo signals generated successfully',
+        signals_generated: signalsGenerated.length,
+        signals: signalsGenerated
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    )
 
   } catch (error) {
-    console.error('[demo-signal-generator] ❌ Failed:', error);
+    console.error('Error in demo signal generator:', error)
     
-    return new Response(JSON.stringify({
-      error: error.message,
-      success: false,
-      timestamp: new Date().toISOString()
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    });
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message
+      }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    )
   }
-});
+})
