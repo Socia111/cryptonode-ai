@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Play, Clock, Target, Shield } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TrendingUp, TrendingDown, Play, Clock, Target, Shield, Star, Globe } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -23,9 +24,11 @@ interface LiveSignalsPanelProps {
 }
 
 const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
-  const [signals, setSignals] = useState<Signal[]>([]);
+  const [whitelistSignals, setWhitelistSignals] = useState<Signal[]>([]);
+  const [allSignals, setAllSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(false);
   const [executingSignals, setExecutingSignals] = useState<Set<number>>(new Set());
+  const [activeTab, setActiveTab] = useState('whitelist');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -64,7 +67,15 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
               created_at: payload.new.created_at
             };
             
-             setSignals(prev => [newSignal, ...prev.slice(0, 14)]); // Keep top 15
+            // Check if this is a whitelist symbol
+            const whitelistSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'DOGEUSDT', 'XRPUSDT', 'DOTUSDT', 'LINKUSDT'];
+            const isWhitelist = whitelistSymbols.includes(newSignal.symbol);
+            
+            if (isWhitelist) {
+              setWhitelistSignals(prev => [newSignal, ...prev.slice(0, 14)]);
+            }
+            setAllSignals(prev => [newSignal, ...prev.slice(0, 49)]);
+            
             console.log('[LiveSignalsPanel] 🔥 New signal added:', newSignal.symbol, newSignal.score + '%');
           }
         }
@@ -84,40 +95,56 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
       setLoading(true);
       console.log('[LiveSignalsPanel] Fetching signals directly from database...');
       
-      // Direct database query for better reliability
-      const { data: signalsData, error } = await supabase
+      const whitelistSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'DOGEUSDT', 'XRPUSDT', 'DOTUSDT', 'LINKUSDT'];
+      
+      // Fetch whitelist signals
+      const { data: whitelistData, error: whitelistError } = await supabase
         .from('signals')
         .select('*')
         .gte('score', 70)
-        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours
+        .in('symbol', whitelistSymbols)
+        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (error) {
-        console.error('[LiveSignalsPanel] Database error:', error);
+      // Fetch all signals (including non-whitelist)
+      const { data: allData, error: allError } = await supabase
+        .from('signals')
+        .select('*')
+        .gte('score', 70)
+        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (whitelistError || allError) {
+        console.error('[LiveSignalsPanel] Database error:', whitelistError || allError);
         setLoading(false);
         return;
       }
 
-      if (signalsData && signalsData.length > 0) {
-        // Map database signals to LiveSignalsPanel format
-        const mappedSignals = signalsData.map((signal: any) => ({
-          id: signal.id,
-          symbol: signal.symbol,
-          direction: signal.direction,
-          entry_price: signal.price || signal.entry_price,
-          sl: signal.stop_loss || signal.sl,
-          tp: signal.take_profit || signal.tp,
-          score: signal.score,
-          timeframe: signal.timeframe,
-          created_at: signal.created_at
-        }));
+      // Map signals format
+      const mapSignal = (signal: any) => ({
+        id: signal.id,
+        symbol: signal.symbol,
+        direction: signal.direction,
+        entry_price: signal.price || signal.entry_price,
+        sl: signal.stop_loss || signal.sl,
+        tp: signal.take_profit || signal.tp,
+        score: signal.score,
+        timeframe: signal.timeframe,
+        created_at: signal.created_at
+      });
 
-        console.log(`[LiveSignalsPanel] Loaded ${mappedSignals.length} signals from database`);
-        setSignals(mappedSignals);
-      } else {
-        console.log('[LiveSignalsPanel] No signals found');
-        setSignals([]);
+      if (whitelistData) {
+        const mappedWhitelist = whitelistData.map(mapSignal);
+        console.log(`[LiveSignalsPanel] Loaded ${mappedWhitelist.length} whitelist signals`);
+        setWhitelistSignals(mappedWhitelist);
+      }
+
+      if (allData) {
+        const mappedAll = allData.map(mapSignal);
+        console.log(`[LiveSignalsPanel] Loaded ${mappedAll.length} total signals`);
+        setAllSignals(mappedAll);
       }
     } catch (error) {
       console.error('[LiveSignalsPanel] Error fetching signals:', error);
@@ -157,30 +184,13 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
     return rewardDistance / riskDistance;
   };
 
-  return (
+  const renderSignalsList = (signals: Signal[], type: 'whitelist' | 'all') => (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="font-medium">Live Trading Signals</h3>
-          <Badge variant="secondary" className="text-xs">
-            {signals.length} signals
-          </Badge>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchLiveSignals}
-          disabled={loading}
-        >
-          Refresh
-        </Button>
-      </div>
-
       {signals.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>No live signals available</p>
-          <p className="text-xs">Signals appear when confidence ≥ 75%</p>
+          <p>No {type === 'whitelist' ? 'whitelist' : 'live'} signals available</p>
+          <p className="text-xs">Signals appear when confidence ≥ 70%</p>
         </div>
       ) : (
         <div className="grid gap-3">
@@ -257,19 +267,69 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
           ))}
         </div>
       )}
+    </div>
+  );
 
-      <div className="bg-muted/50 rounded-lg p-3">
-        <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-          <Shield className="h-4 w-4 text-orange-500" />
-          Manual Trading Safety
-        </h4>
-        <ul className="text-xs text-muted-foreground space-y-1">
-          <li>• Position size calculated based on your risk settings</li>
-          <li>• Automatic stop-loss and take-profit orders</li>
-          <li>• Only signals with 75%+ confidence shown</li>
-          <li>• Real-time execution with market orders</li>
-        </ul>
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h3 className="font-medium">Live Trading Signals</h3>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={fetchLiveSignals}
+          disabled={loading}
+        >
+          Refresh
+        </Button>
       </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="whitelist" className="flex items-center gap-2">
+            <Star className="h-4 w-4" />
+            Whitelist ({whitelistSignals.length})
+          </TabsTrigger>
+          <TabsTrigger value="all" className="flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            All Signals ({allSignals.length})
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="whitelist" className="mt-4">
+          {renderSignalsList(whitelistSignals, 'whitelist')}
+          <div className="bg-muted/50 rounded-lg p-3 mt-4">
+            <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+              <Star className="h-4 w-4 text-yellow-500" />
+              Whitelist Mode
+            </h4>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li>• Curated selection of 8 premium symbols</li>
+              <li>• Higher signal quality and reliability</li>
+              <li>• Faster processing and lower latency</li>
+              <li>• Optimized for consistent performance</li>
+            </ul>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="all" className="mt-4">
+          {renderSignalsList(allSignals, 'all')}
+          <div className="bg-muted/50 rounded-lg p-3 mt-4">
+            <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+              <Globe className="h-4 w-4 text-blue-500" />
+              All Signals Mode
+            </h4>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li>• Complete market coverage (~2000+ symbols)</li>
+              <li>• Access to emerging opportunities</li>
+              <li>• Comprehensive market analysis</li>
+              <li>• More signals, higher variety</li>
+            </ul>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

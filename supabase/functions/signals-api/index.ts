@@ -20,15 +20,25 @@ Deno.serve(async (req) => {
     const action = url.searchParams.get('action') || 'list'
 
     if (req.method === 'GET' && action === 'list') {
-      // Fetch ONLY real signals (no mock data)
-      const { data: signals, error } = await supabase
+      const url = new URL(req.url)
+      const mode = url.searchParams.get('mode') || 'all'
+      const whitelistSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'DOGEUSDT', 'XRPUSDT', 'DOTUSDT', 'LINKUSDT']
+      
+      let query = supabase
         .from('signals')
         .select('*')
         .in('source', ['real_market_data', 'live_market_data', 'complete_algorithm_live', 'technical_indicators_real', 'aitradex1_real_enhanced', 'enhanced_signal_generation'])
         .gte('score', 70)
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-        .order('created_at', { ascending: false })
-        .limit(100)
+      
+      // Apply whitelist filter if mode is 'whitelist'
+      if (mode === 'whitelist') {
+        query = query.in('symbol', whitelistSymbols).limit(50)
+      } else {
+        query = query.limit(100)
+      }
+      
+      const { data: signals, error } = await query.order('created_at', { ascending: false })
 
       if (error) {
         throw error
@@ -48,7 +58,9 @@ Deno.serve(async (req) => {
           signals: realSignals,
           items: realSignals, // Add items field for LiveSignalsPanel compatibility
           count: realSignals.length,
-          data_source: 'real_market_only',
+          data_source: mode === 'whitelist' ? 'whitelist_only' : 'real_market_only',
+          mode: mode,
+          whitelist_symbols: mode === 'whitelist' ? whitelistSymbols : undefined,
           filtered_out: (signals?.length || 0) - realSignals.length
         }),
         { 
