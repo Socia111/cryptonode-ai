@@ -44,13 +44,19 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
         (payload) => {
           console.log('New signal received:', payload.new);
           if (payload.new && payload.new.score >= 75) {
-            // Check if it's a real signal (updated sources) 
+            // Check if it's a real signal using correct source names
             const isRealSignal = payload.new.source === 'aitradex1_real_enhanced' ||
                                 payload.new.source === 'real_market_data' ||
                                 payload.new.source === 'enhanced_signal_generation' ||
-                                (payload.new.source !== 'demo' && 
+                                payload.new.source === 'live_market_data' ||
+                                payload.new.source === 'complete_algorithm_live' ||
+                                payload.new.source === 'technical_indicators_real' ||
+                                (payload.new.source && 
+                                 payload.new.source !== 'demo' && 
                                  payload.new.source !== 'mock' && 
-                                 payload.new.source !== 'system');
+                                 payload.new.source !== 'system' &&
+                                 !payload.new.source.includes('mock') &&
+                                 !payload.new.source.includes('demo'));
             
             if (isRealSignal) {
               // Show toast notification for new high-confidence signal

@@ -62,9 +62,9 @@ Deno.serve(async (req) => {
       const { data: signals, error } = await supabase
         .from('signals')
         .select('*')
-        .in('source', ['real_market_data', 'live_market_data', 'complete_algorithm_live', 'technical_indicators_real', 'aitradex1_real_enhanced', 'enhanced_signal_generation'])
-        .gte('score', 75) // Higher threshold for live trading
-        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours
+        .in('source', ['aitradex1_real_enhanced', 'real_market_data', 'enhanced_signal_generation', 'live_market_data', 'complete_algorithm_live', 'technical_indicators_real'])
+        .gte('score', 70) // Lowered to 70 for more signals
+        .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()) // Last 6 hours for better coverage
         .order('created_at', { ascending: false })
         .limit(50)
 

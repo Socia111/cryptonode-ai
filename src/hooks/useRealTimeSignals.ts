@@ -53,15 +53,15 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
 
       console.log('[RealTimeSignals] Loading real trading signals...');
 
-      // Fetch REAL signals with updated filtering for new sources
+      // Fetch REAL signals with correct source names from database
       let signalsQuery = supabase
         .from('signals')
         .select('*')
-        .in('source', ['real_market_data', 'aitradex1_real_enhanced', 'enhanced_signal_generation', 'aitradex1-enhanced-scanner', 'live_market_data', 'complete_algorithm_live', 'technical_indicators_real'])
+        .in('source', ['aitradex1_real_enhanced', 'real_market_data', 'enhanced_signal_generation', 'live_market_data', 'complete_algorithm_live', 'technical_indicators_real'])
         .gte('score', minScore)
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
+        .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()) // Last 6 hours for more recent signals
         .order('created_at', { ascending: false })
-        .limit(200); // Increased limit
+        .limit(100); // Focus on quality over quantity
 
       // Apply additional filters
       if (!includeExpired) {
@@ -92,17 +92,20 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
           throw new Error(`Database connection failed: ${fallbackResult.error.message}`);
         }
         
-        // Filter for real signals from fallback - updated filtering
+        // Filter for real signals from fallback using correct source names
         const realSignals = (fallbackResult.data || []).filter(signal => 
-          signal.source !== 'demo' && 
-          signal.source !== 'mock' && 
-          signal.source !== 'system' &&
-          !signal.algo?.includes('mock') &&
-          !signal.algo?.includes('demo') &&
-          (signal.source === 'aitradex1_real_enhanced' ||
-           signal.source === 'real_market_data' ||
-           signal.metadata?.verified_real_data === 'true' ||
-           ['live_market_data', 'complete_algorithm_live', 'technical_indicators_real', 'enhanced_signal_generation'].includes(signal.source))
+          signal.source === 'aitradex1_real_enhanced' ||
+          signal.source === 'real_market_data' ||
+          signal.source === 'enhanced_signal_generation' ||
+          signal.source === 'live_market_data' ||
+          signal.source === 'complete_algorithm_live' ||
+          signal.source === 'technical_indicators_real' ||
+          (signal.source && 
+           signal.source !== 'demo' && 
+           signal.source !== 'mock' && 
+           signal.source !== 'system' &&
+           !signal.source.includes('mock') &&
+           !signal.source.includes('demo'))
         );
         
         setSignals(realSignals);
@@ -146,16 +149,19 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
             console.log('[RealTimeSignals] 📡 New signal received:', payload.new);
             
             if (payload.new && payload.new.score >= minScore) {
-              // Only accept real data signals - updated filtering
-              const isRealSignal = payload.new.source !== 'demo' && 
-                payload.new.source !== 'mock' && 
-                payload.new.source !== 'system' &&
-                !payload.new.algo?.includes('mock') &&
-                !payload.new.algo?.includes('demo') &&
-                (payload.new.source === 'aitradex1_real_enhanced' ||
-                 payload.new.source === 'real_market_data' ||
-                 payload.new.metadata?.verified_real_data === 'true' ||
-                 ['live_market_data', 'complete_algorithm_live', 'technical_indicators_real', 'enhanced_signal_generation'].includes(payload.new.source));
+              // Only accept real data signals using correct source names
+              const isRealSignal = payload.new.source === 'aitradex1_real_enhanced' ||
+                payload.new.source === 'real_market_data' ||
+                payload.new.source === 'enhanced_signal_generation' ||
+                payload.new.source === 'live_market_data' ||
+                payload.new.source === 'complete_algorithm_live' ||
+                payload.new.source === 'technical_indicators_real' ||
+                (payload.new.source && 
+                 payload.new.source !== 'demo' && 
+                 payload.new.source !== 'mock' && 
+                 payload.new.source !== 'system' &&
+                 !payload.new.source.includes('mock') &&
+                 !payload.new.source.includes('demo'));
               
               if (!isRealSignal) {
                 console.log('[RealTimeSignals] Skipping non-real signal:', payload.new.source, payload.new.algo);

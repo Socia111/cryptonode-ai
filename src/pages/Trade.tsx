@@ -10,6 +10,8 @@ import { useSignals } from '@/hooks/useSignals';
 import { useRealTimeSignals } from '@/hooks/useRealTimeSignals';
 import LiveSignalsPanel from '@/components/LiveSignalsPanel';
 import { DirectSignalsTest } from '@/components/DirectSignalsTest';
+import SignalsDebugPanel from '@/components/SignalsDebugPanel';
+import { Separator } from '@/components/ui/separator';
 import LivePrice from '../components/LivePrice';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -58,9 +60,13 @@ const Trade = () => {
             <TabsTrigger value="execution-test">⚡ Live Test</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="debug" className="mt-6">
-            <DirectSignalsTest />
-          </TabsContent>
+            <TabsContent value="debug" className="mt-6">
+              <div className="space-y-6">
+                <SignalsDebugPanel />
+                <Separator />
+                <DirectSignalsTest />
+              </div>
+            </TabsContent>
           
           <TabsContent value="signals" className="mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
