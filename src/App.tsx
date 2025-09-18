@@ -7,6 +7,7 @@ import { ThemeProvider } from "next-themes";
 import Index from "./pages/Index";
 import Trade from "./pages/Trade";
 import Auth from "./pages/Auth";
+import Automation from "./pages/Automation";
 import AuthGuard from "./components/AuthGuard";
 
 const queryClient = new QueryClient({
@@ -36,6 +37,11 @@ function App() {
               <Route path="/trade" element={
                 <AuthGuard>
                   <Trade />
+                </AuthGuard>
+              } />
+              <Route path="/automation" element={
+                <AuthGuard>
+                  <Automation />
                 </AuthGuard>
               } />
               <Route path="*" element={
