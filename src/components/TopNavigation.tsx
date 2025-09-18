@@ -20,11 +20,11 @@ const TopNavigation: React.FC<TopNavigationProps> = ({ onMobileMenuToggle }) => 
       <div className="flex items-center justify-between h-full px-3 lg:px-4">
         {/* Left section - Mobile menu toggle and search */}
         <div className="flex items-center gap-2 lg:gap-4 min-w-0">
-          {/* Mobile Menu Toggle */}
+          {/* Mobile Menu Toggle - Make it more visible */}
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden p-2 hover:bg-accent rounded-md touch-manipulation active:bg-accent/80 shrink-0"
+            className="lg:hidden p-2 hover:bg-accent rounded-md touch-manipulation active:bg-accent/80 shrink-0 border border-border"
             onClick={onMobileMenuToggle}
           >
             <Menu className="w-5 h-5" />
