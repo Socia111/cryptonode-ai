@@ -28,8 +28,34 @@ serve(async (req) => {
       throw new Error('Missing required parameters: symbol, side, quantity')
     }
 
-    // Simulate paper trade execution
-    const executionPrice = 50000 + (Math.random() - 0.5) * 1000 // Mock price
+    // Get REAL current market price from live_market_data
+    let executionPrice = 50000; // Fallback
+    
+    try {
+      const { data: marketData, error: marketError } = await supabase
+        .from('live_market_data')
+        .select('price')
+        .eq('symbol', symbol)
+        .gte('updated_at', new Date(Date.now() - 10 * 60 * 1000).toISOString()) // Last 10 minutes
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+        
+      if (marketData && !marketError) {
+        executionPrice = Number(marketData.price);
+        console.log(`[paper-trading-executor] Using REAL market price: ${executionPrice} for ${symbol}`);
+      } else {
+        console.warn(`[paper-trading-executor] No recent market data for ${symbol}, using fallback price`);
+        
+        // Try to trigger live feed for this symbol
+        await supabase.functions.invoke('live-exchange-feed', {
+          body: { symbols: [symbol], trigger: 'trading_execution' }
+        });
+      }
+    } catch (priceError) {
+      console.error(`[paper-trading-executor] Error fetching real price for ${symbol}:`, priceError);
+    }
+    
     const orderId = `paper_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     
     // Log the paper trade

@@ -3,13 +3,67 @@ project_id = "codhlwjogfjywmjyjbbn"
 [functions.aitradex1-enhanced-scanner]
 verify_jwt = false
 
+[functions.aitradex1-original-scanner]
+verify_jwt = false
+
+[functions.aitradex1-trade-executor]
+verify_jwt = false
+
+[functions.automated-trading-orchestrator]
+verify_jwt = false
+
+[functions.backtest-engine]
+verify_jwt = false
+
+[functions.bybit-authenticate]
+verify_jwt = false
+
+[functions.calculate-spynx-scores]
+verify_jwt = false
+
+[functions.comprehensive-trading-pipeline]
+verify_jwt = false
+
+[functions.crypto-scheduler]
+verify_jwt = false
+
+[functions.debug-trading-status]
+verify_jwt = false
+
+[functions.diagnostics]
+verify_jwt = false
+
+[functions.direct-3commas-test]
+verify_jwt = false
+
+[functions.direct-bybit-test]
+verify_jwt = false
+
 [functions.enhanced-signal-generation]
+verify_jwt = false
+
+[functions.live-data-starter]
+verify_jwt = false
+
+[functions.live-exchange-feed]
 verify_jwt = false
 
 [functions.live-scanner-production]
 verify_jwt = false
 
+[functions.live-signal-orchestrator]
+verify_jwt = false
+
 [functions.paper-trading-executor]
+verify_jwt = false
+
+[functions.quantum-analysis]
+verify_jwt = false
+
+[functions.scanner-engine]
+verify_jwt = false
+
+[functions.signals-api]
 verify_jwt = false
 
 [api]
