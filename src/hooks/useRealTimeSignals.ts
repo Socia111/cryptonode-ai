@@ -39,12 +39,15 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
 
   useEffect(() => {
     loadInitialData();
-    setupRealTimeSubscriptions();
+    const timeoutId = setTimeout(() => {
+      setupRealTimeSubscriptions();
+    }, 2000); // Delay subscription setup to prevent immediate loop
 
     return () => {
+      clearTimeout(timeoutId);
       cleanup();
     };
-  }, [includeExpired, minScore, symbols, timeframes]);
+  }, [includeExpired, minScore]);
 
   const loadInitialData = async () => {
     try {
@@ -134,9 +137,9 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
     try {
       console.log('[RealTimeSignals] Setting up realtime subscriptions...');
       
-      // Use a simpler, more stable subscription approach
+      // Create a simple channel that won't cause loops
       const signalsChannel = supabase
-        .channel('public:signals')
+        .channel(`signals-${Date.now()}`) // Unique channel name
         .on(
           'postgres_changes',
           {
@@ -148,52 +151,17 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
             console.log('[RealTimeSignals] 📡 New signal received:', payload.new);
             
             if (payload.new && payload.new.score >= minScore) {
-              // Only accept real data signals using correct source names
-              const isRealSignal = payload.new.source === 'aitradex1_real_enhanced' ||
-                payload.new.source === 'real_market_data' ||
-                payload.new.source === 'enhanced_signal_generation' ||
-                payload.new.source === 'live_market_data' ||
-                payload.new.source === 'complete_algorithm_live' ||
-                payload.new.source === 'technical_indicators_real' ||
-                (payload.new.source && 
-                 payload.new.source !== 'demo' && 
-                 payload.new.source !== 'mock' && 
-                 payload.new.source !== 'system' &&
-                 !payload.new.source.includes('mock') &&
-                 !payload.new.source.includes('demo'));
+              const isRealSignal = payload.new.source !== 'demo' && 
+                                 payload.new.source !== 'mock' && 
+                                 payload.new.source !== 'system' &&
+                                 !payload.new.source?.includes('mock') &&
+                                 !payload.new.source?.includes('demo');
               
-              if (!isRealSignal) {
-                console.log('[RealTimeSignals] Skipping non-real signal:', payload.new.source, payload.new.algo);
-                return;
+              if (isRealSignal) {
+                setSignals(prev => [payload.new as Signal, ...prev].slice(0, 100));
+                setLastUpdate(new Date());
+                console.log('[RealTimeSignals] ✅ Added real signal:', payload.new.symbol);
               }
-              
-              // Apply filters
-              if (symbols.length > 0 && !symbols.includes(payload.new.symbol)) return;
-              if (timeframes.length > 0 && !timeframes.includes(payload.new.timeframe)) return;
-
-              setSignals(prev => [payload.new as Signal, ...prev].slice(0, 100));
-              setLastUpdate(new Date());
-              console.log('[RealTimeSignals] ✅ Added real signal:', payload.new.symbol);
-            }
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'signals'
-          },
-          (payload: any) => {
-            console.log('[RealTimeSignals] 📡 Signal updated:', payload.new);
-            
-            if (payload.new) {
-              setSignals(prev => 
-                prev.map(signal => 
-                  signal.id === payload.new?.id ? payload.new as Signal : signal
-                )
-              );
-              setLastUpdate(new Date());
             }
           }
         )
@@ -203,15 +171,12 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
           if (status === 'SUBSCRIBED') {
             console.log('[RealTimeSignals] ✅ Successfully subscribed to signals');
             setError(null);
-          } else if (status === 'CHANNEL_ERROR') {
-            console.warn('[RealTimeSignals] ❌ Channel error - setting up polling fallback');
-            setupPollingFallback();
-          } else if (status === 'TIMED_OUT') {
-            console.warn('[RealTimeSignals] ⏰ Subscription timed out - using polling fallback');
-            setupPollingFallback();
           } else if (status === 'CLOSED') {
             console.warn('[RealTimeSignals] 🔌 Connection closed - using polling fallback');
-            setupPollingFallback();
+            // Only setup polling if we don't already have one
+            if (!(window as any).__pollInterval) {
+              setupPollingFallback();
+            }
           }
         });
 
@@ -220,25 +185,28 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
       
     } catch (error) {
       console.error('[RealTimeSignals] Failed to setup realtime:', error);
-      // Fall back to polling immediately on error
-      setupPollingFallback();
+      // Fall back to polling only if we don't already have one
+      if (!(window as any).__pollInterval) {
+        setupPollingFallback();
+      }
     }
   };
 
   const setupPollingFallback = () => {
-    console.log('[RealTimeSignals] Setting up polling fallback...');
-    
-    // Clear any existing polling interval
+    // Prevent multiple polling intervals
     if ((window as any).__pollInterval) {
-      clearInterval((window as any).__pollInterval);
+      console.log('[RealTimeSignals] Polling already active, skipping setup');
+      return;
     }
+    
+    console.log('[RealTimeSignals] Setting up polling fallback...');
     
     const pollInterval = setInterval(() => {
       if (!loading) {
         console.log('[RealTimeSignals] 🔄 Polling for new signals...');
         loadInitialData();
       }
-    }, 15000); // Poll every 15 seconds for better responsiveness
+    }, 30000); // Poll every 30 seconds instead of 15 to reduce load
 
     (window as any).__pollInterval = pollInterval;
   };
