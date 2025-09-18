@@ -563,6 +563,17 @@ export function ProfessionalTradingDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+      
+      {/* Bottom Right Corner - Clickable Live Trading Platform */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/')}
+          className="text-xs text-muted-foreground hover:text-primary hover:bg-accent/50 transition-colors cursor-pointer p-2"
+        >
+          Live Trading Platform
+        </Button>
+      </div>
     </div>
   );
 }
