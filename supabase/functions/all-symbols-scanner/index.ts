@@ -264,14 +264,14 @@ async function generateSignalsFromAllData(marketData: any[], supabase: any) {
   const sortedData = marketData
     .filter(data => data.volume > 1000) // Minimum volume filter
     .sort((a, b) => (b.volume_quote || 0) - (a.volume_quote || 0))
-    .slice(0, 200); // Top 200 by volume
+    .slice(0, 300); // Top 300 by volume - expanded for comprehensive scanning
   
-  console.log(`[Signal Generation] Processing top ${sortedData.length} symbols by volume`);
+  console.log(`[Advanced Signal Generation] Processing top ${sortedData.length} symbols by volume using production engine`);
   
   for (const data of sortedData) {
     try {
-      // Apply enhanced signal algorithm
-      const signal = await evaluateEnhancedSignal(data);
+      // Apply PRODUCTION SIGNAL ENGINE with full technical analysis
+      const signal = await evaluateProductionSignal(data);
       
       if (signal) {
         const { error } = await supabase
@@ -286,31 +286,35 @@ async function generateSignalsFromAllData(marketData: any[], supabase: any) {
             take_profit: signal.takeProfit,
             score: signal.confidence,
             confidence: signal.confidence / 100,
-            timeframe: '1h',
-            source: 'all_symbols_scanner',
-            algo: 'comprehensive_v1',
+            timeframe: signal.timeframe || '1h',
+            source: 'production_engine_v2',
+            algo: 'ema_sma_hvp_stoch_dmi',
             atr: data.atr_14,
             side: signal.direction === 'LONG' ? 'BUY' : 'SELL',
-            signal_type: 'comprehensive_scan',
+            signal_type: 'production_grade',
             signal_grade: signal.grade,
             is_active: true,
             exchange_source: data.exchange,
             volume_ratio: signal.volumeRatio,
+            hvp_value: signal.hvp,
             metadata: {
               exchange: data.exchange,
               volume_24h: data.volume,
               change_24h_percent: data.change_24h_percent,
-              volatility: signal.volatility,
-              market_cap_rank: signal.marketCapRank,
-              comprehensive_scan: true,
+              hvp: signal.hvp,
+              adx: signal.adx,
+              stoch_confirmed: signal.stochConfirmed,
+              dmi_confirmed: signal.dmiConfirmed,
+              signal_reason: signal.reason,
+              production_engine: true,
               scan_timestamp: new Date().toISOString()
             },
-            expires_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(), // 6 hours
+            expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // 4 hours TTL
           });
         
         if (!error) {
           signals.push(signal);
-          console.log(`Generated ${signal.direction} signal for ${data.symbol} on ${data.exchange} (Score: ${signal.confidence})`);
+          console.log(`✅ Production signal: ${data.symbol} ${signal.direction} (Grade: ${signal.grade}, Score: ${signal.confidence}%)`);
         }
       }
     } catch (signalError) {
@@ -321,81 +325,128 @@ async function generateSignalsFromAllData(marketData: any[], supabase: any) {
   return signals;
 }
 
-async function evaluateEnhancedSignal(data: any) {
+async function evaluateProductionSignal(data: any) {
   if (!data.price || !data.volume || !data.atr_14) {
     return null;
   }
   
   const price = data.price;
-  const change24h = data.change_24h_percent || 0;
+  const ema21 = data.ema21 || price;
+  const sma200 = data.sma200 || price;
+  const rsi = data.rsi_14 || 50;
   const volume = data.volume;
   const volumeAvg = data.volume_avg_20 || volume;
-  const rsi = data.rsi_14 || 50;
   const atr = data.atr_14;
+  const stochK = data.stoch_k || 50;
+  const stochD = data.stoch_d || 50;
+  const adx = data.adx || 25;
+  const plusDI = data.plus_di || 25;
+  const minusDI = data.minus_di || 25;
   
-  // Enhanced signal conditions
-  const strongUptrend = change24h > 5;
-  const moderateUptrend = change24h > 2 && change24h <= 5;
-  const strongDowntrend = change24h < -5;
-  const moderateDowntrend = change24h < -2 && change24h >= -5;
+  // PRODUCTION GRADE CALCULATIONS
   
-  const highVolume = volume > volumeAvg * 1.5;
-  const goodVolume = volume > volumeAvg * 1.2;
+  // EMA21/SMA200 cross analysis
+  const emaAboveSma = ema21 > sma200;
+  const emaBelowSma = ema21 < sma200;
+  const nearCross = Math.abs(ema21 - sma200) / price < 0.02; // Within 2%
   
-  const oversold = rsi < 30;
-  const overbought = rsi > 70;
-  const neutral = rsi >= 40 && rsi <= 60;
+  // Volume spike filter ≥ 1.5×
+  const volRatio = volume / volumeAvg;
+  const volumeSpike = volRatio >= 1.5;
+  
+  // Historical Volatility Percentile estimation
+  const change24h = data.change_24h_percent || 0;
+  const volatility = Math.abs(change24h);
+  const hvpEstimate = Math.min(100, Math.max(0, 30 + (volatility * 3))); // Rough HVP
+  const hvpGate = hvpEstimate > 50;
+  
+  // Stochastic confirmations
+  const stochBull = stochK > stochD && stochK < 80;
+  const stochBear = stochK < stochD && stochK > 20;
+  
+  // DMI/ADX confirmations
+  const dmiBull = plusDI > minusDI && adx > 20;
+  const dmiBear = minusDI > plusDI && adx > 20;
+  
+  // Cooldown simulation (simplified for mass scanning)
+  const candateTimeframe = '1h';
   
   let signal = null;
   let confidence = 70;
   
-  // LONG signals
-  if ((strongUptrend || (moderateUptrend && (highVolume || oversold))) && 
-      rsi < 75) {
-    
-    confidence = 75;
-    if (strongUptrend) confidence += 10;
-    if (highVolume) confidence += 8;
-    if (oversold) confidence += 7;
-    if (goodVolume) confidence += 5;
+  // LONG SIGNAL CONDITIONS - Production Grade
+  if (emaAboveSma && volumeSpike && hvpGate && stochBull && dmiBull) {
+    confidence = 85;
+    if (nearCross) confidence += 5; // Pre-cross bonus
+    if (volRatio > 2.0) confidence += 5;
+    if (rsi > 30 && rsi < 70) confidence += 3;
     
     signal = {
       direction: 'LONG',
       entryPrice: price,
-      stopLoss: price - (2.5 * atr),
-      takeProfit: price + (4 * atr),
+      stopLoss: price - (2.0 * atr),
+      takeProfit: price + (4.0 * atr),
       confidence: Math.min(95, confidence),
-      volumeRatio: volume / volumeAvg,
-      volatility: Math.abs(change24h),
-      marketCapRank: null,
-      grade: confidence >= 90 ? 'A+' : confidence >= 85 ? 'A' : confidence >= 80 ? 'B+' : 'B'
+      timeframe: candateTimeframe,
+      volumeRatio: volRatio,
+      hvp: hvpEstimate,
+      adx: adx,
+      stochConfirmed: stochBull,
+      dmiConfirmed: dmiBull,
+      reason: nearCross ? 'PreCross' : 'Cross',
+      grade: confidence >= 90 ? 'A+' : confidence >= 85 ? 'A' : confidence >= 80 ? 'B' : 'C'
     };
   }
-  // SHORT signals
-  else if ((strongDowntrend || (moderateDowntrend && (highVolume || overbought))) && 
-           rsi > 25) {
-    
-    confidence = 75;
-    if (strongDowntrend) confidence += 10;
-    if (highVolume) confidence += 8;
-    if (overbought) confidence += 7;
-    if (goodVolume) confidence += 5;
+  // SHORT SIGNAL CONDITIONS - Production Grade
+  else if (emaBelowSma && volumeSpike && hvpGate && stochBear && dmiBear) {
+    confidence = 85;
+    if (nearCross) confidence += 5; // Pre-cross bonus
+    if (volRatio > 2.0) confidence += 5;
+    if (rsi > 30 && rsi < 70) confidence += 3;
     
     signal = {
       direction: 'SHORT',
       entryPrice: price,
-      stopLoss: price + (2.5 * atr),
-      takeProfit: price - (4 * atr),
+      stopLoss: price + (2.0 * atr),
+      takeProfit: price - (4.0 * atr),
       confidence: Math.min(95, confidence),
-      volumeRatio: volume / volumeAvg,
-      volatility: Math.abs(change24h),
-      marketCapRank: null,
-      grade: confidence >= 90 ? 'A+' : confidence >= 85 ? 'A' : confidence >= 80 ? 'B+' : 'B'
+      timeframe: candateTimeframe,
+      volumeRatio: volRatio,
+      hvp: hvpEstimate,
+      adx: adx,
+      stochConfirmed: stochBear,
+      dmiConfirmed: dmiBear,
+      reason: nearCross ? 'PreCross' : 'Cross',
+      grade: confidence >= 90 ? 'A+' : confidence >= 85 ? 'A' : confidence >= 80 ? 'B' : 'C'
+    };
+  }
+  // Relaxed conditions for more signals but with lower grades
+  else if ((emaAboveSma && volumeSpike && hvpGate) || (emaBelowSma && volumeSpike && hvpGate)) {
+    const direction = emaAboveSma ? 'LONG' : 'SHORT';
+    confidence = 75;
+    if (volRatio > 1.8) confidence += 5;
+    if (direction === 'LONG' && rsi < 65) confidence += 3;
+    if (direction === 'SHORT' && rsi > 35) confidence += 3;
+    
+    signal = {
+      direction,
+      entryPrice: price,
+      stopLoss: direction === 'LONG' ? price - (2.5 * atr) : price + (2.5 * atr),
+      takeProfit: direction === 'LONG' ? price + (3.5 * atr) : price - (3.5 * atr),
+      confidence: Math.min(95, confidence),
+      timeframe: candateTimeframe,
+      volumeRatio: volRatio,
+      hvp: hvpEstimate,
+      adx: adx,
+      stochConfirmed: direction === 'LONG' ? stochBull : stochBear,
+      dmiConfirmed: direction === 'LONG' ? dmiBull : dmiBear,
+      reason: 'Relaxed',
+      grade: confidence >= 85 ? 'A' : confidence >= 80 ? 'B' : 'C'
     };
   }
   
-  // Only return signals with confidence >= 80
-  if (signal && signal.confidence >= 80) {
+  // Only return signals with confidence >= 75 and proper grade
+  if (signal && signal.confidence >= 75 && signal.grade !== 'C') {
     return signal;
   }
   

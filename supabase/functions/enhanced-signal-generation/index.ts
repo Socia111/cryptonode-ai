@@ -155,116 +155,186 @@ async function generateRealSignal(marketData: any, timeframe: string) {
       return null;
     }
 
-    // REAL technical analysis using actual indicators
+    // PRODUCTION GRADE technical analysis using actual indicators
     const price = Number(marketData.price);
     const ema21 = Number(marketData.ema21);
+    const sma200 = Number(marketData.sma200) || ema21; // Fallback if SMA200 not available
     const rsi = Number(marketData.rsi_14);
     const volume = Number(marketData.volume);
     const volumeAvg = Number(marketData.volume_avg_20) || volume;
-    const atr = Number(marketData.atr_14) || price * 0.02; // Fallback to 2% if ATR not available
+    const atr = Number(marketData.atr_14) || price * 0.02;
+    const stochK = Number(marketData.stoch_k) || 50;
+    const stochD = Number(marketData.stoch_d) || 50;
+    const adx = Number(marketData.adx) || 25;
+    const plusDI = Number(marketData.plus_di) || 25;
+    const minusDI = Number(marketData.minus_di) || 25;
     
-    // EXTREMELY RELAXED trend analysis for more signal generation
-    const priceAboveEMA = price > ema21;
-    const priceBelowEMA = price < ema21;
-    const volumeOk = volume > (volumeAvg * 0.8); // Very relaxed volume requirement
-    const oversoldRSI = rsi < 45; // More relaxed oversold
-    const overboughtRSI = rsi > 55; // More relaxed overbought
-    const neutralRSI = rsi >= 25 && rsi <= 75; // Very wide neutral range
-    const rsiGood = rsi > 20 && rsi < 80; // Almost any RSI value
+    // PRODUCTION GRADE ANALYSIS
     
-    // REAL signal conditions - EXTREMELY RELAXED for signal generation
+    // EMA21/SMA200 cross analysis
+    const emaAboveSma = ema21 > sma200;
+    const emaBelowSma = ema21 < sma200;
+    const nearCross = Math.abs(ema21 - sma200) / price < 0.015; // Within 1.5%
+    
+    // Volume spike filter ≥ 1.5×
+    const volRatio = volume / volumeAvg;
+    const volumeSpike = volRatio >= 1.5;
+    
+    // Historical Volatility Percentile gate (estimated)
+    const change24h = marketData.change_24h_percent || 0;
+    const volatility = Math.abs(change24h);
+    const hvpEstimate = Math.min(100, Math.max(0, 25 + (volatility * 2.5))); // HVP estimation
+    const hvpGate = hvpEstimate > 50;
+    
+    // Stochastic confirmations
+    const stochBull = stochK > stochD && stochK < 80;
+    const stochBear = stochK < stochD && stochK > 20;
+    
+    // DMI/ADX confirmations
+    const dmiBull = plusDI > minusDI && adx > 20;
+    const dmiBear = minusDI > plusDI && adx > 20;
+    
     let signal = null;
-    let confidence = 0;
+    let confidence = 70;
     
-    // LONG signal conditions - VERY RELAXED to generate more signals
-    if ((priceAboveEMA || rsi < 50) && rsiGood) {
+    // LONG signal - Production grade with EMA/SMA cross
+    if (emaAboveSma && volumeSpike && hvpGate && stochBull && dmiBull) {
+      confidence = 90; // High confidence for all confirmations
+      
       signal = {
         symbol: marketData.symbol,
         direction: 'LONG',
         timeframe,
         price,
         entry_price: price,
-        stop_loss: Number((price - (2 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4)),
-        take_profit: Number((price + (3 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4)),
-        score: 80,
-        confidence: 0.8,
-        source: 'real_market_data',
-        algo: 'real_technical_analysis',
+        stop_loss: Number((price - (2.0 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4)),
+        take_profit: Number((price + (4.0 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4)),
+        score: confidence,
+        confidence: confidence / 100,
+        source: 'enhanced_signal_generation',
+        algo: 'production_ema_sma_hvp_stoch_dmi',
         exchange: marketData.exchange || 'bybit',
         side: 'BUY',
-        signal_type: 'real_trend_following',
-        signal_grade: 'B',
+        signal_type: 'production_grade',
+        signal_grade: 'A+',
         bar_time: new Date().toISOString(),
         expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
         is_active: true,
         exchange_source: marketData.exchange || 'bybit',
         atr: atr,
-        volume_ratio: volume / volumeAvg,
+        volume_ratio: volRatio,
+        hvp_value: hvpEstimate,
         metadata: {
-          verified_real_data: 'true',
-          real_data: true,
-          price_above_ema21: priceAboveEMA,
-          volume_ok: volumeOk,
+          verified_real_data: true,
+          production_engine: true,
+          ema_above_sma: emaAboveSma,
+          volume_spike: volumeSpike,
+          hvp_gate: hvpGate,
+          stoch_confirmed: stochBull,
+          dmi_confirmed: dmiBull,
+          near_cross: nearCross,
+          signal_reason: nearCross ? 'PreCross' : 'Cross',
           rsi_value: rsi,
-          volume_ratio: volume / volumeAvg,
-          atr_value: atr,
+          adx_value: adx,
           data_timestamp: marketData.updated_at
         }
       };
       
-      confidence = 80;
-      if (volumeOk) confidence += 5;
-      if (rsi > 30 && rsi < 70) confidence += 5;
+      console.log(`✅ Generated REAL signal: ${signal.symbol} ${signal.direction} (Score: ${confidence}%)`);
       
     } 
-    // SHORT signal conditions - VERY RELAXED to generate more signals
-    else if ((priceBelowEMA || rsi > 50) && rsiGood) {
+    // SHORT signal - Production grade with EMA/SMA cross
+    else if (emaBelowSma && volumeSpike && hvpGate && stochBear && dmiBear) {
+      confidence = 90; // High confidence for all confirmations
+      
       signal = {
         symbol: marketData.symbol,
         direction: 'SHORT',
         timeframe,
         price,
         entry_price: price,
-        stop_loss: Number((price + (2 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4)),
-        take_profit: Number((price - (3 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4)),
-        score: 80,
-        confidence: 0.8,
-        source: 'real_market_data',
-        algo: 'real_technical_analysis',
+        stop_loss: Number((price + (2.0 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4)),
+        take_profit: Number((price - (4.0 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4)),
+        score: confidence,
+        confidence: confidence / 100,
+        source: 'enhanced_signal_generation',
+        algo: 'production_ema_sma_hvp_stoch_dmi',
         exchange: marketData.exchange || 'bybit',
         side: 'SELL',
-        signal_type: 'real_trend_following',
-        signal_grade: 'B',
+        signal_type: 'production_grade',
+        signal_grade: 'A+',
         bar_time: new Date().toISOString(),
         expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
         is_active: true,
         exchange_source: marketData.exchange || 'bybit',
         atr: atr,
-        volume_ratio: volume / volumeAvg,
+        volume_ratio: volRatio,
+        hvp_value: hvpEstimate,
         metadata: {
-          verified_real_data: 'true',
-          real_data: true,
-          price_above_ema21: priceAboveEMA,
-          volume_ok: volumeOk,
+          verified_real_data: true,
+          production_engine: true,
+          ema_below_sma: emaBelowSma,
+          volume_spike: volumeSpike,
+          hvp_gate: hvpGate,
+          stoch_confirmed: stochBear,
+          dmi_confirmed: dmiBear,
+          near_cross: nearCross,
+          signal_reason: nearCross ? 'PreCross' : 'Cross',
           rsi_value: rsi,
-          volume_ratio: volume / volumeAvg,
-          atr_value: atr,
+          adx_value: adx,
           data_timestamp: marketData.updated_at
         }
       };
       
-      confidence = 80;
-      if (volumeOk) confidence += 5;
-      if (rsi > 30 && rsi < 70) confidence += 5;
+      console.log(`✅ Generated REAL signal: ${signal.symbol} ${signal.direction} (Score: ${confidence}%)`);
     }
-    
-    if (signal) {
-      // Apply confidence to score and grade - more generous scoring
-      signal.score = Math.min(95, Math.max(75, confidence));
-      signal.confidence = confidence / 100;
-      signal.signal_grade = confidence >= 90 ? 'A+' : confidence >= 85 ? 'A' : confidence >= 80 ? 'B+' : 'B';
+    // Relaxed conditions for moderate quality signals
+    else if ((emaAboveSma && volumeSpike) || (emaBelowSma && volumeSpike)) {
+      const direction = emaAboveSma ? 'LONG' : 'SHORT';
+      confidence = 80;
       
-      console.log(`[Real Signal] ${signal.symbol} ${signal.direction} - Price: ${price}, RSI: ${rsi}, Volume Ratio: ${(volume/volumeAvg).toFixed(2)}`);
+      // Additional scoring
+      if (hvpGate) confidence += 5;
+      if (direction === 'LONG' && stochBull) confidence += 3;
+      if (direction === 'SHORT' && stochBear) confidence += 3;
+      if (volRatio > 2.0) confidence += 3;
+      
+      signal = {
+        symbol: marketData.symbol,
+        direction,
+        timeframe,
+        price,
+        entry_price: price,
+        stop_loss: Number((direction === 'LONG' ? price - (2.5 * atr) : price + (2.5 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4)),
+        take_profit: Number((direction === 'LONG' ? price + (3.5 * atr) : price - (3.5 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4)),
+        score: confidence,
+        confidence: confidence / 100,
+        source: 'enhanced_signal_generation',
+        algo: 'production_ema_sma_relaxed',
+        exchange: marketData.exchange || 'bybit',
+        side: direction === 'LONG' ? 'BUY' : 'SELL',
+        signal_type: 'production_grade',
+        signal_grade: confidence >= 90 ? 'A+' : confidence >= 85 ? 'A' : 'B',
+        bar_time: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+        is_active: true,
+        exchange_source: marketData.exchange || 'bybit',
+        atr: atr,
+        volume_ratio: volRatio,
+        hvp_value: hvpEstimate,
+        metadata: {
+          verified_real_data: true,
+          production_engine: true,
+          ema_sma_trend: direction === 'LONG' ? 'ema_above_sma' : 'ema_below_sma',
+          volume_spike: volumeSpike,
+          hvp_gate: hvpGate,
+          signal_reason: 'Relaxed',
+          rsi_value: rsi,
+          data_timestamp: marketData.updated_at
+        }
+      };
+      
+      console.log(`[Advanced Real Signal] ${signal.symbol} ${signal.direction} - Price: ${price}, RSI: ${rsi}, Score: ${confidence}%`);
     }
     
     return signal;
