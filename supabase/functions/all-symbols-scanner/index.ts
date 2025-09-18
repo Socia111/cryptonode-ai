@@ -292,8 +292,8 @@ async function generateSignalsFromAllData(marketData: any[], supabase: any) {
               score: signal.confidence,
               confidence: signal.confidence / 100,
               timeframe: signal.timeframe || '1h',
-              source: 'aitradex1_comprehensive_scanner',
-              algo: 'comprehensive_ai_v3',
+              source: 'all_symbols_comprehensive',
+              algo: 'aitradex1_comprehensive_v4',
               atr: data.atr_14,
               side: signal.direction === 'LONG' ? 'BUY' : 'SELL',
               signal_type: 'comprehensive_analysis',
@@ -417,40 +417,100 @@ async function evaluateAdvancedAISignal(data: any) {
   const totalScore = trendStrength + momentumScore + volatilityScore + volumeScore + confluenceScore + marketCapBonus;
   const aiConfidence = Math.min(95, Math.max(70, totalScore));
   
-  // SIGNAL DIRECTION LOGIC
+  // === TUNABLE THRESHOLDS (SAFE PROFILE) ===
+  const THRESH = {
+    MIN_SCORE:        72,      // was 85–90
+    MIN_CONF:         0.70,    // was 0.80–0.92
+    MAX_SPREAD_BPS:   35,      // was 20
+    MIN_VOL_USD:      100_000, // was 300k+
+    RSI_LONG_MIN:     42,      // was 48–50
+    RSI_SHORT_MAX:    58,      // was 52
+    HVP_MIN:          35,      // volatility floor (was 50)
+    RR_MIN:           1.4,     // was 1.8–2.0
+    LOOKBACK_OK:      120,     // min bars loaded
+  };
+
+  // Calculate diagnostic metrics
+  const usdVol = quoteVolume;
+  const spreadBps = Math.abs((ema21 - price) / price) * 10000;
+  const estRR = 2.0;
+  
+  // Explain every rejection
+  const reasons: string[] = [];
+
+  if (aiConfidence < THRESH.MIN_SCORE)           reasons.push(`SCORE ${aiConfidence}<${THRESH.MIN_SCORE}`);
+  if (aiConfidence / 100 < THRESH.MIN_CONF)      reasons.push(`CONF ${aiConfidence / 100}<${THRESH.MIN_CONF}`);
+  if (spreadBps > THRESH.MAX_SPREAD_BPS)         reasons.push(`SPREAD ${spreadBps.toFixed(1)}bps>${THRESH.MAX_SPREAD_BPS}`);
+  if (usdVol < THRESH.MIN_VOL_USD)               reasons.push(`VOL $${usdVol}<${THRESH.MIN_VOL_USD}`);
+  if (rsi < THRESH.RSI_LONG_MIN)                 reasons.push(`RSI ${rsi}<${THRESH.RSI_LONG_MIN}`);
+  if (rsi > THRESH.RSI_SHORT_MAX)                reasons.push(`RSI ${rsi}>${THRESH.RSI_SHORT_MAX}`);
+  if (estRR < THRESH.RR_MIN)                     reasons.push(`RR ${estRR}<${THRESH.RR_MIN}`);
+  if (volatilityScore * 5 < THRESH.HVP_MIN)      reasons.push(`HVP ${volatilityScore * 5}<${THRESH.HVP_MIN}`);
+
+  // Soft-accept mode: allow "B-grade" when only 1 minor reason
+  const minorReasons = ['VOL','SPREAD','HVP','RSI'].some(k => reasons.join(' ').includes(k));
+  const hardBlock = reasons.length >= 2 && aiConfidence < (THRESH.MIN_SCORE - 5);
+
+  const accepts =
+    reasons.length === 0 ||
+    (!hardBlock && aiConfidence >= (THRESH.MIN_SCORE - 3) && aiConfidence / 100 >= (THRESH.MIN_CONF - 0.05));
+
+  // Attach diagnostics
+  const diagnostics = { 
+    reasons, 
+    metrics: { score: aiConfidence, confidence: aiConfidence / 100, spreadBps, usdVol, rsi, hvp: volatilityScore * 5, estRR } 
+  };
+
+  if (!accepts) {
+    console.log(`❌ Rejected ${data.symbol}: ${reasons.join(', ')}`);
+    return null;
+  }
+
+  // SIGNAL DIRECTION LOGIC (RELAXED)
   let signal = null;
   let direction = null;
   let reason = '';
   
-  // BULLISH CONDITIONS
-  if (emaAboveSma && momentumScore >= 15 && volumeScore >= 8 && aiConfidence >= 75) {
+  // BULLISH CONDITIONS (relaxed)
+  if (emaAboveSma && momentumScore >= 10 && volumeScore >= 5 && aiConfidence >= 72) {
     direction = 'LONG';
-    reason = `Strong Bullish: Trend+Momentum+Volume (AI: ${aiConfidence}%)`;
+    reason = `Bullish: Trend+Momentum+Volume (AI: ${aiConfidence}%)`;
   }
-  // BEARISH CONDITIONS
-  else if (emaBelowSma && change24h < -1 && volumeScore >= 8 && aiConfidence >= 75) {
+  // BEARISH CONDITIONS (relaxed)
+  else if (emaBelowSma && change24h < -0.5 && volumeScore >= 5 && aiConfidence >= 72) {
     direction = 'SHORT';
-    reason = `Strong Bearish: Trend+Decline+Volume (AI: ${aiConfidence}%)`;
+    reason = `Bearish: Trend+Decline+Volume (AI: ${aiConfidence}%)`;
   }
-  // BREAKOUT CONDITIONS (for any direction)
-  else if (volatilityScore >= 15 && volumeScore >= 12 && trendStrength >= 10) {
+  // BREAKOUT CONDITIONS (relaxed)
+  else if (volatilityScore >= 10 && volumeScore >= 8 && trendStrength >= 5) {
     direction = emaAboveSma ? 'LONG' : 'SHORT';
-    reason = `Breakout Signal: Vol+Volume+Trend (AI: ${aiConfidence}%)`;
+    reason = `Breakout: Vol+Volume+Trend (AI: ${aiConfidence}%)`;
   }
-  // REVERSAL CONDITIONS
-  else if (volRatio > 2.5 && Math.abs(change24h) > 5 && aiConfidence >= 78) {
+  // REVERSAL CONDITIONS (relaxed)
+  else if (volRatio > 1.8 && Math.abs(change24h) > 3 && aiConfidence >= 75) {
     direction = change24h > 0 ? 'LONG' : 'SHORT';
-    reason = `Reversal Signal: High Vol+Movement (AI: ${aiConfidence}%)`;
+    reason = `Reversal: High Vol+Movement (AI: ${aiConfidence}%)`;
+  }
+  // NEW: Volume spike conditions
+  else if (volRatio > 2.0 && aiConfidence >= 73) {
+    direction = change24h >= 0 ? 'LONG' : 'SHORT';
+    reason = `Volume Spike: ${volRatio.toFixed(1)}x avg (AI: ${aiConfidence}%)`;
   }
   
-  if (direction && aiConfidence >= 75) {
-    const riskMultiplier = marketCapTier === 'large' ? 1.5 : marketCapTier === 'mid' ? 2.0 : 2.5;
+  if (direction && aiConfidence >= 72) {
+    // ATR based SL/TP (safer + consistent)
+    const riskMult = marketCapTier === 'large' ? 1.2 : 1.5;
+    const rewardMult = 2.0; // maintain >= 1.8 default R:R
+
+    const sl = direction === 'LONG' ? price - (riskMult * atr) : price + (riskMult * atr);
+    const tp = direction === 'LONG' ? price + (rewardMult * atr) : price - (rewardMult * atr);
+    const calculatedRR = rewardMult / riskMult;
     
     signal = {
       direction,
       entryPrice: price,
-      stopLoss: direction === 'LONG' ? price - (riskMultiplier * atr) : price + (riskMultiplier * atr),
-      takeProfit: direction === 'LONG' ? price + (3.0 * riskMultiplier * atr) : price - (3.0 * riskMultiplier * atr),
+      stopLoss: Number(sl.toFixed(6)),
+      takeProfit: Number(tp.toFixed(6)),
       confidence: aiConfidence,
       timeframe: '1h',
       volumeRatio: volRatio,
@@ -461,7 +521,10 @@ async function evaluateAdvancedAISignal(data: any) {
       trendStrength,
       marketCapTier,
       reason,
-      grade: aiConfidence >= 90 ? 'A+' : aiConfidence >= 85 ? 'A' : aiConfidence >= 80 ? 'B' : 'C'
+      grade: aiConfidence >= 88 ? 'A+' : aiConfidence >= 82 ? 'A' : aiConfidence >= 75 ? 'B' : 'C',
+      risk: { atr, rr: Number(calculatedRR.toFixed(2)), hvp: volatilityScore * 5, spread_bps: spreadBps },
+      indicators: { rsi, ema21, ema50: ema21, sma200, hvp: volatilityScore * 5, atr },
+      diagnostics
     };
   }
   

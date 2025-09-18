@@ -11,6 +11,11 @@ interface EnhancedSignalCardProps {
     _score?: number; 
     _grade?: 'A+' | 'A' | 'B' | 'C';
     isNew?: boolean;
+    risk?: { atr: number; rr: number; hvp: number; spread_bps: number };
+    indicators?: { rsi: number; ema21: number; ema50: number; sma200: number; hvp: number; atr: number };
+    diagnostics?: { reasons: string[]; metrics: any };
+    grade?: 'A+' | 'A' | 'B' | 'C';
+    signal_source?: string;
   };
   onTrade: (signal: TradingSignal) => void;
   onDetails?: (signal: TradingSignal) => void;
@@ -101,19 +106,23 @@ export function EnhancedSignalCard({ signal, onTrade, onDetails }: EnhancedSigna
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-1">
             <Target className="h-3 w-3" />
-            <span>Price: ${formatPrice(signal.entry_price)}</span>
+            <span>Entry: ${formatPrice(signal.entry_price)}</span>
           </div>
           <div className="flex items-center gap-1">
             <Shield className="h-3 w-3" />
             <span>SL: ${formatPrice(signal.stop_loss)}</span>
           </div>
-          <div>TP1: ${formatPrice(signal.take_profit_1)}</div>
-          {signal.take_profit_2 && <div>TP2: ${formatPrice(signal.take_profit_2)}</div>}
-          <div className={`font-medium ${signal.r_r_ratio >= 2 ? 'text-green-600' : 'text-amber-600'}`}>
-            R:R = {signal.r_r_ratio}
+          <div>TP: ${formatPrice(signal.take_profit_1)}</div>
+          <div className={`font-medium ${(signal.risk?.rr || signal.r_r_ratio) >= 1.8 ? 'text-green-600' : 'text-amber-600'}`}>
+            R:R {(signal.risk?.rr || signal.r_r_ratio || 0).toFixed(1)}:1
           </div>
-          <Badge variant={getVolatilityBadge(signal.volatility)}>
-            {signal.volatility || 'Medium'}
+          {signal.risk?.spread_bps && (
+            <span className={`text-xs ${signal.risk.spread_bps < 20 ? 'text-green-600' : 'text-amber-600'}`}>
+              {signal.risk.spread_bps.toFixed(1)}bps
+            </span>
+          )}
+          <Badge variant="outline" className="text-xs">
+            {signal.signal_source || signal.source}
           </Badge>
         </div>
 
@@ -138,19 +147,29 @@ export function EnhancedSignalCard({ signal, onTrade, onDetails }: EnhancedSigna
           {/* Expanded View */}
           <CollapsibleContent>
             <CardContent className="pt-4 space-y-3">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <h4 className="text-sm font-medium mb-2">Signal Analysis</h4>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span>Trend Strength:</span>
-                      <Badge variant={getTrendBadge(signal.trend_strength)}>
-                        {signal.trend_strength || 'Moderate'}
+                      <span>Grade:</span>
+                      <Badge variant={
+                        (signal.grade || signal._grade) === 'A+' ? 'default' :
+                        (signal.grade || signal._grade) === 'A' ? 'secondary' :
+                        (signal.grade || signal._grade) === 'B' ? 'outline' : 'destructive'
+                      }>
+                        {signal.grade || signal._grade || 'C'}
                       </Badge>
                     </div>
                     <div className="flex justify-between">
+                      <span>Timeframe:</span>
+                      <span className="text-muted-foreground">{signal.timeframe}</span>
+                    </div>
+                    <div className="flex justify-between">
                       <span>Source:</span>
-                      <span className="text-muted-foreground">{signal.source}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {signal.signal_source || signal.source}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Generated:</span>
@@ -162,31 +181,79 @@ export function EnhancedSignalCard({ signal, onTrade, onDetails }: EnhancedSigna
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-medium mb-2">Risk Management</h4>
+                  <h4 className="text-sm font-medium mb-2">Risk Metrics</h4>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span>Stop Loss:</span>
-                      <span className="text-red-600">${formatPrice(signal.stop_loss)}</span>
+                      <span>R:R Ratio:</span>
+                      <span className={(signal.risk?.rr || signal.r_r_ratio) >= 1.8 ? 'text-green-600' : 'text-amber-600'}>
+                        {(signal.risk?.rr || signal.r_r_ratio || 0).toFixed(1)}:1
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Take Profit 1:</span>
-                      <span className="text-green-600">${formatPrice(signal.take_profit_1)}</span>
+                      <span>ATR:</span>
+                      <span className="text-muted-foreground">
+                        {signal.risk?.atr ? signal.risk.atr.toFixed(4) : 'N/A'}
+                      </span>
                     </div>
-                    {signal.take_profit_2 && (
-                      <div className="flex justify-between">
-                        <span>Take Profit 2:</span>
-                        <span className="text-green-600">${formatPrice(signal.take_profit_2)}</span>
-                      </div>
-                    )}
                     <div className="flex justify-between">
-                      <span>Risk:Reward:</span>
-                      <span className={signal.r_r_ratio >= 2 ? 'text-green-600' : 'text-amber-600'}>
-                        1:{signal.r_r_ratio}
+                      <span>HVP:</span>
+                      <span className={`${signal.risk?.hvp > 60 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                        {signal.risk?.hvp ? `${signal.risk.hvp.toFixed(0)}th` : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Spread:</span>
+                      <span className={`${signal.risk?.spread_bps > 25 ? 'text-amber-600' : 'text-green-600'}`}>
+                        {signal.risk?.spread_bps ? `${signal.risk.spread_bps.toFixed(1)}bps` : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Indicators</h4>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>RSI:</span>
+                      <span className={`${signal.indicators?.rsi > 70 ? 'text-red-600' : signal.indicators?.rsi < 30 ? 'text-green-600' : 'text-muted-foreground'}`}>
+                        {signal.indicators?.rsi ? signal.indicators.rsi.toFixed(1) : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>EMA21:</span>
+                      <span className="text-muted-foreground">
+                        {signal.indicators?.ema21 ? formatPrice(signal.indicators.ema21) : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>EMA50:</span>
+                      <span className="text-muted-foreground">
+                        {signal.indicators?.ema50 ? formatPrice(signal.indicators.ema50) : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>SMA200:</span>
+                      <span className="text-muted-foreground">
+                        {signal.indicators?.sma200 ? formatPrice(signal.indicators.sma200) : 'N/A'}
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
+
+              {/* Diagnostics Section */}
+              {signal.diagnostics && signal.diagnostics.reasons && signal.diagnostics.reasons.length > 0 && (
+                <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                  <h4 className="text-sm font-medium mb-2 text-amber-600">Rejection Reasons (Soft-Accepted)</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {signal.diagnostics.reasons.map((reason, index) => (
+                      <Badge key={index} variant="outline" className="text-xs text-amber-700">
+                        {reason}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {onDetails && (
                 <Button 
