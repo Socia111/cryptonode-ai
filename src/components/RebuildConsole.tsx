@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useGitHubRebuild } from '@/hooks/useGitHubRebuild';
+import { useSystemRestart } from '@/hooks/useSystemRestart';
 import { 
   Play, 
   Square, 
@@ -31,6 +32,12 @@ export function RebuildConsole() {
     getRepositoryInfo,
     repositoryUrl
   } = useGitHubRebuild();
+
+  const {
+    isRestarting,
+    executeSystemRestart,
+    checkSystemHealth
+  } = useSystemRestart();
   
   const [repositoryInfo, setRepositoryInfo] = useState(getRepositoryInfo());
 
@@ -80,7 +87,7 @@ export function RebuildConsole() {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             <Button 
-              onClick={handleRebuild} 
+              onClick={executeGitHubRebuild}
               disabled={status.isRebuilding}
               className="flex items-center gap-2"
             >
@@ -97,6 +104,25 @@ export function RebuildConsole() {
               )}
             </Button>
             
+            <Button 
+              variant="outline" 
+              onClick={executeSystemRestart}
+              disabled={isRestarting}
+              className="flex items-center gap-2"
+            >
+              {isRestarting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Restarting...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  Quick System Restart
+                </>
+              )}
+            </Button>
+
             <Button variant="outline" onClick={handleOpenRepository}>
               <Github className="h-4 w-4 mr-2" />
               View Repository
