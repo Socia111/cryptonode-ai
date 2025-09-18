@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Trade from "./pages/Trade";
 import Auth from "./pages/Auth";
 import Automation from "./pages/Automation";
+import CoinEx from "./pages/CoinEx";
 import AuthGuard from "./components/AuthGuard";
 import { RebuildConsole } from "./components/RebuildConsole";
 
@@ -31,6 +32,7 @@ function App() {
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/rebuild" element={<RebuildConsole />} />
+              <Route path="/coinex" element={<CoinEx />} />
               <Route path="/" element={
                 <AuthGuard>
                   <Index />
