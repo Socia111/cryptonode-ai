@@ -373,28 +373,28 @@ async function executeTradeWithAccount(requestBody: any, authHeader?: string) {
         }, 400);
       }
 
-    const instrument = instrumentInfo.result.list[0];
-    structuredLog('info', 'Symbol validated successfully', { 
-      symbol, 
-      instrumentName: instrument?.symbol,
-      requestId 
-    });
-    
-    // Get current price
-    const tickerInfo = await bybit.getTicker(symbol);
-    const currentPrice = parseFloat(tickerInfo.result.list[0].lastPrice);
-    
-    // Calculate quantity based on USD amount
-    const quantity = (amountUSD / currentPrice).toFixed(6);
-    
-    structuredLog('info', 'Trade calculation completed', { 
-      symbol,
-      amountUSD,
-      currentPrice,
-      quantity,
-      testMode,
-      requestId 
-    });
+      const instrument = instrumentInfo.result.list[0];
+      structuredLog('info', 'Symbol validated successfully', { 
+        symbol, 
+        instrumentName: instrument?.symbol,
+        requestId 
+      });
+      
+      // Get current price
+      const tickerInfo = await bybit.getTicker(symbol);
+      const currentPrice = parseFloat(tickerInfo.result.list[0].lastPrice);
+      
+      // Calculate quantity based on USD amount
+      const quantity = (amountUSD / currentPrice).toFixed(6);
+      
+      structuredLog('info', 'Trade calculation completed', { 
+        symbol,
+        amountUSD,
+        currentPrice,
+        quantity,
+        testMode,
+        requestId 
+      });
 
     if (testMode) {
       // Return mock successful trade for test mode
