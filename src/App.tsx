@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import AutomatedTradingSystemV2 from "./components/AutomatedTradingSystemV2";
+import SystemDiagnostics from "./pages/SystemDiagnostics";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
@@ -69,6 +70,11 @@ function App() {
               <Route path="/automated-trading-v2" element={
                 <AuthGuard>
                   <AutomatedTradingSystemV2 />
+                </AuthGuard>
+              } />
+              <Route path="/system-diagnostics" element={
+                <AuthGuard>
+                  <SystemDiagnostics />
                 </AuthGuard>
               } />
               <Route path="*" element={<NotFound />} />
