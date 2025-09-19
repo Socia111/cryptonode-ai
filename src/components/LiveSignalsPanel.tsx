@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrendingUp, TrendingDown, Play, Clock, Target, Shield, Star, Globe } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useTradingExecutor } from '@/hooks/useTradingExecutor';
 
 interface Signal {
   id: number;
@@ -30,6 +31,7 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
   const [executingSignals, setExecutingSignals] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState('whitelist');
   const { toast } = useToast();
+  const { executeSignalTrade } = useTradingExecutor();
 
   useEffect(() => {
     console.log('[LiveSignalsPanel] Component mounted, fetching signals...');
@@ -159,12 +161,8 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
     try {
       console.log('🚀 Direct trade execution for signal:', signal);
       
-      // Import and use trading executor directly
-      const { useTradingExecutor } = await import('@/hooks/useTradingExecutor');
-      const executor = useTradingExecutor();
-      
-      // Execute trade with signal data
-      await executor.executeSignalTrade(signal, 50); // Default $50 trade
+      // Execute trade with signal data using the hook
+      await executeSignalTrade(signal, 50); // Default $50 trade
       
       // Also call the provided handler
       await onExecuteTrade(signal);
