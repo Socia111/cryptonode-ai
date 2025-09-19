@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
@@ -13,6 +14,8 @@ import CoinEx from "./pages/CoinEx";
 import AuthGuard from "./components/AuthGuard";
 import NotFound from "./pages/NotFound";
 import { RebuildConsole } from "./components/RebuildConsole";
+
+const AllSignals = lazy(() => import('./pages/AllSignals'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,6 +53,11 @@ function App() {
                 <AuthGuard>
                   <Automation />
                 </AuthGuard>
+              } />
+              <Route path="/all-signals" element={
+                <Suspense fallback={<div>Loading...</div>}>
+                  <AllSignals />
+                </Suspense>
               } />
               <Route path="*" element={<NotFound />} />
             </Routes>

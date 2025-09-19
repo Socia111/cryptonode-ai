@@ -10,7 +10,8 @@ import {
   Bell, 
   Settings,
   Home,
-  Building2
+  Building2,
+  Activity
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -34,7 +35,8 @@ const mainItems = [
   { title: "Unireli Core", url: "/UNIRELIORIGINAL", icon: Zap },
   { title: "Trade", url: "/trade", icon: TrendingUp },
   { title: "Portfolio", url: "/portfolio", icon: Wallet },
-  { title: "Signals", url: "/signals", icon: Zap },
+  { title: "Live Signals", url: "/signals", icon: Zap },
+  { title: "All Signals", url: "/all-signals", icon: Activity },
   { title: "Markets", url: "/markets", icon: BarChart3 },
   { title: "Backtests", url: "/backtests", icon: TestTube },
   { title: "Automation", url: "/automation", icon: Bot },
