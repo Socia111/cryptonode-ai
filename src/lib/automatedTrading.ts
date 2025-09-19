@@ -354,7 +354,6 @@ export const defaultAutoTradingConfig: AutoTradingConfig = {
   minSourcesForTrade: 2,
   // Live Trading Features
   liveTrading: false,
-  paperMode: true,
   slippageProtection: 0.5,
   emergencyStopEnabled: true,
   riskManagement: {
