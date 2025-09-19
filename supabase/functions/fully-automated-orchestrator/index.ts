@@ -31,15 +31,15 @@ serve(async (req) => {
 
     console.log('📊 Signal generation result:', signalGeneration);
 
-    // Phase 2: Fetch High-Quality Signals
+    // Get high-quality signals with lowered threshold
     const { data: highQualitySignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
       .eq('is_active', true)
-      .gte('score', 70)
-      .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString()) // Last 10 minutes
+      .gte('score', 60) // ✅ Lowered threshold from 70 to 60
+      .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
       .order('score', { ascending: false })
-      .limit(5);
+      .limit(10); // Process more signals
 
     if (signalsError) {
       console.error('❌ Error fetching signals:', signalsError);
@@ -68,11 +68,11 @@ serve(async (req) => {
 
     console.log('✅ Automated trading enabled for user:', config.user_id);
 
-    // Phase 4: Execute Trades for High-Quality Signals
+    // Execute trades for signals that meet the lowered criteria
     const tradeResults = [];
     
     for (const signal of highQualitySignals || []) {
-      if (signal.score >= config.min_signal_score) {
+      if (signal.score >= 60) { // ✅ Lowered threshold
         console.log(`🚀 Executing trade for ${signal.symbol} (Score: ${signal.score})`);
         
         try {

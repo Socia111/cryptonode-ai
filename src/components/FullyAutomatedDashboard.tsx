@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Play, Square, Activity, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react';
+import { ObservabilityPanel } from './ObservabilityPanel';
 
 interface SystemStatus {
   service_name: string;
@@ -186,7 +188,7 @@ export function FullyAutomatedDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Fully Automated Trading</h2>
+        <h2 className="text-2xl font-bold">🤖 Fully Automated Trading System</h2>
         <div className="flex gap-2">
           <Button
             onClick={automationState.isRunning ? stopAutomation : startAutomation}
@@ -216,82 +218,95 @@ export function FullyAutomatedDashboard() {
         </div>
       </div>
 
-      {/* Main Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Automation Status
-            <Badge variant={automationState.isRunning ? "default" : "secondary"}>
-              {automationState.isRunning ? "ACTIVE" : "STOPPED"}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{automationState.signalsGenerated}</div>
-              <div className="text-sm text-muted-foreground">Signals Generated</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{automationState.tradesExecuted}</div>
-              <div className="text-sm text-muted-foreground">Trades Executed</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{(automationState.successRate * 100).toFixed(1)}%</div>
-              <div className="text-sm text-muted-foreground">Success Rate</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-muted-foreground">Last Update</div>
-              <div className="text-sm font-medium">
-                {new Date(automationState.lastUpdate).toLocaleTimeString()}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="status" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="status">📊 Status</TabsTrigger>
+          <TabsTrigger value="observability">🔍 Live Monitor</TabsTrigger>
+        </TabsList>
 
-      {/* System Services */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {systemStatus.map((service) => (
-          <Card key={service.service_name}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                {getStatusIcon(service.status)}
-                {service.service_name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                <Badge variant="outline" className={getStatusColor(service.status)}>
-                  {service.status}
+        <TabsContent value="status">
+          {/* Main Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                Automation Status
+                <Badge variant={automationState.isRunning ? "default" : "secondary"}>
+                  {automationState.isRunning ? "ACTIVE" : "STOPPED"}
                 </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span>Success:</span>
-                  <span className="font-medium">{service.success_count}</span>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{automationState.signalsGenerated}</div>
+                  <div className="text-sm text-muted-foreground">Signals Generated</div>
                 </div>
-                <div className="flex justify-between">
-                  <span>Errors:</span>
-                  <span className="font-medium">{service.error_count}</span>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{automationState.tradesExecuted}</div>
+                  <div className="text-sm text-muted-foreground">Trades Executed</div>
                 </div>
-                <div className="flex justify-between">
-                  <span>Last Update:</span>
-                  <span className="font-medium">
-                    {new Date(service.last_update).toLocaleTimeString()}
-                  </span>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{(automationState.successRate * 100).toFixed(1)}%</div>
+                  <div className="text-sm text-muted-foreground">Success Rate</div>
                 </div>
-                {service.metadata && Object.keys(service.metadata).length > 0 && (
-                  <div className="mt-2 p-2 bg-muted rounded text-xs">
-                    <pre className="whitespace-pre-wrap">
-                      {JSON.stringify(service.metadata, null, 2)}
-                    </pre>
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground">Last Update</div>
+                  <div className="text-sm font-medium">
+                    {new Date(automationState.lastUpdate).toLocaleTimeString()}
                   </div>
-                )}
+                </div>
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+
+          {/* System Services */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {systemStatus.map((service) => (
+              <Card key={service.service_name}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    {getStatusIcon(service.status)}
+                    {service.service_name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    <Badge variant="outline" className={getStatusColor(service.status)}>
+                      {service.status}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span>Success:</span>
+                      <span className="font-medium">{service.success_count}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Errors:</span>
+                      <span className="font-medium">{service.error_count}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Last Update:</span>
+                      <span className="font-medium">
+                        {new Date(service.last_update).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    {service.metadata && Object.keys(service.metadata).length > 0 && (
+                      <div className="mt-2 p-2 bg-muted rounded text-xs">
+                        <pre className="whitespace-pre-wrap">
+                          {JSON.stringify(service.metadata, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="observability">
+          <ObservabilityPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
