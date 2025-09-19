@@ -585,30 +585,31 @@ serve(async (req) => {
           let positionIdx = 0; // Default to OneWay mode
           
           try {
-            // Check if account has any existing positions to determine mode
+            // Get account info to understand the account type
             const accountInfo = await engine.client!.signedRequest('GET', '/v5/account/info', {})
+            const accountType = accountInfo?.result?.accountType || 'UNIFIED'
+            
             structuredLog('info', 'Account info retrieved', { 
-              accountType: accountInfo?.result?.accountType || 'unknown'
+              accountType,
+              marginMode: accountInfo?.result?.marginMode || 'unknown'
             })
             
-            // For unified accounts, we need to be more careful about position mode
-            // Try to get existing positions first
-            try {
-              const positionData = await engine.client!.signedRequest('GET', '/v5/position/list', {
-                category: 'linear',
-                symbol,
-                limit: 1
-              })
-              
-              if (positionData?.result?.list?.length > 0) {
-                positionIdx = Number(positionData.result.list[0].positionIdx) || 0
-                structuredLog('info', 'Using positionIdx from existing position', { positionIdx })
-              }
-            } catch (posError) {
-              structuredLog('warn', 'Could not get position info', { error: posError.message })
-            }
+            // For all modern Bybit accounts, use position mode 0 (One-Way mode)
+            // This is the safest approach that works with all account types
+            positionIdx = 0
+            
+            structuredLog('info', 'Using One-Way position mode (0)', { 
+              symbol, 
+              accountType,
+              reason: 'Safe default for all account types'
+            })
+            
           } catch (accountError) {
-            structuredLog('warn', 'Could not get account info', { error: accountError.message })
+            structuredLog('warn', 'Could not get account info, using safe default', { 
+              error: accountError.message,
+              fallback: 'positionIdx=0'
+            })
+            positionIdx = 0
           }
           
           orderData.positionIdx = positionIdx
@@ -639,73 +640,107 @@ serve(async (req) => {
           positionIdx: orderData.positionIdx
         });
         
-        // Try the detected position mode first
+        // Execute order with comprehensive error handling
         try {
           result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
-          structuredLog('info', 'Order executed successfully on first attempt', {
-            orderId: result?.result?.orderId
+          structuredLog('info', 'Order executed successfully', {
+            orderId: result?.result?.orderId,
+            symbol,
+            side: orderData.side,
+            qty: orderData.qty,
+            positionIdx: orderData.positionIdx
           })
         } catch (error) {
           lastError = error;
           const errorMsg = error.message?.toLowerCase() || '';
           
-          structuredLog('warn', 'First attempt failed', { 
+          structuredLog('warn', 'Order execution failed', { 
             error: error.message,
-            errorCode: error.code,
-            originalPositionIdx: orderData.positionIdx 
+            symbol,
+            side: orderData.side,
+            qty: orderData.qty,
+            positionIdx: orderData.positionIdx
           })
           
-          // Handle specific Bybit error cases
+          // For linear contracts, try alternative approaches
           if (inst.category === 'linear') {
+            
+            // Case 1: Position mode issues
             if (errorMsg.includes('position') || errorMsg.includes('mode') || errorMsg.includes('idx')) {
-              // Try alternative position mode
-              const alternativeIdx = orderData.positionIdx === 0 ? 1 : 0
-              orderData.positionIdx = alternativeIdx
               
+              // First, try without positionIdx for some unified accounts
               try {
-                structuredLog('info', 'Retrying with alternative positionIdx', { 
-                  symbol,
-                  newPositionIdx: alternativeIdx
-                })
-                result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
-              } catch (secondError) {
-                structuredLog('error', 'Both position modes failed', {
-                  originalError: error.message,
-                  secondError: secondError.message
-                })
-                throw new Error(`Position mode error: ${error.message}`)
+                const orderDataNoIdx = { ...orderData }
+                delete orderDataNoIdx.positionIdx
+                
+                structuredLog('info', 'Retrying without positionIdx', { symbol })
+                result = await engine.client!.signedRequest('POST', '/v5/order/create', orderDataNoIdx)
+                
+              } catch (noIdxError) {
+                // If that fails, try the opposite position mode
+                const alternativeIdx = orderData.positionIdx === 0 ? 1 : 0
+                orderData.positionIdx = alternativeIdx
+                
+                try {
+                  structuredLog('info', 'Retrying with alternative positionIdx', { 
+                    symbol,
+                    newPositionIdx: alternativeIdx
+                  })
+                  result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+                } catch (altError) {
+                  structuredLog('error', 'All position mode attempts failed', {
+                    originalError: error.message,
+                    noIdxError: noIdxError.message,
+                    altError: altError.message
+                  })
+                  throw new Error(`Position mode configuration error. Check Bybit account settings. Original: ${error.message}`)
+                }
               }
-            } else if (errorMsg.includes('qty') || errorMsg.includes('quantity')) {
-              // Try with adjusted quantity
-              const originalQty = parseFloat(orderData.qty)
-              const adjustedQty = roundToStep(originalQty * 1.1, inst.qtyStep) // Increase by 10%
+              
+            // Case 2: Quantity issues  
+            } else if (errorMsg.includes('qty') || errorMsg.includes('quantity') || errorMsg.includes('lot')) {
+              
+              // Try with minimum allowed quantity
+              const minQty = inst.minOrderQty || inst.qtyStep || 0.000001
+              const adjustedQty = Math.max(minQty, roundToStep(parseFloat(orderData.qty) * 1.1, inst.qtyStep))
               orderData.qty = String(adjustedQty)
               
               try {
                 structuredLog('info', 'Retrying with adjusted quantity', { 
                   symbol,
-                  originalQty,
-                  adjustedQty
+                  originalQty: parseFloat(orderData.qty),
+                  adjustedQty,
+                  minQty
                 })
                 result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
-              } catch (thirdError) {
-                throw new Error(`Quantity error: ${error.message}`)
+              } catch (qtyError) {
+                throw new Error(`Quantity validation failed: ${error.message}. Minimum qty: ${minQty}`)
               }
+              
+            // Case 3: Balance or margin issues
+            } else if (errorMsg.includes('balance') || errorMsg.includes('margin') || errorMsg.includes('insufficient')) {
+              throw new Error('Insufficient balance or margin. Please check your Bybit account balance.')
+              
+            // Case 4: Other errors
             } else {
-              throw error
+              throw new Error(`Bybit API error: ${error.message}`)
             }
+            
           } else {
-            throw error
+            // For spot trading, throw the original error
+            throw new Error(`Spot trading error: ${error.message}`)
           }
         }
 
-        structuredLog('info', 'Order executed successfully', { 
+        structuredLog('info', 'Final order execution successful', { 
           symbol, 
-          side, 
-          qty, 
+          side: orderData.side, 
+          qty: orderData.qty, 
           category: inst.category, 
           positionIdx: orderData.positionIdx,
-          orderId: result?.result?.orderId 
+          orderId: result?.result?.orderId,
+          markPrice: price,
+          notionalValue: parseFloat(orderData.qty) * price
         });
 
         return json({

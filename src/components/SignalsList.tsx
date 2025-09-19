@@ -14,7 +14,7 @@ import { TradingGateway } from '@/lib/tradingGateway';
 import { FEATURES } from '@/config/featureFlags';
 
 const SignalsList = () => {
-  const { signals, loading, generateSignals } = useSignals();
+  const { signals, loading, error, refreshSignals, generateSignals } = useSignals();
   const { toast } = useToast();
   const [showAllSignals, setShowAllSignals] = useState(false);
   const [orderSize, setOrderSize] = useState('10');
@@ -277,13 +277,23 @@ const SignalsList = () => {
           </div>
           <div className="flex items-center space-x-2">
             <Button
+              onClick={refreshSignals}
+              variant="ghost"
+              size="sm"
+              disabled={loading}
+              className="mr-2"
+            >
+              <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Loading...' : 'Refresh'}
+            </Button>
+            <Button
               onClick={generateSignals}
               variant="outline"
               size="sm"
               disabled={loading}
             >
-              <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? 'Scanning...' : 'Refresh'}
+              <Zap className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Scanning...' : 'Generate'}
             </Button>
           </div>
         </CardTitle>

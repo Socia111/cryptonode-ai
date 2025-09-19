@@ -6,7 +6,7 @@ import { TrendingUp, TrendingDown, Play, Clock, Target, Shield } from 'lucide-re
 import { supabase } from '@/integrations/supabase/client';
 
 interface Signal {
-  id: number;
+  id: string;
   symbol: string;
   direction: 'LONG' | 'SHORT';
   entry_price: number;
@@ -24,7 +24,7 @@ interface LiveSignalsPanelProps {
 const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(false);
-  const [executingSignals, setExecutingSignals] = useState<Set<number>>(new Set());
+  const [executingSignals, setExecutingSignals] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchLiveSignals();
@@ -46,12 +46,12 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
           .filter((item: any) => item.score >= 75 && item.timeframe !== '5m') // Only high-confidence signals, exclude 5m
           .slice(0, 10) // Limit to 10 most recent
           .map((item: any) => ({
-            id: item.id,
+            id: String(item.id),
             symbol: item.symbol,
             direction: item.direction === 'SHORT' ? 'SHORT' : 'LONG',
             entry_price: item.price,
-            sl: item.sl,
-            tp: item.tp,
+            sl: item.sl || item.stop_loss || 0,
+            tp: item.tp || item.take_profit || 0,
             score: item.score,
             timeframe: item.timeframe,
             created_at: item.created_at

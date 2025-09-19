@@ -29,7 +29,12 @@ export function subscribeSignals(
   const channel = supabase
     .channel('signals-realtime')
     .on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'signals' },
+      { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'signals',
+        filter: 'score=gte.80'
+      },
       (payload) => {
         if (payload.new) {
           try {
@@ -65,7 +70,12 @@ export function subscribeSignals(
         }
       })
     .on('postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'signals' },
+      { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'signals',
+        filter: 'score=gte.80'
+      },
       (payload) => {
         if (payload.new) {
           try {
