@@ -191,11 +191,11 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
     throw new Error(`Notional value ${notionalValue} is below minimum ${minNotional} for ${symbol}`);
   }
 
-  // 5. Create order parameters with proper precision
+  // 5. Create order parameters with proper precision and correct case
   const orderParams = {
     category: 'linear',
     symbol: symbol,
-    side: trade.side,
+    side: trade.side === 'BUY' ? 'Buy' : 'Sell', // Fix: Bybit expects "Buy"/"Sell", not "BUY"/"SELL"
     orderType: 'Market',
     qty: qty.toString(),
     timeInForce: 'IOC'
