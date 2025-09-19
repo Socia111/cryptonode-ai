@@ -133,7 +133,8 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
   const minQty = 0.001;
   const qtyStep = 0.001;
   const tickSize = 0.01;
-  console.log(`📊 Using default symbol info: minQty=${minQty}, qtyStep=${qtyStep}, tickSize=${tickSize}`);
+  const minNotional = 5; // Minimum notional value in USDT
+  console.log(`📊 Using default symbol info: minQty=${minQty}, qtyStep=${qtyStep}, tickSize=${tickSize}, minNotional=${minNotional}`);
 
   // 2. Calculate quantity if amount_usd is provided
   let qty = trade.qty;
@@ -210,10 +211,6 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
   return result;
 }
 
-// Paper trading removed - live trading only
-  };
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -250,21 +247,20 @@ serve(async (req) => {
         const startTime = Date.now();
 
         // Execute live trade only
-          console.log('💰 Executing live trade...');
-          
-          // Get credentials with user preference first, then system fallback
-          if (trade.user_id) {
-            console.log('🔍 Attempting to use user credentials...');
-            credentials = await getUserCredentials(trade.user_id);
-          }
-          
-          if (!credentials) {
-            console.log('🔧 Falling back to system credentials...');
-            credentials = await getSystemCredentials();
-          }
-
-          result = await executeBybitTrade(trade, credentials);
+        console.log('💰 Executing live trade...');
+        
+        // Get credentials with user preference first, then system fallback
+        if (trade.user_id) {
+          console.log('🔍 Attempting to use user credentials...');
+          credentials = await getUserCredentials(trade.user_id);
         }
+        
+        if (!credentials) {
+          console.log('🔧 Falling back to system credentials...');
+          credentials = await getSystemCredentials();
+        }
+
+        result = await executeBybitTrade(trade, credentials);
 
         const executionTime = Date.now() - startTime;
 
@@ -276,7 +272,7 @@ serve(async (req) => {
           qty: trade.qty || (result.result?.cumExecQty ? parseFloat(result.result.cumExecQty) : null),
           amount_usd: trade.amount_usd,
           leverage: trade.leverage || 1,
-          paper_mode: isPaperMode || trade.paper_mode || false,
+          paper_mode: false, // Live trading only
           status: result.retCode === 0 ? 'executed' : 'failed',
           exchange_order_id: result.result?.orderId || null,
           ret_code: result.retCode,
@@ -300,7 +296,7 @@ serve(async (req) => {
         const responseData = {
           success: result.retCode === 0,
           trade_id: result.result?.orderId || result.result?.orderLinkId,
-          paper_mode: isPaperMode || trade.paper_mode || false,
+          paper_mode: false, // Live trading only
           result: result,
           message: result.retMsg || 'Trade executed successfully',
           execution_time_ms: executionTime,
