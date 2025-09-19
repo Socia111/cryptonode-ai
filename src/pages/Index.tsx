@@ -2,6 +2,7 @@ import React from 'react';
 import MainLayout from '@/layouts/MainLayout';
 import { LiveTradingDashboard } from '@/components/LiveTradingDashboard';
 import { LaunchReadinessChecklist } from '@/components/LaunchReadinessChecklist';
+import { SymbolSelector } from '@/components/SymbolSelector';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function Index() {
@@ -18,13 +19,18 @@ export default function Index() {
         </div>
 
         <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="dashboard">Trading Dashboard</TabsTrigger>
+            <TabsTrigger value="symbols">Symbol Selection</TabsTrigger>
             <TabsTrigger value="launch">Launch Status</TabsTrigger>
           </TabsList>
           
           <TabsContent value="dashboard" className="space-y-6">
             <LiveTradingDashboard />
+          </TabsContent>
+          
+          <TabsContent value="symbols" className="space-y-6">
+            <SymbolSelector />
           </TabsContent>
           
           <TabsContent value="launch" className="space-y-6">

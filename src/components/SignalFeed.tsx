@@ -1,6 +1,7 @@
 import React from 'react';
 import { useRankedSignals } from '@/hooks/useRankedSignals';
 import { useSignals } from '@/hooks/useSignals';
+import { useWhitelistSettings } from '@/hooks/useWhitelistSettings';
 import { TopPicks } from '@/components/TopPicks';
 import { SignalRow } from '@/components/SignalRow';
 import { EnhancedSignalCard } from '@/components/EnhancedSignalCard';
@@ -17,6 +18,7 @@ import type { UISignal } from '@/lib/signalScoring';
 export function SignalFeed({ signals: initialSignals }: { signals?: UISignal[] }) {
   const { toast } = useToast();
   const { signals: hookSignals, loading } = useSignals();
+  const { getSymbolsForScanning } = useWhitelistSettings();
   const { 
     signals: liveSignals, 
     loading: liveLoading, 
@@ -26,13 +28,25 @@ export function SignalFeed({ signals: initialSignals }: { signals?: UISignal[] }
   } = useLiveSignalFeed();
   const [hideWide, setHideWide] = React.useState(true);
   
+  // Get allowed symbols from whitelist (8 selected symbols)
+  const allowedSymbols = getSymbolsForScanning();
+  
   // Combine all signal sources and ensure UISignal compatibility
   const combinedSignals = [
     ...liveSignals.map(s => ({ ...s, token: s.symbol, direction: s.side })),
     ...hookSignals,
     ...(initialSignals || [])
   ];
-  const ranked = useRankedSignals(combinedSignals as UISignal[], { hideWideSpreads: hideWide, maxSpreadBps: 20, hide1MinSignals: true });
+  
+  // Filter signals to only show selected 8 symbols
+  const filteredSignals = allowedSymbols 
+    ? combinedSignals.filter(signal => {
+        const symbolToCheck = signal.token || (signal as any).symbol;
+        return allowedSymbols.includes(symbolToCheck);
+      })
+    : combinedSignals;
+  
+  const ranked = useRankedSignals(filteredSignals as UISignal[], { hideWideSpreads: hideWide, maxSpreadBps: 20, hide1MinSignals: true });
   const topPicks = ranked.slice(0,3);
 
   // Auto mode: trades only A+/A

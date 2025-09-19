@@ -11,9 +11,9 @@ interface WhitelistSettings {
 }
 
 const DEFAULT_SETTINGS: WhitelistSettings = {
-  whitelist_enabled: false,
-  whitelist_pairs: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'BNBUSDT', 'XRPUSDT'],
-  max_symbols: 2000,
+  whitelist_enabled: true,
+  whitelist_pairs: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'BNBUSDT', 'XRPUSDT', 'AVAXUSDT'],
+  max_symbols: 8,
   auto_update: false,
   last_updated: new Date().toISOString()
 };
