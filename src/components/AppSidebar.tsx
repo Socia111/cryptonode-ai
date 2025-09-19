@@ -11,7 +11,8 @@ import {
   Settings,
   Home,
   Building2,
-  Activity
+  Activity,
+  Target
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -37,6 +38,7 @@ const mainItems = [
   { title: "Portfolio", url: "/portfolio", icon: Wallet },
   { title: "Live Signals", url: "/signals", icon: Zap },
   { title: "All Signals", url: "/all-signals", icon: Activity },
+  { title: "AItradeX1", url: "/aitradex1", icon: Target },
   { title: "Markets", url: "/markets", icon: BarChart3 },
   { title: "Backtests", url: "/backtests", icon: TestTube },
   { title: "Automation", url: "/automation", icon: Bot },

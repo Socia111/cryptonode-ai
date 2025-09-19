@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import { RebuildConsole } from "./components/RebuildConsole";
 
 const AllSignals = lazy(() => import('./pages/AllSignals'));
+const AItradeX1Dashboard = lazy(() => import('./components/AItradeX1Dashboard').then(m => ({ default: m.AItradeX1Dashboard })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +58,11 @@ function App() {
               <Route path="/all-signals" element={
                 <Suspense fallback={<div>Loading...</div>}>
                   <AllSignals />
+                </Suspense>
+              } />
+              <Route path="/aitradex1" element={
+                <Suspense fallback={<div>Loading...</div>}>
+                  <AItradeX1Dashboard />
                 </Suspense>
               } />
               <Route path="*" element={<NotFound />} />
