@@ -196,6 +196,7 @@ export type Database = {
       execution_orders: {
         Row: {
           amount_usd: number | null
+          avg_price: number | null
           bybit_order_status: string | null
           commission: number | null
           commission_asset: string | null
@@ -217,6 +218,7 @@ export type Database = {
         }
         Insert: {
           amount_usd?: number | null
+          avg_price?: number | null
           bybit_order_status?: string | null
           commission?: number | null
           commission_asset?: string | null
@@ -238,6 +240,7 @@ export type Database = {
         }
         Update: {
           amount_usd?: number | null
+          avg_price?: number | null
           bybit_order_status?: string | null
           commission?: number | null
           commission_asset?: string | null
