@@ -8,6 +8,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useSystemTrigger } from '@/hooks/useSystemTrigger';
 import { useSystemTests } from '@/hooks/useSystemTests';
+import { SystemTester } from '@/components/SystemTester';
+import { QuickSystemTest } from '@/components/QuickSystemTest';
 
 interface SystemStatus {
   database: boolean;
@@ -223,6 +225,16 @@ export const SystemStatusSummary: React.FC = () => {
             </ul>
           </div>
         )}
+
+        {/* Quick System Test */}
+        <div className="mt-4">
+          <QuickSystemTest />
+        </div>
+
+        {/* System Tester Component */}
+        <div className="mt-6">
+          <SystemTester />
+        </div>
       </CardContent>
     </Card>
   );
