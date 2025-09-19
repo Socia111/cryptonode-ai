@@ -324,7 +324,7 @@ export const useSignals = () => {
   useEffect(() => {
     let mounted = true;
     let pollId: number | null = null;
-    const POLL_MS = 60000; // Poll every minute instead of 15 seconds
+    const POLL_MS = 60000; // Poll every minute
 
     const boot = async () => {
       console.log('[signals] Loading existing signals from database...')
@@ -343,13 +343,39 @@ export const useSignals = () => {
       }, POLL_MS);
     };
 
+    // Set up real-time subscription for new signals
+    const channel = supabase
+      .channel('signals-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'signals'
+        },
+        (payload) => {
+          console.log('[useSignals] Real-time signal received:', payload.new);
+          
+          const newSignal = mapDbToSignal(payload.new);
+          setSignals(prev => [newSignal, ...prev]);
+          
+          // Show toast for new signal
+          toast({
+            title: "🎯 New Signal",
+            description: `${newSignal.token} ${newSignal.direction} - Score: ${newSignal.confidence_score}`
+          });
+        }
+      )
+      .subscribe();
+
     boot();
 
     return () => {
       mounted = false;
       if (pollId) clearInterval(pollId);
+      supabase.removeChannel(channel);
     };
-  }, []);
+  }, [toast]);
 
   return {
     signals,

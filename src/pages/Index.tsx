@@ -3,6 +3,7 @@ import MainLayout from '@/layouts/MainLayout';
 import { LiveTradingDashboard } from '@/components/LiveTradingDashboard';
 import { LaunchReadinessChecklist } from '@/components/LaunchReadinessChecklist';
 import { SymbolSelector } from '@/components/SymbolSelector';
+import { SignalMonitor } from '@/components/SignalMonitor';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FullMarketSignals } from '@/components/FullMarketSignals';
 import { SimpleSystemStatus } from '@/components/SimpleSystemStatus';
@@ -25,13 +26,18 @@ export default function Index() {
           </div>
         </div>
 
-        <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="monitor" className="w-full">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="monitor">Live Monitor</TabsTrigger>
             <TabsTrigger value="dashboard">Trading Dashboard</TabsTrigger>
             <TabsTrigger value="fullmarket">Full Market</TabsTrigger>
             <TabsTrigger value="symbols">Symbol Selection</TabsTrigger>
             <TabsTrigger value="launch">Launch Status</TabsTrigger>
           </TabsList>
+          
+          <TabsContent value="monitor" className="space-y-6">
+            <SignalMonitor />
+          </TabsContent>
           
           <TabsContent value="dashboard" className="space-y-6">
             <LiveTradingDashboard />
