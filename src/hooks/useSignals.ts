@@ -148,22 +148,22 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
   const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
   
   return signals
-    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 80)
+    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 70)
     .map((item: any): Signal => ({
       id: item.id.toString(),
       token: item.symbol.replace('USDT', '/USDT'),
       direction: item.direction === 'LONG' ? 'BUY' : 'SELL',
       signal_type: `${item.algo || 'AItradeX1'} ${item.timeframe}`,
       timeframe: item.timeframe,
-      entry_price: Number(item.price),
-      exit_target: item.tp ? Number(item.tp) : null,
-      stop_loss: item.sl ? Number(item.sl) : null,
+      entry_price: Number(item.price || item.entry_price),
+      exit_target: item.take_profit ? Number(item.take_profit) : (item.tp ? Number(item.tp) : null),
+      stop_loss: item.stop_loss ? Number(item.stop_loss) : (item.sl ? Number(item.sl) : null),
       leverage: 1,
       confidence_score: Number(item.score),
       pms_score: Number(item.score),
       trend_projection: item.direction === 'LONG' ? '⬆️' : '⬇️',
       volume_strength: item.indicators?.volSma21 ? Number(item.indicators.volSma21) / 1000000 : 1.0,
-      roi_projection: Math.abs((Number(item.tp || item.price * 1.1) - Number(item.price)) / Number(item.price) * 100),
+      roi_projection: Math.abs((Number(item.take_profit || item.tp || item.price * 1.1) - Number(item.price || item.entry_price)) / Number(item.price || item.entry_price) * 100),
       signal_strength: item.score > 85 ? 'STRONG' : item.score > 75 ? 'MEDIUM' : 'WEAK',
       risk_level: item.score > 85 ? 'LOW' : item.score > 75 ? 'MEDIUM' : 'HIGH',
       quantum_probability: Number(item.score) / 100,
