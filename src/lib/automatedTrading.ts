@@ -185,7 +185,7 @@ export class AutomatedTradingEngine {
               side: signal.direction === 'LONG' ? 'BUY' : 'SELL',
               qty: result.data.quantity || 0,
               status: 'executed',
-              paper_mode: false
+              live_trading: true
             };
 
             this.activePositions.set(signal.symbol, execution);
@@ -202,56 +202,15 @@ export class AutomatedTradingEngine {
             }
           }
         } catch (error) {
-          console.error('❌ Live trade failed, falling back to paper trading:', error);
-          await this.executePaperTrade(signal, tradeAmount);
+          console.error('❌ Live trade failed:', error);
+          throw error;
         }
-      } else {
-        // Execute paper trade
-        await this.executePaperTrade(signal, tradeAmount);
       }
-
     } catch (error) {
       console.error('❌ Failed to execute automated trade:', error);
     }
   }
 
-  private async executePaperTrade(signal: Signal | AggregatedSignal, amount: number) {
-    const tradeParams = {
-      symbol: signal.symbol,
-      side: signal.direction === 'LONG' ? 'Buy' : 'Sell' as 'Buy' | 'Sell',
-      amount: amount,
-      stopLoss: this.calculateStopLoss(signal),
-      takeProfit: this.calculateTakeProfit(signal),
-      paper_mode: true,
-      signal_id: signal.id
-    };
-
-    const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
-      body: {
-        action: 'place_order',
-        ...tradeParams
-      }
-    });
-
-    if (error) throw error;
-
-    // Track position
-    const execution: TradeExecution = {
-      id: data.order_id || `paper-${Date.now()}`,
-      user_id: 'automated',
-      symbol: signal.symbol,
-      side: tradeParams.side === 'Buy' ? 'BUY' : 'SELL',
-      qty: data.quantity || 0,
-      status: 'executed',
-      paper_mode: true
-    };
-
-    this.activePositions.set(signal.symbol, execution);
-    this.dailyTrades++;
-    
-    console.log('📝 Paper trade executed successfully:', execution);
-    this.notifyStatusChange();
-  }
 
   private calculateStopLoss(signal: Signal): number {
     if (signal.stop_loss) return signal.stop_loss;

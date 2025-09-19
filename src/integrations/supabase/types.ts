@@ -874,7 +874,6 @@ export type Database = {
           id: number
           leverage: number | null
           order_type: string | null
-          paper_trade: boolean | null
           price: number | null
           quantity: number | null
           side: string | null
@@ -892,7 +891,6 @@ export type Database = {
           id?: number
           leverage?: number | null
           order_type?: string | null
-          paper_trade?: boolean | null
           price?: number | null
           quantity?: number | null
           side?: string | null
@@ -910,7 +908,6 @@ export type Database = {
           id?: number
           leverage?: number | null
           order_type?: string | null
-          paper_trade?: boolean | null
           price?: number | null
           quantity?: number | null
           side?: string | null
@@ -1468,6 +1465,10 @@ export type Database = {
       initialize_real_system: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      refresh_materialized_views: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       requeue_stale_jobs: {
         Args: Record<PropertyKey, never>

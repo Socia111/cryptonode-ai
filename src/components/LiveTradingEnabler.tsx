@@ -24,7 +24,6 @@ import {
 
 interface TradingSettings {
   live_trading_enabled: boolean;
-  paper_trading: boolean;
   max_position_size: number;
   default_leverage: number;
   risk_per_trade: number;
@@ -33,7 +32,6 @@ interface TradingSettings {
 interface TestTradeResult {
   success: boolean;
   trade_id?: string;
-  paper_mode: boolean;
   message: string;
   result?: any;
 }
@@ -41,7 +39,6 @@ interface TestTradeResult {
 export function LiveTradingEnabler() {
   const [settings, setSettings] = useState<TradingSettings>({
     live_trading_enabled: false,
-    paper_trading: true,
     max_position_size: 100,
     default_leverage: 1,
     risk_per_trade: 2
@@ -73,7 +70,6 @@ export function LiveTradingEnabler() {
         .select('value')
         .in('key', [
           'live_trading_enabled',
-          'paper_trading',
           'max_position_size',
           'default_leverage',
           'risk_per_trade'
@@ -90,7 +86,6 @@ export function LiveTradingEnabler() {
 
         setSettings({
           live_trading_enabled: settingsMap.live_trading_enabled || false,
-          paper_trading: settingsMap.paper_trading !== false,
           max_position_size: settingsMap.max_position_size || 100,
           default_leverage: settingsMap.default_leverage || 1,
           risk_per_trade: settingsMap.risk_per_trade || 2

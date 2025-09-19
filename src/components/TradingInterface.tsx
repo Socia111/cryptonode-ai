@@ -59,7 +59,7 @@ export function TradingInterface() {
   const [leverage, setLeverage] = useState([10]);
   const [stopLoss, setStopLoss] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
-  const [paperMode, setPaperMode] = useState(true);
+  const [liveMode, setLiveMode] = useState(true);
   const [isExecuting, setIsExecuting] = useState(false);
   
   const { toast } = useToast();
@@ -149,7 +149,7 @@ export function TradingInterface() {
         side: side.toUpperCase(),
         amount_usd: parseFloat(amount),
         leverage: leverage[0],
-        paper_mode: paperMode,
+        real_trading: liveMode,
         order_type: orderType,
         price: orderType !== 'market' ? parseFloat(price) : undefined,
         stop_loss: stopLoss ? parseFloat(stopLoss) : undefined,
@@ -167,7 +167,7 @@ export function TradingInterface() {
       if (error) throw error;
 
       toast({
-        title: paperMode ? "Paper Trade Executed" : "Trade Executed",
+        title: "Live Trade Executed",
         description: `${side.toUpperCase()} ${selectedSymbol} for $${amount}`,
       });
 
@@ -207,22 +207,22 @@ export function TradingInterface() {
                 <CardHeader>
                   <CardTitle className="text-xl font-semibold">Execute Trade</CardTitle>
                   <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Switch 
-                        checked={paperMode} 
-                        onCheckedChange={setPaperMode}
-                        id="paper-mode"
-                      />
-                      <Label htmlFor="paper-mode" className="text-sm">
-                        Paper Trading
-                      </Label>
-                    </div>
-                    {paperMode && (
-                      <Badge className="bg-info/20 text-info border-info/30">
-                        Test Mode
-                      </Badge>
-                    )}
-                  </div>
+                     <div className="flex items-center gap-2">
+                       <Switch 
+                         checked={liveMode} 
+                         onCheckedChange={setLiveMode}
+                         id="live-mode"
+                       />
+                       <Label htmlFor="live-mode" className="text-sm">
+                         Live Trading
+                       </Label>
+                     </div>
+                     {liveMode && (
+                       <Badge className="bg-success/20 text-success border-success/30">
+                         Live Mode
+                       </Badge>
+                     )}
+                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

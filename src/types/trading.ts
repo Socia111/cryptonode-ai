@@ -56,7 +56,7 @@ export interface TradeRequest {
   qty?: number;
   amount_usd?: number;
   leverage?: number;
-  paper_mode?: boolean;
+  live_trading?: boolean;
   user_id?: string;
   signal_id?: string;
   order_type?: 'Market' | 'Limit';
@@ -72,7 +72,7 @@ export interface TradeExecution {
   qty?: number;
   amount_usd?: number;
   leverage?: number;
-  paper_mode: boolean;
+  live_trading: boolean;
   status: 'requested' | 'executed' | 'failed' | 'cancelled';
   exchange_order_id?: string;
   ret_code?: number;
@@ -135,7 +135,7 @@ export interface MarketData {
 
 export interface SystemSettings {
   live_trading_enabled: boolean;
-  paper_trading: boolean;
+  live_trading_only: boolean;
   max_position_size: number;
   default_leverage: number;
   risk_per_trade: number;
@@ -158,7 +158,7 @@ export interface TradingSession {
   total_pnl: number;
   max_drawdown: number;
   max_profit: number;
-  trading_mode: 'paper' | 'live';
+  trading_mode: 'live';
   exchange: string;
   strategy_used: string;
   risk_score: number;
@@ -185,7 +185,7 @@ export interface SignalProcessingResult {
 export interface TradeExecutionResult {
   success: boolean;
   trade_id?: string;
-  paper_mode: boolean;
+  live_trading: boolean;
   result: any;
   message: string;
   execution_time_ms?: number;
@@ -266,7 +266,6 @@ export interface TradingDashboardData {
     total_24h: number;
     successful_24h: number;
     failed_24h: number;
-    paper_trades: number;
     live_trades: number;
     total_volume_usd: number;
     avg_execution_time_ms: number;

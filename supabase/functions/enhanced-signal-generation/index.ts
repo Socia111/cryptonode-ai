@@ -102,8 +102,10 @@ serve(async (req) => {
   const selectedTimeframes = ['15m', '1h', '4h'] // Focus on key timeframes
   const primaryAlgorithm = 'enhanced_multi_indicator_v2'
   
-  // Process limited data to prevent CPU timeout
-  const limitedData = marketData.slice(0, 10) // Limit to 10 symbols max
+  // Process limited data to prevent CPU timeout and filter out invalid data
+  const limitedData = marketData
+    .filter(d => d.symbol && d.price && d.price > 0) // Additional validation
+    .slice(0, 10) // Limit to 10 symbols max
   
   for (const data of limitedData) {
     for (const timeframe of selectedTimeframes) {

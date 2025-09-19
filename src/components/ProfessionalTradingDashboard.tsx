@@ -446,10 +446,6 @@ export function ProfessionalTradingDashboard() {
                   {executing ? 'Executing...' : 'Execute Trade'}
                 </Button>
                 
-                <div className="flex items-center gap-2 p-3 bg-warning/10 border border-warning/20 rounded">
-                  <AlertTriangle className="h-4 w-4 text-warning" />
-                  <span className="text-sm">Paper trading mode - No real money at risk</span>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
