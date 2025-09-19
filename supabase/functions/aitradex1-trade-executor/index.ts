@@ -17,7 +17,7 @@ interface TradeRequest {
   qty?: number;
   amount_usd?: number;
   leverage?: number;
-  
+  paper_mode?: boolean;
   user_id?: string;
   signal_id?: string;
   order_type?: 'Market' | 'Limit';
@@ -95,9 +95,9 @@ async function getSystemCredentials(): Promise<BybitCredentials> {
   };
 }
 
-function createBybitSignature(params: string, secret: string, timestamp: string): Promise<string> {
+function createBybitSignature(params: string, secret: string, timestamp: string, apiKey: string): Promise<string> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(timestamp + 'BYBIT_API_KEY' + '5000' + params);
+  const data = encoder.encode(timestamp + apiKey + '5000' + params);
   const key = encoder.encode(secret);
   
   return crypto.subtle.importKey(
@@ -142,21 +142,31 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
 
   if (!qty && trade.amount_usd) {
     // Get current price to calculate qty
+    console.log(`🔍 Fetching price for ${symbol}...`);
     const priceResponse = await fetch(`${baseUrl}/v5/market/tickers?category=linear&symbol=${symbol}`);
     const priceData = await priceResponse.json();
     
-    if (priceData.retCode === 0 && priceData.result.list.length > 0) {
+    console.log(`📊 Price response:`, priceData);
+    
+    if (priceData.retCode === 0 && priceData.result?.list && priceData.result.list.length > 0) {
       currentPrice = parseFloat(priceData.result.list[0].lastPrice);
-      qty = trade.amount_usd / currentPrice;
+      
+      if (!currentPrice || currentPrice <= 0) {
+        throw new Error(`Invalid price received: ${currentPrice} for ${symbol}`);
+      }
+      
+      // Calculate quantity with leverage
+      const leverage = trade.leverage || 1;
+      qty = (trade.amount_usd * leverage) / currentPrice;
       
       // Apply quantity precision based on qtyStep
-      const qtyStepPrecision = qtyStep.toString().split('.')[1]?.length || 0;
-      qty = Math.floor(qty / parseFloat(qtyStep)) * parseFloat(qtyStep);
+      const qtyStepPrecision = qtyStep.toString().split('.')[1]?.length || 3;
+      qty = Math.floor(qty / qtyStep) * qtyStep;
       qty = parseFloat(qty.toFixed(qtyStepPrecision));
       
-      console.log(`💰 Calculated qty: ${qty} (price: ${currentPrice}, amount: ${trade.amount_usd})`);
+      console.log(`💰 Calculated qty: ${qty} (price: ${currentPrice}, amount: ${trade.amount_usd}, leverage: ${leverage})`);
     } else {
-      throw new Error('Could not fetch current price for quantity calculation');
+      throw new Error(`Could not fetch current price for ${symbol}: ${priceData.retMsg || 'Unknown error'}`);
     }
   }
 
@@ -183,12 +193,10 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
 
   console.log(`📋 Order params:`, orderParams);
 
-  const paramsString = Object.entries(orderParams)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => `${key}=${value}`)
-    .join('&');
+  // Create query string for signature
+  const paramsString = JSON.stringify(orderParams);
 
-  const signature = await createBybitSignature(paramsString, credentials.api_secret, timestamp);
+  const signature = await createBybitSignature(paramsString, credentials.api_secret, timestamp, credentials.api_key);
 
   console.log(`🔐 Sending order to ${baseUrl}/v5/order/create`);
 
@@ -232,7 +240,7 @@ serve(async (req) => {
           qty: trade.qty,
           amount_usd: trade.amount_usd,
           user_id: trade.user_id ? 'provided' : 'system',
-          paper_mode: trade.paper_mode
+          paper_mode: trade.paper_mode || false
         });
 
         // Live trading only - paper trading removed
