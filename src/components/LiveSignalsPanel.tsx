@@ -157,7 +157,24 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
   const handleExecuteTrade = async (signal: Signal) => {
     setExecutingSignals(prev => new Set(prev).add(signal.id));
     try {
+      console.log('🚀 Direct trade execution for signal:', signal);
+      
+      // Import and use trading executor directly
+      const { useTradingExecutor } = await import('@/hooks/useTradingExecutor');
+      const executor = useTradingExecutor();
+      
+      // Execute trade with signal data
+      await executor.executeSignalTrade(signal, 50); // Default $50 trade
+      
+      // Also call the provided handler
       await onExecuteTrade(signal);
+    } catch (error) {
+      console.error('Failed to execute trade:', error);
+      toast({
+        title: "❌ Trade Failed",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive"
+      });
     } finally {
       setExecutingSignals(prev => {
         const newSet = new Set(prev);

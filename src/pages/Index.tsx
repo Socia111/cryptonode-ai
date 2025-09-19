@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FullMarketSignals } from '@/components/FullMarketSignals';
 import { SimpleSystemStatus } from '@/components/SimpleSystemStatus';
 import TestRunner from '@/components/TestRunner';
+import { OneClickTrading } from '@/components/OneClickTrading';
 
 export default function Index() {
   return (
@@ -27,15 +28,20 @@ export default function Index() {
           </div>
         </div>
 
-        <Tabs defaultValue="monitor" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="monitor">Live Monitor</TabsTrigger>
-            <TabsTrigger value="dashboard">Trading Dashboard</TabsTrigger>
-            <TabsTrigger value="fullmarket">Full Market</TabsTrigger>
-            <TabsTrigger value="symbols">Symbol Selection</TabsTrigger>
-            <TabsTrigger value="tests">Tests</TabsTrigger>
-            <TabsTrigger value="launch">Launch Status</TabsTrigger>
+        <Tabs defaultValue="oneclick" className="w-full">
+          <TabsList className="grid w-full grid-cols-7">
+            <TabsTrigger value="oneclick">💰 One-Click Trade</TabsTrigger>
+            <TabsTrigger value="dashboard">🚀 Live Trading</TabsTrigger>
+            <TabsTrigger value="monitor">📊 Monitor</TabsTrigger>
+            <TabsTrigger value="fullmarket">🌍 Full Market</TabsTrigger>
+            <TabsTrigger value="symbols">⚙️ Symbols</TabsTrigger>
+            <TabsTrigger value="tests">🧪 Tests</TabsTrigger>
+            <TabsTrigger value="launch">✅ Status</TabsTrigger>
           </TabsList>
+          
+          <TabsContent value="oneclick" className="space-y-6">
+            <OneClickTrading />
+          </TabsContent>
           
           <TabsContent value="monitor" className="space-y-6">
             <SignalMonitor />

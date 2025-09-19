@@ -16,6 +16,8 @@ import { QuickSystemTest } from './QuickSystemTest';
 import { useSignals } from '@/hooks/useSignals';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthenticationManager } from './AuthenticationManager';
+import LiveSignalsPanel from './LiveSignalsPanel';
+import { useTradingExecutor } from '@/hooks/useTradingExecutor';
 
 interface SystemStatus {
   dataCollection: 'active' | 'inactive' | 'error';
@@ -249,50 +251,10 @@ export const LiveTradingDashboard = () => {
         </TabsList>
 
         <TabsContent value="signals" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Live Trading Signals</CardTitle>
-              <CardDescription>
-                Real-time signals from AITRADEX1 algorithm
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex items-center justify-center p-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : signals.length > 0 ? (
-                <div className="space-y-3">
-                  {signals.slice(0, 50).map((signal) => (
-                    <div key={signal.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-4">
-                        <Badge variant={signal.direction === 'BUY' ? 'default' : 'destructive'}>
-                          {signal.direction}
-                        </Badge>
-                        <div>
-                          <p className="font-medium">{signal.token}</p>
-                          <p className="text-sm text-muted-foreground">{signal.timeframe} • {signal.confidence_score}% confidence</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium">${signal.entry_price.toFixed(4)}</p>
-                        <Badge variant="outline" className="text-xs">
-                          {signal.signal_strength}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    No signals available. Start the live system to begin signal generation.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
+          <LiveSignalsPanel onExecuteTrade={async (signal) => {
+            console.log('🔥 Live trade execution from dashboard:', signal);
+            // Trade execution handled by component directly
+          }} />
         </TabsContent>
 
         <TabsContent value="trading">

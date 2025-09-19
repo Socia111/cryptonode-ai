@@ -98,8 +98,10 @@ const Trade = () => {
                   Live Trading Signals
                 </h3>
                 <LiveSignalsPanel onExecuteTrade={async (signal) => {
-                  console.log('Executing trade for signal:', signal);
-                  // TODO: Implement trade execution
+                  console.log('🔥 Executing trade for signal:', signal);
+                  const { useTradingExecutor } = await import('@/hooks/useTradingExecutor');
+                  const { executeSignalTrade } = useTradingExecutor();
+                  await executeSignalTrade(signal, 50); // Default $50 trade
                 }} />
               </div>
             </div>

@@ -94,7 +94,22 @@ export function EnhancedSignalCard({ signal, onTrade, onDetails }: EnhancedSigna
             </span>
             <Button
               size="sm"
-              onClick={() => onTrade(signal)}
+              onClick={async () => {
+                console.log('🔥 Direct signal execution clicked:', signal);
+                try {
+                  // Import and use trading executor directly
+                  const { useTradingExecutor } = await import('@/hooks/useTradingExecutor');
+                  const executor = useTradingExecutor();
+                  
+                  // Execute trade with default amount
+                  await executor.executeSignalTrade(signal, 50); // Default $50
+                  
+                  // Also call the provided handler
+                  onTrade(signal);
+                } catch (error) {
+                  console.error('Direct trade execution failed:', error);
+                }
+              }}
               className="bg-primary hover:bg-primary/90"
             >
               TRADE
