@@ -7,37 +7,8 @@ import { env } from './env';
 const url = env.VITE_SUPABASE_URL;
 const key = env.VITE_SUPABASE_ANON_KEY;
 
-// Single client instance to avoid multiple auth warnings
-let clientInstance: any = null;
-
-function getSupabaseClient() {
-  if (!clientInstance) {
-    clientInstance = createClient(url, key, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-      realtime: {
-        params: {
-          eventsPerSecond: 10,
-        },
-      },
-      global: {
-        headers: {
-          'x-client-info': 'aitradex1-client',
-        },
-      },
-    });
-  }
-  return clientInstance;
-}
-
-// Export the singleton client
-export const supabase = getSupabaseClient();
-
-// Strongly typed client for new code that wants type safety
-export const typedSupabase = createClient<Database>(url, key, {
+// Single client instance to avoid multiple auth warnings  
+const supabase = createClient<Database>(url, key, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
@@ -50,10 +21,13 @@ export const typedSupabase = createClient<Database>(url, key, {
   },
   global: {
     headers: {
-      'x-client-info': 'aitradex1-client-typed',
+      'x-client-info': 'aitradex1-unified',
     },
   },
 });
+
+// Export the unified client for all uses
+export { supabase };
 
 console.log('[Supabase] Client created successfully with enhanced config');
 

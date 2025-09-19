@@ -1,7 +1,7 @@
 // Type-safe signal queries with runtime validation
 import { z } from 'zod';
 import type { Database } from '@/integrations/supabase/types';
-import { typedSupabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient';
 
 // Type aliases for cleaner code
 type Signal = Database['public']['Tables']['signals']['Row'];
@@ -47,7 +47,7 @@ export async function getLiveSignals(options?: {
   const { limit = 100, minScore, symbol, timeframe } = options ?? {};
   
   // Build query immutably to avoid union type hell
-  let query = typedSupabase
+  let query = supabase
     .from('signals')
     .select('id,symbol,timeframe,direction,price,score,created_at,expires_at,is_active,source,algo')
     .eq('is_active', true)
@@ -78,7 +78,7 @@ export async function getLiveSignals(options?: {
 
 // Type-safe query for signal by ID
 export async function getSignalById(id: string): Promise<SignalDTO | null> {
-  const { data, error } = await typedSupabase
+  const { data, error } = await supabase
     .from('signals')
     .select('id,symbol,timeframe,direction,price,score,created_at,expires_at,is_active,source,algo')
     .eq('id', id)
@@ -103,7 +103,7 @@ export async function getSignalsBySymbol(
 ): Promise<SignalDTO[]> {
   const { limit = 50, activeOnly = true } = options ?? {};
   
-  let query = typedSupabase
+  let query = supabase
     .from('signals')
     .select('id,symbol,timeframe,direction,price,score,created_at,expires_at,is_active,source,algo')
     .eq('symbol', symbol)

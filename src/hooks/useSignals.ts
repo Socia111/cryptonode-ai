@@ -376,10 +376,12 @@ export const useSpynxScores = () => {
       setError(null);
       console.log('[SPYNX] Fetching scores from spynx_scores table...');
       
-      // Fetch from the correct spynx_scores table
+      // For now, use signals table as spynx_scores doesn't exist
       const { data: scores, error } = await supabase
-        .from('spynx_scores')
+        .from('signals')
         .select('*')
+        .eq('is_active', true)
+        .gte('score', 85)
         .order('score', { ascending: false })
         .limit(10);
 
