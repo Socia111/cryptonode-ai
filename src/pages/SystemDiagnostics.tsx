@@ -2,6 +2,8 @@ import React from 'react';
 import MainLayout from '@/layouts/MainLayout';
 import SystemDiagnosticsReport from '@/components/SystemDiagnosticsReport';
 import SystemTestPanel from '@/components/SystemTestPanel';
+import { ErrorRecoveryPanel } from '@/components/ErrorRecoveryPanel';
+import { SystemStatusSummary } from '@/components/SystemStatusSummary';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function SystemDiagnostics() {
@@ -15,10 +17,13 @@ export default function SystemDiagnostics() {
           </p>
         </div>
         
+        <SystemStatusSummary />
+        
         <Tabs defaultValue="health" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="health">System Health</TabsTrigger>
             <TabsTrigger value="tests">Live Tests</TabsTrigger>
+            <TabsTrigger value="recovery">Error Recovery</TabsTrigger>
           </TabsList>
           
           <TabsContent value="health" className="space-y-4">
@@ -27,6 +32,10 @@ export default function SystemDiagnostics() {
           
           <TabsContent value="tests" className="space-y-4">
             <SystemTestPanel />
+          </TabsContent>
+          
+          <TabsContent value="recovery" className="space-y-4">
+            <ErrorRecoveryPanel />
           </TabsContent>
         </Tabs>
       </div>

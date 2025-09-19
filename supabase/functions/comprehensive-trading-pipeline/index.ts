@@ -37,8 +37,10 @@ serve(async (req) => {
       if (mode === 'full' || mode === 'data_only') {
         console.log('[Pipeline] Step 1: Fetching real market data...');
         
-        const liveExchangeResponse = await supabase.functions.invoke('live-exchange-feed', {
+        const liveExchangeResponse = await supabase.functions.invoke('enhanced-ccxt-feed', {
           body: { 
+            symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT', 'XRPUSDT'],
+            exchanges: ['bybit'],
             trigger: 'pipeline_orchestration',
             force_refresh: true 
           }

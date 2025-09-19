@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.app-settings-manager]
 verify_jwt = false
+
+[functions.live-exchange-feed]
+verify_jwt = false
