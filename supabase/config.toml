@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.diagnostics]
 verify_jwt = false
+
+[functions.system-diagnostic]
+verify_jwt = false
