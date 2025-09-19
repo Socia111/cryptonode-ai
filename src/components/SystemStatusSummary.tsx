@@ -3,9 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
+import { CheckCircle, AlertTriangle, RefreshCw, Activity, Zap, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { useSystemTrigger } from '@/hooks/useSystemTrigger';
 
 interface SystemStatus {
   database: boolean;
@@ -22,6 +23,12 @@ export const SystemStatusSummary: React.FC = () => {
   const [isChecking, setIsChecking] = useState(false);
   const { toast } = useToast();
   const autoRefresh = useAutoRefresh(2); // Auto-refresh every 2 minutes
+  const { 
+    isRunning: isSystemRunning, 
+    triggerSignalGeneration, 
+    triggerMarketDataRefresh,
+    runFullSystemRefresh 
+  } = useSystemTrigger();
 
   const checkSystemStatus = async () => {
     setIsChecking(true);
@@ -132,10 +139,49 @@ export const SystemStatusSummary: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Button
+            onClick={runFullSystemRefresh}
+            disabled={isSystemRunning}
+            variant="default"
+            size="sm"
+          >
+            {isSystemRunning ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Running...
+              </>
+            ) : (
+              <>
+                <Zap className="mr-2 h-4 w-4" />
+                Full Refresh
+              </>
+            )}
+          </Button>
+
+          <Button
+            onClick={triggerMarketDataRefresh}
+            disabled={isSystemRunning}
+            variant="outline"
+            size="sm"
+          >
+            <Activity className="mr-2 h-4 w-4" />
+            Market Data
+          </Button>
+          
+          <Button
+            onClick={triggerSignalGeneration}
+            disabled={isSystemRunning}
+            variant="outline"
+            size="sm"
+          >
+            <TrendingUp className="mr-2 h-4 w-4" />
+            Signals
+          </Button>
+
           <Button
             onClick={checkSystemStatus}
-            disabled={isChecking}
+            disabled={isChecking || isSystemRunning}
             variant="outline"
             size="sm"
           >
@@ -148,25 +194,6 @@ export const SystemStatusSummary: React.FC = () => {
               <>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Check Status
-              </>
-            )}
-          </Button>
-
-          <Button
-            onClick={autoRefresh.triggerRefresh}
-            disabled={autoRefresh.isRefreshing}
-            variant="default"
-            size="sm"
-          >
-            {autoRefresh.isRefreshing ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Refreshing...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh Data
               </>
             )}
           </Button>
