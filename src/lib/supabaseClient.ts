@@ -7,24 +7,34 @@ import { env } from './env';
 const url = env.VITE_SUPABASE_URL;
 const key = env.VITE_SUPABASE_ANON_KEY;
 
-// Create client with enhanced configuration (loosely typed for backward compatibility)
-export const supabase = createClient(url, key, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
-  },
-  global: {
-    headers: {
-      'x-client-info': 'aitradex1-client',
-    },
-  },
-});
+// Single client instance to avoid multiple auth warnings
+let clientInstance: any = null;
+
+function getSupabaseClient() {
+  if (!clientInstance) {
+    clientInstance = createClient(url, key, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
+      global: {
+        headers: {
+          'x-client-info': 'aitradex1-client',
+        },
+      },
+    });
+  }
+  return clientInstance;
+}
+
+// Export the singleton client
+export const supabase = getSupabaseClient();
 
 // Strongly typed client for new code that wants type safety
 export const typedSupabase = createClient<Database>(url, key, {

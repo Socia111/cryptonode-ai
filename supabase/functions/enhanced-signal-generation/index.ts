@@ -104,10 +104,16 @@ serve(async (req) => {
       }
     }
 
+    // Ensure all signals have indicators column
+    const signalsWithIndicators = signals.map(signal => ({
+      ...signal,
+      indicators: signal.indicators || {}
+    }));
+
     // Insert all new signals
     const { data: insertedSignals, error: insertError } = await supabase
       .from('signals')
-      .insert(signals)
+      .insert(signalsWithIndicators)
       .select();
 
     if (insertError) {

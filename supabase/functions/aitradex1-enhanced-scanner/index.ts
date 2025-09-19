@@ -93,7 +93,12 @@ serve(async (req) => {
           const { error } = await supabase.from('signals').insert(signal);
           
           if (error) {
-            console.error('Error inserting signal:', error);
+            // Handle cooldown errors gracefully (log as info, not error)
+            if (error.code === '23505' && error.message.includes('Cooldown')) {
+              console.log(`[cooldown] ${symbol}/${timeframe}/${signal.direction} [${signal.source}/${signal.algo}]`);
+            } else {
+              console.error('Error inserting signal:', error);
+            }
           } else {
             console.log(`✅ Generated REAL signal: ${symbol} ${signal.direction} (Score: ${signal.score}%)`);
             signals.push(signal);

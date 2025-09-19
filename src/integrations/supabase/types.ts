@@ -482,6 +482,7 @@ export type Database = {
           filters: Json | null
           hvp_value: number | null
           id: string
+          indicators: Json | null
           is_active: boolean | null
           meta: Json | null
           metadata: Json | null
@@ -512,6 +513,7 @@ export type Database = {
           filters?: Json | null
           hvp_value?: number | null
           id?: string
+          indicators?: Json | null
           is_active?: boolean | null
           meta?: Json | null
           metadata?: Json | null
@@ -542,6 +544,7 @@ export type Database = {
           filters?: Json | null
           hvp_value?: number | null
           id?: string
+          indicators?: Json | null
           is_active?: boolean | null
           meta?: Json | null
           metadata?: Json | null
