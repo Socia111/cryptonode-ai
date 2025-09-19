@@ -50,18 +50,17 @@ export const SystemTestPanel = () => {
       const { data: demoResult, error: demoError } = await supabase.functions.invoke('aitradex1-enhanced-scanner');
       console.log('[SystemTest] Signal generator result:', { success: !demoError, error: demoError });
 
-      // Test 5: Test paper trading executor
-      console.log('[SystemTest] Testing paper trading executor...');
-      const { data: tradeResult, error: tradeError } = await supabase.functions.invoke('paper-trading-executor', {
+      // Test 5: Test live trading executor
+      console.log('[SystemTest] Testing live trading executor...');
+      const { data: tradeResult, error: tradeError } = await supabase.functions.invoke('bybit-order-execution', {
         body: {
           symbol: 'BTCUSDT',
           side: 'buy',
           amount: 50,
-          leverage: 1,
-          paperMode: true
+          leverage: 1
         }
       });
-      console.log('[SystemTest] Paper trading result:', { success: !tradeError, data: tradeResult, error: tradeError });
+      console.log('[SystemTest] Live trading result:', { success: !tradeError, data: tradeResult, error: tradeError });
 
       const testResults = {
         signals: {
@@ -84,7 +83,7 @@ export const SystemTestPanel = () => {
           data: demoResult,
           error: demoError?.message
         },
-        paperTrading: {
+        liveTrading: {
           success: !tradeError,
           data: tradeResult,
           error: tradeError?.message
@@ -196,10 +195,10 @@ export const SystemTestPanel = () => {
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
-                  <span className="text-sm">Paper Trading</span>
+                  <span className="text-sm">Live Trading</span>
                 </div>
-                <Badge variant={getBadgeVariant(results.paperTrading.success)}>
-                  {results.paperTrading.success ? 'PASS' : 'FAIL'}
+                <Badge variant={getBadgeVariant(results.liveTrading.success)}>
+                  {results.liveTrading.success ? 'PASS' : 'FAIL'}
                 </Badge>
               </div>
             </div>

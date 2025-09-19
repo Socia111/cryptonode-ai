@@ -19,7 +19,7 @@ export interface AutoTradingConfig {
   minSourcesForTrade: number;
   // Live Trading Features
   liveTrading: boolean;
-  paperMode: boolean;
+  
   slippageProtection: number;
   emergencyStopEnabled: boolean;
   riskManagement: {
@@ -169,7 +169,7 @@ export class AutomatedTradingEngine {
       
       const tradeAmount = this.config.positionSizeUSD;
       
-      if (this.config.liveTrading && !this.config.paperMode) {
+      if (this.config.liveTrading) {
         // Use live trading manager for real trades
         console.log('💰 Executing LIVE trade');
         

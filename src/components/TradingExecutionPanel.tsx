@@ -35,7 +35,7 @@ export function TradingExecutionPanel({ signals = [] }: TradingExecutionPanelPro
   const [selectedSide, setSelectedSide] = useState<'buy' | 'sell'>('buy');
   const [tradeAmount, setTradeAmount] = useState('100');
   const [leverage, setLeverage] = useState('1');
-  const [paperMode, setPaperMode] = useState(true);
+  
   const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
   const [limitPrice, setLimitPrice] = useState('');
 
@@ -59,8 +59,7 @@ export function TradingExecutionPanel({ signals = [] }: TradingExecutionPanelPro
         amount: Number(tradeAmount),
         leverage: Number(leverage),
         orderType,
-        price: orderType === 'limit' ? Number(limitPrice) : undefined,
-        paperMode
+        price: orderType === 'limit' ? Number(limitPrice) : undefined
       });
 
       if (result.success) {
@@ -73,7 +72,7 @@ export function TradingExecutionPanel({ signals = [] }: TradingExecutionPanelPro
 
   const handleSignalTrade = async (signal: Signal) => {
     try {
-      const result = await executeSignalTrade(signal, Number(tradeAmount), paperMode);
+      const result = await executeSignalTrade(signal, Number(tradeAmount));
       if (result.success) {
         console.log('Signal trade executed:', result);
       }
@@ -84,7 +83,7 @@ export function TradingExecutionPanel({ signals = [] }: TradingExecutionPanelPro
 
   const handleClosePosition = async () => {
     try {
-      const result = await closePosition(selectedSymbol, paperMode);
+      const result = await closePosition(selectedSymbol);
       if (result.success) {
         console.log('Position closed:', result);
       }
@@ -124,13 +123,8 @@ export function TradingExecutionPanel({ signals = [] }: TradingExecutionPanelPro
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Switch 
-                checked={paperMode} 
-                onCheckedChange={setPaperMode}
-                disabled={!connectedAccount}
-              />
-              <Label className="text-xs">
-                {paperMode ? 'Paper Trading' : 'Live Trading'}
+              <Label className="text-xs text-green-600 font-medium">
+                Live Trading Active
               </Label>
             </div>
           </div>

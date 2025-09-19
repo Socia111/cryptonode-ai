@@ -31,7 +31,7 @@ export const QuickSystemTest = () => {
       };
       console.log('📊 [QuickTest] Database result:', testResults.database);
 
-      // Test 2: Paper trading insert
+      // Test 2: Live trading insert
       console.log('💰 [QuickTest] Testing paper trade insert...');
       const { data: insertData, error: insertError } = await supabase
         .from('execution_orders')
@@ -41,7 +41,7 @@ export const QuickSystemTest = () => {
           qty: 0.001,
           amount_usd: 10,
           leverage: 1,
-          paper_mode: true,
+          live_mode: true,
           status: 'test_order',
           exchange_order_id: `test_${Date.now()}`
         })
@@ -54,24 +54,23 @@ export const QuickSystemTest = () => {
       };
       console.log('💰 [QuickTest] Paper trade insert result:', testResults.paperTradeInsert);
 
-      // Test 3: Paper trading function
-      console.log('🚀 [QuickTest] Testing paper trading function...');
-      const { data: functionData, error: functionError } = await supabase.functions.invoke('paper-trading-executor', {
+      // Test 3: Live trading function
+      console.log('🚀 [QuickTest] Testing live trading function...');
+      const { data: functionData, error: functionError } = await supabase.functions.invoke('bybit-order-execution', {
         body: {
           symbol: 'BTCUSDT',
           side: 'buy',
           amount: 25,
-          leverage: 1,
-          paperMode: true
+          leverage: 1
         }
       });
 
-      testResults.paperTradingFunction = {
+      testResults.liveTradingFunction = {
         success: !functionError,
         data: functionData,
         error: functionError?.message
       };
-      console.log('🚀 [QuickTest] Paper trading function result:', testResults.paperTradingFunction);
+      console.log('🚀 [QuickTest] Live trading function result:', testResults.liveTradingFunction);
 
       setResults(testResults);
 

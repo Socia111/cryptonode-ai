@@ -101,7 +101,7 @@ export function TradingPositions() {
 
   const handleClosePosition = async (position: Position) => {
     try {
-      await closePosition(position.symbol, true); // Paper mode
+      await closePosition(position.symbol);
       
       // Remove position from list (in real app, this would be handled by real-time updates)
       setPositions(prev => prev.filter(p => p.id !== position.id));

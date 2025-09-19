@@ -158,8 +158,7 @@ export function ProfessionalTradingDashboard() {
         amount: tradeAmount,
         orderType: 'market',
         stopLoss: signal.stop_loss,
-        takeProfit: signal.take_profit,
-        paperMode: true
+        takeProfit: signal.take_profit
       });
       
       toast({

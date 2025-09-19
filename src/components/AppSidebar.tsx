@@ -28,26 +28,131 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-// Enhanced menu items with colors and better organization
+// Enhanced menu items with bigger icons and clear descriptions
 const mainItems = [
-  { title: "🏠 Dashboard", url: "/", icon: Home, color: "text-blue-500", bgColor: "bg-blue-500/10" },
-  { title: "📊 Live Signals", url: "/signals", icon: Zap, color: "text-green-500", bgColor: "bg-green-500/10" },
-  { title: "📈 All Signals", url: "/all-signals", icon: Activity, color: "text-purple-500", bgColor: "bg-purple-500/10" },
-  { title: "🎯 AItradeX1", url: "/aitradex1", icon: Target, color: "text-orange-500", bgColor: "bg-orange-500/10" },
-  { title: "💰 Trade", url: "/trade", icon: TrendingUp, color: "text-emerald-500", bgColor: "bg-emerald-500/10" },
-  { title: "💼 Portfolio", url: "/portfolio", icon: Wallet, color: "text-cyan-500", bgColor: "bg-cyan-500/10" },
-  { title: "🚀 X Platform", url: "/x", icon: TrendingUp, color: "text-red-500", bgColor: "bg-red-500/10" },
-  { title: "⚡ X1 System", url: "/x1", icon: BarChart3, color: "text-yellow-500", bgColor: "bg-yellow-500/10" },
-  { title: "🔥 X2 Advanced", url: "/x2", icon: PieChart, color: "text-pink-500", bgColor: "bg-pink-500/10" },
-  { title: "💎 Unireli Core", url: "/UNIRELIORIGINAL", icon: Zap, color: "text-indigo-500", bgColor: "bg-indigo-500/10" },
-  { title: "📊 Markets", url: "/markets", icon: BarChart3, color: "text-blue-600", bgColor: "bg-blue-600/10" },
-  { title: "🧪 Backtests", url: "/backtests", icon: TestTube, color: "text-teal-500", bgColor: "bg-teal-500/10" },
-  { title: "🤖 Automation", url: "/automation", icon: Bot, color: "text-violet-500", bgColor: "bg-violet-500/10" },
-  { title: "🔔 Alerts", url: "/alerts", icon: Bell, color: "text-amber-500", bgColor: "bg-amber-500/10" },
+  { 
+    title: "Dashboard", 
+    description: "Main overview and system status",
+    url: "/", 
+    icon: Home, 
+    color: "text-blue-600", 
+    bgColor: "bg-blue-500/10" 
+  },
+  { 
+    title: "Live Signals", 
+    description: "Real-time trading signals feed",
+    url: "/signals", 
+    icon: Zap, 
+    color: "text-green-600", 
+    bgColor: "bg-green-500/10" 
+  },
+  { 
+    title: "All Signals", 
+    description: "Complete signals history and analysis",
+    url: "/all-signals", 
+    icon: Activity, 
+    color: "text-purple-600", 
+    bgColor: "bg-purple-500/10" 
+  },
+  { 
+    title: "AItradeX1", 
+    description: "Advanced AI trading system",
+    url: "/aitradex1", 
+    icon: Target, 
+    color: "text-orange-600", 
+    bgColor: "bg-orange-500/10" 
+  },
+  { 
+    title: "Trade", 
+    description: "Live trading interface",
+    url: "/trade", 
+    icon: TrendingUp, 
+    color: "text-emerald-600", 
+    bgColor: "bg-emerald-500/10" 
+  },
+  { 
+    title: "Portfolio", 
+    description: "Account balance and positions",
+    url: "/portfolio", 
+    icon: Wallet, 
+    color: "text-cyan-600", 
+    bgColor: "bg-cyan-500/10" 
+  },
+  { 
+    title: "X Platform", 
+    description: "Extended trading platform",
+    url: "/x", 
+    icon: TrendingUp, 
+    color: "text-red-600", 
+    bgColor: "bg-red-500/10" 
+  },
+  { 
+    title: "X1 System", 
+    description: "Primary trading system",
+    url: "/x1", 
+    icon: BarChart3, 
+    color: "text-yellow-600", 
+    bgColor: "bg-yellow-500/10" 
+  },
+  { 
+    title: "X2 Advanced", 
+    description: "Advanced trading features",
+    url: "/x2", 
+    icon: PieChart, 
+    color: "text-pink-600", 
+    bgColor: "bg-pink-500/10" 
+  },
+  { 
+    title: "Unireli Core", 
+    description: "Core Unireli trading engine",
+    url: "/UNIRELIORIGINAL", 
+    icon: Zap, 
+    color: "text-indigo-600", 
+    bgColor: "bg-indigo-500/10" 
+  },
+  { 
+    title: "Markets", 
+    description: "Market data and analysis",
+    url: "/markets", 
+    icon: BarChart3, 
+    color: "text-blue-700", 
+    bgColor: "bg-blue-600/10" 
+  },
+  { 
+    title: "Backtests", 
+    description: "Strategy testing and validation",
+    url: "/backtests", 
+    icon: TestTube, 
+    color: "text-teal-600", 
+    bgColor: "bg-teal-500/10" 
+  },
+  { 
+    title: "Automation", 
+    description: "Automated trading settings",
+    url: "/automation", 
+    icon: Bot, 
+    color: "text-violet-600", 
+    bgColor: "bg-violet-500/10" 
+  },
+  { 
+    title: "Alerts", 
+    description: "Notifications and alerts",
+    url: "/alerts", 
+    icon: Bell, 
+    color: "text-amber-600", 
+    bgColor: "bg-amber-500/10" 
+  },
 ];
 
 const settingsItems = [
-  { title: "⚙️ Settings", url: "/settings", icon: Settings, color: "text-gray-500", bgColor: "bg-gray-500/10" },
+  { 
+    title: "Settings", 
+    description: "System configuration and preferences",
+    url: "/settings", 
+    icon: Settings, 
+    color: "text-gray-600", 
+    bgColor: "bg-gray-500/10" 
+  },
 ];
 
 export function AppSidebar() {
@@ -70,7 +175,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar
-      className={collapsed ? "w-20" : "w-80"}
+      className={collapsed ? "w-24" : "w-96"}
       collapsible="icon"
       side="left"
     >
@@ -102,13 +207,20 @@ export function AppSidebar() {
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
+                     <NavLink 
                       to={item.url} 
                       end={item.url === "/"}
-                      className={`${getNavCls({ isActive: isActive(item.url) }, item)} rounded-xl p-4 transition-all duration-300 hover:scale-105 hover:translate-x-1`}
+                      className={`${getNavCls({ isActive: isActive(item.url) }, item)} rounded-xl p-5 transition-all duration-300 hover:scale-105 hover:translate-x-1 min-h-[80px] flex flex-col items-start justify-center`}
                     >
-                      <item.icon className="w-6 h-6 shrink-0" />
-                      {!collapsed && <span className="truncate font-medium">{item.title}</span>}
+                      <div className="flex items-center gap-4 w-full">
+                        <item.icon className="w-8 h-8 shrink-0" />
+                        {!collapsed && (
+                          <div className="flex flex-col items-start min-w-0 flex-1">
+                            <span className="font-bold text-lg truncate w-full">{item.title}</span>
+                            <span className="text-xs text-muted-foreground truncate w-full leading-tight">{item.description}</span>
+                          </div>
+                        )}
+                      </div>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -124,12 +236,19 @@ export function AppSidebar() {
               {settingsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
+                     <NavLink 
                       to={item.url}
-                      className={`${getNavCls({ isActive: isActive(item.url) }, item)} rounded-xl p-4 transition-all duration-300 hover:scale-105`}
+                      className={`${getNavCls({ isActive: isActive(item.url) }, item)} rounded-xl p-5 transition-all duration-300 hover:scale-105 min-h-[80px] flex flex-col items-start justify-center`}
                     >
-                      <item.icon className="w-6 h-6 shrink-0" />
-                      {!collapsed && <span className="truncate font-medium">{item.title}</span>}
+                      <div className="flex items-center gap-4 w-full">
+                        <item.icon className="w-8 h-8 shrink-0" />
+                        {!collapsed && (
+                          <div className="flex flex-col items-start min-w-0 flex-1">
+                            <span className="font-bold text-lg truncate w-full">{item.title}</span>
+                            <span className="text-xs text-muted-foreground truncate w-full leading-tight">{item.description}</span>
+                          </div>
+                        )}
+                      </div>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

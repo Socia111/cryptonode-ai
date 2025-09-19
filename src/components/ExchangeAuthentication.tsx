@@ -115,7 +115,7 @@ export function ExchangeAuthentication() {
                     <SelectItem value="testnet">
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">Test</Badge>
-                        Testnet (Paper Trading)
+                        Testnet Mode
                       </div>
                     </SelectItem>
                     <SelectItem value="mainnet">

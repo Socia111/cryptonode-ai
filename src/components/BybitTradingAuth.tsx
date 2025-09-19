@@ -186,7 +186,7 @@ const BybitTradingAuth = () => {
                 <div className="space-y-1">
                   <Label>Trading Environment</Label>
                   <p className="text-sm text-muted-foreground">
-                    {useTestnet ? 'Testnet (Paper Trading)' : 'Mainnet (Live Trading)'}
+                    {useTestnet ? 'Testnet Mode' : 'Mainnet (Live Trading)'}
                   </p>
                 </div>
                 <Switch

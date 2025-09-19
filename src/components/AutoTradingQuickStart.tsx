@@ -40,8 +40,9 @@ export function AutoTradingQuickStart() {
       useSignalAggregation: true,
       consensusRequired: false,
       minSourcesForTrade: 2,
-      liveTrading: false,
-      paperMode: true,
+      liveTrading: true,
+      
+      
       slippageProtection: 0.5,
       emergencyStopEnabled: true,
       riskManagement: {
@@ -186,7 +187,7 @@ export function AutoTradingQuickStart() {
           <Shield className="h-4 w-4" />
           <AlertDescription>
             <strong>Risk Management:</strong> Max daily loss will be set to ${quickConfig.positionSize * 2}. 
-            All trades start in paper mode for safety.
+            All trades use live trading with proper risk management.
           </AlertDescription>
         </Alert>
 
@@ -224,7 +225,7 @@ export function AutoTradingQuickStart() {
             <li>• Automatically executes trades on high-quality signals</li>
             <li>• Manages stop losses and take profits</li>
             <li>• Enforces risk limits and position sizing</li>
-            <li>• Operates in paper mode initially for safety</li>
+            <li>• Uses comprehensive risk management for safety</li>
           </ul>
         </div>
       </CardContent>

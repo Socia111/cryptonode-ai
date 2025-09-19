@@ -66,7 +66,7 @@ export default function AutoTradingToggle() {
             ) : (
               <>
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                Paper Trading
+                Live Trading
               </>
             )}
           </div>

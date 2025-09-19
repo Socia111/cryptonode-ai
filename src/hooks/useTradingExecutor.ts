@@ -11,7 +11,7 @@ interface TradeParams {
   price?: number;
   stopLoss?: number;
   takeProfit?: number;
-  paperMode?: boolean;
+  
 }
 
 interface TradeResult {
@@ -36,30 +36,18 @@ export function useTradingExecutor() {
         throw new Error('Missing required trade parameters');
       }
 
-      // For demo purposes, we'll use paper trading by default
-      const tradeParams = {
-        ...params,
-        paperMode: params.paperMode ?? true
-      };
-
-      // Get current user for authentication
-      const { data: { user } } = await supabase.auth.getUser();
+      // Execute live trade using live trading system
+      console.log('📡 Executing live trade with:', params);
       
-      console.log('📡 Calling paper-trading-executor with:', { ...tradeParams, userId: user?.id });
-      
-      const { data, error } = await supabase.functions.invoke('paper-trading-executor', {
+      const { data, error } = await supabase.functions.invoke('bybit-order-execution', {
         body: {
-          symbol: tradeParams.symbol,
-          side: tradeParams.side,
-          amount: tradeParams.amount,
-          quantity: tradeParams.amount, // Add both amount and quantity
-          orderType: tradeParams.orderType || 'Market',
-          testMode: tradeParams.paperMode,
-          paperMode: tradeParams.paperMode,
-          userId: user?.id,
-          leverage: tradeParams.leverage,
-          stopLoss: tradeParams.stopLoss,
-          takeProfit: tradeParams.takeProfit
+          symbol: params.symbol,
+          side: params.side,
+          amount: params.amount,
+          orderType: params.orderType || 'Market',
+          leverage: params.leverage,
+          stopLoss: params.stopLoss,
+          takeProfit: params.takeProfit
         }
       });
 
@@ -76,7 +64,7 @@ export function useTradingExecutor() {
       setLastTrade(result);
 
       toast({
-        title: tradeParams.paperMode ? "📝 Paper Trade Executed" : "✅ Trade Executed",
+        title: "✅ Live Trade Executed",
         description: result.message
       });
 
@@ -105,8 +93,8 @@ export function useTradingExecutor() {
     }
   };
 
-  const executeSignalTrade = async (signal: any, amount: number, paperMode: boolean = true): Promise<TradeResult> => {
-    console.log('🔥 ExecuteSignalTrade called with:', { signal, amount, paperMode });
+  const executeSignalTrade = async (signal: any, amount: number): Promise<TradeResult> => {
+    console.log('🔥 ExecuteSignalTrade called with:', { signal, amount });
     
     // Handle both 'side' and 'direction' fields for signal direction
     const direction = signal.side || signal.direction;
@@ -123,23 +111,21 @@ export function useTradingExecutor() {
       leverage: signal.leverage || 1,
       orderType: 'market',
       stopLoss: signal.stop_loss,
-      takeProfit: signal.take_profit_1 || signal.take_profit,
-      paperMode
+      takeProfit: signal.take_profit_1 || signal.take_profit
     };
 
     console.log('📊 Converted trade params:', tradeParams);
     return executeTrade(tradeParams);
   };
 
-  const closePosition = async (symbol: string, paperMode: boolean = true): Promise<TradeResult> => {
+  const closePosition = async (symbol: string): Promise<TradeResult> => {
     try {
       setExecuting(true);
 
       const { data, error } = await supabase.functions.invoke('bybit-order-execution', {
         body: {
           symbol,
-          action: 'close_position',
-          paperMode
+          action: 'close_position'
         }
       });
 
@@ -154,7 +140,7 @@ export function useTradingExecutor() {
       setLastTrade(result);
 
       toast({
-        title: paperMode ? "📝 Paper Position Closed" : "✅ Position Closed",
+        title: "✅ Position Closed",
         description: result.message
       });
 

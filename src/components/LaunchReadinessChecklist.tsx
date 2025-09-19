@@ -35,7 +35,7 @@ export function LaunchReadinessChecklist() {
       id: 'trading', 
       title: 'Automated Trading', 
       status: 'complete', 
-      description: 'Paper trading with risk management',
+      description: 'Live trading with risk management',
       icon: Activity
     },
     { 

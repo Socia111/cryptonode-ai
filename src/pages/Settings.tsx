@@ -2,7 +2,7 @@ import MainLayout from '@/layouts/MainLayout';
 import TradingDiagnostics from '@/components/TradingDiagnostics';
 import { TradingConnectionTest } from '@/components/TradingConnectionTest';
 import { ProductionControls } from '@/components/ProductionControls';
-import { TestnetTradeTest } from '@/components/TestnetTradeTest';
+
 import AutoTradingToggle from '@/components/AutoTradingToggle';
 import ThreeCommasAuth from '@/components/ThreeCommasAuth';
 import BybitTradingAuth from '@/components/BybitTradingAuth';
@@ -54,15 +54,10 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-6">
               <div>
                 <h2 className="text-xl font-semibold mb-4">System Diagnostics</h2>
                 <TradingDiagnostics />
-              </div>
-              
-              <div>
-                <h2 className="text-xl font-semibold mb-4">Testnet Testing</h2>
-                <TestnetTradeTest />
               </div>
             </div>
           </TabsContent>
