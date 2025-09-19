@@ -48,6 +48,11 @@
     /* Trading specific */
     --chart-bull: 168 100% 44%;       /* #00E0B8 */
     --chart-bear: 0 84% 60%;          /* #EF4444 */
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
+    --gradient-success: linear-gradient(135deg, hsl(var(--success)), hsl(168 100% 44%));
+    --gradient-danger: linear-gradient(135deg, hsl(var(--destructive)), hsl(0 84% 70%));
     --chart-neutral: 214 15% 58%;     /* #94A3B8 */
     --chart-volume: 213 28% 15%;      /* #141C24 */
     
@@ -194,5 +199,18 @@
     background: hsla(var(--muted-foreground), 0.2);
     color: hsl(var(--muted-foreground));
     border: 1px solid hsla(var(--muted-foreground), 0.3);
+  }
+  
+  /* Gradient utilities */
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .gradient-success {
+    background: var(--gradient-success);
+  }
+  
+  .gradient-danger {
+    background: var(--gradient-danger);
   }
 }

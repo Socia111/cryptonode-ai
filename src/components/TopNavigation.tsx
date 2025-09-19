@@ -1,43 +1,42 @@
 import React from 'react';
-import { Search, Bell, ArrowUpRight, ArrowDownLeft, Menu } from 'lucide-react';
+import { Search, Bell, ArrowUpRight, ArrowDownLeft, Menu, Navigation } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import LivePrice from '@/components/LivePrice';
 import UserMenu from '@/components/UserMenu';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface TopNavigationProps {
   onMobileMenuToggle?: () => void;
+  onRightMenuToggle?: () => void;
 }
 
-const TopNavigation: React.FC<TopNavigationProps> = ({ onMobileMenuToggle }) => {
+const TopNavigation: React.FC<TopNavigationProps> = ({ onMobileMenuToggle, onRightMenuToggle }) => {
   const { toast } = useToast();
 
   return (
     <header className="h-14 lg:h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 shrink-0">
       <div className="flex items-center justify-between h-full px-3 lg:px-4">
-        {/* Left section - Mobile menu toggle and search */}
+        {/* Left section - Brand and search */}
         <div className="flex items-center gap-2 lg:gap-4 min-w-0">
-          {/* Mobile Menu Toggle - Make it more visible */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden p-2 hover:bg-accent rounded-md touch-manipulation active:bg-accent/80 shrink-0 border border-border"
-            onClick={onMobileMenuToggle}
-          >
-            <Menu className="w-5 h-5" />
-          </Button>
-          
-          {/* Desktop Sidebar Toggle */}
-          <SidebarTrigger className="hidden lg:flex p-2 hover:bg-accent rounded-md shrink-0" />
+          {/* Brand Logo */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
+              <Navigation className="w-5 h-5 text-white" />
+            </div>
+            <div className="hidden sm:block">
+              <h1 className="text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                Unireli Pro
+              </h1>
+            </div>
+          </div>
           
           {/* Search - Hidden on small mobile, visible on larger screens */}
-          <div className="relative hidden sm:block min-w-0 flex-1 max-w-md">
+          <div className="relative hidden md:block min-w-0 flex-1 max-w-md ml-4">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search markets..."
+              placeholder="Search markets, signals, symbols..."
               className="pl-10 bg-muted/50 border-border h-9"
             />
           </div>
@@ -116,6 +115,17 @@ const TopNavigation: React.FC<TopNavigationProps> = ({ onMobileMenuToggle }) => 
 
           {/* User Profile */}
           <UserMenu />
+          
+          {/* Right Menu Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="p-2 hover:bg-accent rounded-md border border-border"
+            onClick={onRightMenuToggle}
+            title="Open Navigation Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
         </div>
       </div>
     </header>
