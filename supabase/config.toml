@@ -33,6 +33,12 @@ verify_jwt = false
 [functions.signals-live-feed]
 verify_jwt = false
 
+[functions.live-bybit-data-feed]
+verify_jwt = false
+
+[functions.auto-refresh-system]
+verify_jwt = false
+
 [functions.system-health-monitor]
 verify_jwt = false
 

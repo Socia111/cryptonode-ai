@@ -36,35 +36,35 @@ export function useTradingExecutor() {
         throw new Error('Missing required trade parameters');
       }
 
-      // Execute live trade using new trade executor
-      console.log('📡 Executing live trade with:', params);
+      // Execute live trade using real Bybit API
+      console.log('📡 Executing REAL Bybit trade with:', params);
       
-      const { data, error } = await supabase.functions.invoke('trade-executor-v2', {
+      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
         body: {
+          action: 'execute_trade',
           symbol: params.symbol,
-          side: params.side,
-          mode: 'usd',
-          amountUSD: params.amount,
+          side: params.side.toUpperCase(),
+          amount_usd: params.amount,
           leverage: params.leverage || 1,
-          stopLossPrice: params.stopLoss,
-          takeProfitPrice: params.takeProfit,
-          dryRun: false
+          order_type: 'Market',
+          paper_mode: false, // REAL TRADING
+          user_id: null // Will use system credentials
         }
       });
 
       if (error) throw error;
 
-      // Handle both success and validation errors with 200 status
-      if (!data.ok) {
+      // Handle Bybit API response format
+      if (!data.success) {
         throw new Error(data.error || 'Trade execution failed');
       }
 
       const result: TradeResult = {
         success: true,
-        orderId: data.orderId,
-        message: `${params.side.toUpperCase()} order for ${params.amount} USDT of ${params.symbol} executed successfully`,
-        executedPrice: data.executedPrice,
-        fees: data.fees
+        orderId: data.trade_id,
+        message: `${params.side.toUpperCase()} order for ${params.amount} USDT of ${params.symbol} executed on Bybit`,
+        executedPrice: data.avg_price ? parseFloat(data.avg_price) : undefined,
+        fees: data.result?.cumExecFee ? parseFloat(data.result.cumExecFee) : undefined
       };
 
       setLastTrade(result);

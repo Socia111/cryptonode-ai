@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 
 interface SystemStatus {
   database: boolean;
@@ -20,6 +21,7 @@ export const SystemStatusSummary: React.FC = () => {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const { toast } = useToast();
+  const autoRefresh = useAutoRefresh(2); // Auto-refresh every 2 minutes
 
   const checkSystemStatus = async () => {
     setIsChecking(true);
@@ -130,25 +132,72 @@ export const SystemStatusSummary: React.FC = () => {
           </div>
         )}
 
-        <Button
-          onClick={checkSystemStatus}
-          disabled={isChecking}
-          variant="outline"
-          size="sm"
-          className="w-full"
-        >
-          {isChecking ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Checking...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh Status
-            </>
-          )}
-        </Button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <Button
+            onClick={checkSystemStatus}
+            disabled={isChecking}
+            variant="outline"
+            size="sm"
+          >
+            {isChecking ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Checking...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Check Status
+              </>
+            )}
+          </Button>
+
+          <Button
+            onClick={autoRefresh.triggerRefresh}
+            disabled={autoRefresh.isRefreshing}
+            variant="default"
+            size="sm"
+          >
+            {autoRefresh.isRefreshing ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh Data
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Auto-refresh status */}
+        {autoRefresh.lastRefresh && (
+          <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded">
+            <div className="flex justify-between items-center">
+              <span>Last auto-refresh: {autoRefresh.lastRefresh.toLocaleTimeString()}</span>
+              <div className={`w-2 h-2 rounded-full ${autoRefresh.isRefreshing ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
+            </div>
+            {autoRefresh.nextRefreshIn > 0 && (
+              <div className="mt-1">
+                Next refresh in: {Math.floor(autoRefresh.nextRefreshIn / 60)}:{(autoRefresh.nextRefreshIn % 60).toString().padStart(2, '0')}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Show errors if any */}
+        {autoRefresh.errors.length > 0 && (
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-2">
+            <p className="text-xs font-medium text-destructive">Auto-refresh Errors:</p>
+            <ul className="text-xs text-destructive/80 mt-1 space-y-1">
+              {autoRefresh.errors.slice(0, 3).map((error, index) => (
+                <li key={index}>• {error}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
