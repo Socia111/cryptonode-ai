@@ -1474,6 +1474,15 @@ export type Database = {
         Args: { p_error: string; p_id: string }
         Returns: undefined
       }
+      get_debug_kpis: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          latest_order: string
+          latest_signal: string
+          orders_30m: number
+          signals_30m: number
+        }[]
+      }
       get_symbols_for_scanning: {
         Args: Record<PropertyKey, never>
         Returns: string[]
