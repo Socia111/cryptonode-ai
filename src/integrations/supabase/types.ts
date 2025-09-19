@@ -184,13 +184,18 @@ export type Database = {
       execution_orders: {
         Row: {
           amount_usd: number | null
+          bybit_order_status: string | null
+          commission: number | null
+          commission_asset: string | null
           created_at: string
           exchange_order_id: string | null
+          executed_price: number | null
+          executed_qty: number | null
           id: string
           leverage: number | null
-          paper_mode: boolean
           qty: number | null
           raw_response: Json | null
+          real_trade: boolean | null
           ret_code: number | null
           ret_msg: string | null
           side: string
@@ -200,13 +205,18 @@ export type Database = {
         }
         Insert: {
           amount_usd?: number | null
+          bybit_order_status?: string | null
+          commission?: number | null
+          commission_asset?: string | null
           created_at?: string
           exchange_order_id?: string | null
+          executed_price?: number | null
+          executed_qty?: number | null
           id?: string
           leverage?: number | null
-          paper_mode?: boolean
           qty?: number | null
           raw_response?: Json | null
+          real_trade?: boolean | null
           ret_code?: number | null
           ret_msg?: string | null
           side: string
@@ -216,13 +226,18 @@ export type Database = {
         }
         Update: {
           amount_usd?: number | null
+          bybit_order_status?: string | null
+          commission?: number | null
+          commission_asset?: string | null
           created_at?: string
           exchange_order_id?: string | null
+          executed_price?: number | null
+          executed_qty?: number | null
           id?: string
           leverage?: number | null
-          paper_mode?: boolean
           qty?: number | null
           raw_response?: Json | null
+          real_trade?: boolean | null
           ret_code?: number | null
           ret_msg?: string | null
           side?: string
@@ -236,12 +251,18 @@ export type Database = {
         Row: {
           amount_usd: number
           attempts: number | null
+          commission: number | null
           created_at: string | null
+          exchange_order_id: string | null
+          executed_price: number | null
+          executed_qty: number | null
           id: string
           last_error: string | null
           leverage: number | null
           locked_at: string | null
           metadata: Json | null
+          order_status: string | null
+          real_trading: boolean | null
           side: string
           signal: Json | null
           signal_id: string | null
@@ -253,12 +274,18 @@ export type Database = {
         Insert: {
           amount_usd: number
           attempts?: number | null
+          commission?: number | null
           created_at?: string | null
+          exchange_order_id?: string | null
+          executed_price?: number | null
+          executed_qty?: number | null
           id?: string
           last_error?: string | null
           leverage?: number | null
           locked_at?: string | null
           metadata?: Json | null
+          order_status?: string | null
+          real_trading?: boolean | null
           side: string
           signal?: Json | null
           signal_id?: string | null
@@ -270,12 +297,18 @@ export type Database = {
         Update: {
           amount_usd?: number
           attempts?: number | null
+          commission?: number | null
           created_at?: string | null
+          exchange_order_id?: string | null
+          executed_price?: number | null
+          executed_qty?: number | null
           id?: string
           last_error?: string | null
           leverage?: number | null
           locked_at?: string | null
           metadata?: Json | null
+          order_status?: string | null
+          real_trading?: boolean | null
           side?: string
           signal?: Json | null
           signal_id?: string | null
@@ -1291,12 +1324,18 @@ export type Database = {
         Returns: {
           amount_usd: number
           attempts: number | null
+          commission: number | null
           created_at: string | null
+          exchange_order_id: string | null
+          executed_price: number | null
+          executed_qty: number | null
           id: string
           last_error: string | null
           leverage: number | null
           locked_at: string | null
           metadata: Json | null
+          order_status: string | null
+          real_trading: boolean | null
           side: string
           signal: Json | null
           signal_id: string | null
