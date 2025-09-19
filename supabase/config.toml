@@ -1,1 +1,22 @@
 project_id = "codhlwjogfjywmjyjbbn"
+
+[functions.trade-executor-v2]
+verify_jwt = false
+
+[functions.instrument-info]
+verify_jwt = false
+
+[functions.enhanced-signal-generation]
+verify_jwt = false
+
+[functions.ccxt-market-scanner]
+verify_jwt = false
+
+[functions.aitradex1-enhanced-scanner]
+verify_jwt = false
+
+[functions.bybit-authenticate]
+verify_jwt = false
+
+[functions.comprehensive-trading-pipeline]
+verify_jwt = false
