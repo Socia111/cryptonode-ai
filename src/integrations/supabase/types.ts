@@ -473,6 +473,7 @@ export type Database = {
           bar_time: string
           confidence: number | null
           created_at: string | null
+          diagnostics: Json
           direction: string
           entry_price: number | null
           exchange: string | null
@@ -502,6 +503,7 @@ export type Database = {
           bar_time: string
           confidence?: number | null
           created_at?: string | null
+          diagnostics?: Json
           direction: string
           entry_price?: number | null
           exchange?: string | null
@@ -531,6 +533,7 @@ export type Database = {
           bar_time?: string
           confidence?: number | null
           created_at?: string | null
+          diagnostics?: Json
           direction?: string
           entry_price?: number | null
           exchange?: string | null
