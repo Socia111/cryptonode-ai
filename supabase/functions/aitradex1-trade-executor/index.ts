@@ -134,12 +134,35 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
   const symbol = trade.symbol.replace('/', '').toUpperCase();
   console.log(`🔄 Executing ${trade.side} trade for ${symbol}`);
 
-  // 1. Use simplified symbol validation (skip external validator for now)
-  const minQty = 0.001;
-  const qtyStep = 0.001;
-  const tickSize = 0.01;
-  const minNotional = 5; // Minimum notional value in USDT
-  console.log(`📊 Using default symbol info: minQty=${minQty}, qtyStep=${qtyStep}, tickSize=${tickSize}, minNotional=${minNotional}`);
+  // 1. Get proper instrument info from Bybit
+  let instrumentInfo;
+  try {
+    const instrumentResponse = await fetch(`${baseUrl}/v5/market/instruments-info?category=linear&symbol=${symbol}`);
+    const instrumentData = await instrumentResponse.json();
+    
+    if (instrumentData.retCode === 0 && instrumentData.result?.list && instrumentData.result.list.length > 0) {
+      const instrument = instrumentData.result.list[0];
+      instrumentInfo = {
+        minQty: parseFloat(instrument.lotSizeFilter.minOrderQty),
+        qtyStep: parseFloat(instrument.lotSizeFilter.qtyStep),
+        tickSize: parseFloat(instrument.priceFilter.tickSize),
+        minNotional: parseFloat(instrument.lotSizeFilter.minOrderAmt || "5")
+      };
+      console.log(`📊 Instrument info for ${symbol}:`, instrumentInfo);
+    } else {
+      throw new Error(`Failed to get instrument info: ${instrumentData.retMsg || 'Unknown error'}`);
+    }
+  } catch (error) {
+    console.error(`❌ Failed to fetch instrument info for ${symbol}:`, error);
+    // Fallback to conservative defaults
+    instrumentInfo = {
+      minQty: 0.01,
+      qtyStep: 0.01,
+      tickSize: 0.01,
+      minNotional: 5
+    };
+    console.log(`⚠️ Using fallback instrument info:`, instrumentInfo);
+  }
 
   // 2. Calculate quantity if amount_usd is provided
   let qty = trade.qty;
@@ -165,13 +188,13 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
       qty = trade.amount_usd / currentPrice; // Remove leverage from qty calculation
       
       // Apply quantity precision based on qtyStep
-      const qtyStepPrecision = qtyStep.toString().split('.')[1]?.length || 3;
-      qty = Math.floor(qty / qtyStep) * qtyStep;
+      const qtyStepPrecision = instrumentInfo.qtyStep.toString().split('.')[1]?.length || 3;
+      qty = Math.floor(qty / instrumentInfo.qtyStep) * instrumentInfo.qtyStep;
       qty = parseFloat(qty.toFixed(qtyStepPrecision));
       
       // Ensure minimum quantity
-      if (qty < minQty) {
-        qty = minQty;
+      if (qty < instrumentInfo.minQty) {
+        qty = instrumentInfo.minQty;
       }
       
       console.log(`💰 Calculated qty: ${qty} (price: ${currentPrice}, amount: ${trade.amount_usd}, leverage: ${leverage})`);
@@ -181,14 +204,14 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
   }
 
   // 3. Validate calculated quantity
-  if (!qty || qty < minQty) {
-    throw new Error(`Quantity ${qty} is below minimum ${minQty} for ${symbol}`);
+  if (!qty || qty < instrumentInfo.minQty) {
+    throw new Error(`Quantity ${qty} is below minimum ${instrumentInfo.minQty} for ${symbol}`);
   }
 
   // 4. Calculate notional value for validation
   const notionalValue = qty * (currentPrice || 1);
-  if (notionalValue < minNotional) {
-    throw new Error(`Notional value ${notionalValue} is below minimum ${minNotional} for ${symbol}`);
+  if (notionalValue < instrumentInfo.minNotional) {
+    throw new Error(`Notional value ${notionalValue} is below minimum ${instrumentInfo.minNotional} for ${symbol}`);
   }
 
   // 5. Create order parameters with proper precision and correct case
