@@ -1,46 +1,60 @@
 // Single Supabase client for the entire app
 import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@/integrations/supabase/types';
 import { env } from './env';
 
 // Use validated environment variables
 const url = env.VITE_SUPABASE_URL;
 const key = env.VITE_SUPABASE_ANON_KEY;
 
-// Create client with enhanced configuration
-let supabase: any;
-
-try {
-  supabase = createClient(url, key, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
+// Create client with enhanced configuration (loosely typed for backward compatibility)
+export const supabase = createClient(url, key, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
     },
-    realtime: {
-      params: {
-        eventsPerSecond: 10,
-      },
+  },
+  global: {
+    headers: {
+      'x-client-info': 'aitradex1-client',
     },
-    global: {
-      headers: {
-        'x-client-info': 'aitradex1-client',
-      },
+  },
+});
+
+// Strongly typed client for new code that wants type safety
+export const typedSupabase = createClient<Database>(url, key, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
     },
-  });
-  
-  console.log('[Supabase] Client created successfully with enhanced config');
-} catch (error) {
-  console.error('[Supabase] Failed to create client:', error);
-  throw new Error('Supabase client initialization failed');
-}
+  },
+  global: {
+    headers: {
+      'x-client-info': 'aitradex1-client-typed',
+    },
+  },
+});
 
-export { supabase };
+console.log('[Supabase] Client created successfully with enhanced config');
 
-// A tiny health check that *really* verifies connectivity + RLS
+// Type-safe health check that verifies connectivity + RLS
 export async function isSupabaseConfigured(): Promise<boolean> {
   try {
-    // Choose a public-read table; markets is ideal if you created it
-    const { error } = await supabase.from('markets').select('id').limit(1);
+    const { error } = await supabase
+      .from('markets')
+      .select('id')
+      .limit(1);
+    
     if (error) {
       console.warn('[Supabase] Config present but query failed:', error.message);
       return false;

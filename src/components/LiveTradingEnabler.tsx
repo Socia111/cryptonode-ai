@@ -80,8 +80,11 @@ export function LiveTradingEnabler() {
         ]);
 
       if (data) {
-        const settingsMap = data.reduce((acc, item) => {
-          acc[item.key] = item.value;
+        const settingsMap = data.reduce((acc: any, item: any) => {
+          // Handle Json type safely
+          if (typeof item.value === 'object' && item.value !== null && !Array.isArray(item.value)) {
+            Object.assign(acc, item.value);
+          }
           return acc;
         }, {});
 

@@ -1,21 +1,17 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/integrations/supabase/types';
+import { isPostgrestError, isCooldownError } from '@/lib/errors';
+
+// Type-safe signal insert payload
+type SignalInsert = Database['public']['Tables']['signals']['Insert'];
 
 export type InsertResult =
   | { ok: true; id?: string; kind: 'inserted' }
   | { ok: true; kind: 'skipped_cooldown' }
   | { ok: false; kind: 'failed'; error: PostgrestError | Error };
 
-function isPostgrestError(e: unknown): e is PostgrestError {
-  return !!e && typeof e === 'object' && 'message' in e && 'code' in e;
-}
-
-function isCooldown(e: PostgrestError | Error): boolean {
-  const msg = (e as any)?.message?.toLowerCase?.() || '';
-  const code = (e as any)?.code;
-  return code === '23505' || msg.includes('cooldown');
-}
-
 /**
+ * Type-safe signal insert error handler
  * Logs cooldown as info, hard failures as error.
  */
 export function handleSignalInsertError(
@@ -23,19 +19,25 @@ export function handleSignalInsertError(
   payload: any,
   logger: Pick<Console, 'log' | 'warn' | 'error'> = console
 ): InsertResult {
-  if (isCooldown(error)) {
+  if (isPostgrestError(error) && isCooldownError(error)) {
     logger.log(
       `[signals] cooldown skip ${payload?.symbol}/${payload?.timeframe}/${payload?.direction} ` +
       `[${payload?.source}/${payload?.algo}]`
     );
     return { ok: true, kind: 'skipped_cooldown' };
   }
-  logger.error('[signals] insert failed', { error, symbol: payload?.symbol, timeframe: payload?.timeframe });
+  
+  logger.error('[signals] insert failed', { 
+    error, 
+    symbol: payload?.symbol, 
+    timeframe: payload?.timeframe,
+    direction: payload?.direction
+  });
   return { ok: false, kind: 'failed', error };
 }
 
 /**
- * Insert with cooldown handling.
+ * Type-safe signal insert with cooldown handling.
  * Optionally uses UPSERT with onConflict to avoid race conditions when you have a unique index.
  */
 export async function safeSignalInsert(
@@ -100,7 +102,7 @@ export async function safeSignalInsert(
 }
 
 /**
- * Batch insert with bounded concurrency and cooldown handling.
+ * Type-safe batch insert with bounded concurrency and cooldown handling.
  */
 export async function safeBatchSignalInsert(
   supabase: SupabaseClient,
