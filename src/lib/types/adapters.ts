@@ -190,8 +190,7 @@ export function adaptAppSettingsFromDb(dbSettings: AppSettingsRow[]): Record<str
   }
   
   return {
-    live_trading_enabled: settings.live_trading_enabled ?? false,
-    paper_trading: settings.paper_trading ?? true,
+    live_trading_enabled: settings.live_trading_enabled ?? true,
     max_position_size: settings.max_position_size ?? 1000,
     default_leverage: settings.default_leverage ?? 1,
     risk_per_trade: settings.risk_per_trade ?? 0.02,

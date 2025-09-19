@@ -17,7 +17,7 @@ interface TradeRequest {
   qty?: number;
   amount_usd?: number;
   leverage?: number;
-  paper_mode?: boolean;
+  
   user_id?: string;
   signal_id?: string;
   order_type?: 'Market' | 'Limit';
@@ -28,7 +28,7 @@ interface TradeRequest {
 interface TradeExecutionResult {
   success: boolean;
   trade_id?: string;
-  paper_mode: boolean;
+  
   result: any;
   message: string;
   execution_time_ms?: number;
@@ -210,53 +210,7 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
   return result;
 }
 
-async function executePaperTrade(trade: TradeRequest) {
-  console.log(`📝 Executing paper trade: ${trade.side} ${trade.qty || trade.amount_usd} ${trade.symbol}`);
-  
-  // Simulate realistic trade execution
-  const mockOrderId = `paper_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const executionDelay = Math.random() * 1000 + 500; // 500-1500ms delay
-  
-  await new Promise(resolve => setTimeout(resolve, executionDelay));
-  
-  // Get current market price for realistic simulation
-  let currentPrice = 0;
-  try {
-    const priceResponse = await fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${trade.symbol}`);
-    const priceData = await priceResponse.json();
-    
-    if (priceData.retCode === 0 && priceData.result.list.length > 0) {
-      currentPrice = parseFloat(priceData.result.list[0].lastPrice);
-    }
-  } catch (error) {
-    console.warn('Could not fetch real price for paper trade, using mock price');
-    currentPrice = Math.random() * 50000 + 10000; // Mock price
-  }
-  
-  // Calculate executed quantity
-  let executedQty = trade.qty;
-  if (!executedQty && trade.amount_usd && currentPrice) {
-    executedQty = trade.amount_usd / currentPrice;
-  }
-  
-  console.log(`✅ Paper trade executed: ${executedQty} ${trade.symbol} at $${currentPrice}`);
-  
-  return {
-    retCode: 0,
-    retMsg: 'Paper trade executed successfully',
-    result: {
-      orderId: mockOrderId,
-      orderLinkId: `paper_link_${mockOrderId}`,
-      symbol: symbol,
-      side: trade.side,
-      qty: executedQty?.toString() || '0',
-      price: currentPrice.toString(),
-      orderStatus: 'Filled',
-      avgPrice: currentPrice.toString(),
-      cumExecQty: executedQty?.toString() || '0'
-    },
-    paper_mode: true,
-    execution_time_ms: executionDelay
+// Paper trading removed - live trading only
   };
 }
 
@@ -284,25 +238,18 @@ serve(async (req) => {
           paper_mode: trade.paper_mode
         });
 
-        // Determine if this is paper trading
-        const isPaperMode = trade.paper_mode ?? (Deno.env.get('PAPER_TRADING') === 'true');
+        // Live trading only - paper trading removed
         const liveTradeEnabled = Deno.env.get('LIVE_TRADING_ENABLED') === 'true';
         
-        // Safety check: prevent live trading if not explicitly enabled
-        if (!isPaperMode && !liveTradeEnabled) {
-          console.warn('⚠️ Live trading attempted but not enabled, forcing paper mode');
-          // Force paper mode if live trading is not enabled
-          trade.paper_mode = true;
+        if (!liveTradeEnabled) {
+          throw new Error('Live trading is disabled');
         }
         
         let result;
         let credentials = null;
         const startTime = Date.now();
 
-        if (isPaperMode || trade.paper_mode) {
-          console.log('📝 Executing paper trade...');
-          result = await executePaperTrade(trade);
-        } else {
+        // Execute live trade only
           console.log('💰 Executing live trade...');
           
           // Get credentials with user preference first, then system fallback
