@@ -78,10 +78,14 @@ export type Database = {
       }
       automated_trading_config: {
         Row: {
+          active_exchanges: string[] | null
           created_at: string | null
+          credit_allowance: number | null
+          credits_used: number | null
           enabled: boolean | null
           excluded_symbols: string[] | null
           id: string
+          last_trade_at: string | null
           max_concurrent_trades: number | null
           max_daily_trades: number | null
           min_signal_score: number | null
@@ -92,10 +96,14 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          active_exchanges?: string[] | null
           created_at?: string | null
+          credit_allowance?: number | null
+          credits_used?: number | null
           enabled?: boolean | null
           excluded_symbols?: string[] | null
           id?: string
+          last_trade_at?: string | null
           max_concurrent_trades?: number | null
           max_daily_trades?: number | null
           min_signal_score?: number | null
@@ -106,10 +114,14 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          active_exchanges?: string[] | null
           created_at?: string | null
+          credit_allowance?: number | null
+          credits_used?: number | null
           enabled?: boolean | null
           excluded_symbols?: string[] | null
           id?: string
+          last_trade_at?: string | null
           max_concurrent_trades?: number | null
           max_daily_trades?: number | null
           min_signal_score?: number | null
@@ -1072,6 +1084,45 @@ export type Database = {
           },
         ]
       }
+      trading_stats: {
+        Row: {
+          active_positions: number | null
+          created_at: string | null
+          credits_used: number | null
+          date: string
+          id: string
+          success_rate: number | null
+          total_pnl: number | null
+          trades_executed: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          active_positions?: number | null
+          created_at?: string | null
+          credits_used?: number | null
+          date?: string
+          id?: string
+          success_rate?: number | null
+          total_pnl?: number | null
+          trades_executed?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          active_positions?: number | null
+          created_at?: string | null
+          credits_used?: number | null
+          date?: string
+          id?: string
+          success_rate?: number | null
+          total_pnl?: number | null
+          trades_executed?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_trading_accounts: {
         Row: {
           account_type: string
@@ -1151,6 +1202,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whitelist_settings: {
+        Row: {
+          auto_update: boolean
+          created_at: string | null
+          id: string
+          last_updated: string | null
+          max_symbols: number
+          updated_at: string | null
+          whitelist_enabled: boolean
+          whitelist_pairs: string[]
+        }
+        Insert: {
+          auto_update?: boolean
+          created_at?: string | null
+          id?: string
+          last_updated?: string | null
+          max_symbols?: number
+          updated_at?: string | null
+          whitelist_enabled?: boolean
+          whitelist_pairs?: string[]
+        }
+        Update: {
+          auto_update?: boolean
+          created_at?: string | null
+          id?: string
+          last_updated?: string | null
+          max_symbols?: number
+          updated_at?: string | null
+          whitelist_enabled?: boolean
+          whitelist_pairs?: string[]
+        }
+        Relationships: []
       }
       whitelist_signups: {
         Row: {
@@ -1357,6 +1441,10 @@ export type Database = {
         Args: { p_error: string; p_id: string }
         Returns: undefined
       }
+      get_symbols_for_scanning: {
+        Args: Record<PropertyKey, never>
+        Returns: string[]
+      }
       get_user_trading_account: {
         Args: { p_account_type?: string; p_user_id: string }
         Returns: {
@@ -1368,6 +1456,10 @@ export type Database = {
           permissions: string[]
           risk_settings: Json
         }[]
+      }
+      increment_credit_usage: {
+        Args: { p_credits: number; p_user_id: string }
+        Returns: boolean
       }
       increment_tokens_sold: {
         Args: { tokens: number }

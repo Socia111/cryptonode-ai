@@ -60,8 +60,8 @@ export default function AutomatedTradingSystemV2() {
         .eq('key', 'automated_trading_config')
         .maybeSingle();
 
-      if (data?.value) {
-        setConfig({ ...config, ...data.value });
+      if (data?.value && typeof data.value === 'object') {
+        setConfig(prev => ({ ...prev, ...(data.value as Partial<TradingConfig>) }));
       }
     } catch (error) {
       console.error('Error loading trading config:', error);
@@ -106,7 +106,7 @@ export default function AutomatedTradingSystemV2() {
         .from('app_settings')
         .upsert({
           key: 'automated_trading_config',
-          value: config
+          value: config as any
         });
 
       if (error) throw error;
