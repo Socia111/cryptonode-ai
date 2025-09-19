@@ -119,36 +119,64 @@ async function getMarkPrice(symbol: string): Promise<number> {
   throw new Error("Mark price unavailable");
 }
 
-// Compute proper order quantity with exchange minimums
+// Compute proper order quantity with exchange minimums and validation
 function computeOrderQtyUSD(
   amountUSD: number, 
   leverage: number, 
   price: number, 
   inst: Instrument
 ) {
-  const targetNotional = Math.max(1, amountUSD) * Math.max(1, leverage);
+  // Validate inputs
+  if (!amountUSD || amountUSD <= 0) {
+    throw new Error('Invalid amount USD');
+  }
+  if (!price || price <= 0) {
+    throw new Error('Invalid price');
+  }
+  if (!leverage || leverage <= 0) {
+    leverage = 1; // Default to 1x leverage
+  }
+  
+  const targetNotional = Math.max(5, amountUSD) * Math.max(1, leverage);
   
   let qty = targetNotional / price;
-  qty = roundToStep(qty, inst.qtyStep || 0.000001);
+  
+  // Apply quantity step rounding
+  const qtyStep = inst.qtyStep || 0.000001;
+  qty = roundToStep(qty, qtyStep);
 
-  // Ensure exchange minimums
-  if (inst.category === "linear" && inst.minOrderValue) {
-    const notional = qty * price;
-    if (notional + 1e-12 < inst.minOrderValue) {
-      qty = roundToStep(inst.minOrderValue / price, inst.qtyStep);
+  // Ensure exchange minimums for linear contracts
+  if (inst.category === "linear") {
+    if (inst.minOrderValue && inst.minOrderValue > 0) {
+      const notional = qty * price;
+      if (notional < inst.minOrderValue) {
+        qty = Math.ceil(inst.minOrderValue / price / qtyStep) * qtyStep;
+      }
+    }
+    
+    // For linear contracts, ensure minimum is at least 0.001 USDT worth
+    const minNotional = Math.max(inst.minOrderValue || 1, 1);
+    if ((qty * price) < minNotional) {
+      qty = Math.ceil(minNotional / price / qtyStep) * qtyStep;
     }
   }
 
+  // Ensure exchange minimums for spot trading
   if (inst.category === "spot") {
-    if (inst.minOrderAmt) {
+    if (inst.minOrderAmt && inst.minOrderAmt > 0) {
       const notional = qty * price;
-      if (notional + 1e-12 < inst.minOrderAmt) {
-        qty = roundToStep(inst.minOrderAmt / price, inst.qtyStep);
+      if (notional < inst.minOrderAmt) {
+        qty = Math.ceil(inst.minOrderAmt / price / qtyStep) * qtyStep;
       }
     }
-    if (inst.minOrderQty && qty + 1e-12 < inst.minOrderQty) {
-      qty = roundToStep(inst.minOrderQty, inst.qtyStep);
+    if (inst.minOrderQty && inst.minOrderQty > 0 && qty < inst.minOrderQty) {
+      qty = Math.ceil(inst.minOrderQty / qtyStep) * qtyStep;
     }
+  }
+
+  // Final validation
+  if (!qty || qty <= 0) {
+    throw new Error(`Invalid calculated quantity: ${qty} for symbol ${inst.symbol}`);
   }
 
   return { qty, targetNotional };
@@ -186,6 +214,9 @@ class BybitV5Client {
       : (Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com')
     this.apiKey = credentials.apiKey
     this.apiSecret = credentials.apiSecret
+    
+    // Log initialization (without exposing secrets)
+    console.log(`Bybit client initialized: ${this.baseURL} (testnet: ${credentials.testnet})`)
   }
 
   private async signRequest(method: string, path: string, params: any = {}): Promise<string> {
@@ -246,42 +277,70 @@ class BybitV5Client {
     return data
   }
 
-  // Get account position mode (OneWay vs Hedge)
+  // Get account position mode by checking unified account settings
   async getPositionMode(symbol: string, category: string): Promise<number> {
     try {
-      // First, try to get account info to check position mode
-      const accountData = await this.signedRequest('GET', '/v5/account/info', {})
-      
-      // For unified account, we need to check position mode specifically
       if (category === 'linear') {
-        // Try to get position info for this symbol to determine mode
-        const positionData = await this.signedRequest('GET', '/v5/position/list', {
-          category,
-          symbol,
-          limit: 1
-        })
-        
-        // If we get positions back, use their positionIdx
-        if (positionData?.result?.list?.length > 0) {
-          const positionIdx = Number(positionData.result.list[0].positionIdx) || 0
-          structuredLog('info', 'Found existing position, using its positionIdx', { 
-            symbol, 
-            positionIdx,
-            mode: positionIdx === 0 ? 'OneWay' : 'Hedge'
+        // For unified accounts, get position mode settings
+        try {
+          const accountData = await this.signedRequest('GET', '/v5/account/info', {})
+          const accountType = accountData?.result?.accountType || 'UNIFIED'
+          
+          if (accountType === 'UNIFIED') {
+            // For unified accounts, check the position mode setting
+            try {
+              const positionModeData = await this.signedRequest('GET', '/v5/position/switch-mode', {
+                category: 'linear',
+                symbol,
+                coin: symbol.replace('USDT', '')
+              })
+              
+              // If successful, use the returned mode
+              if (positionModeData?.result) {
+                return 0 // Unified accounts typically use 0 for both modes
+              }
+            } catch (modeError) {
+              // Position mode endpoint might not be available, continue with default logic
+            }
+          }
+          
+          // Check for existing positions to determine current mode
+          const positionData = await this.signedRequest('GET', '/v5/position/list', {
+            category,
+            symbol
           })
-          return positionIdx
+          
+          if (positionData?.result?.list?.length > 0) {
+            // Use the position index from existing position
+            const existingPosition = positionData.result.list[0]
+            const positionIdx = Number(existingPosition.positionIdx) || 0
+            
+            structuredLog('info', 'Using existing position mode', { 
+              symbol, 
+              positionIdx,
+              size: existingPosition.size,
+              side: existingPosition.side
+            })
+            return positionIdx
+          }
+          
+          // For new positions in unified accounts, always use 0
+          structuredLog('info', 'No existing positions, using unified mode (0)', { symbol, accountType })
+          return 0
+          
+        } catch (accountError) {
+          structuredLog('warn', 'Could not determine account type, using default mode', { 
+            symbol,
+            error: accountError.message 
+          })
         }
-        
-        // No existing positions - try both modes to see which works
-        // Default to One-Way mode (0) which is most common
-        structuredLog('info', 'No existing positions, defaulting to OneWay mode', { symbol })
-        return 0
       }
       
-      // For spot trading, always return 0 (no position modes)
+      // For spot trading, no position modes needed
       return 0
+      
     } catch (error) {
-      structuredLog('warn', 'Failed to determine position mode, defaulting to OneWay', { 
+      structuredLog('warn', 'Position mode detection failed, using safe default', { 
         symbol, 
         category,
         error: error.message 
@@ -328,17 +387,28 @@ class AutoTradingEngine {
   }
 
   private async initializeClient(): Promise<void> {
-    const apiKey = Deno.env.get('BYBIT_API_KEY')
-    const apiSecret = Deno.env.get('BYBIT_API_SECRET')
+    // Try multiple environment variable names for compatibility
+    const apiKey = Deno.env.get('BYBIT_API_KEY') || Deno.env.get('BYBIT_KEY')
+    const apiSecret = Deno.env.get('BYBIT_API_SECRET') || Deno.env.get('BYBIT_SECRET') || Deno.env.get('BYBIT_SECRET_KEY')
+    const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true'
     
     if (!apiKey || !apiSecret) {
-      throw new Error('Bybit credentials not configured')
+      const availableKeys = Object.keys(Deno.env.toObject()).filter(key => 
+        key.includes('BYBIT') || key.includes('bybit')
+      )
+      throw new Error(`Bybit credentials not configured. Available env vars: ${availableKeys.join(', ')}`)
     }
+
+    structuredLog('info', 'Initializing Bybit client', {
+      apiKeyPrefix: apiKey.substring(0, 8) + '...',
+      testnet: isTestnet,
+      baseUrl: isTestnet ? 'https://api-testnet.bybit.com' : (Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com')
+    })
 
     this.client = new BybitV5Client({
       apiKey,
       apiSecret,
-      testnet: false
+      testnet: isTestnet
     })
   }
 
@@ -471,23 +541,37 @@ serve(async (req) => {
         const inst = await getInstrument(symbol);
         const price = await getMarkPrice(symbol);
         
-        // Calculate proper quantity
-        const { qty } = computeOrderQtyUSD(amountUSD, leverage || 1, price, inst);
-        
-        if (!qty || qty <= 0) {
+        // Calculate proper quantity with validation
+        let orderQty;
+        try {
+          const { qty } = computeOrderQtyUSD(amountUSD, leverage || 1, price, inst);
+          orderQty = qty;
+        } catch (qtyError) {
           return json({
             success: false,
-            message: 'Size calculation failed'
+            message: `Quantity calculation failed: ${qtyError.message}`,
+            details: { symbol, price, amountUSD, leverage }
+          }, 400);
+        }
+        
+        if (!orderQty || orderQty <= 0) {
+          return json({
+            success: false,
+            message: 'Invalid calculated quantity',
+            details: { calculatedQty: orderQty, symbol, price, amountUSD }
           }, 400);
         }
 
-        // Create order data
+        // Ensure proper side formatting for Bybit
+        const normalizedSide = side === 'Buy' || side === 'BUY' || side.toLowerCase() === 'buy' ? 'Buy' : 'Sell';
+        
+        // Create order data with proper formatting
         const orderData: any = {
           category: inst.category,
-          symbol,
-          side: side === 'Buy' ? 'Buy' : 'Sell',
+          symbol: symbol.toUpperCase(),
+          side: normalizedSide,
           orderType: 'Market',
-          qty: String(qty),
+          qty: orderQty.toFixed(8).replace(/\.?0+$/, ''), // Remove trailing zeros
           timeInForce: 'IOC'
         }
 
@@ -538,37 +622,76 @@ serve(async (req) => {
           })
         }
 
-        // Execute the order with retry logic for position mode
+        // Execute the order with comprehensive retry logic
         let result;
         let lastError;
+        
+        // Validate order data before submission
+        if (!orderData.qty || parseFloat(orderData.qty) <= 0) {
+          throw new Error('Invalid order quantity');
+        }
+        
+        structuredLog('info', 'Executing order', {
+          symbol,
+          category: orderData.category,
+          side: orderData.side,
+          qty: orderData.qty,
+          positionIdx: orderData.positionIdx
+        });
         
         // Try the detected position mode first
         try {
           result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+          structuredLog('info', 'Order executed successfully on first attempt', {
+            orderId: result?.result?.orderId
+          })
         } catch (error) {
           lastError = error;
-          structuredLog('warn', 'First attempt failed, trying alternative position mode', { 
+          const errorMsg = error.message?.toLowerCase() || '';
+          
+          structuredLog('warn', 'First attempt failed', { 
             error: error.message,
+            errorCode: error.code,
             originalPositionIdx: orderData.positionIdx 
           })
           
-          // If it's a position mode error and we're in linear category, try the opposite mode
-          if (inst.category === 'linear' && error.message?.includes('position')) {
-            const alternativeIdx = orderData.positionIdx === 0 ? 1 : 0
-            orderData.positionIdx = alternativeIdx
-            
-            try {
-              structuredLog('info', 'Retrying with alternative positionIdx', { 
-                symbol,
-                newPositionIdx: alternativeIdx
-              })
-              result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
-            } catch (secondError) {
-              // If both modes fail, throw the original error
-              structuredLog('error', 'Both position modes failed', {
-                originalError: error.message,
-                secondError: secondError.message
-              })
+          // Handle specific Bybit error cases
+          if (inst.category === 'linear') {
+            if (errorMsg.includes('position') || errorMsg.includes('mode') || errorMsg.includes('idx')) {
+              // Try alternative position mode
+              const alternativeIdx = orderData.positionIdx === 0 ? 1 : 0
+              orderData.positionIdx = alternativeIdx
+              
+              try {
+                structuredLog('info', 'Retrying with alternative positionIdx', { 
+                  symbol,
+                  newPositionIdx: alternativeIdx
+                })
+                result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+              } catch (secondError) {
+                structuredLog('error', 'Both position modes failed', {
+                  originalError: error.message,
+                  secondError: secondError.message
+                })
+                throw new Error(`Position mode error: ${error.message}`)
+              }
+            } else if (errorMsg.includes('qty') || errorMsg.includes('quantity')) {
+              // Try with adjusted quantity
+              const originalQty = parseFloat(orderData.qty)
+              const adjustedQty = roundToStep(originalQty * 1.1, inst.qtyStep) // Increase by 10%
+              orderData.qty = String(adjustedQty)
+              
+              try {
+                structuredLog('info', 'Retrying with adjusted quantity', { 
+                  symbol,
+                  originalQty,
+                  adjustedQty
+                })
+                result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+              } catch (thirdError) {
+                throw new Error(`Quantity error: ${error.message}`)
+              }
+            } else {
               throw error
             }
           } else {
@@ -597,9 +720,32 @@ serve(async (req) => {
           amountUSD, 
           leverage 
         });
+        // Send alert for failed trades
+        await sendAlert({
+          type: 'error',
+          title: 'Trade Execution Failed',
+          message: `Failed to execute ${side} order for ${symbol}: ${error.message}`,
+          metadata: {
+            symbol,
+            side,
+            amountUSD,
+            leverage,
+            error: error.message,
+            timestamp: new Date().toISOString()
+          }
+        })
+
         return json({
           success: false,
-          message: error.message
+          message: error.message,
+          error_code: 'TRADE_EXECUTION_FAILED',
+          details: {
+            symbol,
+            side,
+            amountUSD,
+            leverage,
+            timestamp: new Date().toISOString()
+          }
         }, 500);
       }
     }
@@ -607,7 +753,8 @@ serve(async (req) => {
     // Unknown action
     return json({
       success: false,
-      message: `Unknown action: ${action}`
+      message: `Unknown action: ${action}. Supported actions: status, place_order, signal`,
+      available_actions: ['status', 'place_order', 'signal']
     }, 400);
 
   } catch (error) {

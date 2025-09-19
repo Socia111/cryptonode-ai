@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Bot, Send, Settings, Users } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 const TelegramIntegration = () => {
@@ -13,10 +13,20 @@ const TelegramIntegration = () => {
   const { toast } = useToast();
 
   const setupTelegramBot = async () => {
-    const configured = await isSupabaseConfigured();
-    if (!configured) {
+    // Check if Supabase is properly configured
+    try {
+      const { error } = await supabase.from('markets').select('id').limit(1);
+      if (error) {
+        toast({
+          title: "Supabase Not Configured",
+          description: "Please set up your Supabase credentials first to enable Telegram integration.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } catch (configError) {
       toast({
-        title: "Supabase Not Configured",
+        title: "Supabase Not Configured", 
         description: "Please set up your Supabase credentials first to enable Telegram integration.",
         variant: "destructive",
       });
@@ -50,10 +60,20 @@ const TelegramIntegration = () => {
   };
 
   const sendTestSignal = async (isPremium: boolean = false) => {
-    const configured = await isSupabaseConfigured();
-    if (!configured) {
+    // Check if Supabase is properly configured
+    try {
+      const { error } = await supabase.from('markets').select('id').limit(1);
+      if (error) {
+        toast({
+          title: "Supabase Not Configured", 
+          description: "Please configure Supabase credentials to send Telegram signals.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } catch (configError) {
       toast({
-        title: "Supabase Not Configured", 
+        title: "Supabase Not Configured",
         description: "Please configure Supabase credentials to send Telegram signals.",
         variant: "destructive",
       });
