@@ -35,25 +35,40 @@ serve(async (req) => {
       timestamp: new Date().toISOString()
     };
 
-    // Log the paper trade to execution_orders table
-    const { data: insertData, error: insertError } = await supabase
-      .from('execution_orders')
-      .insert({
-        symbol,
-        side: side.toLowerCase(),
-        qty: quantity || amount || 0.001,
-        amount_usd: (quantity || amount || 0.001) * 50000, // Mock price calculation
-        leverage: leverage || 1,
-        paper_mode: true,
-        status: 'filled',
-        exchange_order_id: orderResult.order_id,
-        raw_response: orderResult
-      });
+    // Get user ID from auth header
+    const authHeader = req.headers.get('Authorization');
+    let userId = null;
+    
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabase.auth.getUser(token);
+      userId = user?.id;
+    }
 
-    if (insertError) {
-      console.error('[Paper Trading Executor] Failed to log trade:', insertError);
+    // Log the paper trade to execution_orders table (only if we have a user)
+    if (userId) {
+      const { data: insertData, error: insertError } = await supabase
+        .from('execution_orders')
+        .insert({
+          user_id: userId,
+          symbol,
+          side: side.toLowerCase(),
+          qty: quantity || amount || 0.001,
+          amount_usd: (quantity || amount || 0.001) * 50000, // Mock price calculation
+          leverage: leverage || 1,
+          paper_mode: true,
+          status: 'filled',
+          exchange_order_id: orderResult.order_id,
+          raw_response: orderResult
+        });
+
+      if (insertError) {
+        console.error('[Paper Trading Executor] Failed to log trade:', insertError);
+      } else {
+        console.log('[Paper Trading Executor] Trade logged successfully');
+      }
     } else {
-      console.log('[Paper Trading Executor] Trade logged successfully');
+      console.log('[Paper Trading Executor] No user ID - skipping database log');
     }
 
     // Log to audit trail

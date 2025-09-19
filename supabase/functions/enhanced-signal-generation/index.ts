@@ -95,29 +95,31 @@ serve(async (req) => {
     const timeframes = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '8h', '12h', '1d']
     const currentTime = new Date()
 
-  // Generate MULTIPLE signals from real market data - ALL score levels
-  const algorithms = ['enhanced_multi_indicator_v2', 'momentum_scanner_v1', 'trend_follower_v1', 'volatility_breakout_v1', 'mean_reversion_v1']
+  // Generate signals efficiently - limit nested loops to prevent timeout
+  const selectedTimeframes = ['15m', '1h', '4h'] // Focus on key timeframes
+  const primaryAlgorithm = 'enhanced_multi_indicator_v2'
   
-  for (const data of marketData) {
-    for (const timeframe of timeframes) {
-      for (const algo of algorithms) {
-        // Generate multiple signals per symbol/timeframe with different algorithms
-        const signal1 = generateEnhancedSignal(data, timeframe, currentTime, algo, 'conservative')
-        const signal2 = generateEnhancedSignal(data, timeframe, currentTime, algo, 'aggressive')
-        const signal3 = generateEnhancedSignal(data, timeframe, currentTime, algo, 'experimental')
-        
-        if (signal1) {
-          signals.push(signal1)
-          console.log(`✅ Generated CONSERVATIVE signal: ${signal1.symbol} ${signal1.direction} (Score: ${signal1.score})`)
-        }
-        if (signal2) {
-          signals.push(signal2)
-          console.log(`✅ Generated AGGRESSIVE signal: ${signal2.symbol} ${signal2.direction} (Score: ${signal2.score})`)
-        }
-        if (signal3) {
-          signals.push(signal3)
-          console.log(`✅ Generated EXPERIMENTAL signal: ${signal3.symbol} ${signal3.direction} (Score: ${signal3.score})`)
-        }
+  // Process limited data to prevent CPU timeout
+  const limitedData = marketData.slice(0, 10) // Limit to 10 symbols max
+  
+  for (const data of limitedData) {
+    for (const timeframe of selectedTimeframes) {
+      // Generate one signal per strategy type
+      const signal1 = generateEnhancedSignal(data, timeframe, currentTime, primaryAlgorithm, 'conservative')
+      const signal2 = generateEnhancedSignal(data, timeframe, currentTime, primaryAlgorithm, 'aggressive')
+      const signal3 = generateEnhancedSignal(data, timeframe, currentTime, primaryAlgorithm, 'experimental')
+      
+      if (signal1) {
+        signals.push(signal1)
+        console.log(`✅ Generated CONSERVATIVE signal: ${signal1.symbol} ${signal1.direction} (Score: ${signal1.score})`)
+      }
+      if (signal2) {
+        signals.push(signal2)
+        console.log(`✅ Generated AGGRESSIVE signal: ${signal2.symbol} ${signal2.direction} (Score: ${signal2.score})`)
+      }
+      if (signal3) {
+        signals.push(signal3)
+        console.log(`✅ Generated EXPERIMENTAL signal: ${signal3.symbol} ${signal3.direction} (Score: ${signal3.score})`)
       }
     }
   }

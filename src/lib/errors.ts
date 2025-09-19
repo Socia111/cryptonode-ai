@@ -18,15 +18,15 @@ export function handleDatabaseError(
   error: unknown,
   context: { operation: string; table?: string; payload?: any },
   logger: Pick<Console, 'log' | 'warn' | 'error'> = console
-): never {
+): void {
   if (isPostgrestError(error)) {
     if (isCooldownError(error)) {
-    logger.log(
-      `[${context.table || 'db'}] cooldown skip for ${context.operation}`,
-      { code: error.code, message: error.message }
-    );
-    // Don't throw for cooldowns - let caller handle gracefully
-    return undefined as never;
+      logger.log(
+        `[${context.table || 'db'}] cooldown skip for ${context.operation}`,
+        { code: error.code, message: error.message }
+      );
+      // Don't throw for cooldowns - let caller handle gracefully
+      return;
     }
     
     logger.error(
@@ -49,11 +49,16 @@ export function handleDatabaseError(
 export async function safeDbOperation<T>(
   operation: () => Promise<T>,
   context: { operation: string; table?: string; payload?: any }
-): Promise<T> {
+): Promise<T | null> {
   try {
     return await operation();
   } catch (error) {
+    if (isPostgrestError(error) && isCooldownError(error)) {
+      // Return null for cooldown errors instead of throwing
+      console.log(`[${context.table || 'db'}] Cooldown detected, skipping operation`);
+      return null;
+    }
     handleDatabaseError(error, context);
-    throw error; // TypeScript doesn't know handleDatabaseError never returns
+    throw error; // This will only be reached for non-cooldown errors
   }
 }
