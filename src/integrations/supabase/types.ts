@@ -955,7 +955,132 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      signals_latest_per_pair: {
+        Row: {
+          algo: string | null
+          atr: number | null
+          bar_time: string | null
+          confidence: number | null
+          created_at: string | null
+          direction: string | null
+          entry_price: number | null
+          exchange: string | null
+          exchange_source: string | null
+          expires_at: string | null
+          filters: Json | null
+          hvp_value: number | null
+          id: string | null
+          is_active: boolean | null
+          meta: Json | null
+          metadata: Json | null
+          price: number | null
+          rn: number | null
+          score: number | null
+          side: string | null
+          signal_grade: string | null
+          signal_type: string | null
+          source: string | null
+          stop_loss: number | null
+          symbol: string | null
+          take_profit: number | null
+          timeframe: string | null
+          volume_ratio: number | null
+        }
+        Relationships: []
+      }
+      signals_live: {
+        Row: {
+          algo: string | null
+          atr: number | null
+          bar_time: string | null
+          confidence: number | null
+          created_at: string | null
+          direction: string | null
+          entry_price: number | null
+          exchange: string | null
+          exchange_source: string | null
+          expires_at: string | null
+          filters: Json | null
+          grade: string | null
+          hvp_value: number | null
+          id: string | null
+          is_active: boolean | null
+          meta: Json | null
+          metadata: Json | null
+          price: number | null
+          score: number | null
+          side: string | null
+          signal_grade: string | null
+          signal_type: string | null
+          source: string | null
+          stop_loss: number | null
+          symbol: string | null
+          take_profit: number | null
+          timeframe: string | null
+          volume_ratio: number | null
+        }
+        Insert: {
+          algo?: string | null
+          atr?: number | null
+          bar_time?: string | null
+          confidence?: number | null
+          created_at?: string | null
+          direction?: string | null
+          entry_price?: number | null
+          exchange?: string | null
+          exchange_source?: string | null
+          expires_at?: string | null
+          filters?: Json | null
+          grade?: never
+          hvp_value?: number | null
+          id?: string | null
+          is_active?: boolean | null
+          meta?: Json | null
+          metadata?: Json | null
+          price?: number | null
+          score?: number | null
+          side?: string | null
+          signal_grade?: string | null
+          signal_type?: string | null
+          source?: string | null
+          stop_loss?: number | null
+          symbol?: string | null
+          take_profit?: number | null
+          timeframe?: string | null
+          volume_ratio?: number | null
+        }
+        Update: {
+          algo?: string | null
+          atr?: number | null
+          bar_time?: string | null
+          confidence?: number | null
+          created_at?: string | null
+          direction?: string | null
+          entry_price?: number | null
+          exchange?: string | null
+          exchange_source?: string | null
+          expires_at?: string | null
+          filters?: Json | null
+          grade?: never
+          hvp_value?: number | null
+          id?: string | null
+          is_active?: boolean | null
+          meta?: Json | null
+          metadata?: Json | null
+          price?: number | null
+          score?: number | null
+          side?: string | null
+          signal_grade?: string | null
+          signal_type?: string | null
+          source?: string | null
+          stop_loss?: number | null
+          symbol?: string | null
+          take_profit?: number | null
+          timeframe?: string | null
+          volume_ratio?: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       archive_signals: {
