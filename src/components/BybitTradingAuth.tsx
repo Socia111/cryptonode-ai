@@ -52,10 +52,14 @@ const BybitTradingAuth = () => {
       if (accounts && !error) {
         setAuthState({
           isAuthenticated: true,
-          accountType: accounts.account_type || 'testnet',
+          accountType: (accounts.account_type as 'testnet' | 'mainnet') || 'testnet',
           balance: accounts.balance_info,
           permissions: accounts.permissions || [],
-          riskSettings: accounts.risk_settings
+          riskSettings: typeof accounts.risk_settings === 'object' ? accounts.risk_settings as any : {
+            maxPositionSize: 1000,
+            stopLossEnabled: true,
+            takeProfitEnabled: true
+          }
         });
         setUseTestnet(accounts.account_type === 'testnet');
       }

@@ -16,11 +16,9 @@ const SpynxScoreCard = () => {
   const fetchAiraRankings = async () => {
     setLoadingAira(true);
     try {
-      const { data, error } = await supabase
-        .from('aira_rankings')
-        .select('*')
-        .order('rank_position', { ascending: true })
-        .limit(10);
+      // Since aira_rankings table doesn't exist, return empty array
+      const data: any[] = [];
+      const error = null;
       
       if (error) throw error;
       setAiraRankings(data || []);

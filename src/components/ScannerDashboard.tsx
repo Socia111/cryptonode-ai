@@ -65,14 +65,14 @@ const ScannerDashboard = () => {
       let query = supabase
         .from('signals')
         .select('*')
-        .eq('status', 'active')
-        .order('generated_at', { ascending: false });
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
 
       if (showPast24Hours) {
         // Show all signals from past 24 hours when "Scan Now" is pressed
         const past24Hours = new Date();
         past24Hours.setHours(past24Hours.getHours() - 24);
-        query = query.gte('generated_at', past24Hours.toISOString());
+        query = query.gte('created_at', past24Hours.toISOString());
       } else {
         query = query.limit(50);
       }
@@ -86,13 +86,15 @@ const ScannerDashboard = () => {
           id: signal.id,
           symbol: signal.symbol,
           exchange: signal.exchange || 'bybit',
-          direction: signal.direction,
-          confidence_score: signal.confidence_score || signal.score || 0,
-          price: signal.entry_price || 0,
+          direction: signal.direction as 'LONG' | 'SHORT',
+          confidence_score: signal.confidence || signal.score || 0,
+          price: signal.entry_price || signal.price || 0,
           timeframe: signal.timeframe,
-          generated_at: signal.generated_at || signal.created_at,
-          indicators: signal.metadata?.indicators || {},
-          roi_percentage: signal.metadata?.roi_percentage || 0
+          generated_at: signal.created_at,
+          indicators: (typeof signal.indicators === 'object' ? signal.indicators : {}) as any,
+          roi_percentage: typeof signal.metadata === 'object' && signal.metadata !== null 
+            ? (signal.metadata as any)?.roi_percentage || 0 
+            : 0
         }))
         .filter(signal => 
           (signal.timeframe === '15m' || signal.timeframe === '30m') &&
