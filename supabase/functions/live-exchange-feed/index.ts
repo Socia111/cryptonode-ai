@@ -26,7 +26,11 @@ serve(async (req) => {
     // Trigger enhanced CCXT feed to get fresh market data
     const ccxtResponse = await supabase.functions.invoke('enhanced-ccxt-feed', {
       body: { 
-        symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT', 'XRPUSDT', 'DOTUSDT', 'LINKUSDT'],
+        symbols: [
+          'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT', 'XRPUSDT', 
+          'DOTUSDT', 'LINKUSDT', 'AVAXUSDT', 'MATICUSDT', 'ATOMUSDT', 'LTCUSDT',
+          'UNIUSDT', 'FILUSDT', 'TRXUSDT', 'ETCUSDT', 'XLMUSDT', 'VETUSDT'
+        ],
         exchanges: ['bybit'],
         trigger: trigger,
         force_refresh: forceRefresh

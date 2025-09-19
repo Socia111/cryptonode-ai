@@ -1,5 +1,14 @@
 project_id = "codhlwjogfjywmjyjbbn"
 
+[functions.aitradex1-enhanced-scanner]
+verify_jwt = false
+
+[functions.aitradex1-signal-generator]
+verify_jwt = false
+
+[functions.aitradex1-trade-executor]
+verify_jwt = false
+
 [functions.trade-executor-v2]
 verify_jwt = false
 
@@ -9,29 +18,23 @@ verify_jwt = false
 [functions.enhanced-signal-generation]
 verify_jwt = false
 
-[functions.aitradex1-enhanced-scanner]
+[functions.enhanced-ccxt-feed]
 verify_jwt = false
 
-[functions.bybit-authenticate]
+[functions.live-exchange-feed]
 verify_jwt = false
 
 [functions.comprehensive-trading-pipeline]
 verify_jwt = false
 
+[functions.bybit-authenticate]
+verify_jwt = false
+
+[functions.signals-live-feed]
+verify_jwt = false
+
+[functions.system-health-monitor]
+verify_jwt = false
+
 [functions.diagnostics]
-verify_jwt = false
-
-[functions.app-settings-manager]
-verify_jwt = false
-
-[functions.aitradex1-signal-generator]
-verify_jwt = false
-
-[functions.instrument-info] 
-verify_jwt = false
-
-[functions.trade-executor-v2]
-verify_jwt = false
-
-[functions.live-exchange-feed]
 verify_jwt = false

@@ -137,11 +137,17 @@ serve(async (req) => {
         .select()
 
       if (insertError) {
-        console.error('[Enhanced Signal Generation] Failed to insert signals:', insertError)
-        throw new Error(`Failed to insert signals: ${insertError.message}`)
+        // Skip cooldown errors but log them - they're expected behavior
+        if (insertError.code === '23505' && insertError.message?.includes('Cooldown')) {
+          console.log(`⏰ Cooldown: ${insertError.message}`);
+          // Continue processing instead of throwing error
+        } else {
+          console.error('[Enhanced Signal Generation] Failed to insert signals:', insertError);
+          throw new Error(`Failed to insert signals: ${insertError.message}`);
+        }
+      } else {
+        console.log(`[Enhanced Signal Generation] ✅ Inserted ${insertedSignals?.length || 0} real signals`);
       }
-
-      console.log(`[Enhanced Signal Generation] ✅ Inserted ${insertedSignals?.length || 0} real signals`)
     }
 
     return new Response(JSON.stringify({
