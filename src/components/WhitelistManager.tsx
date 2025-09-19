@@ -47,12 +47,13 @@ export function WhitelistManager() {
       }
 
       if (data?.value) {
-        setSettings((data.value as any) || {
-          whitelist_enabled: false,
-          whitelist_pairs: [],
-          max_symbols: 2000,
-          auto_update: true,
-          last_updated: new Date().toISOString()
+        const parsedValue = data.value as any;
+        setSettings({
+          whitelist_enabled: parsedValue?.whitelist_enabled || false,
+          whitelist_pairs: parsedValue?.whitelist_pairs || [],
+          max_symbols: parsedValue?.max_symbols || 2000,
+          auto_update: parsedValue?.auto_update || true,
+          last_updated: parsedValue?.last_updated || new Date().toISOString()
         });
       }
     } catch (error) {

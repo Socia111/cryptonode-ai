@@ -81,8 +81,13 @@ export class EnhancedAutomatedTradingEngine {
         return defaultConfig;
       }
 
-      this.config = data as any;
-      return data as any;
+      this.config = {
+        ...data,
+        trading_hours: typeof data.trading_hours === 'object' && data.trading_hours ? 
+          data.trading_hours as { start: string; end: string; timezone: string } :
+          { start: '00:00', end: '23:59', timezone: 'UTC' }
+      } as AutoTradingConfig;
+      return this.config;
     } catch (error) {
       console.error('Failed to load auto trading config:', error);
       return null;

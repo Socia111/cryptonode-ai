@@ -110,10 +110,10 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
            !signal.source.includes('demo'))
         );
         
-        setSignals(realSignals);
+        setSignals(realSignals as Signal[]);
         console.log(`[RealTimeSignals] Fallback: ${realSignals.length}/${fallbackResult.data?.length || 0} real signals`);
       } else {
-        setSignals(signalsResult.data || []);
+        setSignals((signalsResult.data || []) as Signal[]);
         console.log(`[RealTimeSignals] Loaded ${signalsResult.data?.length || 0} real signals`);
       }
 

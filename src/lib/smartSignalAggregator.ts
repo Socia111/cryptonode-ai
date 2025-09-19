@@ -80,7 +80,7 @@ export class SmartSignalAggregator {
       .order('created_at', { ascending: false });
     
     if (error) throw error;
-    return data || [];
+    return (data || []) as Signal[];
   }
 
   private groupSignalsBySymbol(signals: Signal[]): Map<string, Signal[]> {

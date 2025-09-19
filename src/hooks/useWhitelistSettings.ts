@@ -37,7 +37,8 @@ export function useWhitelistSettings() {
       }
 
       if (data?.value) {
-        setSettings((data.value as any) || DEFAULT_SETTINGS);
+        const parsedValue = typeof data.value === 'object' ? data.value as unknown as WhitelistSettings : DEFAULT_SETTINGS;
+        setSettings(parsedValue);
       } else {
         // Initialize with default settings
         await saveSettings(DEFAULT_SETTINGS);

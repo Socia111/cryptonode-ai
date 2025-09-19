@@ -59,7 +59,7 @@ export function LiveCCXTController() {
       setMarketStats({
         totalSymbols: marketData?.length || 0,
         avgVolume: marketData?.reduce((sum, item) => sum + (item.volume || 0), 0) / (marketData?.length || 1),
-        avgSpread: marketData?.reduce((sum, item) => sum + ((item as any).spread_bps || 0), 0) / (marketData?.length || 1),
+        avgSpread: 0, // Removed spread_bps calculation as it's not in database
         lastUpdate: marketData?.[0]?.updated_at
       });
 

@@ -54,7 +54,7 @@ export function useTradingAccounts() {
 
       if (accountError) throw accountError;
 
-      setAccounts((data || []) as any);
+      setAccounts((data || []) as TradingAccount[]);
       
       // Load balance for the first active account
       if (data && data.length > 0) {
