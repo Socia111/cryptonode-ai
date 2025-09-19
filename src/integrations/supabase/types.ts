@@ -201,6 +201,7 @@ export type Database = {
           commission: number | null
           commission_asset: string | null
           created_at: string
+          credentials_source: string | null
           exchange_order_id: string | null
           executed_price: number | null
           executed_qty: number | null
@@ -223,6 +224,7 @@ export type Database = {
           commission?: number | null
           commission_asset?: string | null
           created_at?: string
+          credentials_source?: string | null
           exchange_order_id?: string | null
           executed_price?: number | null
           executed_qty?: number | null
@@ -245,6 +247,7 @@ export type Database = {
           commission?: number | null
           commission_asset?: string | null
           created_at?: string
+          credentials_source?: string | null
           exchange_order_id?: string | null
           executed_price?: number | null
           executed_qty?: number | null

@@ -1,266 +1,198 @@
 import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { TradingGateway } from '@/lib/tradingGateway';
 
 interface TestResult {
-  name: string;
-  status: 'pending' | 'success' | 'error' | 'warning';
+  test: string;
+  status: 'pending' | 'running' | 'passed' | 'failed';
   message: string;
-  details?: any;
+  duration?: number;
 }
 
-export const SystemTestRunner: React.FC = () => {
-  const [tests, setTests] = useState<TestResult[]>([]);
+export function SystemTestRunner() {
   const [isRunning, setIsRunning] = useState(false);
-  const [overallStatus, setOverallStatus] = useState<'idle' | 'running' | 'completed'>('idle');
+  const [results, setResults] = useState<TestResult[]>([]);
+  const { toast } = useToast();
 
-  const updateTest = (index: number, update: Partial<TestResult>) => {
-    setTests(prev => prev.map((test, i) => i === index ? { ...test, ...update } : test));
+  const updateTestResult = (testName: string, status: TestResult['status'], message: string, duration?: number) => {
+    setResults(prev => prev.map(test => 
+      test.test === testName 
+        ? { ...test, status, message, duration }
+        : test
+    ));
   };
 
-  const runTest = async (index: number, testFn: () => Promise<{ success: boolean; message: string; details?: any }>) => {
-    updateTest(index, { status: 'pending' });
-    try {
-      const result = await testFn();
-      updateTest(index, {
-        status: result.success ? 'success' : 'error',
-        message: result.message,
-        details: result.details
-      });
-    } catch (error: any) {
-      updateTest(index, {
-        status: 'error',
-        message: error.message || 'Test failed unexpectedly',
-        details: error
-      });
-    }
-  };
-
-  const runAllTests = async () => {
+  const runSystemTests = async () => {
     setIsRunning(true);
-    setOverallStatus('running');
     
-    const testDefinitions = [
-      {
-        name: 'Database Connection',
-        test: async () => {
-          const { data, error } = await supabase.from('markets').select('id').limit(1);
-          return {
-            success: !error,
-            message: error ? `Database error: ${error.message}` : `Database connected successfully (${data?.length || 0} records accessible)`,
-            details: { data, error }
-          };
-        }
-      },
-      {
-        name: 'Authentication Status',
-        test: async () => {
-          const { data: { session }, error } = await supabase.auth.getSession();
-          return {
-            success: !error,
-            message: session?.user ? `Authenticated as ${session.user.email}` : 'No active session',
-            details: { hasSession: !!session, userId: session?.user?.id, error }
-          };
-        }
-      },
-      {
-        name: 'Signals Access',
-        test: async () => {
-          const { data, error } = await supabase
-            .from('signals')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(5);
-          return {
-            success: !error,
-            message: error ? `Signals error: ${error.message}` : `Signals accessible (${data?.length || 0} recent signals)`,
-            details: { count: data?.length, error }
-          };
-        }
-      },
-      {
-        name: 'Trading Connection',
-        test: async () => {
-          try {
-            const result = await TradingGateway.testConnection();
-            return {
-              success: result.ok,
-              message: result.message || (result.ok ? 'Trading connection successful' : 'Trading connection failed'),
-              details: result.data
-            };
-          } catch (error: any) {
-            return {
-              success: false,
-              message: `Trading connection error: ${error.message}`,
-              details: error
-            };
-          }
-        }
-      },
-      {
-        name: 'Trade Executor Function',
-        test: async () => {
-          try {
-            const response = await supabase.functions.invoke('aitradex1-trade-executor', {
-              body: { action: 'status' }
-            });
-            return {
-              success: !response.error,
-              message: response.error 
-                ? `Trade executor error: ${response.error.message}` 
-                : `Trade executor operational (${response.data?.status})`,
-              details: response.data
-            };
-          } catch (error: any) {
-            return {
-              success: false,
-              message: `Trade executor function error: ${error.message}`,
-              details: error
-            };
-          }
-        }
-      },
-        {
-          name: 'Realtime Subscription',
-          test: async (): Promise<{ success: boolean; message: string; details?: any }> => {
-            return new Promise((resolve) => {
-              const timeout = setTimeout(() => {
-                resolve({
-                  success: false,
-                  message: 'Realtime subscription test timed out',
-                  details: { timeout: true }
-                });
-              }, 5000);
-
-              const channel = supabase
-                .channel('test-subscription')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'signals' }, () => {})
-                .subscribe((status) => {
-                  clearTimeout(timeout);
-                  supabase.removeChannel(channel);
-                  resolve({
-                    success: status === 'SUBSCRIBED',
-                    message: status === 'SUBSCRIBED' 
-                      ? 'Realtime subscription successful' 
-                      : `Realtime subscription failed: ${status}`,
-                    details: { status }
-                  });
-                });
-            });
-          }
-        }
+    const tests: TestResult[] = [
+      { test: 'Database Connection', status: 'pending', message: 'Waiting...' },
+      { test: 'Signal Generation', status: 'pending', message: 'Waiting...' },
+      { test: 'Trade Executor', status: 'pending', message: 'Waiting...' },
+      { test: 'Market Data Feed', status: 'pending', message: 'Waiting...' },
+      { test: 'Authentication System', status: 'pending', message: 'Waiting...' }
     ];
+    
+    setResults(tests);
 
-    setTests(testDefinitions.map(def => ({
-      name: def.name,
-      status: 'pending' as const,
-      message: 'Waiting to run...'
-    })));
+    try {
+      // Test 1: Database Connection
+      updateTestResult('Database Connection', 'running', 'Testing connection...');
+      const start1 = Date.now();
+      
+      const { data: signalsTest, error: signalsError } = await supabase
+        .from('signals')
+        .select('id')
+        .limit(1);
+        
+      if (signalsError) {
+        updateTestResult('Database Connection', 'failed', `Database error: ${signalsError.message}`);
+      } else {
+        updateTestResult('Database Connection', 'passed', 'Database connection successful', Date.now() - start1);
+      }
 
-    for (let i = 0; i < testDefinitions.length; i++) {
-      await runTest(i, testDefinitions[i].test);
+      // Test 2: Signal Generation
+      updateTestResult('Signal Generation', 'running', 'Testing signal retrieval...');
+      const start2 = Date.now();
+      
+      const { data: recentSignals, error: signalError } = await supabase
+        .from('signals')
+        .select('*')
+        .gte('score', 75)
+        .eq('is_active', true)
+        .limit(5);
+        
+      if (signalError) {
+        updateTestResult('Signal Generation', 'failed', `Signal error: ${signalError.message}`);
+      } else {
+        updateTestResult('Signal Generation', 'passed', `Found ${recentSignals?.length || 0} active signals`, Date.now() - start2);
+      }
+
+      // Test 3: Trade Executor
+      updateTestResult('Trade Executor', 'running', 'Testing trade executor...');
+      const start3 = Date.now();
+      
+      try {
+        const { data: executorTest, error: executorError } = await supabase.functions.invoke('aitradex1-trade-executor', {
+          body: { action: 'status' }
+        });
+        
+        if (executorError) {
+          updateTestResult('Trade Executor', 'failed', `Executor error: ${executorError.message}`);
+        } else if (executorTest?.success) {
+          updateTestResult('Trade Executor', 'passed', 'Trade executor is active', Date.now() - start3);
+        } else {
+          updateTestResult('Trade Executor', 'failed', 'Trade executor returned invalid response');
+        }
+      } catch (error: any) {
+        updateTestResult('Trade Executor', 'failed', `Executor error: ${error.message}`);
+      }
+
+      // Test 4: Market Data Feed
+      updateTestResult('Market Data Feed', 'running', 'Testing market data...');
+      const start4 = Date.now();
+      
+      const { data: marketData, error: marketError } = await supabase
+        .from('live_market_data')
+        .select('*')
+        .gte('updated_at', new Date(Date.now() - 10 * 60 * 1000).toISOString()) // Last 10 minutes
+        .limit(5);
+        
+      if (marketError) {
+        updateTestResult('Market Data Feed', 'failed', `Market data error: ${marketError.message}`);
+      } else {
+        updateTestResult('Market Data Feed', 'passed', `Found ${marketData?.length || 0} recent market updates`, Date.now() - start4);
+      }
+
+      // Test 5: Authentication System
+      updateTestResult('Authentication System', 'running', 'Testing authentication...');
+      const start5 = Date.now();
+      
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        updateTestResult('Authentication System', 'failed', `Auth error: ${authError.message}`);
+      } else if (user) {
+        updateTestResult('Authentication System', 'passed', `User authenticated: ${user.email}`, Date.now() - start5);
+      } else {
+        updateTestResult('Authentication System', 'failed', 'No authenticated user found');
+      }
+
+      // Summary
+      const finalResults = results.filter(r => r.status !== 'pending');
+      const passed = finalResults.filter(r => r.status === 'passed').length;
+      const failed = finalResults.filter(r => r.status === 'failed').length;
+      
+      toast({
+        title: "🏁 System Tests Complete",
+        description: `Passed: ${passed}, Failed: ${failed}`,
+        variant: failed === 0 ? "default" : "destructive"
+      });
+
+    } catch (error: any) {
+      console.error('System test error:', error);
+      toast({
+        title: "❌ System Test Error",
+        description: error.message,
+        variant: "destructive"
+      });
     }
-
-    setOverallStatus('completed');
+    
     setIsRunning(false);
   };
 
-  const getStatusIcon = (status: TestResult['status']) => {
+  const getStatusBadge = (status: TestResult['status']) => {
     switch (status) {
-      case 'success': return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'error': return <XCircle className="h-4 w-4 text-red-500" />;
-      case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
-      case 'pending': return <Clock className="h-4 w-4 text-blue-500 animate-spin" />;
-      default: return <Clock className="h-4 w-4 text-gray-400" />;
+      case 'passed':
+        return <Badge className="bg-green-500">✅ Passed</Badge>;
+      case 'failed':
+        return <Badge variant="destructive">❌ Failed</Badge>;
+      case 'running':
+        return <Badge variant="secondary">🔄 Running</Badge>;
+      default:
+        return <Badge variant="outline">⏳ Pending</Badge>;
     }
   };
-
-  const getStatusColor = (status: TestResult['status']) => {
-    switch (status) {
-      case 'success': return 'bg-green-100 text-green-800';
-      case 'error': return 'bg-red-100 text-red-800';
-      case 'warning': return 'bg-yellow-100 text-yellow-800';
-      case 'pending': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const successCount = tests.filter(t => t.status === 'success').length;
-  const errorCount = tests.filter(t => t.status === 'error').length;
-  const totalTests = tests.length;
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
+    <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <span>System Test Runner</span>
-          {overallStatus === 'completed' && (
-            <Badge variant={errorCount === 0 ? 'default' : 'destructive'}>
-              {successCount}/{totalTests} Passed
-            </Badge>
-          )}
-        </CardTitle>
-        <CardDescription>
-          Run comprehensive tests to verify all system components are working correctly
-        </CardDescription>
+        <CardTitle>🔧 System Test Runner</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex gap-2">
-          <Button 
-            onClick={runAllTests} 
-            disabled={isRunning}
-            className="flex items-center gap-2"
-          >
-            {isRunning && <Clock className="h-4 w-4 animate-spin" />}
-            {isRunning ? 'Running Tests...' : 'Run All Tests'}
-          </Button>
-          
-          {overallStatus === 'completed' && errorCount === 0 && (
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>
-                ✅ All systems operational! All {totalTests} tests passed successfully.
-              </AlertDescription>
-            </Alert>
-          )}
-        </div>
+        <Button 
+          onClick={runSystemTests} 
+          disabled={isRunning}
+          className="w-full"
+        >
+          {isRunning ? "Running Tests..." : "🚀 Run System Tests"}
+        </Button>
 
-        {tests.length > 0 && (
+        {results.length > 0 && (
           <div className="space-y-2">
-            <h3 className="font-semibold text-sm text-muted-foreground">Test Results</h3>
-            {tests.map((test, index) => (
-              <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  {getStatusIcon(test.status)}
-                  <span className="font-medium">{test.name}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground max-w-xs truncate">
-                    {test.message}
-                  </span>
-                  <Badge className={getStatusColor(test.status)}>
-                    {test.status.toUpperCase()}
-                  </Badge>
+            {results.map((result) => (
+              <div 
+                key={result.test}
+                className="flex items-center justify-between p-3 rounded-lg border"
+              >
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{result.test}</span>
+                    {getStatusBadge(result.status)}
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {result.message}
+                    {result.duration && ` (${result.duration}ms)`}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
-
-        {overallStatus === 'completed' && errorCount > 0 && (
-          <Alert variant="destructive">
-            <XCircle className="h-4 w-4" />
-            <AlertDescription>
-              ❌ {errorCount} test(s) failed. Please review the errors above and check your configuration.
-            </AlertDescription>
-          </Alert>
-        )}
       </CardContent>
     </Card>
   );
-};
+}

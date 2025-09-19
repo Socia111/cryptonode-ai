@@ -262,28 +262,64 @@ serve(async (req) => {
         const startTime = Date.now();
 
         if (paperMode) {
-          // Paper trading - simulate trade without hitting Bybit API
-          console.log('📝 Executing paper trade...');
+          // Paper trading - simulate realistic trade execution
+          console.log('🎮 PAPER TRADING MODE - Simulating trade execution');
           
-          result = {
-            retCode: 0,
-            retMsg: 'Paper trade executed successfully',
-            result: {
-              orderId: `paper_${Date.now()}`,
-              orderLinkId: `paper_link_${Date.now()}`,
-              avgPrice: '50000.00', // Mock price
-              cumExecQty: (trade.qty || (trade.amount_usd || 50) / 50000).toString(),
-              qty: (trade.qty || (trade.amount_usd || 50) / 50000).toString(),
-              side: trade.side === 'BUY' ? 'Buy' : 'Sell',
-              symbol: trade.symbol,
-              orderType: 'Market',
-              orderStatus: 'Filled',
-              cumExecValue: (trade.amount_usd || 50).toString(),
-              cumExecFee: '0.001'
+          // Get real market price for accurate simulation
+          const symbol = trade.symbol.replace('/', '').toUpperCase();
+          const baseUrl = 'https://api.bybit.com'; // Use live prices even for paper trading
+          
+          try {
+            const priceResponse = await fetch(`${baseUrl}/v5/market/tickers?category=linear&symbol=${symbol}`);
+            const priceData = await priceResponse.json();
+            
+            let currentPrice = 50000; // Default fallback
+            if (priceData.retCode === 0 && priceData.result?.list?.length > 0) {
+              currentPrice = parseFloat(priceData.result.list[0].lastPrice);
             }
-          };
-          
-          console.log('✅ Paper trade simulated successfully');
+            
+            const mockQty = trade.qty || (trade.amount_usd || 50) / currentPrice;
+            const mockFee = (trade.amount_usd || 50) * 0.0005; // 0.05% fee
+            
+            result = {
+              retCode: 0,
+              retMsg: 'Paper trade executed successfully',
+              result: {
+                orderId: `PAPER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                orderLinkId: `paper_link_${Date.now()}`,
+                avgPrice: currentPrice.toString(),
+                cumExecQty: mockQty.toString(),
+                qty: mockQty.toString(),
+                side: trade.side === 'BUY' ? 'Buy' : 'Sell',
+                symbol: trade.symbol,
+                orderType: 'Market',
+                orderStatus: 'Filled',
+                cumExecValue: (trade.amount_usd || 50).toString(),
+                cumExecFee: mockFee.toString()
+              }
+            };
+            
+            console.log('🎮 Paper trade simulated with real market price:', currentPrice);
+          } catch (error) {
+            console.log('⚠️ Could not fetch real price for paper trade, using defaults');
+            result = {
+              retCode: 0,
+              retMsg: 'Paper trade executed successfully (with default pricing)',
+              result: {
+                orderId: `PAPER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                orderLinkId: `paper_link_${Date.now()}`,
+                avgPrice: '50000.00',
+                cumExecQty: (trade.qty || (trade.amount_usd || 50) / 50000).toString(),
+                qty: (trade.qty || (trade.amount_usd || 50) / 50000).toString(),
+                side: trade.side === 'BUY' ? 'Buy' : 'Sell',
+                symbol: trade.symbol,
+                orderType: 'Market',
+                orderStatus: 'Filled',
+                cumExecValue: (trade.amount_usd || 50).toString(),
+                cumExecFee: '0.025'
+              }
+            };
+          }
         } else {
           // Live trading
           if (!liveTradeEnabled) {
@@ -316,7 +352,7 @@ serve(async (req) => {
           qty: trade.qty || (result.result?.cumExecQty ? parseFloat(result.result.cumExecQty) : null),
           amount_usd: trade.amount_usd,
           leverage: trade.leverage || 1,
-          paper_mode: paperMode
+          paper_mode: paperMode,
           status: result.retCode === 0 ? 'executed' : 'failed',
           exchange_order_id: result.result?.orderId || null,
           ret_code: result.retCode,
