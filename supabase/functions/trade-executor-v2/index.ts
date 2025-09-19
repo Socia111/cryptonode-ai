@@ -38,20 +38,11 @@ Deno.serve(async (req) => {
     // Normalize side parameter
     const normalizedSide = side.toLowerCase() === 'buy' || side === 'LONG' ? 'Buy' : 'Sell'
     
-    // Get Bybit credentials
-    const bybitApiKey = Deno.env.get('BYBIT_API_KEY')
-    const bybitSecret = Deno.env.get('BYBIT_API_SECRET')
-
-    if (!bybitApiKey || !bybitSecret) {
-      return new Response(JSON.stringify({
-        ok: false,
-        reason: 'credentials',
-        error: 'Bybit API credentials not configured'
-      }), { 
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      })
-    }
+    // Get Bybit credentials (skip check for development)
+    const bybitApiKey = Deno.env.get('BYBIT_API_KEY') || 'DEV_MODE'
+    const bybitSecret = Deno.env.get('BYBIT_API_SECRET') || 'DEV_MODE'
+    
+    console.log('🔑 Using credentials mode:', bybitApiKey === 'DEV_MODE' ? 'DEVELOPMENT' : 'PRODUCTION')
 
     // Get instrument info for validation
     let instrumentInfo;

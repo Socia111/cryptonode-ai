@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.comprehensive-trading-pipeline]
 verify_jwt = false
+
+[functions.diagnostics]
+verify_jwt = false

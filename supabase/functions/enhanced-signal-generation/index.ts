@@ -69,10 +69,12 @@ serve(async (req) => {
       console.log('[Enhanced Signal Generation] Cleaned old signals')
     }
 
-    // Get real market data
+    // Get real market data with price validation
     const { data: marketData, error: marketError } = await supabase
       .from('live_market_data')
       .select('*')
+      .not('price', 'is', null) // CRITICAL: Filter out NULL prices
+      .gt('price', 0) // Ensure positive prices
       .order('updated_at', { ascending: false })
 
     if (marketError) {
@@ -162,6 +164,12 @@ serve(async (req) => {
 })
 
 function generateEnhancedSignal(data: MarketData, timeframe: string, currentTime: Date, algorithm: string = 'enhanced_multi_indicator_v2', strategy: string = 'conservative'): Signal | null {
+  // CRITICAL: Validate price exists and is positive
+  if (!data.price || data.price <= 0) {
+    console.warn(`[Signal Gen] Skipping ${data.symbol} - Invalid price: ${data.price}`)
+    return null
+  }
+  
   const rsi = data.rsi_14 || 50
   const price = data.price
   const change24h = data.change_24h_percent || 0
