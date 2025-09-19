@@ -56,22 +56,36 @@ export async function safeSignalInsert(
 
     if (useUpsert) {
       // requires a matching unique index on onConflict columns
-      let q = supabase
-        .from('signals')
-        .upsert(payload, { onConflict, ignoreDuplicates })
-        .throwOnError();
-
-      if (selectId) q = q.select('id').single();
-      const { data, error: err } = await q;
-      error = err ?? null;
-      id = (data as any)?.id;
+      if (selectId) {
+        const { data, error: err } = await supabase
+          .from('signals')
+          .upsert(payload, { onConflict, ignoreDuplicates })
+          .select('id')
+          .single();
+        error = err ?? null;
+        id = data?.id;
+      } else {
+        const { error: err } = await supabase
+          .from('signals')
+          .upsert(payload, { onConflict, ignoreDuplicates });
+        error = err ?? null;
+      }
     } else {
       // simple insert; 23505 handled via trigger/constraint
-      let q = supabase.from('signals').insert(payload);
-      if (selectId) q = q.select('id').single();
-      const { data, error: err } = await q;
-      error = err ?? null;
-      id = (data as any)?.id;
+      if (selectId) {
+        const { data, error: err } = await supabase
+          .from('signals')
+          .insert(payload)
+          .select('id')
+          .single();
+        error = err ?? null;
+        id = data?.id;
+      } else {
+        const { error: err } = await supabase
+          .from('signals')
+          .insert(payload);
+        error = err ?? null;
+      }
     }
 
     if (error) return handleSignalInsertError(error, payload);
