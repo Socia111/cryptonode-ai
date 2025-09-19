@@ -32,13 +32,11 @@ export const AutoTradingSetupGuide = () => {
     const isAuth = !!session;
     setIsAuthenticated(isAuth);
 
-    // Check API keys
+    // Check API keys - simplified check
     let hasApiKeys = false;
     try {
-      const { data } = await supabase.functions.invoke('debug-trading-status', {
-        body: { action: 'env_check' }
-      });
-      hasApiKeys = !!(data?.environment?.hasApiKey || data?.apiKeysConfigured);
+      const { data } = await supabase.from('user_trading_accounts').select('*').limit(1);
+      hasApiKeys = data && data.length > 0;
     } catch (error) {
       // API keys check failed - assume not configured
     }

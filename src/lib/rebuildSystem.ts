@@ -37,9 +37,7 @@ export const AITRADEX1_REBUILD_CONFIG: RebuildConfig = {
     functions: [
       // Core Trading Functions
       'aitradex1-trade-executor',
-      'aitradex1-original-scanner',
-      'aitradex1-advanced-scanner',
-      'aitradex1-confluence-scanner',
+      'enhanced-signal-generation',
       'aitradex1-enhanced-scanner',
       'aitradex1-config',
       
@@ -86,13 +84,9 @@ export const AITRADEX1_REBUILD_CONFIG: RebuildConfig = {
       'jwt-token-generator',
       
       // Monitoring & Testing
-      'debug-trading-status',
-      'debug-bybit-api',
       'production-monitor',
       'trigger-comprehensive-scan',
-      'crypto-scheduler',
-      'direct-bybit-test',
-      'direct-3commas-test'
+      'crypto-scheduler'
     ],
     authentication: 'Supabase Auth'
   },
@@ -134,7 +128,7 @@ export const CORE_FILES = {
   // Supabase Backend
   'supabase/config.toml': 'Edge functions configuration',
   'supabase/functions/aitradex1-trade-executor/index.ts': 'Core trading function',
-  'supabase/functions/aitradex1-original-scanner/index.ts': 'Signal generation',
+  'supabase/functions/enhanced-signal-generation/index.ts': 'Signal generation',
   'supabase/functions/telegram-bot/index.ts': 'Telegram notifications'
 };
 

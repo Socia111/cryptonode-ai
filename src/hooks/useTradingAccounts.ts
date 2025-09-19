@@ -139,9 +139,12 @@ export function useTradingAccounts() {
 
   const testConnection = async (accountId: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('debug-trading-status', {
-        body: { account_id: accountId }
-      });
+      // Simple connection test by fetching account data
+      const { data, error } = await supabase
+        .from('user_trading_accounts')
+        .select('*')
+        .eq('id', accountId)
+        .single();
 
       if (error) throw error;
 

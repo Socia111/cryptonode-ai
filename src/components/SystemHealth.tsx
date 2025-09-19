@@ -62,7 +62,7 @@ export const SystemHealth = () => {
       // Signal Generator Test
       updateCheck('Signal Generator', 'checking');
       try {
-        const { data, error } = await supabase.functions.invoke('aitradex1-original-scanner', {
+        const { data, error } = await supabase.functions.invoke('enhanced-signal-generation', {
           body: { action: 'generate_signals', count: 1 }
         });
         if (error) throw error;

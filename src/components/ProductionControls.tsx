@@ -63,15 +63,13 @@ export const ProductionControls = () => {
           }
         };
 
-        const alertResponse = await supabase.functions.invoke('webhook-alerts', {
-          body: alertData
+        // Log the alert locally (webhook function removed)
+        console.log('📋 Trading mode alert:', {
+          action,
+          fromMode,
+          toMode,
+          timestamp: new Date().toISOString()
         });
-
-        if (alertResponse.error) {
-          console.warn('Failed to send webhook alert:', alertResponse.error);
-        } else {
-          console.log('✅ Webhook alert sent for:', action);
-        }
       }
     } catch (error) {
       console.warn('Failed to log trading mode change:', error);

@@ -100,7 +100,7 @@ export function AItradeX1Dashboard() {
   const runAItradeX1Scanner = async () => {
     setScanning(true);
     try {
-      const { error } = await supabase.functions.invoke('aitradex1-signal-scanner', {});
+      const { error } = await supabase.functions.invoke('enhanced-signal-generation', {});
       if (error) throw error;
       
       toast({

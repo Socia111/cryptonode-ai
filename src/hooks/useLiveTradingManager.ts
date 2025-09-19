@@ -50,11 +50,10 @@ export function useLiveTradingManager() {
         body: { trigger: 'comprehensive_scan' }
       });
 
-      // Start live exchange feed for all symbols
-      const exchangeFeedResult = await supabase.functions.invoke('live-exchange-feed', {
+      // Start enhanced signal generation for all symbols
+      const signalGenResult = await supabase.functions.invoke('enhanced-signal-generation', {
         body: {
           useAllSymbols: true,
-          exchanges: ['bybit', 'binance', 'coinex'],
           trigger: 'live_dashboard'
         }
       });
@@ -93,7 +92,7 @@ export function useLiveTradingManager() {
       // Update metrics based on results
       setMetrics(prev => ({
         ...prev,
-        marketDataPoints: (exchangeFeedResult.data?.marketDataPoints || 0) + (allSymbolsResult.data?.marketDataPoints || 0),
+        marketDataPoints: (signalGenResult.data?.marketDataPoints || 0) + (allSymbolsResult.data?.marketDataPoints || 0),
         signalsGenerated: signalResult.data?.signals_generated || 0,
         activePairs: ['All USDT Pairs'],
         exchangesConnected: ['Bybit', 'Binance', 'CoinEx']
@@ -147,8 +146,8 @@ export function useLiveTradingManager() {
     setState(prev => ({ ...prev, feedStatus: 'connecting' }));
     
     try {
-      // Trigger fresh data collection
-      await supabase.functions.invoke('live-exchange-feed', {
+      // Trigger fresh signal generation
+      await supabase.functions.invoke('enhanced-signal-generation', {
         body: { refresh: true }
       });
 

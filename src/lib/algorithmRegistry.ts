@@ -47,13 +47,13 @@ export class AlgorithmRegistry {
         }
       },
       {
-        id: 'aitradex1-original',
-        name: 'AItradeX1 Original Scanner',
-        description: 'Classic market scanning algorithm with proven results',
-        functionName: 'aitradex1-original-scanner',
+        id: 'aitradex1-enhanced',
+        name: 'AItradeX1 Enhanced Signal Generator',
+        description: 'Advanced signal generation with enhanced market analysis',
+        functionName: 'enhanced-signal-generation',
         category: 'scanner',
-        status: 'inactive',
-        performance: { profit: 8.5, winRate: 65, avgScore: 78 },
+        status: 'active',
+        performance: { profit: 12.8, winRate: 72, avgScore: 85 },
         config: {
           enabled: false,
           priority: 3,

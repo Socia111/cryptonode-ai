@@ -100,7 +100,7 @@ export const CleanSystemTest = () => {
     // Test 4: Signal Generation
     updateTest('Signal Generation', { status: 'running' });
     try {
-      const { data, error } = await supabase.functions.invoke('aitradex1-original-scanner', {
+      const { data, error } = await supabase.functions.invoke('enhanced-signal-generation', {
         body: {
           symbols: ['BTCUSDT'],
           timeframes: ['1h'],

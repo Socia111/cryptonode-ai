@@ -69,11 +69,11 @@ export function ProfessionalTradingDashboard() {
         description: "Initializing real-time market data and signal generation..."
       });
 
-      // Trigger live exchange feed
-      await supabase.functions.invoke('live-exchange-feed', {
+      // Trigger enhanced signal generation
+      await supabase.functions.invoke('enhanced-signal-generation', {
         body: {
           symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'XRPUSDT', 'BNBUSDT', 'DOTUSDT', 'LINKUSDT'],
-          exchanges: ['bybit', 'binance', 'okx']
+          trigger: 'dashboard_init'
         }
       });
 

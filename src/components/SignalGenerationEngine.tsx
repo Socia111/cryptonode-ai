@@ -63,7 +63,7 @@ export function SignalGenerationEngine({ onSignalGenerated }: SignalEngineProps)
       }
 
       // Call the signal generation edge function
-      const { data, error } = await supabase.functions.invoke('aitradex1-original-scanner', {
+      const { data, error } = await supabase.functions.invoke('enhanced-signal-generation', {
         body: {
           action: 'generate_signals',
           symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT'],
