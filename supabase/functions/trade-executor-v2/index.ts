@@ -51,11 +51,26 @@ Deno.serve(async (req) => {
         body: { symbol }
       });
       
-      if (instError || !instData.ok) {
+      console.log('📊 Instrument Info Response:', { instData, instError })
+      
+      if (instError) {
+        console.error('❌ Instrument error:', instError)
         return new Response(JSON.stringify({
           ok: false,
-          reason: 'instrument',
-          error: `Failed to get instrument info for ${symbol}`
+          reason: 'instrument_error',
+          error: `Instrument service error: ${instError.message}`
+        }), { 
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        })
+      }
+      
+      if (!instData || !instData.ok) {
+        console.error('❌ Invalid instrument response:', instData)
+        return new Response(JSON.stringify({
+          ok: false,
+          reason: 'instrument_invalid',
+          error: `Invalid instrument response for ${symbol}`
         }), { 
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -64,6 +79,7 @@ Deno.serve(async (req) => {
       
       instrumentInfo = instData;
     } catch (e) {
+      console.error('❌ Instrument fetch exception:', e)
       return new Response(JSON.stringify({
         ok: false,
         reason: 'instrument_fetch',

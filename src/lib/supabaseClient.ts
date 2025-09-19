@@ -1,11 +1,10 @@
-// Single Supabase client for the entire app
+// Single Supabase client for the entire app - MAIN CLIENT INSTANCE
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
-import { env } from './env';
 
-// Use validated environment variables
-const url = env.VITE_SUPABASE_URL;
-const key = env.VITE_SUPABASE_ANON_KEY;
+// Direct constants to avoid env complications
+const url = "https://codhlwjogfjywmjyjbbn.supabase.co";
+const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0";
 
 // Single client instance to avoid multiple auth warnings  
 const supabase = createClient<Database>(url, key, {
