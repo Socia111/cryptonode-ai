@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import Automation from "./pages/Automation";
 import CoinEx from "./pages/CoinEx";
 import AuthGuard from "./components/AuthGuard";
+import NotFound from "./pages/NotFound";
 import { RebuildConsole } from "./components/RebuildConsole";
 
 const queryClient = new QueryClient({
@@ -50,11 +51,7 @@ function App() {
                   <Automation />
                 </AuthGuard>
               } />
-              <Route path="*" element={
-                <AuthGuard>
-                  <Index />
-                </AuthGuard>
-              } />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
           </TooltipProvider>
