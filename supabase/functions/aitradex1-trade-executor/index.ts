@@ -253,32 +253,58 @@ serve(async (req) => {
           paper_mode: trade.paper_mode || false
         });
 
-        // Live trading only - paper trading removed
+        // Check if paper trading mode is requested
+        const paperMode = trade.paper_mode === true;
         const liveTradeEnabled = Deno.env.get('LIVE_TRADING_ENABLED') === 'true';
-        
-        if (!liveTradeEnabled) {
-          throw new Error('Live trading is disabled');
-        }
         
         let result;
         let credentials = null;
         const startTime = Date.now();
 
-        // Execute live trade only
-        console.log('💰 Executing live trade...');
-        
-        // Get credentials with user preference first, then system fallback
-        if (trade.user_id) {
-          console.log('🔍 Attempting to use user credentials...');
-          credentials = await getUserCredentials(trade.user_id);
-        }
-        
-        if (!credentials) {
-          console.log('🔧 Falling back to system credentials...');
-          credentials = await getSystemCredentials();
-        }
+        if (paperMode) {
+          // Paper trading - simulate trade without hitting Bybit API
+          console.log('📝 Executing paper trade...');
+          
+          result = {
+            retCode: 0,
+            retMsg: 'Paper trade executed successfully',
+            result: {
+              orderId: `paper_${Date.now()}`,
+              orderLinkId: `paper_link_${Date.now()}`,
+              avgPrice: '50000.00', // Mock price
+              cumExecQty: (trade.qty || (trade.amount_usd || 50) / 50000).toString(),
+              qty: (trade.qty || (trade.amount_usd || 50) / 50000).toString(),
+              side: trade.side === 'BUY' ? 'Buy' : 'Sell',
+              symbol: trade.symbol,
+              orderType: 'Market',
+              orderStatus: 'Filled',
+              cumExecValue: (trade.amount_usd || 50).toString(),
+              cumExecFee: '0.001'
+            }
+          };
+          
+          console.log('✅ Paper trade simulated successfully');
+        } else {
+          // Live trading
+          if (!liveTradeEnabled) {
+            throw new Error('Live trading is disabled. Use paper_mode: true for testing.');
+          }
+          
+          console.log('💰 Executing live trade...');
+          
+          // Get credentials with user preference first, then system fallback
+          if (trade.user_id) {
+            console.log('🔍 Attempting to use user credentials...');
+            credentials = await getUserCredentials(trade.user_id);
+          }
+          
+          if (!credentials) {
+            console.log('🔧 Falling back to system credentials...');
+            credentials = await getSystemCredentials();
+          }
 
-        result = await executeBybitTrade(trade, credentials);
+          result = await executeBybitTrade(trade, credentials);
+        }
 
         const executionTime = Date.now() - startTime;
 
@@ -290,7 +316,7 @@ serve(async (req) => {
           qty: trade.qty || (result.result?.cumExecQty ? parseFloat(result.result.cumExecQty) : null),
           amount_usd: trade.amount_usd,
           leverage: trade.leverage || 1,
-          paper_mode: false, // Live trading only
+          paper_mode: paperMode
           status: result.retCode === 0 ? 'executed' : 'failed',
           exchange_order_id: result.result?.orderId || null,
           ret_code: result.retCode,
@@ -314,7 +340,7 @@ serve(async (req) => {
         const responseData = {
           success: result.retCode === 0,
           trade_id: result.result?.orderId || result.result?.orderLinkId,
-          paper_mode: false, // Live trading only
+          paper_mode: paperMode,
           result: result,
           message: result.retMsg || 'Trade executed successfully',
           execution_time_ms: executionTime,

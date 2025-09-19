@@ -36,8 +36,8 @@ export function useTradingExecutor() {
         throw new Error('Missing required trade parameters');
       }
 
-      // Execute live trade using real Bybit API
-      console.log('📡 Executing REAL Bybit trade with:', params);
+      // Execute trade via trade executor
+      console.log('📡 Executing trade with:', params);
       
       const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
         body: {
@@ -47,16 +47,23 @@ export function useTradingExecutor() {
           amount_usd: params.amount,
           leverage: params.leverage || 1,
           order_type: 'Market',
-          paper_mode: false, // REAL TRADING
+          paper_mode: true, // FAKE/PAPER TRADING for testing
           user_id: null // Will use system credentials
         }
       });
 
-      if (error) throw error;
+      console.log('📊 Trade executor response:', { data, error });
+
+      if (error) {
+        console.error('❌ Supabase function error:', error);
+        throw new Error(`Function error: ${error.message}`);
+      }
 
       // Handle Bybit API response format
-      if (!data.success) {
-        throw new Error(data.error || 'Trade execution failed');
+      if (!data || !data.success) {
+        const errorMessage = data?.message || data?.error || data?.result?.retMsg || 'Trade execution failed';
+        console.error('❌ Trade execution failed:', data);
+        throw new Error(errorMessage);
       }
 
       const result: TradeResult = {
@@ -70,7 +77,7 @@ export function useTradingExecutor() {
       setLastTrade(result);
 
       toast({
-        title: "✅ Real Trade Executed",
+        title: "✅ Trade Executed",
         description: result.message,
         variant: "default"
       });

@@ -10,6 +10,7 @@ import { useSystemTrigger } from '@/hooks/useSystemTrigger';
 import { useSystemTests } from '@/hooks/useSystemTests';
 import { SystemTester } from '@/components/SystemTester';
 import { QuickSystemTest } from '@/components/QuickSystemTest';
+import { FakeTradeTest } from '@/components/FakeTradeTest';
 
 interface SystemStatus {
   database: boolean;
@@ -234,6 +235,11 @@ export const SystemStatusSummary: React.FC = () => {
         {/* System Tester Component */}
         <div className="mt-6">
           <SystemTester />
+        </div>
+        
+        {/* Fake Trade Test Component */}
+        <div className="mt-6">
+          <FakeTradeTest />
         </div>
       </CardContent>
     </Card>
