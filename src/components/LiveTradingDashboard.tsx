@@ -262,7 +262,7 @@ export const LiveTradingDashboard = () => {
                 </div>
               ) : signals.length > 0 ? (
                 <div className="space-y-3">
-                  {signals.slice(0, 10).map((signal) => (
+                  {signals.slice(0, 50).map((signal) => (
                     <div key={signal.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
                         <Badge variant={signal.direction === 'BUY' ? 'default' : 'destructive'}>

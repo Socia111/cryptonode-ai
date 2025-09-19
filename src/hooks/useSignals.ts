@@ -170,7 +170,7 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
       status: 'active',
       created_at: item.created_at || new Date().toISOString(),
     }))
-    .slice(0, 20); // Limit to 20 most recent signals
+    .slice(0, 100); // Increased limit to show more signals
 }
 
 // Mock signals function removed - using only real signals
@@ -257,13 +257,13 @@ export const useSignals = () => {
         .gte('score', 70) // Lower threshold 
         .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100);
         
       if (error) throw error;
       
       const mappedSignals = (data || []).map(mapDbToSignal);
       setSignals(mappedSignals);
-      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database (80%+ confidence only)`);
+      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database (score >= 70)`);
     } catch (err: any) {
       console.error('[useSignals] refreshSignals failed:', err);
       setError(err.message || 'Failed to fetch signals');
