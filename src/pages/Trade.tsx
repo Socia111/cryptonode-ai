@@ -4,7 +4,7 @@ import TradingPanel from '../components/TradingPanel';
 import TradingChart from '../components/TradingChart';
 import { SignalFeed } from '@/components/SignalFeed';
 // TradingFixTest removed - unused component
-import { TradingTest } from '@/components/TradingTest';
+
 import { TradeExecutionTest } from '@/components/TradeExecutionTest';
 import { useSignals } from '@/hooks/useSignals';
 import { useRealTimeSignals } from '@/hooks/useRealTimeSignals';
@@ -52,12 +52,10 @@ const Trade = () => {
 
         {/* Trading Tabs */}
         <Tabs defaultValue="signals" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="debug">🔍 Debug</TabsTrigger>
             <TabsTrigger value="signals">🎯 Live Signals ({stats.totalSignals})</TabsTrigger>
-            <TabsTrigger value="test">🔧 System Test</TabsTrigger>
-            <TabsTrigger value="trading-test">🧪 Trading Test</TabsTrigger>
-            <TabsTrigger value="execution-test">⚡ Live Test</TabsTrigger>
+            <TabsTrigger value="execution-test">⚡ Live Execution</TabsTrigger>
           </TabsList>
           
             <TabsContent value="debug" className="mt-6">
@@ -107,15 +105,6 @@ const Trade = () => {
             </div>
           </TabsContent>
           
-          <TabsContent value="test" className="mt-6">
-            <div className="text-center py-8 text-muted-foreground">
-              <p>Trading fix test has been removed to simplify the interface.</p>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="trading-test" className="mt-6">
-            <TradingTest />
-          </TabsContent>
           
           <TabsContent value="execution-test" className="mt-6">
             <TradeExecutionTest />

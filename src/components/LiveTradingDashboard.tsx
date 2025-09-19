@@ -31,7 +31,7 @@ export const LiveTradingDashboard = () => {
   const { toast } = useToast();
   const { signals, loading, refreshSignals, generateSignals } = useSignals();
   const [autoTradingEnabled, setAutoTradingEnabled] = useState(false);
-  const [paperTrading, setPaperTrading] = useState(true);
+  const [liveTrading, setLiveTrading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   
   const [systemStatus, setSystemStatus] = useState<SystemStatus>({
@@ -187,12 +187,12 @@ export const LiveTradingDashboard = () => {
             
             <div className="flex items-center space-x-2">
               <Switch 
-                checked={paperTrading} 
-                onCheckedChange={setPaperTrading}
-                id="paper-trading"
+                checked={liveTrading} 
+                onCheckedChange={setLiveTrading}
+                id="live-trading"
               />
-              <label htmlFor="paper-trading" className="text-sm font-medium">
-                Paper Trading Mode
+              <label htmlFor="live-trading" className="text-sm font-medium">
+                Live Trading Mode
               </label>
             </div>
           </div>

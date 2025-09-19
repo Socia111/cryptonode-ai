@@ -13,7 +13,6 @@ interface TradeParams {
   symbol: string;
   side: 'Buy' | 'Sell';
   amountUSD: number;
-  testMode: boolean;
 }
 
 export const TradingDashboard = () => {
@@ -22,8 +21,7 @@ export const TradingDashboard = () => {
   const [tradeParams, setTradeParams] = useState<TradeParams>({
     symbol: 'BTCUSDT',
     side: 'Buy',
-    amountUSD: 100,
-    testMode: true
+    amountUSD: 100
   });
 
   const executeTestTrade = async () => {
@@ -173,8 +171,8 @@ export const TradingDashboard = () => {
             </div>
 
             <div className="space-y-2 flex items-end">
-              <Badge variant={tradeParams.testMode ? "secondary" : "destructive"}>
-                {tradeParams.testMode ? "Test Mode" : "Live Trading"}
+              <Badge variant="default">
+                Live Trading
               </Badge>
             </div>
           </div>

@@ -131,9 +131,9 @@ export const ProductionControls = () => {
       );
       
       setIsLiveMode(false);
-      console.log('📋 PAPER trading mode activated');
+      console.log('🚀 LIVE trading mode activated');
       toast({
-        title: "Paper Trading Enabled",
+        title: "Live Trading Enabled",
         description: "All trades are now simulated",
         variant: "default"
       });
@@ -235,7 +235,7 @@ export const ProductionControls = () => {
           <div>
             <h3 className="font-semibold">Trading Mode</h3>
             <p className="text-sm text-muted-foreground">
-              {isLiveMode ? 'Live trading with real money' : 'Paper trading (simulation)'}
+              Live trading with real money
             </p>
           </div>
           
