@@ -156,7 +156,6 @@ export function LiveTradingEnabler() {
           symbol: testSymbol,
           side: side,
           amount_usd: testAmount,
-          paper_mode: settings.paper_trading,
           leverage: settings.default_leverage
         }
       });
@@ -177,7 +176,6 @@ export function LiveTradingEnabler() {
       console.error('Test trade failed:', error);
       setTestResult({
         success: false,
-        paper_mode: settings.paper_trading,
         message: error.message || 'Unknown error occurred'
       });
       
@@ -283,19 +281,6 @@ export function LiveTradingEnabler() {
                 />
               </div>
 
-              {/* Paper Trading Toggle */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <Label className="text-base font-medium">Paper Trading Mode</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Simulate trades without real money
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.paper_trading}
-                  onCheckedChange={(checked) => updateSetting('paper_trading', checked)}
-                />
-              </div>
 
               {/* Risk Settings */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
