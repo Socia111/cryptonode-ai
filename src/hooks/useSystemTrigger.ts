@@ -11,7 +11,7 @@ export function useSystemTrigger() {
       setIsRunning(true);
       console.log('[System Trigger] Starting auto-refresh system...');
       
-      const { data, error } = await supabase.functions.invoke('auto-refresh-system', {
+      const { data, error } = await supabase.functions.invoke('auto-refresh-system-trigger', {
         body: { 
           manual_trigger: true,
           timestamp: new Date().toISOString()
@@ -131,9 +131,11 @@ export function useSystemTrigger() {
   return {
     isRunning,
     lastRun,
-    triggerAutoRefresh,
-    triggerSignalGeneration,
-    triggerMarketDataRefresh,
-    runFullSystemRefresh
+    actions: {
+      triggerAutoRefresh,
+      triggerSignalGeneration,
+      triggerMarketDataRefresh,
+      runFullSystemRefresh
+    }
   };
 }

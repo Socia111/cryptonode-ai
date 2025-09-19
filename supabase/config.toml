@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.system-diagnostic]
 verify_jwt = false
+
+[functions.auto-refresh-system-trigger]
+verify_jwt = false

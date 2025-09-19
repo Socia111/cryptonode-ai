@@ -95,24 +95,29 @@ async function getSystemCredentials(): Promise<BybitCredentials> {
   };
 }
 
-function createBybitSignature(params: string, secret: string, timestamp: string, apiKey: string): Promise<string> {
+async function createBybitSignature(params: string, secret: string, timestamp: string, apiKey: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(timestamp + apiKey + '5000' + params);
   const key = encoder.encode(secret);
   
-  return crypto.subtle.importKey(
-    'raw',
-    key,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  ).then(cryptoKey => 
-    crypto.subtle.sign('HMAC', cryptoKey, data)
-  ).then(signature => 
-    Array.from(new Uint8Array(signature))
+  try {
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      key,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    
+    const signature = await crypto.subtle.sign('HMAC', cryptoKey, data);
+    
+    return Array.from(new Uint8Array(signature))
       .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-  );
+      .join('');
+  } catch (error) {
+    console.error('❌ Signature generation failed:', error);
+    throw new Error(`Failed to generate signature: ${error.message}`);
+  }
 }
 
 async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredentials) {
@@ -157,12 +162,17 @@ async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredenti
       
       // Calculate quantity with leverage
       const leverage = trade.leverage || 1;
-      qty = (trade.amount_usd * leverage) / currentPrice;
+      qty = trade.amount_usd / currentPrice; // Remove leverage from qty calculation
       
       // Apply quantity precision based on qtyStep
       const qtyStepPrecision = qtyStep.toString().split('.')[1]?.length || 3;
       qty = Math.floor(qty / qtyStep) * qtyStep;
       qty = parseFloat(qty.toFixed(qtyStepPrecision));
+      
+      // Ensure minimum quantity
+      if (qty < minQty) {
+        qty = minQty;
+      }
       
       console.log(`💰 Calculated qty: ${qty} (price: ${currentPrice}, amount: ${trade.amount_usd}, leverage: ${leverage})`);
     } else {

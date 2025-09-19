@@ -13,6 +13,12 @@ serve(async (req) => {
   }
 
   try {
+    // Initialize Supabase client first
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+    
     const body = await req.json().catch(() => ({}));
     
     // Default symbols to scan if none provided
@@ -29,11 +35,6 @@ serve(async (req) => {
 
     console.log(`🔍 Starting live scanner with params: ${JSON.stringify({exchange, timeframe, symbols: symbolsToScan, relaxed_filters})}`);
     console.log(`📊 Scanning ${symbolsToScan.length} symbols on ${timeframe} timeframe`);
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
 
     // For now, return existing signals that match criteria
     let query = supabase

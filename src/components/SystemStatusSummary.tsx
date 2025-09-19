@@ -7,6 +7,7 @@ import { CheckCircle, AlertTriangle, RefreshCw, Activity, Zap, TrendingUp } from
 import { supabase } from '@/integrations/supabase/client';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useSystemTrigger } from '@/hooks/useSystemTrigger';
+import { useSystemTests } from '@/hooks/useSystemTests';
 
 interface SystemStatus {
   database: boolean;
@@ -23,12 +24,8 @@ export const SystemStatusSummary: React.FC = () => {
   const [isChecking, setIsChecking] = useState(false);
   const { toast } = useToast();
   const autoRefresh = useAutoRefresh(2); // Auto-refresh every 2 minutes
-  const { 
-    isRunning: isSystemRunning, 
-    triggerSignalGeneration, 
-    triggerMarketDataRefresh,
-    runFullSystemRefresh 
-  } = useSystemTrigger();
+  const { isRunning, lastRun, actions } = useSystemTrigger();
+  const { isRunning: testsRunning, results: testResults, runComprehensiveTests, runQuickDiagnostic } = useSystemTests();
 
   const checkSystemStatus = async () => {
     setIsChecking(true);
@@ -139,65 +136,66 @@ export const SystemStatusSummary: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Button
-            onClick={runFullSystemRefresh}
-            disabled={isSystemRunning}
+            onClick={actions.runFullSystemRefresh}
+            disabled={isRunning || testsRunning}
             variant="default"
-            size="sm"
+            className="w-full"
           >
-            {isSystemRunning ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Running...
-              </>
-            ) : (
-              <>
-                <Zap className="mr-2 h-4 w-4" />
-                Full Refresh
-              </>
-            )}
-          </Button>
-
-          <Button
-            onClick={triggerMarketDataRefresh}
-            disabled={isSystemRunning}
-            variant="outline"
-            size="sm"
-          >
-            <Activity className="mr-2 h-4 w-4" />
-            Market Data
+            {isRunning ? '🔄 Running...' : '🔄 Full Refresh'}
           </Button>
           
           <Button
-            onClick={triggerSignalGeneration}
-            disabled={isSystemRunning}
+            onClick={runComprehensiveTests}
+            disabled={isRunning || testsRunning}
             variant="outline"
-            size="sm"
+            className="w-full"
           >
-            <TrendingUp className="mr-2 h-4 w-4" />
-            Signals
+            {testsRunning ? '🧪 Testing...' : '🧪 Run Tests'}
           </Button>
-
+          
           <Button
-            onClick={checkSystemStatus}
-            disabled={isChecking || isSystemRunning}
+            onClick={actions.triggerMarketDataRefresh}
+            disabled={isRunning || testsRunning}
             variant="outline"
-            size="sm"
+            className="w-full"
           >
-            {isChecking ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Checking...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Check Status
-              </>
-            )}
+            📊 Market Data
+          </Button>
+          
+          <Button
+            onClick={actions.triggerSignalGeneration}
+            disabled={isRunning || testsRunning}
+            variant="outline"
+            className="w-full"
+          >
+            🎯 Generate Signals
           </Button>
         </div>
+
+        {testResults && (
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold mb-4">🧪 System Test Results</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.entries(testResults).map(([testName, result]) => (
+                <div key={testName} className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium capitalize">{testName.replace(/([A-Z])/g, ' $1')}</span>
+                    <span className={`text-sm px-2 py-1 rounded ${
+                      result.status === 'pass' ? 'bg-green-100 text-green-800' :
+                      result.status === 'fail' ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {result.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600">{result.message}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Auto-refresh status */}
         {autoRefresh.lastRefresh && (
