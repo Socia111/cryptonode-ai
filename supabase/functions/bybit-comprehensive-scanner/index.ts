@@ -434,8 +434,9 @@ serve(async (req) => {
                   timeframe: `${timeframe}m`,
                   direction: signal.signal,
                   bar_time: signal.bar_time,
+                  price: signal.price,
                   entry_price: signal.price,
-                  confidence_score: signal.confidence_score,
+                  score: signal.confidence_score,
                   signal_strength: signal.confidence_score > 70 ? 'STRONG' : signal.confidence_score > 50 ? 'MEDIUM' : 'WEAK',
                   risk_level: 'MEDIUM',
                   metadata: {

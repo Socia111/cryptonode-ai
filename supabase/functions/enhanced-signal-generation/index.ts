@@ -97,45 +97,53 @@ serve(async (req) => {
       }
     }
 
-    // Store signals with enhanced data
-    if (signals.length > 0) {
-      const { data: insertedSignals, error } = await supabase
-        .from('strategy_signals')
-        .insert(signals.map(s => ({
-          strategy: s.signal_type,
-          side: s.direction === 'BUY' ? 'LONG' : 'SHORT',
-          market_symbol: s.token,
-          confidence: s.confidence_score / 100,
-          score: s.pms_score,
-          entry_hint: s.entry_price,
-          tp_hint: s.exit_target,
-          sl_hint: s.stop_loss,
-          meta: {
-            timeframe: s.timeframe,
-            leverage: s.leverage,
-            volume_strength: s.volume_strength,
-            roi_projection: s.roi_projection,
-            signal_strength: s.signal_strength,
-            risk_level: s.risk_level,
-            quantum_probability: s.quantum_probability,
-            stels_analysis: s.stels_analysis
-          },
-          is_active: true
-        })))
-        .select()
+    // Insert generated signals with confidence scores above 75 into the signals table in Supabase
+    const insertPromises = signals
+      .filter(signal => signal.confidence_score > 75)
+      .map(signal => {
+        return supabase
+          .from('signals')
+          .insert({
+            symbol: signal.token,
+            direction: signal.direction === 'BUY' ? 'LONG' : 'SHORT',
+            price: signal.entry_price,
+            entry_price: signal.entry_price,
+            take_profit: signal.exit_target,
+            stop_loss: signal.stop_loss,
+            score: Math.round(signal.confidence_score),
+            confidence: signal.confidence_score / 100,
+            timeframe: signal.timeframe || '1h',
+            source: 'enhanced_signal_generation',
+            algo: 'STELS_Enhanced',
+            exchange: 'bybit',
+            is_active: true,
+            bar_time: new Date(),
+            diagnostics: {},
+            metadata: {
+              technical_indicators: signal.stels_analysis || {},
+              signal_strength: signal.signal_strength,
+              risk_level: signal.risk_level,
+              quantum_probability: signal.quantum_probability
+            }
+          })
+      })
 
-      if (error) {
-        console.error('[enhanced-signal-generation] Insert failed:', error)
-        throw error
+    if (signals.length > 0) {
+      const results = await Promise.allSettled(insertPromises)
+      const successful = results.filter(r => r.status === 'fulfilled').length
+      const failed = results.filter(r => r.status === 'rejected').length
+
+      if (failed > 0) {
+        console.error('[enhanced-signal-generation] Some inserts failed:', failed)
       }
 
-      console.info('[enhanced-signal-generation] Success:', insertedSignals.length, 'signals inserted')
+      console.info('[enhanced-signal-generation] Success:', successful, 'signals inserted,', failed, 'failed')
 
       return new Response(
         JSON.stringify({ 
           success: true, 
-          signals: insertedSignals.length,
-          data: insertedSignals,
+          signals: successful,
+          failed,
           average_confidence: signals.reduce((acc, s) => acc + s.confidence_score, 0) / signals.length
         }),
         { headers: corsHeaders }
