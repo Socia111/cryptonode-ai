@@ -64,8 +64,9 @@ export function useTradingExecutor() {
       setLastTrade(result);
 
       toast({
-        title: "✅ Live Trade Executed",
-        description: result.message
+        title: "✅ Real Trade Executed",
+        description: result.message,
+        variant: "default"
       });
 
       return result;

@@ -20,8 +20,18 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Get all active symbols from markets table
+    const { data: markets } = await supabase
+      .from('markets')
+      .select('symbol, base_asset')
+      .eq('enabled', true)
+      .eq('exchange', 'bybit')
+      .order('symbol')
+
     const body = await req.json().catch(() => ({}));
-    const symbols = body.symbols || ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT', 'XRPUSDT', 'DOTUSDT', 'LINKUSDT'];
+    const symbols = body.symbols || (markets && markets.length > 0 
+      ? markets.map(m => m.symbol)
+      : ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT', 'XRPUSDT', 'DOTUSDT', 'LINKUSDT']);
     const timeframes = ['15m', '30m', '1h'];
 
     console.log(`[AItradeX1-Enhanced] Scanning ${symbols.length} symbols with REAL data...`);

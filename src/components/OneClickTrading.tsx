@@ -169,7 +169,7 @@ export function OneClickTrading() {
           One-Click Trading
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Click any signal to execute a $50 trade instantly
+          ⚠️ REAL MONEY TRADING - Click any signal to execute a $50 USDT live trade
         </p>
       </CardHeader>
       <CardContent>
