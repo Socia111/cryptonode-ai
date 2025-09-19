@@ -46,7 +46,7 @@ export const SystemTestPanel = () => {
       const { data: tradeResult, error: tradeError } = await supabase.functions.invoke('paper-trading-executor', {
         body: {
           symbol: 'BTCUSDT',
-          side: 'Buy',
+          side: 'buy',
           amount: 50,
           leverage: 1,
           paperMode: true
