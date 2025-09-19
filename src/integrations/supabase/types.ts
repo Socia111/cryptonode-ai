@@ -232,6 +232,60 @@ export type Database = {
         }
         Relationships: []
       }
+      execution_queue: {
+        Row: {
+          amount_usd: number
+          attempts: number | null
+          created_at: string | null
+          id: string
+          last_error: string | null
+          leverage: number | null
+          locked_at: string | null
+          metadata: Json | null
+          side: string
+          signal: Json | null
+          signal_id: string | null
+          status: string | null
+          symbol: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount_usd: number
+          attempts?: number | null
+          created_at?: string | null
+          id?: string
+          last_error?: string | null
+          leverage?: number | null
+          locked_at?: string | null
+          metadata?: Json | null
+          side: string
+          signal?: Json | null
+          signal_id?: string | null
+          status?: string | null
+          symbol: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount_usd?: number
+          attempts?: number | null
+          created_at?: string | null
+          id?: string
+          last_error?: string | null
+          leverage?: number | null
+          locked_at?: string | null
+          metadata?: Json | null
+          side?: string
+          signal?: Json | null
+          signal_id?: string | null
+          status?: string | null
+          symbol?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       instruments_cache: {
         Row: {
           category: string
@@ -1232,8 +1286,36 @@ export type Database = {
         Args: { days?: number }
         Returns: undefined
       }
+      claim_execution_jobs: {
+        Args: { p_limit?: number }
+        Returns: {
+          amount_usd: number
+          attempts: number | null
+          created_at: string | null
+          id: string
+          last_error: string | null
+          leverage: number | null
+          locked_at: string | null
+          metadata: Json | null
+          side: string
+          signal: Json | null
+          signal_id: string | null
+          status: string | null
+          symbol: string
+          updated_at: string | null
+          user_id: string | null
+        }[]
+      }
+      complete_execution_job: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       expire_signals: {
         Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      fail_execution_job: {
+        Args: { p_error: string; p_id: string }
         Returns: undefined
       }
       get_user_trading_account: {
@@ -1255,6 +1337,10 @@ export type Database = {
       initialize_real_system: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      requeue_stale_jobs: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       restore_user_trading_account: {
         Args: {
