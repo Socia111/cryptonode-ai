@@ -1528,6 +1528,10 @@ export type Database = {
         }
         Returns: string
       }
+      trigger_crypto_scheduler: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
