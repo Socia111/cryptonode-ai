@@ -60,7 +60,7 @@ export function useRealTimeSignals(options: UseRealTimeSignalsOptions = {}): Rea
       let signalsQuery = supabase
         .from('signals')
         .select('*')
-        .gte('score', minScore)
+        // Show all signals regardless of score
         .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours for real-time signals
         .order('created_at', { ascending: false })
         .limit(100);

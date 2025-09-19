@@ -67,7 +67,7 @@ export function SignalFeed({ signals: initialSignals }: { signals?: UISignal[] }
         },
         (payload) => {
           console.log('New signal in feed:', payload.new);
-          if (payload.new && payload.new.score >= 70) {
+          if (payload.new) { // Show all signals regardless of score
             // Check if it's a real signal using correct source names
             const isRealSignal = payload.new.source === 'aitradex1_real_enhanced' ||
                                 payload.new.source === 'real_market_data' ||
@@ -82,7 +82,7 @@ export function SignalFeed({ signals: initialSignals }: { signals?: UISignal[] }
                                  !payload.new.source.includes('mock') &&
                                  !payload.new.source.includes('demo'));
             
-            if (payload.new.score >= 70) {
+            if (payload.new.score >= 0) { // Show all signals
               // Show toast notification for ALL signals above 70%
               toast({
                 title: "📈 New Trading Signal",

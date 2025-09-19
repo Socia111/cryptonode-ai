@@ -43,7 +43,7 @@ export function FullMarketSignals() {
       const { data, error } = await supabase
         .from('signals')
         .select('*')
-        .gte('score', minScore)
+        // Show all signals regardless of score
         .gte('created_at', timeFilter)
         .order('created_at', { ascending: false })
         .limit(2000); // Get up to 2000 signals
@@ -195,17 +195,7 @@ export function FullMarketSignals() {
                 className="w-64"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm">Min Score:</label>
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                value={minScore}
-                onChange={(e) => setMinScore(Number(e.target.value))}
-                className="w-20"
-              />
-            </div>
+          {/* Removed min score filter to show ALL signals */}
             <div className="flex items-center gap-2">
               <Switch
                 checked={showOnlyRecent}

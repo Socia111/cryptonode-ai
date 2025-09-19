@@ -119,7 +119,7 @@ async function fetchSignals(): Promise<Signal[]> {
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
-      .gte('score', 70) // Lower threshold to show more signals
+      // Remove score filter to show ALL signals
       .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours only
       .order('created_at', { ascending: false })
       .limit(50);
@@ -148,7 +148,7 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
   const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
   
   return signals
-    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 70)
+    .filter(item => validTimeframes.includes(item.timeframe)) // Show all scores
     .map((item: any): Signal => ({
       id: item.id.toString(),
       token: item.symbol.replace('USDT', '/USDT'),
@@ -254,7 +254,7 @@ export const useSignals = () => {
       setError(null);
       const { data, error } = await supabase.from('signals')
         .select('*')
-        .gte('score', 70) // Lower threshold 
+        // Show all signals regardless of score 
         .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
         .order('created_at', { ascending: false })
         .limit(100);
