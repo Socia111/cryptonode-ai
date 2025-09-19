@@ -11,6 +11,7 @@ import { useSystemTests } from '@/hooks/useSystemTests';
 import { SystemTester } from '@/components/SystemTester';
 import { QuickSystemTest } from '@/components/QuickSystemTest';
 import { FakeTradeTest } from '@/components/FakeTradeTest';
+import { SystemErrorDiagnostics } from '@/components/SystemErrorDiagnostics';
 
 interface SystemStatus {
   database: boolean;
@@ -235,6 +236,11 @@ export const SystemStatusSummary: React.FC = () => {
         {/* System Tester Component */}
         <div className="mt-6">
           <SystemTester />
+        </div>
+        
+        {/* System Error Diagnostics */}
+        <div className="mt-6">
+          <SystemErrorDiagnostics />
         </div>
         
         {/* Fake Trade Test Component */}

@@ -251,22 +251,60 @@ export const useSignals = () => {
   const refreshSignals = async () => {
     setLoading(true);
     try {
+      console.log('🔄 Refreshing signals...');
       setError(null);
-      const { data, error } = await supabase.from('signals')
-        .select('*')
-        // Show all signals regardless of score 
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
-        .order('created_at', { ascending: false })
-        .limit(100);
-        
-      if (error) throw error;
       
-      const mappedSignals = (data || []).map(mapDbToSignal);
-      setSignals(mappedSignals);
-      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database (score >= 70)`);
+      // Add retry logic for fetch failures
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const { data, error } = await supabase.from('signals')
+            .select('*')
+            .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
+            .order('created_at', { ascending: false })
+            .limit(100);
+            
+          if (error) {
+            console.error('❌ Supabase query error:', error);
+            throw error;
+          }
+          
+          console.log(`✅ Successfully loaded ${data?.length || 0} signals from database`);
+          
+          const mappedSignals = (data || []).map(mapDbToSignal);
+          setSignals(mappedSignals);
+          setError(null);
+          break; // Success, exit retry loop
+          
+        } catch (fetchError) {
+          retryCount++;
+          console.warn(`⚠️ Fetch attempt ${retryCount} failed:`, fetchError);
+          
+          if (retryCount < maxRetries) {
+            // Wait before retry with exponential backoff
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          } else {
+            throw fetchError;
+          }
+        }
+      }
     } catch (err: any) {
-      console.error('[useSignals] refreshSignals failed:', err);
-      setError(err.message || 'Failed to fetch signals');
+      console.error('[useSignals] refreshSignals failed:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        details: err,
+        hint: 'Check network connectivity and Supabase status',
+        code: err instanceof Error ? (err as any).code : ''
+      });
+      
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch signals';
+      setError(errorMessage);
+      
+      // Don't clear existing signals on error, just show the error
+      if (signals.length === 0) {
+        setSignals([]);
+      }
     } finally {
       setLoading(false);
     }
