@@ -44,17 +44,13 @@ serve(async (req) => {
     
     // Log scan initiation
     await supabase
-      .from('signals_state')
+      .from('system_status')
       .upsert({
-        exchange: 'bybit',
-        symbol: 'COMPREHENSIVE_SCAN',
-        timeframe: 'TRIGGER',
-        direction: 'SCAN_STARTED',
-        last_emitted: new Date().toISOString(),
-        last_price: 0,
-        last_score: 0
-      }, {
-        onConflict: 'exchange,symbol,timeframe,direction'
+        service_name: 'bybit_scanner',
+        status: 'active',
+        last_update: new Date().toISOString(),
+        success_count: 1,
+        metadata: { scan_type: 'comprehensive', params: scanParams }
       })
     
     return new Response(

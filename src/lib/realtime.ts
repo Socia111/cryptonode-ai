@@ -33,7 +33,7 @@ export function subscribeSignals(
         event: 'INSERT', 
         schema: 'public', 
         table: 'signals',
-        filter: 'score=gte.80'
+        filter: 'score=gte.60'
       },
       (payload) => {
         if (payload.new) {
@@ -74,7 +74,7 @@ export function subscribeSignals(
         event: 'UPDATE', 
         schema: 'public', 
         table: 'signals',
-        filter: 'score=gte.80'
+        filter: 'score=gte.60'
       },
       (payload) => {
         if (payload.new) {

@@ -320,11 +320,10 @@ async function fetchBybitSymbols(): Promise<BybitSymbol[]> {
       throw new Error('Invalid response from Bybit API')
     }
     
-    // Filter for active USDT pairs only
+    // Filter for active USDT pairs only - removing marginTrading filter
     const usdtPairs = spotData.result.list.filter((symbol: BybitSymbol) => 
       symbol.quoteCoin === 'USDT' && 
-      symbol.status === 'Trading' &&
-      symbol.marginTrading === 'both'
+      symbol.status === 'Trading'
     )
     
     console.log(`📊 Found ${usdtPairs.length} active USDT trading pairs`)

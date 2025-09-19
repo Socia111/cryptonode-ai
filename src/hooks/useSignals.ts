@@ -102,7 +102,7 @@ async function fetchSignals(): Promise<Signal[]> {
     }
 
     if (allSignals && allSignals.length > 0) {
-      console.log(`[Signals] Found ${allSignals.length} total signals (80%+ confidence)`);
+      console.log(`[Signals] Found ${allSignals.length} total signals (60%+ confidence)`);
       return mapSignalsToInterface(allSignals);
     }
 
@@ -303,7 +303,7 @@ export const useSignals = () => {
       setError(null);
       const { data, error } = await supabase.from('signals')
         .select('*')
-        .gte('score', 80) // Only show 80%+ confidence signals 
+        .gte('score', 60) // Only show 60%+ confidence signals 
         .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Last 4 hours for fresh signals
         .order('created_at', { ascending: false })
         .limit(20); // Limit to 20 most recent
@@ -312,7 +312,7 @@ export const useSignals = () => {
       
       const mappedSignals = (data || []).map(mapDbToSignal);
       setSignals(mappedSignals);
-      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database (80%+ confidence only)`);
+      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database (60%+ confidence only)`);
     } catch (err: any) {
       console.error('[useSignals] refreshSignals failed:', err);
       setError(err.message || 'Failed to fetch signals');

@@ -22,7 +22,7 @@ const CleanSignalsList = () => {
     return signals
       .filter(signal => {
         const confidence = signal.confidence_score || 0;
-        return confidence >= 80; // Only show 80%+ confidence signals
+        return confidence >= 60; // Only show 60%+ confidence signals
       })
       .slice(0, 8); // Limit to 8 signals max for clean UI
   }, [signals]);
@@ -91,7 +91,7 @@ const CleanSignalsList = () => {
           <div className="text-center py-12 text-muted-foreground">
             <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>No high-confidence signals</p>
-            <p className="text-xs">Waiting for 80%+ confidence signals</p>
+            <p className="text-xs">Waiting for 60%+ confidence signals</p>
           </div>
         ) : (
           <div className="space-y-3">
