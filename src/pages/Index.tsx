@@ -7,6 +7,7 @@ import { SignalMonitor } from '@/components/SignalMonitor';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FullMarketSignals } from '@/components/FullMarketSignals';
 import { SimpleSystemStatus } from '@/components/SimpleSystemStatus';
+import TestRunner from '@/components/TestRunner';
 
 export default function Index() {
   return (
@@ -27,11 +28,12 @@ export default function Index() {
         </div>
 
         <Tabs defaultValue="monitor" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="monitor">Live Monitor</TabsTrigger>
             <TabsTrigger value="dashboard">Trading Dashboard</TabsTrigger>
             <TabsTrigger value="fullmarket">Full Market</TabsTrigger>
             <TabsTrigger value="symbols">Symbol Selection</TabsTrigger>
+            <TabsTrigger value="tests">Tests</TabsTrigger>
             <TabsTrigger value="launch">Launch Status</TabsTrigger>
           </TabsList>
           
@@ -49,6 +51,10 @@ export default function Index() {
           
           <TabsContent value="symbols" className="space-y-6">
             <SymbolSelector />
+          </TabsContent>
+          
+          <TabsContent value="tests" className="space-y-6">
+            <TestRunner />
           </TabsContent>
           
           <TabsContent value="launch" className="space-y-6">
