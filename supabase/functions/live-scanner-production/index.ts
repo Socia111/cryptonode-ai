@@ -411,8 +411,8 @@ serve(async (req) => {
           created_at: new Date().toISOString(),
         };
 
-        // Try LONG - Only save high-quality signals (score >= 80%)
-        if (ev.longOk && ev.longScore >= 80){
+        // Try LONG - Only save high-quality signals (score >= 60%)
+        if (ev.longOk && ev.longScore >= 60){
           const payload = {
             ...common,
             direction: "LONG",
@@ -434,8 +434,8 @@ serve(async (req) => {
           }
         }
 
-        // Try SHORT - Only save high-quality signals (score >= 80%)
-        if (ev.shortOk && ev.shortScore >= 80){
+        // Try SHORT - Only save high-quality signals (score >= 60%)
+        if (ev.shortOk && ev.shortScore >= 60){
           const payload = {
             ...common,
             direction: "SHORT",

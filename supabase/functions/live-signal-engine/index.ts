@@ -152,11 +152,11 @@ async function generateLiveSignal(symbol: string, marketData: any) {
   let score = 70; // Base quality score
   
   // Volume analysis (0-15 points)
-  const volume = marketData.volume || 0;
-  if (volume > 10000000) score += 15; // Very high volume
-  else if (volume > 5000000) score += 12; // High volume
-  else if (volume > 1000000) score += 8; // Medium volume
-  else if (volume > 500000) score += 4; // Low volume
+  const volumeAnalysis = marketData.volume || 0;
+  if (volumeAnalysis > 10000000) score += 15; // Very high volume
+  else if (volumeAnalysis > 5000000) score += 12; // High volume
+  else if (volumeAnalysis > 1000000) score += 8; // Medium volume
+  else if (volumeAnalysis > 500000) score += 4; // Low volume
   
   // Price momentum analysis (0-10 points)
   const priceChange = Math.abs(marketData.change24h || 0);
@@ -165,7 +165,7 @@ async function generateLiveSignal(symbol: string, marketData: any) {
   else if (priceChange > 1) score += 4; // Moderate momentum
   
   // Market strength indicators (0-5 points)
-  if (volume > 5000000 && priceChange > 2) {
+  if (volumeAnalysis > 5000000 && priceChange > 2) {
     score += 5; // High volume + momentum combination
   }
   
@@ -180,7 +180,7 @@ async function generateLiveSignal(symbol: string, marketData: any) {
     direction = 'SHORT';
   } else {
     // For sideways movement, use volume as indicator
-    direction = volume > 5000000 ? 'LONG' : 'SHORT';
+    direction = volumeAnalysis > 5000000 ? 'LONG' : 'SHORT';
   }
   
   return {

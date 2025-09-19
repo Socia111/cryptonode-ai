@@ -92,14 +92,14 @@ serve(async (req) => {
       
       const signal = await generateEnhancedSignal(data, indicators, stelsAnalysis, quantumProbability)
       
-      if (signal && signal.confidence_score > 75) {
+      if (signal && signal.confidence_score > 60) {
         signals.push(signal)
       }
     }
 
     // Insert generated signals with confidence scores above 75 into the signals table in Supabase
     const insertPromises = signals
-      .filter(signal => signal.confidence_score > 75)
+      .filter(signal => signal.confidence_score > 60)
       .map(signal => {
         return supabase
           .from('signals')
@@ -327,7 +327,7 @@ async function generateEnhancedSignal(
     0.05 * (quantumProb - 0.5) * 2
   )
   
-  const confidenceScore = Math.min(98, 50 + Math.abs(pmsScore) * 20 + bullishFactors * 5)
+  const confidenceScore = Math.min(95, 65 + Math.abs(pmsScore) * 15 + bullishFactors * 4)
   
   // Determine signal strength
   let signalStrength: 'WEAK' | 'MODERATE' | 'STRONG' | 'VERY_STRONG' = 'WEAK'
@@ -343,7 +343,7 @@ async function generateEnhancedSignal(
   let signal: EnhancedSignal | null = null
   
   // BUY Signal Logic (Enhanced)
-  if (bullishFactors >= 4 && pmsScore > 1.5 && quantumProb > 0.6) {
+  if (bullishFactors >= 3 && pmsScore > 0.8 && quantumProb > 0.55) {
     const roiTarget = Math.min(25, 10 + bullishFactors * 2)
     const stopLossPercent = Math.max(5, 10 - confidenceScore / 10)
     
@@ -369,7 +369,7 @@ async function generateEnhancedSignal(
   }
   
   // SELL Signal Logic (Enhanced)
-  else if (bearishFactors >= 4 && pmsScore < -1.5 && quantumProb < 0.4) {
+  else if (bearishFactors >= 3 && pmsScore < -0.8 && quantumProb < 0.45) {
     const roiTarget = Math.min(20, 8 + bearishFactors * 2)
     const stopLossPercent = Math.max(5, 10 - confidenceScore / 10)
     

@@ -91,7 +91,7 @@ async function fetchSignals(): Promise<Signal[]> {
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
-      .gte('score', 80) // Score 80+ signals only (high confidence)
+      .gte('score', 60) // Score 60+ signals only (high confidence)
       .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
       .order('created_at', { ascending: false })
       .limit(50);
@@ -120,7 +120,7 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
   const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
   
   return signals
-    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 80)
+    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 60)
     .map((item: any): Signal => ({
       id: item.id.toString(),
       token: item.symbol.replace('USDT', '/USDT'),
@@ -386,7 +386,7 @@ export const useSignals = () => {
       try {
         channel = subscribeSignalsRealtime(
           (newSignal) => { 
-            if (mounted && newSignal.confidence_score >= 80) { // Only show 80%+ signals
+            if (mounted && newSignal.confidence_score >= 60) { // Only show 60%+ signals
               setSignals(prev => [newSignal, ...prev].slice(0, 20));
               
               // Show toast notification for high-confidence signal
