@@ -1,6 +1,6 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
-// TelegramIntegration removed - unused component
+import TelegramIntegration from '../components/TelegramIntegration';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bell, MessageCircle, Zap, Target } from 'lucide-react';
 
@@ -73,10 +73,8 @@ const Alerts = () => {
           </Card>
         </div>
 
-        {/* Telegram Integration - Component removed */}
-        <div className="text-center py-8 text-muted-foreground">
-          <p>Telegram integration has been removed to simplify the interface.</p>
-        </div>
+        {/* Telegram Integration */}
+        <TelegramIntegration />
 
         {/* Additional Alert Settings */}
         <Card className="glass-card">

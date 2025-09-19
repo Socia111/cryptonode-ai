@@ -1,43 +1,56 @@
-// Single Supabase client for the entire app - MAIN CLIENT INSTANCE
+// Single Supabase client for the entire app
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/integrations/supabase/types';
+import { env } from './env';
 
-// Direct constants to avoid env complications
-const url = "https://codhlwjogfjywmjyjbbn.supabase.co";
-const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZGhsd2pvZ2ZqeXdtanlqYmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MTA3NjgsImV4cCI6MjA2OTA4Njc2OH0.Rjfe5evX0JZ2O-D3em4Sm1FtwIRtfPZWhm0zAJvg-H0";
+// Use validated environment variables
+const url = env.VITE_SUPABASE_URL;
+const key = env.VITE_SUPABASE_ANON_KEY;
 
-// Single client instance to avoid multiple auth warnings  
-const supabase = createClient<Database>(url, key, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
+// Create client with fallback handling
+let supabase: any;
+
+try {
+  supabase = createClient(url, key, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
     },
-  },
-  global: {
-    headers: {
-      'x-client-info': 'aitradex1-unified',
+  });
+} catch (error) {
+  console.warn('[Supabase] Failed to create client, using mock:', error);
+  // Create a mock client for development
+  supabase = {
+    from: () => ({
+      select: () => ({ error: null, data: [] }),
+      insert: () => ({ error: null, data: [] }),
+      update: () => ({ error: null, data: [] }),
+      delete: () => ({ error: null, data: [] }),
+      gte: () => ({ 
+        order: () => ({ 
+          limit: () => ({ error: null, data: [] }) 
+        }) 
+      }),
+      order: () => ({ 
+        limit: () => ({ error: null, data: [] }) 
+      })
+    }),
+    functions: {
+      invoke: () => Promise.resolve({ data: null, error: null })
     },
-  },
-});
+    removeChannel: () => {},
+    channel: () => ({
+      on: () => ({ subscribe: () => {} })
+    })
+  };
+}
 
-// Export the unified client for all uses
 export { supabase };
 
-console.log('[Supabase] Client created successfully with enhanced config');
-
-// Type-safe health check that verifies connectivity + RLS
+// A tiny health check that *really* verifies connectivity + RLS
 export async function isSupabaseConfigured(): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from('markets')
-      .select('id')
-      .limit(1);
-    
+    // Choose a public-read table; markets is ideal if you created it
+    const { error } = await supabase.from('markets').select('id').limit(1);
     if (error) {
       console.warn('[Supabase] Config present but query failed:', error.message);
       return false;

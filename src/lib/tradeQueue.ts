@@ -1,7 +1,7 @@
 // Trade queue system for reliable trade execution
-import { TradingGateway, ExecuteParams } from './tradingGateway';
+import { TradingGateway, ExecParams } from './tradingGateway';
 
-interface QueuedTrade extends ExecuteParams {
+interface QueuedTrade extends ExecParams {
   id: string;
   timestamp: number;
   retries: number;
@@ -15,7 +15,7 @@ class TradeQueue {
   private maxConcurrent = 3;
   private processing = new Set<string>();
 
-  addTrade(params: ExecuteParams): string {
+  addTrade(params: ExecParams): string {
     const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     const queuedTrade: QueuedTrade = {
@@ -77,13 +77,12 @@ class TradeQueue {
       const result = await TradingGateway.execute({
         symbol: trade.symbol,
         side: trade.side,
-        amountUSD: trade.amountUSD,
-        leverage: trade.leverage
+        notionalUSD: trade.notionalUSD
       });
 
       if (result.ok) {
         trade.status = 'completed';
-        console.log(`✅ Trade ${trade.id} completed successfully for ${trade.symbol} ${trade.side}`);
+        console.log(`✅ Trade ${trade.id} completed successfully`);
       } else {
         throw new Error(result.message || 'Trade execution failed');
       }

@@ -7,7 +7,7 @@ import { Settings, Zap, BarChart3, TrendingUp, ExternalLink, AlertTriangle, Test
 import { TradingGateway } from '@/lib/tradingGateway';
 import { toast } from '@/hooks/use-toast';
 import TradingDiagnostics from '@/components/TradingDiagnostics';
-
+import ManualAPITest from '@/components/ManualAPITest';
 import DirectBybitTest from '@/components/DirectBybitTest';
 import { Direct3CommasTest } from '@/components/Direct3CommasTest';
 import ThreeCommasAuth from '@/components/ThreeCommasAuth';
@@ -106,9 +106,7 @@ const LiveTradingSetup = () => {
       
       <TradingDiagnostics />
       
-            <div className="p-4 text-center text-muted-foreground">
-              Manual API Test component removed
-            </div>
+      <ManualAPITest />
       
       {/* Header */}
       <Card>

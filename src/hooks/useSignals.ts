@@ -3,9 +3,6 @@ import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { subscribeSignals as subscribeSignalsRealtime } from '@/lib/realtime';
 
-import { Signal as TradingSignal } from '@/types/trading';
-
-// UI-specific Signal type that extends the trading signal
 type Signal = {
   id: string;
   token: string;
@@ -40,16 +37,16 @@ function mapDbToSignal(row: any): Signal {
     direction: direction === 'LONG' ? 'BUY' : 'SELL',
     signal_type: `${row.algo ?? row.strategy ?? 'AItradeX1'} ${row.timeframe ?? '1h'}`,
     timeframe: row.timeframe ?? row.meta?.timeframe ?? '1h',
-    entry_price: Number(row.price ?? row.entry_price ?? 0),
-    exit_target: (row.take_profit ?? row.tp ?? row.tp_hint) != null ? Number(row.take_profit ?? row.tp ?? row.tp_hint) : null,
-    stop_loss: (row.stop_loss ?? row.sl ?? row.sl_hint) != null ? Number(row.stop_loss ?? row.sl ?? row.sl_hint) : null,
+    entry_price: Number(row.price ?? row.entry_hint ?? 0),
+    exit_target: (row.tp ?? row.tp_hint) != null ? Number(row.tp ?? row.tp_hint) : null,
+    stop_loss: (row.sl ?? row.sl_hint) != null ? Number(row.sl ?? row.sl_hint) : null,
     leverage: Number(row.leverage ?? row.meta?.leverage ?? 1),
     confidence_score: Number(row.score ?? row.confidence ?? 0),
     pms_score: Number(row.score ?? 0),
     trend_projection: direction === 'LONG' ? '⬆️' : '⬇️',
     volume_strength: Number(row.volume_strength ?? row.meta?.volume_strength ?? 1.0),
-    roi_projection: (row.take_profit ?? row.tp ?? row.tp_hint) && (row.price ?? row.entry_price) ? 
-      Math.abs((Number(row.take_profit ?? row.tp ?? row.tp_hint) - Number(row.price ?? row.entry_price)) / Number(row.price ?? row.entry_price) * 100) : 10,
+    roi_projection: (row.tp ?? row.tp_hint) && (row.price ?? row.entry_hint) ? 
+      Math.abs((Number(row.tp ?? row.tp_hint) - Number(row.price ?? row.entry_hint)) / Number(row.price ?? row.entry_hint) * 100) : 10,
     signal_strength: row.score > 85 ? 'STRONG' : row.score > 75 ? 'MEDIUM' : 'WEAK',
     risk_level: row.score > 85 ? 'LOW' : row.score > 75 ? 'MEDIUM' : 'HIGH',
     quantum_probability: Number(row.score ?? row.confidence ?? 0) / 100,
@@ -66,45 +63,20 @@ function mapDbSignal(row: any): Signal {
     direction: direction === 'LONG' ? 'BUY' : 'SELL',
     signal_type: row.signal_type ?? 'AI Strategy',
     timeframe: row.timeframe ?? '1h',
-    entry_price: Number(row.price ?? row.entry_price ?? 0),
-    exit_target: row.take_profit != null ? Number(row.take_profit) : null,
-    stop_loss: row.stop_loss != null ? Number(row.stop_loss) : null,
+    entry_price: Number(row.entry_price ?? 0),
+    exit_target: row.tp_price != null ? Number(row.tp_price) : null,
+    stop_loss: row.sl_price != null ? Number(row.sl_price) : null,
     leverage: Number(row.leverage ?? 1),
-    confidence_score: Number(row.confidence ?? row.score ?? 0),
+    confidence_score: Number(row.confidence_score ?? 0),
     pms_score: Number(row.score ?? 0),
     trend_projection: direction === 'LONG' ? '⬆️' : '⬇️',
     volume_strength: Number(row.volume_strength ?? 1.0),
     roi_projection: Number(row.roi_projection ?? 10),
     signal_strength: (row.signal_strength ?? 'MEDIUM').toUpperCase() as 'WEAK' | 'MEDIUM' | 'STRONG',
     risk_level: (row.risk_level ?? 'MEDIUM').toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH',
-    quantum_probability: Number(row.confidence ?? row.score ?? 0) / 100,
+    quantum_probability: Number(row.confidence_score ?? 0) / 100,
     status: row.is_active ? 'active' : 'inactive',
     created_at: row.created_at ?? new Date().toISOString(),
-  };
-}
-
-// Convert realtime signal to UI signal
-function convertRealtimeSignal(realtimeSignal: any): Signal {
-  return {
-    id: realtimeSignal.id,
-    token: realtimeSignal.token,
-    direction: realtimeSignal.direction === 'LONG' ? 'BUY' : 'SELL',
-    signal_type: realtimeSignal.signal_type,
-    timeframe: realtimeSignal.timeframe,
-    entry_price: realtimeSignal.entry_price,
-    exit_target: realtimeSignal.exit_target,
-    stop_loss: realtimeSignal.stop_loss,
-    leverage: realtimeSignal.leverage,
-    confidence_score: realtimeSignal.confidence_score,
-    pms_score: realtimeSignal.pms_score,
-    trend_projection: realtimeSignal.trend_projection,
-    volume_strength: realtimeSignal.volume_strength,
-    roi_projection: realtimeSignal.roi_projection,
-    signal_strength: realtimeSignal.signal_strength,
-    risk_level: realtimeSignal.risk_level,
-    quantum_probability: realtimeSignal.quantum_probability,
-    status: realtimeSignal.status,
-    created_at: realtimeSignal.created_at,
   };
 }
 
@@ -119,8 +91,8 @@ async function fetchSignals(): Promise<Signal[]> {
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
-      // Remove score filter to show ALL signals
-      .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours only
+      .gte('score', 80) // Score 80+ signals only (high confidence)
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -134,9 +106,9 @@ async function fetchSignals(): Promise<Signal[]> {
       return mapSignalsToInterface(allSignals);
     }
 
-    // No fallback to mock signals - force real data only
-    console.warn('[Signals] No live signals found - start CCXT feed for real data');
-    return [];
+    // Fallback to mock signals for demo purposes
+    console.log('[Signals] No live signals found, using demo signals');
+    return getMockSignals();
 
   } catch (e) {
     console.error('[Signals] Failed to fetch signals:', e);
@@ -148,94 +120,171 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
   const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
   
   return signals
-    .filter(item => validTimeframes.includes(item.timeframe)) // Show all scores
+    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 80)
     .map((item: any): Signal => ({
       id: item.id.toString(),
       token: item.symbol.replace('USDT', '/USDT'),
       direction: item.direction === 'LONG' ? 'BUY' : 'SELL',
       signal_type: `${item.algo || 'AItradeX1'} ${item.timeframe}`,
       timeframe: item.timeframe,
-      entry_price: Number(item.price || item.entry_price),
-      exit_target: item.take_profit ? Number(item.take_profit) : (item.tp ? Number(item.tp) : null),
-      stop_loss: item.stop_loss ? Number(item.stop_loss) : (item.sl ? Number(item.sl) : null),
+      entry_price: Number(item.price),
+      exit_target: item.tp ? Number(item.tp) : null,
+      stop_loss: item.sl ? Number(item.sl) : null,
       leverage: 1,
       confidence_score: Number(item.score),
       pms_score: Number(item.score),
       trend_projection: item.direction === 'LONG' ? '⬆️' : '⬇️',
       volume_strength: item.indicators?.volSma21 ? Number(item.indicators.volSma21) / 1000000 : 1.0,
-      roi_projection: Math.abs((Number(item.take_profit || item.tp || item.price * 1.1) - Number(item.price || item.entry_price)) / Number(item.price || item.entry_price) * 100),
+      roi_projection: Math.abs((Number(item.tp || item.price * 1.1) - Number(item.price)) / Number(item.price) * 100),
       signal_strength: item.score > 85 ? 'STRONG' : item.score > 75 ? 'MEDIUM' : 'WEAK',
       risk_level: item.score > 85 ? 'LOW' : item.score > 75 ? 'MEDIUM' : 'HIGH',
       quantum_probability: Number(item.score) / 100,
       status: 'active',
       created_at: item.created_at || new Date().toISOString(),
     }))
-    .slice(0, 100); // Increased limit to show more signals
+    .slice(0, 20); // Limit to 20 most recent signals
 }
 
-// Mock signals function removed - using only real signals
+function getMockSignals(): Signal[] {
+  // For development - show mock signals when no real signals available
+  const { generateMockSignals } = require('@/lib/mockSignals');
+  const mockData = generateMockSignals();
+  
+  return mockData.map((mock: any): Signal => ({
+    id: mock.id,
+    token: mock.symbol.replace('USDT', '/USDT'),
+    direction: mock.direction === 'LONG' ? 'BUY' : 'SELL',
+    signal_type: `${mock.algo} ${mock.timeframe}`,
+    timeframe: mock.timeframe,
+    entry_price: mock.price,
+    exit_target: mock.tp,
+    stop_loss: mock.sl,
+    leverage: 1,
+    confidence_score: mock.score,
+    pms_score: mock.score,
+    trend_projection: mock.direction === 'LONG' ? '⬆️' : '⬇️',
+    volume_strength: 1.0,
+    roi_projection: Math.abs((mock.tp - mock.price) / mock.price * 100),
+    signal_strength: mock.score > 90 ? 'STRONG' : mock.score > 85 ? 'MEDIUM' : 'WEAK',
+    risk_level: mock.score > 90 ? 'LOW' : mock.score > 85 ? 'MEDIUM' : 'HIGH',
+    quantum_probability: mock.score / 100,
+    status: 'active',
+    created_at: mock.created_at,
+  }));
+}
 
 // Function removed - now using subscribeSignalsRealtime from @/lib/realtime
 
 export async function generateSignals() {
   try {
-    console.info('[generateSignals] Triggering enhanced signal generation...');
+    console.info('[generateSignals] Triggering comprehensive live signal generation...');
     
-    // Use the enhanced scanner for better quality signals
-    const { data, error } = await supabase.functions.invoke('aitradex1-enhanced-scanner', {
-      body: { trigger: 'manual' }
+    const symbols: string[] = []; // Empty array means scan ALL available USDT pairs on Bybit
+    
+    // Run multiple timeframes in parallel for faster execution
+    const scanPromises = [
+      // 5-minute comprehensive scan - all coins
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '5m',
+          relaxed_filters: true,
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      }),
+      // 15-minute comprehensive scan - all coins
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit', 
+          timeframe: '15m',
+          relaxed_filters: true,
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      }),
+      // 1-hour comprehensive scan - all coins
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '1h', 
+          relaxed_filters: false, // Use canonical settings for higher timeframe
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      }),
+      // 4-hour comprehensive scan - all coins for swing trades
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '4h', 
+          relaxed_filters: false,
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      })
+    ];
+
+    // Wait for all scans to complete
+    const results = await Promise.allSettled(scanPromises);
+    
+    let totalSignals = 0;
+    const timeframes = ['5m', '15m', '1h', '4h'];
+    
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value.data) {
+        const signalsFound = result.value.data.signals_found || 0;
+        totalSignals += signalsFound;
+        console.log(`[generateSignals] ${timeframes[index]} scan: ${signalsFound} signals generated`);
+        if (result.value.error) {
+          console.warn(`[generateSignals] ${timeframes[index]} scan had errors:`, result.value.error);
+        }
+      } else if (result.status === 'rejected') {
+        console.error(`[generateSignals] ${timeframes[index]} scan failed:`, result.reason);
+      }
     });
 
-    if (error) {
-      console.error('[generateSignals] Enhanced signal generation failed:', error);
-      throw error;
-    }
+    if (totalSignals === 0) {
+      // Fallback to regular scanner with even more relaxed settings
+      console.log('[generateSignals] No signals found, trying fallback scanner...');
+      
+      const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('live-scanner', {
+        body: { 
+          exchange: 'bybit',
+          timeframe: '1h',
+          relaxed_filters: true,
+          symbols: [], // Empty = scan ALL USDT pairs as fallback
+          scan_all_coins: true
+        }
+      });
 
-    console.info(`[generateSignals] Success: ${data?.signals_generated || 0} signals generated`);
-    return { signals_created: data?.signals_generated || 0, success: true };
+      if (fallbackError) {
+        throw fallbackError;
+      }
+
+      totalSignals = fallbackData?.signals_found || 0;
+    }
+    
+    console.info(`[generateSignals] Success: ${totalSignals} signals generated`);
+    return { signals_created: totalSignals, success: true };
   } catch (e: any) {
     console.error('[generateSignals] Exception:', e);
     throw e;
   }
 }
 
-export async function generateEnhancedSignals() {
-  try {
-    console.info('[generateEnhancedSignals] Triggering enhanced signal generation...');
-    
-    // Use the enhanced signal generator for comprehensive market analysis
-    const { data, error } = await supabase.functions.invoke('enhanced-signal-generation', {
-      body: { symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT', 'XRPUSDT', 'DOTUSDT', 'LINKUSDT'] }
-    });
-
-    if (error) {
-      console.error('[generateEnhancedSignals] Enhanced signal generation failed:', error);
-      throw error;
-    }
-
-    console.info(`[generateEnhancedSignals] Success: ${data?.signals_generated || 0} enhanced signals generated`);
-    return { signals_created: data?.signals_generated || 0, success: true };
-  } catch (e: any) {
-    console.error('[generateEnhancedSignals] Exception:', e);
-    throw e;
-  }
-}
-
 export async function updateSpynxScores() {
   try {
-    console.info('[updateSpynxScores] Calculating Spynx scores for active signals...');
+    console.info('[updateSpynxScores] Invoking calculate-spynx-scores...');
+    const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
     
-    const { data, error } = await supabase.functions.invoke('calculate-spynx-scores', {
-      body: { trigger: 'manual' }
-    });
-
     if (error) {
-      console.error('[updateSpynxScores] Spynx calculation failed:', error);
+      console.error('[updateSpynxScores] calculate-spynx-scores failed:', error.message);
       throw error;
     }
-
-    console.info(`[updateSpynxScores] Success: ${data?.scores_calculated || 0} scores calculated`);
-    return { scores_calculated: data?.scores_calculated || 0, success: true };
+    
+    console.info('[updateSpynxScores] Success:', data);
+    return data;
   } catch (e: any) {
     console.error('[updateSpynxScores] Exception:', e);
     throw e;
@@ -251,60 +300,22 @@ export const useSignals = () => {
   const refreshSignals = async () => {
     setLoading(true);
     try {
-      console.log('🔄 Refreshing signals...');
       setError(null);
+      const { data, error } = await supabase.from('signals')
+        .select('*')
+        .gte('score', 80) // Only show 80%+ confidence signals 
+        .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Last 4 hours for fresh signals
+        .order('created_at', { ascending: false })
+        .limit(20); // Limit to 20 most recent
+        
+      if (error) throw error;
       
-      // Add retry logic for fetch failures
-      let retryCount = 0;
-      const maxRetries = 3;
-      
-      while (retryCount < maxRetries) {
-        try {
-          const { data, error } = await supabase.from('signals')
-            .select('*')
-            .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
-            .order('created_at', { ascending: false })
-            .limit(100);
-            
-          if (error) {
-            console.error('❌ Supabase query error:', error);
-            throw error;
-          }
-          
-          console.log(`✅ Successfully loaded ${data?.length || 0} signals from database`);
-          
-          const mappedSignals = (data || []).map(mapDbToSignal);
-          setSignals(mappedSignals);
-          setError(null);
-          break; // Success, exit retry loop
-          
-        } catch (fetchError) {
-          retryCount++;
-          console.warn(`⚠️ Fetch attempt ${retryCount} failed:`, fetchError);
-          
-          if (retryCount < maxRetries) {
-            // Wait before retry with exponential backoff
-            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-          } else {
-            throw fetchError;
-          }
-        }
-      }
+      const mappedSignals = (data || []).map(mapDbToSignal);
+      setSignals(mappedSignals);
+      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database (80%+ confidence only)`);
     } catch (err: any) {
-      console.error('[useSignals] refreshSignals failed:', {
-        message: err instanceof Error ? err.message : 'Unknown error',
-        details: err,
-        hint: 'Check network connectivity and Supabase status',
-        code: err instanceof Error ? (err as any).code : ''
-      });
-      
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch signals';
-      setError(errorMessage);
-      
-      // Don't clear existing signals on error, just show the error
-      if (signals.length === 0) {
-        setSignals([]);
-      }
+      console.error('[useSignals] refreshSignals failed:', err);
+      setError(err.message || 'Failed to fetch signals');
     } finally {
       setLoading(false);
     }
@@ -361,19 +372,41 @@ export const useSignals = () => {
 
   useEffect(() => {
     let mounted = true;
+    let channel: any = null;
     let pollId: number | null = null;
-    const POLL_MS = 60000; // Poll every minute
+    const POLL_MS = 30000;
 
     const boot = async () => {
-      console.log('[signals] Loading existing signals from database...')
-
       try {
         await refreshSignals();
       } catch (e) {
         console.warn('[signals] initial load failed', e);
       }
 
-      // Simple polling without complex real-time subscriptions
+      try {
+        channel = subscribeSignalsRealtime(
+          (newSignal) => { 
+            if (mounted && newSignal.confidence_score >= 80) { // Only show 80%+ signals
+              setSignals(prev => [newSignal, ...prev].slice(0, 20));
+              
+              // Show toast notification for high-confidence signal
+              toast({
+                title: "🚨 High-Confidence Signal",
+                description: `${newSignal.direction} ${newSignal.token} - ${newSignal.confidence_score.toFixed(1)}% confidence`,
+                duration: 5000,
+              });
+            }
+          },
+          (updatedSignal) => { 
+            if (mounted) {
+              setSignals(prev => prev.map(s => s.id === updatedSignal.id ? updatedSignal : s));
+            }
+          },
+        );
+      } catch (e) {
+        console.warn('[signals] realtime subscribe failed, fallback to polling', e);
+      }
+
       pollId = window.setInterval(() => {
         if (mounted) {
           refreshSignals().catch(() => {});
@@ -381,39 +414,14 @@ export const useSignals = () => {
       }, POLL_MS);
     };
 
-    // Set up real-time subscription for new signals
-    const channel = supabase
-      .channel('signals-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'signals'
-        },
-        (payload) => {
-          console.log('[useSignals] Real-time signal received:', payload.new);
-          
-          const newSignal = mapDbToSignal(payload.new);
-          setSignals(prev => [newSignal, ...prev]);
-          
-          // Show toast for new signal
-          toast({
-            title: "🎯 New Signal",
-            description: `${newSignal.token} ${newSignal.direction} - Score: ${newSignal.confidence_score}`
-          });
-        }
-      )
-      .subscribe();
-
     boot();
 
     return () => {
       mounted = false;
+      if (channel) supabase.removeChannel(channel);
       if (pollId) clearInterval(pollId);
-      supabase.removeChannel(channel);
     };
-  }, [toast]);
+  }, []);
 
   return {
     signals,
@@ -440,12 +448,10 @@ export const useSpynxScores = () => {
       setError(null);
       console.log('[SPYNX] Fetching scores from spynx_scores table...');
       
-      // For now, use signals table as spynx_scores doesn't exist
+      // Fetch from the correct spynx_scores table
       const { data: scores, error } = await supabase
-        .from('signals')
+        .from('spynx_scores')
         .select('*')
-        .eq('is_active', true)
-        .gte('score', 85)
         .order('score', { ascending: false })
         .limit(10);
 
@@ -471,9 +477,7 @@ export const useSpynxScores = () => {
   const updateSpynxScores = async () => {
     try {
       console.log('[SPYNX] Calling calculate-spynx-scores function...');
-      const { data, error } = await supabase.functions.invoke('calculate-spynx-scores', {
-        body: { trigger: 'manual' }
-      });
+      const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
       if (error) throw error;
       
       console.log('[SPYNX] Scores updated successfully:', data);

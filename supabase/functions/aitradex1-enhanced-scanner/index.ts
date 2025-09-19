@@ -1,320 +1,517 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface OHLCV {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+interface AItradeX1Config {
+  ema_short_length: number;
+  sma_long_length: number;
+  rsi_length: number;
+  rsi_overbought: number;
+  rsi_oversold: number;
+  bb_length: number;
+  bb_multiplier: number;
+  volume_spike_multiplier: number;
+  adx_length: number;
+  adx_threshold: number;
+  stoch_k: number;
+  stoch_d_smooth: number;
+  stoch_signal_smooth: number;
+  atr_length: number;
+  atr_stop_mult: number;
+  atr_takeprofit_mult: number;
+  enable_fallback_buy: boolean;
+  use_hvp: boolean;
+  hvp_lookbacks: number[];
+  hvp_threshold: number;
+}
+
+const DEFAULT_CONFIG: AItradeX1Config = {
+  ema_short_length: 21,
+  sma_long_length: 200,
+  rsi_length: 14,
+  rsi_overbought: 70,
+  rsi_oversold: 30,
+  bb_length: 20,
+  bb_multiplier: 2.5,
+  volume_spike_multiplier: 1.5,
+  adx_length: 14,
+  adx_threshold: 25,
+  stoch_k: 14,
+  stoch_d_smooth: 3,
+  stoch_signal_smooth: 3,
+  atr_length: 14,
+  atr_stop_mult: 1.5,
+  atr_takeprofit_mult: 2.0,
+  enable_fallback_buy: true,
+  use_hvp: false,
+  hvp_lookbacks: [4, 10, 100, 300],
+  hvp_threshold: 50
+};
+
+// Technical Indicator Calculations
+function EMA(data: number[], length: number): number[] {
+  const alpha = 2 / (length + 1);
+  const result: number[] = [];
+  result[0] = data[0];
+  
+  for (let i = 1; i < data.length; i++) {
+    result[i] = alpha * data[i] + (1 - alpha) * result[i - 1];
+  }
+  return result;
+}
+
+function SMA(data: number[], length: number): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < length - 1) {
+      result[i] = data[i];
+    } else {
+      let sum = 0;
+      for (let j = 0; j < length; j++) {
+        sum += data[i - j];
+      }
+      result[i] = sum / length;
+    }
+  }
+  return result;
+}
+
+function RSI(data: number[], length: number): number[] {
+  const gains: number[] = [];
+  const losses: number[] = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    const change = data[i] - data[i - 1];
+    gains.push(change > 0 ? change : 0);
+    losses.push(change < 0 ? Math.abs(change) : 0);
+  }
+  
+  const avgGain = SMA(gains, length);
+  const avgLoss = SMA(losses, length);
+  const result: number[] = [50];
+  
+  for (let i = 0; i < avgGain.length; i++) {
+    if (avgLoss[i] === 0) {
+      result.push(100);
+    } else {
+      const rs = avgGain[i] / avgLoss[i];
+      result.push(100 - (100 / (1 + rs)));
+    }
+  }
+  
+  return result;
+}
+
+function ATR(bars: OHLCV[], length: number): number[] {
+  const tr: number[] = [];
+  
+  for (let i = 1; i < bars.length; i++) {
+    const high = bars[i].high;
+    const low = bars[i].low;
+    const prevClose = bars[i - 1].close;
+    
+    const tr1 = high - low;
+    const tr2 = Math.abs(high - prevClose);
+    const tr3 = Math.abs(low - prevClose);
+    
+    tr.push(Math.max(tr1, tr2, tr3));
+  }
+  
+  return [0, ...SMA(tr, length)];
+}
+
+function DMI_ADX(bars: OHLCV[], length: number): { 
+  diPlus: number[], 
+  diMinus: number[], 
+  adx: number[] 
+} {
+  const dmPlus: number[] = [];
+  const dmMinus: number[] = [];
+  const tr: number[] = [];
+  
+  for (let i = 1; i < bars.length; i++) {
+    const high = bars[i].high;
+    const low = bars[i].low;
+    const prevHigh = bars[i - 1].high;
+    const prevLow = bars[i - 1].low;
+    const prevClose = bars[i - 1].close;
+    
+    const moveUp = high - prevHigh;
+    const moveDown = prevLow - low;
+    
+    dmPlus.push((moveUp > moveDown && moveUp > 0) ? moveUp : 0);
+    dmMinus.push((moveDown > moveUp && moveDown > 0) ? moveDown : 0);
+    
+    const tr1 = high - low;
+    const tr2 = Math.abs(high - prevClose);
+    const tr3 = Math.abs(low - prevClose);
+    tr.push(Math.max(tr1, tr2, tr3));
+  }
+  
+  const smaDMPlus = SMA(dmPlus, length);
+  const smaDMMinus = SMA(dmMinus, length);
+  const smaTR = SMA(tr, length);
+  
+  const diPlus = smaDMPlus.map((dm, i) => 100 * dm / smaTR[i]);
+  const diMinus = smaDMMinus.map((dm, i) => 100 * dm / smaTR[i]);
+  
+  const dx = diPlus.map((plus, i) => {
+    const sum = plus + diMinus[i];
+    return sum === 0 ? 0 : 100 * Math.abs(plus - diMinus[i]) / sum;
+  });
+  
+  const adx = SMA(dx, length);
+  
+  return {
+    diPlus: [0, ...diPlus],
+    diMinus: [0, ...diMinus],
+    adx: [0, ...adx]
+  };
+}
+
+function Stochastic(bars: OHLCV[], kLength: number, kSmooth: number, dSmooth: number): {
+  k: number[],
+  d: number[]
+} {
+  const kRaw: number[] = [];
+  
+  for (let i = kLength - 1; i < bars.length; i++) {
+    let highestHigh = -Infinity;
+    let lowestLow = Infinity;
+    
+    for (let j = 0; j < kLength; j++) {
+      const idx = i - j;
+      highestHigh = Math.max(highestHigh, bars[idx].high);
+      lowestLow = Math.min(lowestLow, bars[idx].low);
+    }
+    
+    const range = highestHigh - lowestLow;
+    kRaw.push(range === 0 ? 50 : 100 * (bars[i].close - lowestLow) / range);
+  }
+  
+  const k = SMA(kRaw, kSmooth);
+  const d = SMA(k, dSmooth);
+  
+  // Pad with zeros for missing values
+  const paddedK = Array(kLength - 1).fill(50).concat(k);
+  const paddedD = Array(kLength - 1).fill(50).concat(d);
+  
+  return { k: paddedK, d: paddedD };
+}
+
+function BollingerBands(data: number[], length: number, multiplier: number): {
+  upper: number[],
+  middle: number[],
+  lower: number[]
+} {
+  const middle = SMA(data, length);
+  const upper: number[] = [];
+  const lower: number[] = [];
+  
+  for (let i = 0; i < data.length; i++) {
+    if (i < length - 1) {
+      upper[i] = data[i];
+      lower[i] = data[i];
+    } else {
+      let sum = 0;
+      let sumSq = 0;
+      
+      for (let j = 0; j < length; j++) {
+        const val = data[i - j];
+        sum += val;
+        sumSq += val * val;
+      }
+      
+      const mean = sum / length;
+      const variance = (sumSq / length) - (mean * mean);
+      const stdDev = Math.sqrt(variance);
+      
+      upper[i] = mean + multiplier * stdDev;
+      lower[i] = mean - multiplier * stdDev;
+    }
+  }
+  
+  return { upper, middle, lower };
+}
+
+function HVP(bars: OHLCV[], lookbacks: number[]): number[] {
+  const atr = ATR(bars, 14);
+  const hvpValues: number[] = [];
+  
+  for (let i = 0; i < bars.length; i++) {
+    let maxHVP = 0;
+    
+    for (const lookback of lookbacks) {
+      if (i >= lookback - 1) {
+        const slice = atr.slice(Math.max(0, i - lookback + 1), i + 1);
+        const minATR = Math.min(...slice);
+        const maxATR = Math.max(...slice);
+        const range = maxATR - minATR;
+        
+        if (range > 0) {
+          const hvp = 100 * (atr[i] - minATR) / range;
+          maxHVP = Math.max(maxHVP, hvp);
+        }
+      }
+    }
+    
+    hvpValues.push(maxHVP);
+  }
+  
+  return hvpValues;
+}
+
+function crossOver(a: number[], b: number[], index: number): boolean {
+  if (index < 1) return false;
+  return a[index] > b[index] && a[index - 1] <= b[index - 1];
+}
+
+function crossUnder(a: number[], b: number[], index: number): boolean {
+  if (index < 1) return false;
+  return a[index] < b[index] && a[index - 1] >= b[index - 1];
+}
+
+async function fetchCryptoData(symbol: string): Promise<OHLCV[]> {
+  try {
+    const response = await fetch(
+      `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=60&limit=300`
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.result?.list) {
+      throw new Error('Invalid response structure');
+    }
+    
+    return data.result.list
+      .map((item: string[]) => ({
+        time: parseInt(item[0]),
+        open: parseFloat(item[1]),
+        high: parseFloat(item[2]),
+        low: parseFloat(item[3]),
+        close: parseFloat(item[4]),
+        volume: parseFloat(item[5])
+      }))
+      .reverse()
+      .slice(-250); // Keep last 250 bars
+      
+  } catch (error) {
+    console.error(`Error fetching data for ${symbol}:`, error);
+    return [];
+  }
+}
+
+function evaluateAItradeX1Enhanced(bars: OHLCV[], config = DEFAULT_CONFIG) {
+  const t = bars.length - 1;
+  const t3 = t - 3;
+  
+  if (t < Math.max(config.sma_long_length, config.ema_short_length, config.adx_length, config.stoch_k) + 5) {
+    return null;
+  }
+  
+  // Calculate indicators
+  const closes = bars.map(b => b.close);
+  const volumes = bars.map(b => b.volume);
+  
+  const ema21 = EMA(closes, config.ema_short_length);
+  const sma200 = SMA(closes, config.sma_long_length);
+  const rsi = RSI(closes, config.rsi_length);
+  const { diPlus, diMinus, adx } = DMI_ADX(bars, config.adx_length);
+  const { k, d } = Stochastic(bars, config.stoch_k, config.stoch_d_smooth, config.stoch_signal_smooth);
+  const { upper: bbUpper, middle: bbMiddle, lower: bbLower } = BollingerBands(closes, config.bb_length, config.bb_multiplier);
+  const volSma21 = SMA(volumes, 21);
+  const atr = ATR(bars, config.atr_length);
+  
+  // Volume spike check
+  const volSpike = bars[t].volume > config.volume_spike_multiplier * volSma21[t];
+  
+  // HVP check (optional)
+  let hvpOK = true;
+  if (config.use_hvp) {
+    const hvp = HVP(bars, config.hvp_lookbacks);
+    hvpOK = hvp[t] >= config.hvp_threshold;
+  }
+  
+  // Signal conditions
+  const longConditions = {
+    emaCross: crossOver(ema21, sma200, t),
+    rsiOversold: rsi[t] < 40 || crossOver(rsi, [config.rsi_oversold], t),
+    dmiPositive: diPlus[t] > diMinus[t] && adx[t] > config.adx_threshold,
+    stochLow: k[t] < 20 && crossOver(k, d, t),
+    volumeSpike: volSpike,
+    hvpValid: hvpOK
+  };
+  
+  const shortConditions = {
+    emaCross: crossUnder(ema21, sma200, t),
+    rsiOverbought: rsi[t] > config.rsi_overbought,
+    dmiNegative: diMinus[t] > diPlus[t] && adx[t] > config.adx_threshold,
+    stochHigh: k[t] > 80 && crossUnder(k, d, t),
+    volumeSpike: volSpike,
+    hvpValid: hvpOK
+  };
+  
+  const fallbackBuyConditions = {
+    emaCross: crossOver(ema21, sma200, t),
+    dmiPositive: diPlus[t] > diMinus[t]
+  };
+  
+  // Evaluate signals
+  const longValid = Object.values(longConditions).every(Boolean);
+  const shortValid = Object.values(shortConditions).every(Boolean);
+  const fallbackBuyValid = config.enable_fallback_buy && 
+    Object.values(fallbackBuyConditions).every(Boolean) && 
+    !longValid;
+  
+  // Calculate confidence score
+  let score = 0;
+  if (ema21[t] > sma200[t]) score += 1; else score -= 1;
+  if (adx[t] > config.adx_threshold) score += 1;
+  if (diPlus[t] > diMinus[t]) score += 1; else score -= 1;
+  if ((longValid && rsi[t] < 40) || (shortValid && rsi[t] > 70)) score += 1;
+  if (volSpike) score += 1;
+  if (config.use_hvp && hvpOK) score += 1;
+  
+  if (!longValid && !shortValid && !fallbackBuyValid) return null;
+  if (score < 4) return null; // Minimum confidence threshold
+  
+  const close = bars[t].close;
+  const currentATR = atr[t];
+  
+  let signal = '';
+  let direction = '';
+  
+  if (longValid) {
+    signal = 'BUY';
+    direction = 'LONG';
+  } else if (shortValid) {
+    signal = 'SELL';
+    direction = 'SHORT';
+  } else if (fallbackBuyValid) {
+    signal = 'FALLBACK_BUY';
+    direction = 'LONG';
+  }
+  
+  const stopLoss = direction === 'LONG' 
+    ? close - config.atr_stop_mult * currentATR
+    : close + config.atr_stop_mult * currentATR;
+    
+  const takeProfit = direction === 'LONG'
+    ? close + config.atr_takeprofit_mult * currentATR
+    : close - config.atr_takeprofit_mult * currentATR;
+  
+  return {
+    algo: 'AItradeX1-Enhanced',
+    signal,
+    direction,
+    price: close,
+    confidence: Math.min(100, score * 14.3), // Scale to 0-100
+    risk: {
+      stopLoss,
+      takeProfit,
+      atr: currentATR
+    },
+    indicators: {
+      ema21: ema21[t],
+      sma200: sma200[t],
+      rsi: rsi[t],
+      adx: adx[t],
+      diPlus: diPlus[t],
+      diMinus: diMinus[t],
+      stochK: k[t],
+      stochD: d[t],
+      bbUpper: bbUpper[t],
+      bbLower: bbLower[t],
+      volume: bars[t].volume,
+      volSpike
+    },
+    conditions: longValid ? longConditions : shortValid ? shortConditions : fallbackBuyConditions
+  };
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('[AItradeX1-Enhanced] Starting REAL market data scanner...');
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    // Get all active symbols from markets table
-    const { data: markets } = await supabase
-      .from('markets')
-      .select('symbol, base_asset')
-      .eq('enabled', true)
-      .eq('exchange', 'bybit')
-      .order('symbol')
-
-    const body = await req.json().catch(() => ({}));
-    const symbols = body.symbols || (markets && markets.length > 0 
-      ? markets.map(m => m.symbol)
-      : ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'BNBUSDT', 'XRPUSDT', 'DOTUSDT', 'LINKUSDT']);
-    const timeframes = ['15m', '30m', '1h'];
-
-    console.log(`[AItradeX1-Enhanced] Scanning ${symbols.length} symbols with REAL data...`);
-
-    // FETCH REAL MARKET DATA from live_market_data table
-    const { data: marketData, error: marketError } = await supabase
-      .from('live_market_data')
-      .select('*')
-      .in('symbol', symbols)
-      .gte('updated_at', new Date(Date.now() - 15 * 60 * 1000).toISOString()) // Last 15 minutes
-      .not('price', 'is', null)
-      .not('ema21', 'is', null)
-      .order('updated_at', { ascending: false });
-
-    if (marketError) {
-      console.error('[AItradeX1-Enhanced] Error fetching market data:', marketError);
-      throw marketError;
-    }
-
-    if (!marketData || marketData.length === 0) {
-      console.log('[AItradeX1-Enhanced] No recent market data found. Triggering live feed...');
-      
-      // Trigger live-exchange-feed to get fresh data
+    const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'LINKUSDT', 'AVAXUSDT', 'MATICUSDT'];
+    const signals = [];
+    
+    console.log(`[AItradeX1-Enhanced] Scanning ${symbols.length} symbols...`);
+    
+    for (const symbol of symbols) {
       try {
-        await supabase.functions.invoke('live-exchange-feed', {
-          body: { trigger: 'scanner_request' }
-        });
-        console.log('[AItradeX1-Enhanced] Live feed triggered, waiting for data...');
+        const bars = await fetchCryptoData(symbol);
         
-        // Wait for data to be processed
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        const { data: retryMarketData } = await supabase
-          .from('live_market_data')
-          .select('*')
-          .in('symbol', symbols)
-          .gte('updated_at', new Date(Date.now() - 15 * 60 * 1000).toISOString())
-          .order('updated_at', { ascending: false });
-          
-        if (!retryMarketData || retryMarketData.length === 0) {
-          throw new Error('No market data available after triggering live feed');
+        if (bars.length < 250) {
+          console.log(`[${symbol}] Insufficient data: ${bars.length} bars`);
+          continue;
         }
         
-        marketData.push(...retryMarketData);
-      } catch (feedError) {
-        console.error('[AItradeX1-Enhanced] Failed to trigger live feed:', feedError);
-        throw new Error('No recent market data available and unable to fetch new data');
-      }
-    }
-
-    console.log(`[AItradeX1-Enhanced] Processing ${marketData.length} real market data points`);
-
-    const signals = [];
-
-    // Group market data by symbol to get the latest data for each
-    const symbolMap = new Map();
-    marketData.forEach(data => {
-      if (!symbolMap.has(data.symbol) || new Date(data.updated_at) > new Date(symbolMap.get(data.symbol).updated_at)) {
-        symbolMap.set(data.symbol, data);
-      }
-    });
-
-    for (const [symbol, latestData] of symbolMap) {
-      for (const timeframe of timeframes) {
-        // Generate REAL signal using actual market data
-        const signal = await generateAdvancedRealSignal(latestData, timeframe);
+        const signal = evaluateAItradeX1Enhanced(bars);
         
         if (signal) {
-          const { error } = await supabase.from('signals').insert(signal);
+          const signalData = {
+            ...signal,
+            symbol,
+            exchange: 'bybit',
+            timeframe: '1h',
+            timestamp: new Date().toISOString(),
+            bar_time: new Date(bars[bars.length - 1].time).toISOString()
+          };
           
-          if (error) {
-            // Handle cooldown errors gracefully (log as info, not error)
-            if (error.code === '23505' && error.message.includes('Cooldown')) {
-              console.log(`[cooldown] ${symbol}/${timeframe}/${signal.direction} [${signal.source}/${signal.algo}]`);
-            } else {
-              console.error('Error inserting signal:', error);
-            }
-          } else {
-            console.log(`✅ Generated REAL signal: ${symbol} ${signal.direction} (Score: ${signal.score}%)`);
-            signals.push(signal);
-          }
+          signals.push(signalData);
+          console.log(`[${symbol}] Signal generated: ${signal.signal} at ${signal.price} (confidence: ${signal.confidence}%)`);
         }
+      } catch (error) {
+        console.error(`[${symbol}] Error:`, error);
       }
     }
-
-    console.log(`[AItradeX1-Enhanced] Successfully inserted ${signals.length} REAL signals from market data`);
-
+    
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        signals_found: signals.length,
-        market_data_points: marketData.length,
-        symbols_processed: symbolMap.size,
-        data_source: 'real_market_data',
-        message: `Processed ${symbolMap.size} symbols with real market data`,
-        signals 
+      JSON.stringify({
+        success: true,
+        signalsGenerated: signals.length,
+        signals,
+        timestamp: new Date().toISOString(),
+        strategy: 'AItradeX1-Enhanced'
       }),
-      { 
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
+        status: 200
       }
     );
-
+    
   } catch (error) {
-    console.error('[AItradeX1-Enhanced] Error:', error);
+    console.error('[AItradeX1-Enhanced] Scanner error:', error);
+    
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
+      JSON.stringify({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      }),
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
+        status: 500
       }
     );
   }
-})
-
-// ADVANCED REAL SIGNAL GENERATION using actual market data and technical indicators
-async function generateAdvancedRealSignal(marketData: any, timeframe: string) {
-  try {
-    // Validate required real market data
-    if (!marketData.price || !marketData.ema21 || !marketData.rsi_14) {
-      console.log(`[Advanced Signal] Insufficient data for ${marketData.symbol}`);
-      return null;
-    }
-
-    const price = Number(marketData.price);
-    const ema21 = Number(marketData.ema21);
-    const sma200 = Number(marketData.sma200);
-    const rsi = Number(marketData.rsi_14);
-    const volume = Number(marketData.volume) || 0;
-    const volumeAvg = Number(marketData.volume_avg_20) || volume || 1;
-    const atr = Number(marketData.atr_14) || price * 0.015; // Default 1.5% if no ATR
-    const stochK = Number(marketData.stoch_k) || 50;
-    const stochD = Number(marketData.stoch_d) || 50;
-    const adx = Number(marketData.adx) || 25;
-    const changePercent = Number(marketData.change_24h_percent) || 0;
-
-    // EXTREMELY RELAXED CONDITIONS for maximum signal generation
-    const strongTrend = Math.abs(changePercent) > 0.5; // Any movement > 0.5%
-    const volumeSignificant = volume > (volumeAvg * 0.5); // Very low volume requirement
-    const trendStrength = adx > 15; // Very low ADX requirement
-    const momentum = Math.abs(changePercent);
-    
-    // Very relaxed RSI conditions
-    const rsiBullish = rsi >= 25 && rsi <= 75; // Very wide range
-    const rsiBearish = rsi >= 25 && rsi <= 75; // Very wide range  
-    const rsiOversold = rsi < 40; // More relaxed oversold
-    const rsiOverbought = rsi > 60; // More relaxed overbought
-    
-    // Very relaxed Stochastic conditions
-    const stochBullish = stochK > 20; // Simple condition
-    const stochBearish = stochK < 80; // Simple condition
-    
-    let signal = null;
-    let score = 70;
-    let confidence = 0.70;
-
-    // EXTREMELY RELAXED LONG CONDITIONS - Generate signals for almost any decent setup
-    if ((price > ema21 || rsi < 60) && rsiBullish) {
-      score = 80;
-      
-      // Score enhancements based on confluence
-      if (stochBullish) score += 5;
-      if (trendStrength) score += 5;
-      if (momentum > 3) score += 5;
-      if (rsi > 50 && rsi < 65) score += 3;
-      if (volume > (volumeAvg * 2)) score += 2;
-      
-      score = Math.min(95, score);
-      confidence = score / 100;
-      
-      const stopLossPrice = Number((price - (2.5 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4));
-      const takeProfitPrice = Number((price + (4 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4));
-      
-      signal = {
-        symbol: marketData.symbol,
-        timeframe,
-        direction: 'LONG',
-        price,
-        entry_price: price,
-        stop_loss: stopLossPrice,
-        take_profit: takeProfitPrice,
-        score,
-        confidence,
-        source: 'aitradex1_real_enhanced',
-        algo: 'aitradex1_real_v3',
-        exchange: marketData.exchange || 'bybit',
-        side: 'BUY',
-        signal_type: 'advanced_technical_analysis',
-        is_active: true,
-        exchange_source: marketData.exchange || 'bybit',
-        signal_grade: score >= 90 ? 'A+' : score >= 85 ? 'A' : score >= 80 ? 'B+' : 'B',
-        bar_time: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(), // 6 hours
-        atr: atr,
-        volume_ratio: volume / volumeAvg,
-        metadata: {
-          verified_real_data: 'true',
-          real_data: true,
-          strong_trend: strongTrend,
-          volume_significant: volumeSignificant,
-          trend_strength: trendStrength,
-          rsi_value: rsi,
-          stoch_k: stochK,
-          stoch_d: stochD,
-          adx_value: adx,
-          momentum: momentum,
-          volume_ratio: volume / volumeAvg,
-          ema21_value: ema21,
-          sma200_value: sma200,
-          scanner_version: 'aitradex1_enhanced_v3',
-          confluence_score: score,
-          data_timestamp: marketData.updated_at
-        }
-      };
-    }
-    // EXTREMELY RELAXED SHORT CONDITIONS - Generate signals for almost any decent setup  
-    else if ((price < ema21 || rsi > 40) && rsiBearish) {
-      score = 80;
-      
-      // Score enhancements based on confluence
-      if (stochBearish) score += 5;
-      if (trendStrength) score += 5;
-      if (momentum > 3) score += 5;
-      if (rsi > 35 && rsi < 50) score += 3;
-      if (volume > (volumeAvg * 2)) score += 2;
-      
-      score = Math.min(95, score);
-      confidence = score / 100;
-      
-      const stopLossPrice = Number((price + (2.5 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4));
-      const takeProfitPrice = Number((price - (4 * atr)).toFixed(marketData.symbol.includes('USDT') && price < 1 ? 6 : 4));
-      
-      signal = {
-        symbol: marketData.symbol,
-        timeframe,
-        direction: 'SHORT',
-        price,
-        entry_price: price,
-        stop_loss: stopLossPrice,
-        take_profit: takeProfitPrice,
-        score,
-        confidence,
-        source: 'aitradex1_real_enhanced',
-        algo: 'aitradex1_real_v3',
-        exchange: marketData.exchange || 'bybit',
-        side: 'SELL',
-        signal_type: 'advanced_technical_analysis',
-        is_active: true,
-        exchange_source: marketData.exchange || 'bybit',
-        signal_grade: score >= 90 ? 'A+' : score >= 85 ? 'A' : score >= 80 ? 'B+' : 'B',
-        bar_time: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(), // 6 hours
-        atr: atr,
-        volume_ratio: volume / volumeAvg,
-        metadata: {
-          verified_real_data: 'true',
-          real_data: true,
-          strong_trend: strongTrend,
-          volume_significant: volumeSignificant,
-          trend_strength: trendStrength,
-          rsi_value: rsi,
-          stoch_k: stochK,
-          stoch_d: stochD,
-          adx_value: adx,
-          momentum: momentum,
-          volume_ratio: volume / volumeAvg,
-          ema21_value: ema21,
-          sma200_value: sma200,
-          scanner_version: 'aitradex1_enhanced_v3',
-          confluence_score: score,
-          data_timestamp: marketData.updated_at
-        }
-      };
-    }
-    
-    if (signal) {
-      console.log(`[Advanced Real Signal] ${signal.symbol} ${signal.direction} - Price: ${price}, RSI: ${rsi}, Score: ${score}%`);
-    }
-    
-    return signal;
-    
-  } catch (error) {
-    console.error(`[Advanced Signal Generation] Error processing ${marketData.symbol}:`, error);
-    return null;
-  }
-}
+});

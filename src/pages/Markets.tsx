@@ -1,7 +1,7 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import MarketOverview from '../components/MarketOverview';
-
+import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart3, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 
@@ -23,7 +23,8 @@ const Markets = () => {
         {/* Market Overview */}
         <MarketOverview />
 
-        {/* Market Analysis Tools */}
+        {/* Comprehensive Scanner */}
+        <ComprehensiveScannerDashboard />
       </div>
     </MainLayout>
   );

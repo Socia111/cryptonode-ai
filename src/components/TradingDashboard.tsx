@@ -1,199 +1,165 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, Activity, DollarSign } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Wifi, 
+  WifiOff, 
+  DollarSign, 
+  TrendingUp, 
+  TrendingDown, 
+  Activity,
+  Zap,
+  Settings,
+  Database,
+  Shield,
+  Gauge,
+  Target,
+  BarChart3
+} from 'lucide-react';
+import CleanSignalsList from './CleanSignalsList';
+import AutoTradingToggle from './AutoTradingToggle';
+import PerformancePanel from './PerformancePanel';
+import LiveTradingSetup from './LiveTradingSetup';
+import TradingDiagnostics from './TradingDiagnostics';
+import { ProductionControls } from './ProductionControls';
+import { AutoTradingStatus } from './AutoTradingStatus';
+import { AutoTradingSetupGuide } from './AutoTradingSetupGuide';
 
-interface TradeParams {
-  symbol: string;
-  side: 'Buy' | 'Sell';
-  amountUSD: number;
-}
+const TradingDashboard = () => {
+  const [activeTab, setActiveTab] = useState('signals');
 
-export const TradingDashboard = () => {
-  const { toast } = useToast();
-  const [isTrading, setIsTrading] = useState(false);
-  const [tradeParams, setTradeParams] = useState<TradeParams>({
-    symbol: 'BTCUSDT',
-    side: 'Buy',
-    amountUSD: 100
-  });
-
-  const executeTestTrade = async () => {
-    setIsTrading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
-        body: {
-          action: 'place_order',
-          ...tradeParams
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.success) {
-        toast({
-          title: "Trade Executed",
-          description: `${tradeParams.side} ${tradeParams.symbol} - $${tradeParams.amountUSD}`,
-        });
-      } else {
-        throw new Error(data?.error || 'Trade failed');
-      }
-    } catch (error: any) {
-      toast({
-        title: "Trade Failed",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setIsTrading(false);
-    }
-  };
-
-  const checkStatus = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
-        body: { action: 'status' }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "System Status",
-        description: `Trading: ${data?.trading_enabled ? 'Enabled' : 'Disabled'}`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Status Check Failed",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  };
+  // Listen for tab switching events from setup guide
+  useEffect(() => {
+    const handleTabSwitch = (event: any) => {
+      setActiveTab(event.detail);
+    };
+    
+    window.addEventListener('switch-tab', handleTabSwitch);
+    return () => window.removeEventListener('switch-tab', handleTabSwitch);
+  }, []);
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Portfolio Value</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">$12,345.67</div>
-          <p className="text-xs text-muted-foreground">
-            +2.5% from last month
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Active Trades</CardTitle>
-          <Activity className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">3</div>
-          <p className="text-xs text-muted-foreground">
-            2 profitable, 1 pending
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Daily P&L</CardTitle>
-          <TrendingUp className="h-4 w-4 text-green-500" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-green-500">+$234.56</div>
-          <p className="text-xs text-muted-foreground">
-            +1.9% today
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card className="md:col-span-2 lg:col-span-3">
-        <CardHeader>
-          <CardTitle>Execute Trade</CardTitle>
-          <CardDescription>
-            Test the trading system with a simulated order
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="symbol">Symbol</Label>
-              <Select 
-                value={tradeParams.symbol} 
-                onValueChange={(value) => setTradeParams(prev => ({ ...prev, symbol: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select symbol" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BTCUSDT">BTC/USDT</SelectItem>
-                  <SelectItem value="ETHUSDT">ETH/USDT</SelectItem>
-                  <SelectItem value="SOLUSDT">SOL/USDT</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="side">Side</Label>
-              <Select 
-                value={tradeParams.side} 
-                onValueChange={(value: 'Buy' | 'Sell') => setTradeParams(prev => ({ ...prev, side: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select side" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Buy">Buy</SelectItem>
-                  <SelectItem value="Sell">Sell</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount (USD)</Label>
-              <Input
-                type="number"
-                value={tradeParams.amountUSD}
-                onChange={(e) => setTradeParams(prev => ({ ...prev, amountUSD: Number(e.target.value) }))}
-                min="10"
-                max="10000"
-              />
-            </div>
-
-            <div className="space-y-2 flex items-end">
-              <Badge variant="default">
-                Live Trading
-              </Badge>
+    <div className="space-y-6 animate-fade-in">
+      {/* Simplified Header */}
+      <div className="glass-card p-6 border border-border/50">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold brand-display bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+              AItradeX1 Advanced
+            </h1>
+            <p className="text-muted-foreground mt-1">Professional AI-Powered Trading Platform</p>
+          </div>
+          
+          {/* System Health - Single Indicator */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 border border-success/20">
+              <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
+              <span className="text-sm text-success font-medium">All Systems Online</span>
             </div>
           </div>
+        </div>
 
-          <div className="flex gap-2">
-            <Button 
-              onClick={executeTestTrade} 
-              disabled={isTrading}
-              className="flex-1"
-            >
-              {isTrading ? "Executing..." : "Execute Test Trade"}
-            </Button>
-            <Button 
-              onClick={checkStatus} 
-              variant="outline"
-            >
-              Check Status
-            </Button>
+        {/* Key Performance Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="surface-elevated p-4 rounded-lg border border-border/50 hover-scale">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 rounded-lg bg-chart-bullish/10">
+                <Target className="h-5 w-5 text-chart-bullish" />
+              </div>
+              <span className="text-2xl font-bold text-chart-bullish">76.8%</span>
+            </div>
+            <h3 className="font-semibold">Win Rate</h3>
+            <p className="text-sm text-muted-foreground">Last 30 days</p>
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="surface-elevated p-4 rounded-lg border border-border/50 hover-scale">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 rounded-lg bg-warning/10">
+                <Gauge className="h-5 w-5 text-warning" />
+              </div>
+              <span className="text-2xl font-bold text-warning">12.4%</span>
+            </div>
+            <h3 className="font-semibold">Daily ROI</h3>
+            <p className="text-sm text-muted-foreground">Performance today</p>
+          </div>
+
+          <div className="surface-elevated p-4 rounded-lg border border-border/50 hover-scale">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Activity className="h-5 w-5 text-primary" />
+              </div>
+              <span className="text-2xl font-bold text-primary">2.5</span>
+            </div>
+            <h3 className="font-semibold">Avg R:R</h3>
+            <p className="text-sm text-muted-foreground">Risk:Reward ratio</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Trading Mode Toggle */}
+      <div className="flex justify-center mb-6">
+        <AutoTradingToggle />
+      </div>
+
+      {/* Main Tabs Interface */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="signals" className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            Signals
+          </TabsTrigger>
+          <TabsTrigger value="performance" className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Performance
+          </TabsTrigger>
+          <TabsTrigger value="setup" className="flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            Live Setup
+          </TabsTrigger>
+          <TabsTrigger value="controls" className="flex items-center gap-2">
+            <Shield className="w-4 h-4" />
+            Controls
+          </TabsTrigger>
+          <TabsTrigger value="diagnostics" className="flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            Diagnostics
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="signals" className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <CleanSignalsList />
+            </div>
+            <div className="space-y-6">
+              <AutoTradingSetupGuide />
+              <AutoTradingStatus />
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="performance" className="space-y-6">
+          <PerformancePanel />
+        </TabsContent>
+        
+        <TabsContent value="setup" className="space-y-6">
+          <LiveTradingSetup />
+        </TabsContent>
+        
+        <TabsContent value="controls" className="space-y-6">
+          <ProductionControls />
+        </TabsContent>
+        
+        <TabsContent value="diagnostics" className="space-y-6">
+          <TradingDiagnostics />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
+
+export default TradingDashboard;

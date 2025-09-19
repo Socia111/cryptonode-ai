@@ -3,86 +3,68 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { lazy, Suspense } from "react";
-import AutomatedTradingSystemV2 from "./components/AutomatedTradingSystemV2";
-import SystemDiagnostics from "./pages/SystemDiagnostics";
-import { ThemeProvider } from "next-themes";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { useEffect } from "react";
+import { isSupabaseConfigured } from '@/lib/supabaseClient';
 import Index from "./pages/Index";
+import AuthPage from "./pages/Auth";
+import Home from "./pages/Home";
+import Health from "./pages/Health";
+import AItradeX1Original from "./pages/AItradeX1Original";
+import X from "./pages/X";
+import X1 from "./pages/X1";
+import X2 from "./pages/X2";
 import Trade from "./pages/Trade";
-import Auth from "./pages/Auth";
+import Portfolio from "./pages/Portfolio";
+import Signals from "./pages/Signals";
+import Markets from "./pages/Markets";
+import Backtests from "./pages/Backtests";
 import Automation from "./pages/Automation";
-import CoinEx from "./pages/CoinEx";
-import AuthGuard from "./components/AuthGuard";
+import Alerts from "./pages/Alerts";
+import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import { RebuildConsole } from "./components/RebuildConsole";
-
-const AllSignals = lazy(() => import('./pages/AllSignals'));
-const AItradeX1Dashboard = lazy(() => import('./components/AItradeX1Dashboard').then(m => ({ default: m.AItradeX1Dashboard })));
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60 * 1000,
-      retry: 1,
-    },
-  },
-});
+const queryClient = new QueryClient();
 
 function App() {
+  useEffect(() => {
+    (async () => {
+      console.log('[Boot] Starting app initialization...');
+      console.log('[Boot] Environment check:', {
+        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+        hasAnonKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY
+      });
+      
+      const ok = await isSupabaseConfigured();
+      console.info('[Boot] Using Supabase client @', import.meta.env.VITE_SUPABASE_URL, 'configured=', ok);
+    })();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-        <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/rebuild" element={<RebuildConsole />} />
-              <Route path="/coinex" element={<CoinEx />} />
-              <Route path="/" element={
-                <AuthGuard>
-                  <Index />
-                </AuthGuard>
-              } />
-              <Route path="/trade" element={
-                <AuthGuard>
-                  <Trade />
-                </AuthGuard>
-              } />
-              <Route path="/automation" element={
-                <AuthGuard>
-                  <Automation />
-                </AuthGuard>
-              } />
-              <Route path="/all-signals" element={
-                <Suspense fallback={<div>Loading...</div>}>
-                  <AllSignals />
-                </Suspense>
-              } />
-              <Route path="/aitradex1" element={
-                <Suspense fallback={<div>Loading...</div>}>
-                  <AItradeX1Dashboard />
-                </Suspense>
-              } />
-              <Route path="/automated-trading-v2" element={
-                <AuthGuard>
-                  <AutomatedTradingSystemV2 />
-                </AuthGuard>
-              } />
-              <Route path="/system-diagnostics" element={
-                <AuthGuard>
-                  <SystemDiagnostics />
-                </AuthGuard>
-              } />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-          </TooltipProvider>
-        </AuthProvider>
-      </ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+        <Routes>
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/" element={<Index />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/health" element={<Health />} />
+            <Route path="/AITRADEX1ORIGINAL" element={<AItradeX1Original />} />
+            <Route path="/X" element={<X />} />
+            <Route path="/X1" element={<X1 />} />
+            <Route path="/X2" element={<X2 />} />
+            <Route path="/trade" element={<Trade />} />
+            <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/signals" element={<Signals />} />
+            <Route path="/markets" element={<Markets />} />
+            <Route path="/backtests" element={<Backtests />} />
+            <Route path="/automation" element={<Automation />} />
+            <Route path="/alerts" element={<Alerts />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

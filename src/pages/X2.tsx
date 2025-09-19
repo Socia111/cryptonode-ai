@@ -1,33 +1,25 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
-import UnireliSystemDashboard from '../components/UnireliSystemDashboard';
+import AItradeX1SystemDashboard from '../components/AItradeX1SystemDashboard';
 import SignalsList from '../components/SignalsList';
 import LivePrice from '../components/LivePrice';
 import TradingChart from '../components/TradingChart';
 import MarketOverview from '../components/MarketOverview';
-import UnireliStrategyPanel from '../components/UnireliStrategyPanel';
+import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDashboard';
+
+import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
+import DatabaseSetup from '../components/DatabaseSetup';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Zap, Target, Activity, TrendingUp } from 'lucide-react';
-import { useSignals } from '@/hooks/useSignals';
-import { useRankedSignals } from '@/hooks/useRankedSignals';
 
 const X2 = () => {
-  // Initialize API connection for live data
-  const { signals, loading } = useSignals();
-  
-  // Apply Innovation Zone filtering and other signal filters
-  const rankedSignals = useRankedSignals(signals, {
-    hideWideSpreads: true,
-    excludeInnovationZone: true,
-    hide1MinSignals: true
-  });
   return (
     <MainLayout>
       <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Page Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Unireli X2 Advanced System
+            AItradeX2 Advanced System
           </h1>
           <p className="text-muted-foreground">
             Next-generation AI trading system with live data feeds, advanced signals, and comprehensive market analysis
@@ -95,7 +87,7 @@ const X2 = () => {
         {/* Trading Chart and Strategy Panel */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TradingChart />
-          <UnireliStrategyPanel />
+          <AItradeX1StrategyPanel />
         </div>
 
         {/* Market Overview */}
@@ -104,10 +96,17 @@ const X2 = () => {
         {/* Live Signals */}
         <SignalsList />
 
+        {/* Comprehensive Scanner */}
+        <ComprehensiveScannerDashboard />
+
         {/* Automated Trading */}
         
+        
+        {/* Database Setup */}
+        <DatabaseSetup />
+        
         {/* AItradeX1 System Dashboard */}
-        <UnireliSystemDashboard />
+        <AItradeX1SystemDashboard />
       </div>
     </MainLayout>
   );

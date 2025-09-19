@@ -56,9 +56,11 @@ export const AutoTradingStatus = () => {
 
     // Check API keys (simplified check)
     try {
-      const { data, error } = await supabase.from('user_trading_accounts').select('*').limit(1);
+      const { data, error } = await supabase.functions.invoke('debug-trading-status', {
+        body: { action: 'env_check' }
+      });
       
-      const hasKeys = !error && data && data.length > 0;
+      const hasKeys = !error && (data?.environment?.hasApiKey || data?.apiKeysConfigured);
       newStatus.push({
         label: 'API Keys Configured',
         status: hasKeys ? 'success' : 'warning',

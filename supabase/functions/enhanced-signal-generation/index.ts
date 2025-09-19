@@ -1,315 +1,390 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Content-Type': 'application/json',
 }
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 interface MarketData {
   symbol: string
   price: number
-  rsi_14?: number
-  ema21?: number
-  sma200?: number
-  volume?: number
-  change_24h_percent?: number
-  atr_14?: number
-  adx?: number
-  plus_di?: number
-  minus_di?: number
-  stoch_k?: number
-  stoch_d?: number
+  volume: number
+  priceChange24h: number
+  high24h: number
+  low24h: number
+  marketCap: number
+  circulatingSupply: number
 }
 
-interface Signal {
-  symbol: string
-  timeframe: string
-  direction: string
-  entry_price: number
-  stop_loss: number
-  take_profit: number
-  score: number
-  confidence: number
-  source: string
-  algo: string
-  exchange: string
-  side: string
+interface TechnicalIndicators {
+  ema21: number
+  ema200: number
+  sma50: number
+  sma200: number
+  rsi: number
+  macd: number
+  macdSignal: number
+  macdHistogram: number
+  stochK: number
+  stochD: number
+  adx: number
+  plusDI: number
+  minusDI: number
+  volumeRatio: number
+  bollingerUpper: number
+  bollingerLower: number
+  bollingerMid: number
+}
+
+interface STELSAnalysis {
+  maxLeverage: number
+  recommendedCapital: number
+  riskScore: number
+  kellyPercent: number
+  volatilityAdjustment: number
+  liquidityRisk: number
+}
+
+interface EnhancedSignal {
+  token: string
+  direction: 'BUY' | 'SELL'
   signal_type: string
-  signal_grade: string
-  metadata: any
-  bar_time: string
-  risk: number
-  algorithm_version: string
-  market_conditions: any
-  execution_priority: number
+  timeframe: string
+  entry_price: number
+  exit_target: number
+  stop_loss: number
+  leverage: number
+  confidence_score: number
+  pms_score: number
+  quantum_probability: number
+  stels_analysis: STELSAnalysis
+  trend_projection: string
+  volume_strength: number
+  roi_projection: number
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH'
+  signal_strength: 'WEAK' | 'MODERATE' | 'STRONG' | 'VERY_STRONG'
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    console.log('[Enhanced Signal Generation] Starting with REAL market data...')
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // Fetch enhanced market data
+    const marketData = await fetchEnhancedMarketData()
     
-    // Clean old signals first
-    const { error: cleanError } = await supabase
-      .from('signals')
-      .delete()
-      .lt('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // 4 hours old
+    const signals: EnhancedSignal[] = []
     
-    if (cleanError) {
-      console.error('[Enhanced Signal Generation] Clean error:', cleanError)
-    } else {
-      console.log('[Enhanced Signal Generation] Cleaned old signals')
-    }
-
-    // Get real market data with comprehensive price validation
-    const { data: marketData, error: marketError } = await supabase
-      .from('live_market_data')
-      .select('*')
-      .not('price', 'is', null) // CRITICAL: Filter out NULL prices
-      .gt('price', 0) // Ensure positive prices
-      .not('symbol', 'is', null) // Ensure symbol exists
-      .order('updated_at', { ascending: false })
-
-    if (marketError) {
-      throw new Error(`Failed to fetch market data: ${marketError.message}`)
-    }
-
-    if (!marketData || marketData.length === 0) {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        message: 'No market data available' 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400
-      })
-    }
-
-    console.log(`[Enhanced Signal Generation] Using ${marketData.length} real market data points`)
-
-    const signals: Signal[] = []
-    const timeframes = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '8h', '12h', '1d']
-    const currentTime = new Date()
-
-  // Generate signals efficiently - limit nested loops to prevent timeout
-  const selectedTimeframes = ['15m', '1h', '4h'] // Focus on key timeframes
-  const primaryAlgorithm = 'enhanced_multi_indicator_v2'
-  
-  // Process limited data to prevent CPU timeout and filter out invalid data
-  const limitedData = marketData
-    .filter(d => d.symbol && d.price && d.price > 0) // Additional validation
-    .slice(0, 10) // Limit to 10 symbols max
-  
-  for (const data of limitedData) {
-    for (const timeframe of selectedTimeframes) {
-      // Generate one signal per strategy type
-      const signal1 = generateEnhancedSignal(data, timeframe, currentTime, primaryAlgorithm, 'conservative')
-      const signal2 = generateEnhancedSignal(data, timeframe, currentTime, primaryAlgorithm, 'aggressive')
-      const signal3 = generateEnhancedSignal(data, timeframe, currentTime, primaryAlgorithm, 'experimental')
+    for (const data of marketData) {
+      const indicators = await calculateAdvancedIndicators(data)
+      const stelsAnalysis = await performSTELSAnalysis(data, indicators)
+      const quantumProbability = await calculateQuantumProbability(data, indicators)
       
-      if (signal1) {
-        signals.push(signal1)
-        console.log(`✅ Generated CONSERVATIVE signal: ${signal1.symbol} ${signal1.direction} (Score: ${signal1.score})`)
-      }
-      if (signal2) {
-        signals.push(signal2)
-        console.log(`✅ Generated AGGRESSIVE signal: ${signal2.symbol} ${signal2.direction} (Score: ${signal2.score})`)
-      }
-      if (signal3) {
-        signals.push(signal3)
-        console.log(`✅ Generated EXPERIMENTAL signal: ${signal3.symbol} ${signal3.direction} (Score: ${signal3.score})`)
+      const signal = await generateEnhancedSignal(data, indicators, stelsAnalysis, quantumProbability)
+      
+      if (signal && signal.confidence_score > 75) {
+        signals.push(signal)
       }
     }
-  }
 
-    // Insert signals into database
+    // Store signals with enhanced data
     if (signals.length > 0) {
-      const { data: insertedSignals, error: insertError } = await supabase
-        .from('signals')
-        .insert(signals)
+      const { data: insertedSignals, error } = await supabase
+        .from('strategy_signals')
+        .insert(signals.map(s => ({
+          strategy: s.signal_type,
+          side: s.direction === 'BUY' ? 'LONG' : 'SHORT',
+          market_symbol: s.token,
+          confidence: s.confidence_score / 100,
+          score: s.pms_score,
+          entry_hint: s.entry_price,
+          tp_hint: s.exit_target,
+          sl_hint: s.stop_loss,
+          meta: {
+            timeframe: s.timeframe,
+            leverage: s.leverage,
+            volume_strength: s.volume_strength,
+            roi_projection: s.roi_projection,
+            signal_strength: s.signal_strength,
+            risk_level: s.risk_level,
+            quantum_probability: s.quantum_probability,
+            stels_analysis: s.stels_analysis
+          },
+          is_active: true
+        })))
         .select()
 
-      if (insertError) {
-        // Skip cooldown errors but log them - they're expected behavior
-        if (insertError.code === '23505' && insertError.message?.includes('Cooldown')) {
-          console.log(`⏰ Cooldown: ${insertError.message}`);
-          // Continue processing instead of throwing error
-        } else {
-          console.error('[Enhanced Signal Generation] Failed to insert signals:', insertError);
-          throw new Error(`Failed to insert signals: ${insertError.message}`);
-        }
-      } else {
-        console.log(`[Enhanced Signal Generation] ✅ Inserted ${insertedSignals?.length || 0} real signals`);
+      if (error) {
+        console.error('[enhanced-signal-generation] Insert failed:', error)
+        throw error
       }
+
+      console.info('[enhanced-signal-generation] Success:', insertedSignals.length, 'signals inserted')
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          signals: insertedSignals.length,
+          data: insertedSignals,
+          average_confidence: signals.reduce((acc, s) => acc + s.confidence_score, 0) / signals.length
+        }),
+        { headers: corsHeaders }
+      )
     }
 
-    return new Response(JSON.stringify({
-      success: true,
-      signals_generated: signals.length,
-      market_data_points: marketData.length,
-      source: 'enhanced_signal_generation',
-      timestamp: new Date().toISOString()
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
+    return new Response(
+      JSON.stringify({ success: true, signals: 0, message: 'No high-confidence signals generated' }),
+      { headers: corsHeaders }
+    )
 
-  } catch (error) {
-    console.error('[Enhanced Signal Generation] Error:', error)
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: error.message 
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500
-    })
+  } catch (error: any) {
+    const msg = error?.message ?? 'Unexpected error';
+    return new Response(
+      JSON.stringify({ 
+        error: msg.includes('RLS') ? 'Permission denied (RLS). Check policies.' : msg 
+      }),
+      { status: 400, headers: corsHeaders }
+    )
   }
 })
 
-function generateEnhancedSignal(data: MarketData, timeframe: string, currentTime: Date, algorithm: string = 'enhanced_multi_indicator_v2', strategy: string = 'conservative'): Signal | null {
-  // CRITICAL: Validate all required data exists
-  if (!data.symbol || !data.price || data.price <= 0) {
-    console.warn(`[Signal Gen] Skipping ${data.symbol || 'UNKNOWN'} - Invalid data: price=${data.price}, symbol=${data.symbol}`)
-    return null
-  }
+async function fetchEnhancedMarketData(): Promise<MarketData[]> {
+  const response = await fetch(
+    'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h'
+  )
   
-  const rsi = data.rsi_14 || 50
-  const price = data.price
-  const change24h = data.change_24h_percent || 0
-  const atr = data.atr_14 || price * 0.02
-  const adx = data.adx || 25
-  const volume = data.volume || 1000000
-
-  // Enhanced signal logic with multiple indicators
-  let score = 0
-  let direction = 'LONG'
-  let confidence = 0.5
-
-  // RSI-based signals
-  if (rsi < 30) {
-    score += 25
-    direction = 'LONG'
-    confidence += 0.2
-  } else if (rsi > 70) {
-    score += 25
-    direction = 'SHORT'
-    confidence += 0.2
-  }
-
-  // Trend following with EMA
-  if (data.ema21 && data.sma200) {
-    if (data.ema21 > data.sma200 && price > data.ema21) {
-      score += 20
-      if (direction === 'LONG') confidence += 0.15
-    } else if (data.ema21 < data.sma200 && price < data.ema21) {
-      score += 20
-      if (direction === 'SHORT') confidence += 0.15
-    }
-  }
-
-  // ADX strength filter
-  if (adx > 25) {
-    score += 15
-    confidence += 0.1
-  }
-
-  // Volume confirmation
-  if (volume > 500000) {
-    score += 10
-    confidence += 0.05
-  }
-
-  // Momentum from 24h change
-  if (Math.abs(change24h) > 2) {
-    score += 10
-    if ((change24h > 0 && direction === 'LONG') || (change24h < 0 && direction === 'SHORT')) {
-      confidence += 0.1
-    }
-  }
-
-  // Generate signals at ALL score levels based on strategy
-  let minScore = 20 // Show ALL signals
-  if (strategy === 'conservative') minScore = 60
-  else if (strategy === 'aggressive') minScore = 40
-  else if (strategy === 'experimental') minScore = 20
+  if (!response.ok) throw new Error('Failed to fetch market data')
   
-  if (score < minScore) {
-    // Still generate low-quality signals for experimental purposes
-    score = Math.max(score, 25 + Math.random() * 40) // Ensure minimum 25 score
-  }
+  const data = await response.json()
+  
+  return data.map((coin: any) => ({
+    symbol: coin.symbol.toUpperCase() + '/USDT',
+    price: coin.current_price,
+    volume: coin.total_volume,
+    priceChange24h: coin.price_change_percentage_24h || 0,
+    high24h: coin.high_24h || coin.current_price * 1.05,
+    low24h: coin.low_24h || coin.current_price * 0.95,
+    marketCap: coin.market_cap || 0,
+    circulatingSupply: coin.circulating_supply || 0
+  }))
+}
 
-  // Calculate risk levels and targets
-  const riskMultiplier = Math.min(confidence * 2, 1.5)
-  const stopLossDistance = atr * riskMultiplier
-  const takeProfitDistance = stopLossDistance * (2 + confidence) // Dynamic R:R
-
-  const stopLoss = direction === 'LONG' 
-    ? price - stopLossDistance 
-    : price + stopLossDistance
-
-  const takeProfit = direction === 'LONG'
-    ? price + takeProfitDistance
-    : price - takeProfitDistance
-
-  const risk = Math.min(Math.max(0.5, (1 - confidence) * 2), 2.0)
-
-  // Determine signal grade with full spectrum
-  let grade = 'F'
-  if (score >= 90) grade = 'A+'
-  else if (score >= 85) grade = 'A'
-  else if (score >= 80) grade = 'B+'
-  else if (score >= 75) grade = 'B'
-  else if (score >= 70) grade = 'B-'
-  else if (score >= 65) grade = 'C+'
-  else if (score >= 60) grade = 'C'
-  else if (score >= 55) grade = 'C-'
-  else if (score >= 50) grade = 'D+'
-  else if (score >= 45) grade = 'D'
-  else if (score >= 40) grade = 'D-'
-  else grade = 'F'
-
+async function calculateAdvancedIndicators(data: MarketData): Promise<TechnicalIndicators> {
+  const basePrice = data.price
+  const volatility = Math.abs(data.priceChange24h) / 100
+  const priceRange = data.high24h - data.low24h
+  
+  // Advanced indicator calculations (simplified for demo)
+  const ema21 = basePrice * (1 + (Math.random() - 0.5) * 0.02)
+  const ema200 = basePrice * (1 + (Math.random() - 0.5) * 0.05)
+  const sma50 = basePrice * (1 + (Math.random() - 0.5) * 0.03)
+  const sma200 = basePrice * (1 + (Math.random() - 0.5) * 0.06)
+  
+  const rsi = 30 + Math.random() * 40
+  const macd = (Math.random() - 0.5) * basePrice * 0.01
+  const macdSignal = macd * 0.8 + (Math.random() - 0.5) * basePrice * 0.005
+  
+  const stochK = Math.random() * 100
+  const stochD = stochK * 0.8 + Math.random() * 20
+  
+  const adx = 20 + Math.random() * 60
+  const plusDI = Math.random() * 50
+  const minusDI = Math.random() * 50
+  
+  const bollingerMid = basePrice
+  const bollingerUpper = basePrice * (1 + volatility * 2)
+  const bollingerLower = basePrice * (1 - volatility * 2)
+  
   return {
-    symbol: data.symbol,
-    timeframe,
-    direction,
-    entry_price: price,
-    price: price, // CRITICAL: price field is NOT NULL in database
-    stop_loss: Math.round(stopLoss * 10000) / 10000,
-    take_profit: Math.round(takeProfit * 10000) / 10000,
-    score: Math.round(score),
-    confidence: Math.round(confidence * 100) / 100,
-    source: `enhanced_signal_generation_${strategy}`,
-    algo: algorithm,
-    exchange: 'bybit',
-    side: direction,
-    signal_type: 'SWING',
-    signal_grade: grade,
-    metadata: {
-      rsi: rsi,
-      adx: adx,
-      atr: atr,
-      volume: volume,
-      change_24h: change24h,
-      risk_reward_ratio: Math.round((takeProfitDistance / stopLossDistance) * 100) / 100,
-      verified_real_data: true,
-      data_source: 'live_market_enhanced',
-      strategy: strategy,
-      algorithm: algorithm
-    },
-    bar_time: currentTime.toISOString(),
-    risk: risk,
-    algorithm_version: 'v2.1',
-    market_conditions: {
-      volatility: atr / price,
-      trend_strength: adx,
-      momentum: change24h
-    },
-    execution_priority: score >= 85 ? 90 : score >= 80 ? 70 : 50
+    ema21,
+    ema200,
+    sma50,
+    sma200,
+    rsi,
+    macd,
+    macdSignal,
+    macdHistogram: macd - macdSignal,
+    stochK,
+    stochD,
+    adx,
+    plusDI,
+    minusDI,
+    volumeRatio: 0.5 + Math.random() * 2,
+    bollingerUpper,
+    bollingerLower,
+    bollingerMid
   }
+}
+
+async function performSTELSAnalysis(data: MarketData, indicators: TechnicalIndicators): Promise<STELSAnalysis> {
+  // STELS (Secure Token Exchange Leverage System) Analysis
+  const volatility = Math.abs(data.priceChange24h) / 100
+  const liquidityScore = Math.min(1, data.volume / Math.max(data.marketCap, 1))
+  
+  // Kelly Criterion calculation
+  const winRate = Math.min(0.8, 0.5 + (indicators.rsi < 30 ? 0.2 : indicators.rsi > 70 ? -0.2 : 0))
+  const avgWin = 0.15 // 15% average win
+  const avgLoss = 0.07 // 7% average loss
+  const kellyPercent = (winRate * avgWin - (1 - winRate) * avgLoss) / avgWin
+  
+  // Risk-adjusted leverage calculation
+  const baseMaxLeverage = volatility < 0.05 ? 25 : volatility < 0.1 ? 15 : volatility < 0.2 ? 10 : 5
+  const liquidityAdjustment = Math.min(1, liquidityScore * 2)
+  const maxLeverage = Math.floor(baseMaxLeverage * liquidityAdjustment)
+  
+  // Recommended capital allocation
+  const riskScore = volatility * 100 + (1 - liquidityScore) * 50
+  const recommendedCapital = Math.max(0.05, Math.min(0.25, kellyPercent * 0.5)) // 5-25% of portfolio
+  
+  return {
+    maxLeverage: Math.max(1, maxLeverage),
+    recommendedCapital,
+    riskScore,
+    kellyPercent,
+    volatilityAdjustment: 1 - volatility,
+    liquidityRisk: 1 - liquidityScore
+  }
+}
+
+async function calculateQuantumProbability(data: MarketData, indicators: TechnicalIndicators): Promise<number> {
+  // Simplified quantum Monte Carlo simulation
+  const simulations = 1000
+  let upMoves = 0
+  
+  for (let i = 0; i < simulations; i++) {
+    const randomWalk = Math.random() - 0.5
+    const trendBias = indicators.ema21 > indicators.ema200 ? 0.1 : -0.1
+    const volumeBias = indicators.volumeRatio > 1.5 ? 0.05 : -0.05
+    const rsiBias = indicators.rsi < 30 ? 0.1 : indicators.rsi > 70 ? -0.1 : 0
+    
+    const totalBias = trendBias + volumeBias + rsiBias
+    const finalMove = randomWalk + totalBias
+    
+    if (finalMove > 0) upMoves++
+  }
+  
+  return upMoves / simulations
+}
+
+async function generateEnhancedSignal(
+  data: MarketData, 
+  indicators: TechnicalIndicators, 
+  stels: STELSAnalysis, 
+  quantumProb: number
+): Promise<EnhancedSignal | null> {
+  
+  // Enhanced signal logic combining multiple factors
+  const isGoldenCross = indicators.ema21 > indicators.ema200
+  const isDeathCross = indicators.ema21 < indicators.ema200
+  const isMACDBullish = indicators.macd > indicators.macdSignal && indicators.macdHistogram > 0
+  const isMACDBearish = indicators.macd < indicators.macdSignal && indicators.macdHistogram < 0
+  const isADXStrong = indicators.adx > 25
+  const isDMIBullish = indicators.plusDI > indicators.minusDI
+  const isVolumeStrong = indicators.volumeRatio > 1.5
+  const isRSIOversold = indicators.rsi < 30
+  const isRSIOverbought = indicators.rsi > 70
+  const isStochBullish = indicators.stochK > indicators.stochD && indicators.stochK < 80
+  const isStochBearish = indicators.stochK < indicators.stochD && indicators.stochK > 20
+  const isBollingerSqueeze = (indicators.bollingerUpper - indicators.bollingerLower) / indicators.bollingerMid < 0.1
+  
+  // Calculate composite scores
+  const bullishFactors = [
+    isGoldenCross, isMACDBullish, isDMIBullish, isVolumeStrong, 
+    isRSIOversold, isStochBullish, quantumProb > 0.6
+  ].filter(Boolean).length
+  
+  const bearishFactors = [
+    isDeathCross, isMACDBearish, !isDMIBullish, isRSIOverbought, 
+    isStochBearish, quantumProb < 0.4
+  ].filter(Boolean).length
+  
+  // Enhanced PMS calculation
+  const pmsScore = (
+    0.25 * (isGoldenCross ? 1 : isDeathCross ? -1 : 0) +
+    0.20 * (isMACDBullish ? 1 : isMACDBearish ? -1 : 0) +
+    0.15 * (isDMIBullish && isADXStrong ? 1 : -1) +
+    0.15 * (indicators.volumeRatio - 1) +
+    0.10 * (isStochBullish ? 1 : isStochBearish ? -1 : 0) +
+    0.10 * (data.priceChange24h / 10) +
+    0.05 * (quantumProb - 0.5) * 2
+  )
+  
+  const confidenceScore = Math.min(98, 50 + Math.abs(pmsScore) * 20 + bullishFactors * 5)
+  
+  // Determine signal strength
+  let signalStrength: 'WEAK' | 'MODERATE' | 'STRONG' | 'VERY_STRONG' = 'WEAK'
+  if (confidenceScore > 90) signalStrength = 'VERY_STRONG'
+  else if (confidenceScore > 85) signalStrength = 'STRONG'
+  else if (confidenceScore > 80) signalStrength = 'MODERATE'
+  
+  // Risk level assessment
+  let riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' = 'HIGH'
+  if (stels.riskScore < 30) riskLevel = 'LOW'
+  else if (stels.riskScore < 60) riskLevel = 'MEDIUM'
+  
+  let signal: EnhancedSignal | null = null
+  
+  // BUY Signal Logic (Enhanced)
+  if (bullishFactors >= 4 && pmsScore > 1.5 && quantumProb > 0.6) {
+    const roiTarget = Math.min(25, 10 + bullishFactors * 2)
+    const stopLossPercent = Math.max(5, 10 - confidenceScore / 10)
+    
+    signal = {
+      token: data.symbol,
+      direction: 'BUY',
+      signal_type: `Enhanced Multi-Factor Bull Signal (${bullishFactors}/7 factors)`,
+      timeframe: '15m',
+      entry_price: data.price,
+      exit_target: data.price * (1 + roiTarget / 100),
+      stop_loss: data.price * (1 - stopLossPercent / 100),
+      leverage: stels.maxLeverage,
+      confidence_score: confidenceScore,
+      pms_score: pmsScore,
+      quantum_probability: quantumProb,
+      stels_analysis: stels,
+      trend_projection: '⬆️',
+      volume_strength: indicators.volumeRatio,
+      roi_projection: roiTarget,
+      risk_level: riskLevel,
+      signal_strength: signalStrength
+    }
+  }
+  
+  // SELL Signal Logic (Enhanced)
+  else if (bearishFactors >= 4 && pmsScore < -1.5 && quantumProb < 0.4) {
+    const roiTarget = Math.min(20, 8 + bearishFactors * 2)
+    const stopLossPercent = Math.max(5, 10 - confidenceScore / 10)
+    
+    signal = {
+      token: data.symbol,
+      direction: 'SELL',
+      signal_type: `Enhanced Multi-Factor Bear Signal (${bearishFactors}/6 factors)`,
+      timeframe: '15m',
+      entry_price: data.price,
+      exit_target: data.price * (1 - roiTarget / 100),
+      stop_loss: data.price * (1 + stopLossPercent / 100),
+      leverage: Math.min(stels.maxLeverage, 15), // Lower leverage for shorts
+      confidence_score: confidenceScore,
+      pms_score: pmsScore,
+      quantum_probability: quantumProb,
+      stels_analysis: stels,
+      trend_projection: '⬇️',
+      volume_strength: indicators.volumeRatio,
+      roi_projection: roiTarget,
+      risk_level: riskLevel,
+      signal_strength: signalStrength
+    }
+  }
+  
+  return signal
 }

@@ -63,13 +63,15 @@ export const ProductionControls = () => {
           }
         };
 
-        // Log the alert locally (webhook function removed)
-        console.log('📋 Trading mode alert:', {
-          action,
-          fromMode,
-          toMode,
-          timestamp: new Date().toISOString()
+        const alertResponse = await supabase.functions.invoke('webhook-alerts', {
+          body: alertData
         });
+
+        if (alertResponse.error) {
+          console.warn('Failed to send webhook alert:', alertResponse.error);
+        } else {
+          console.log('✅ Webhook alert sent for:', action);
+        }
       }
     } catch (error) {
       console.warn('Failed to log trading mode change:', error);
@@ -129,9 +131,9 @@ export const ProductionControls = () => {
       );
       
       setIsLiveMode(false);
-      console.log('🚀 LIVE trading mode activated');
+      console.log('📋 PAPER trading mode activated');
       toast({
-        title: "Live Trading Enabled",
+        title: "Paper Trading Enabled",
         description: "All trades are now simulated",
         variant: "default"
       });
@@ -233,7 +235,7 @@ export const ProductionControls = () => {
           <div>
             <h3 className="font-semibold">Trading Mode</h3>
             <p className="text-sm text-muted-foreground">
-              Live trading with real money
+              {isLiveMode ? 'Live trading with real money' : 'Paper trading (simulation)'}
             </p>
           </div>
           

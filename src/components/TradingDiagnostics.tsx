@@ -59,12 +59,21 @@ const TradingDiagnostics = () => {
         diagnostics.errors.push(`Auth check failed: ${e}`);
       }
 
-      // Test 3: Core functions availability
+      // Test 3: Edge function (optional system-level check)
       try {
-        diagnostics.edgeFunctions = true;
-        // Focus on user-level credentials rather than system-level
-        if (!diagnostics.apiKeys) {
-          diagnostics.errors.push('No API credentials found in user trading accounts');
+        const { data, error } = await supabase.functions.invoke('debug-trading-status', {
+          body: { action: 'env_check' }
+        });
+        
+        if (error) {
+          diagnostics.errors.push(`Edge function error: ${error.message}`);
+        } else {
+          diagnostics.edgeFunctions = true;
+          // System-level API keys are optional if user has personal credentials
+          const hasSystemKeys = data?.environment?.hasApiKey && data?.environment?.hasApiSecret;
+          if (!diagnostics.apiKeys && !hasSystemKeys) {
+            diagnostics.errors.push('No API credentials found (neither user-specific nor system-wide)');
+          }
         }
       } catch (e) {
         diagnostics.errors.push(`Edge function test failed: ${e}`);

@@ -1,33 +1,12 @@
 import { supabase } from '@/integrations/supabase/client';
-import { FEATURES } from '@/config/featureFlags';
+import { FEATURES } from '@/config/featureFlags'
 
-export type OrderTIF = 'GTC' | 'IOC' | 'FOK' | 'PostOnly' | 'ImmediateOrCancel';
-export type OrderType = 'Market' | 'Limit';
-
-export interface ExecuteParams {
-  symbol: string;                 // e.g. "BTCUSDT"
-  side: 'Buy' | 'Sell';
-  amountUSD: number;
-  leverage: number;
-  // NEW:
-  orderType?: OrderType;          // default 'Market'
-  price?: number;                 // required when orderType='Limit'
-  timeInForce?: OrderTIF;         // default 'PostOnly' if Limit
-  reduceOnly?: boolean;           // optional
-  // pass-through SL/TP (optional)
-  stopLoss?: number;
-  takeProfit?: number;
-  scalpMode?: boolean;
-  entryPrice?: number;            // for backward compatibility
-  meta?: Record<string, any>;     // optional metadata
-}
-
-export interface ExecResult {
-  ok: boolean;
-  message?: string;
-  data?: any;
-  error?: string;
-  status?: number;
+export type ExecParams = {
+  symbol: string
+  side: 'BUY'|'SELL'
+  notionalUSD?: number  // deprecated, use amountUSD
+  amountUSD?: number    // new: USD amount to trade
+  leverage?: number     // new: leverage (1-100x)
 }
 
 // Get the functions base URL using the hardcoded Supabase URL
@@ -46,205 +25,79 @@ async function getSessionToken(): Promise<string | null> {
 }
 
 export const TradingGateway = {
-  async testConnection(): Promise<ExecResult> {
-    try {
-      const functionsBase = getFunctionsBaseUrl();
-      const sessionToken = await getSessionToken();
-      
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (sessionToken) {
-        headers['authorization'] = `Bearer ${sessionToken}`;
-      }
-      
-      const r = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'status' })
-      });
-      
-      const data = await r.json().catch(() => ({}));
-      return { 
-        ok: r.ok, 
-        status: r.status, 
-        data, 
-        message: data?.message, 
-        error: data?.error 
-      };
-    } catch (error: any) {
-      return { 
-        ok: false, 
-        error: error.message,
-        message: 'Connection test failed'
-      };
-    }
-  },
-
-  async execute(params: ExecuteParams): Promise<ExecResult> {
+  async execute(params: ExecParams) {
     if (!FEATURES.AUTOTRADE_ENABLED) {
-      return { ok: false, error: 'DISABLED', message: 'Auto-trading disabled' }
+      return { ok: false, code: 'DISABLED', message: 'Auto-trading disabled' }
     }
 
     try {
-      console.log('🧭 TradingGateway.execute IN:', params);
+      console.log('🚀 Executing live trade via Bybit API:', params);
       
       const functionsBase = getFunctionsBaseUrl();
       const sessionToken = await getSessionToken();
       
       if (!sessionToken) {
-        console.warn('❌ No session token available');
         return { 
           ok: false, 
-          error: 'AUTH_REQUIRED', 
-          message: 'Please sign in to execute trades. Authentication is required for trading operations.' 
+          code: 'AUTH_REQUIRED', 
+          message: 'Please sign in to execute trades' 
         };
       }
-      
-      console.log('✅ Session token available, proceeding with trade execution');
       
       const headers: Record<string, string> = {
         'content-type': 'application/json',
         'authorization': `Bearer ${sessionToken}`,
       };
       
-      // Dynamic minimum based on scalp mode
-      const isScalping = params.scalpMode === true;
-      const minAmount = isScalping ? 1 : 5; // $1 for scalping, $5 for normal
-      const amount = Math.max(params.amountUSD || minAmount, minAmount);
-      const leverage = Math.max(params.leverage || 1, 1);
+      // Convert to Bybit signal format
+      const amount = params.amountUSD || params.notionalUSD || 25; // fallback to old param or default
+      const leverage = params.leverage || 1;
       
-      // Debug logging for amount adjustments
-      if ((params.amountUSD || 0) < minAmount) {
-        console.warn(`💰 Amount adjusted to minimum: $${params.amountUSD} → $${amount} (${isScalping ? 'scalp' : 'normal'} mode)`);
-      }
-      
-      // Clean symbol format - remove any slashes or spaces
-      const cleanSymbol = params.symbol.replace(/[\/\s]/g, '');
-      
-      // Clean payload - only include defined values to avoid serialization issues
-      const payload: any = {
-        action: 'place_order',
-        symbol: cleanSymbol,
-        side: params.side,
-        amountUSD: amount,
-        leverage: leverage,
-        orderType: params.orderType ?? 'Market',
-        timeInForce: params.timeInForce ?? (params.orderType === 'Limit' ? 'PostOnly' : 'GTC'),
-        reduceOnly: params.reduceOnly ?? false,
-        scalpMode: isScalping,
-        meta: params.meta || {}
+      const bybitSignal = {
+        symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT
+        side: params.side === 'BUY' ? 'Buy' : 'Sell',
+        orderType: 'Market',
+        qty: (amount * 0.001).toFixed(6), // Convert notional to quantity
+        timeInForce: 'IOC',
+        leverage: leverage
       };
       
-      // Only add these fields if they have actual values (not undefined)
-      if (params.price !== undefined && params.price !== null) {
-        payload.price = params.price;
-      }
-      
-      if (params.stopLoss !== undefined && params.stopLoss !== null) {
-        payload.stopLoss = params.stopLoss;
-      }
-      
-      if (params.takeProfit !== undefined && params.takeProfit !== null) {
-        payload.takeProfit = params.takeProfit;
-      }
-      
-      if (params.entryPrice !== undefined && params.entryPrice !== null) {
-        payload.entryPrice = params.entryPrice;
-      } else if (params.price !== undefined && params.price !== null) {
-        payload.entryPrice = params.price; // backward compatibility
-      }
-      
-      console.log('📤 Request body to edge function:', payload);
-
-      const r = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          action: 'place_order',
+          symbol: params.symbol.replace('/', ''),
+          side: params.side === 'BUY' ? 'Buy' : 'Sell',
+          amountUSD: amount,
+          leverage: leverage
+        })
       });
 
-      if (!r.ok) {
-        let errorData: any = {};
-        let errorText = '';
-        
-        try {
-          errorText = await r.text();
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: errorText || 'Unknown error' };
-        }
-        
-        console.error('❌ HTTP Error:', r.status, errorData);
-        
-        // Handle specific error codes
-        if (r.status === 401) {
-          return { 
-            ok: false, 
-            error: 'AUTH_FAILED', 
-            message: errorData.error || 'Authentication failed. Please check your credentials.',
-            status: r.status
-          };
-        }
-        
-        if (r.status === 400 && errorData.code === 'CREDENTIALS_REQUIRED') {
-          return { 
-            ok: false, 
-            error: 'CREDENTIALS_REQUIRED', 
-            message: errorData.error || 'Trading credentials required. Please add your API keys.',
-            status: r.status
-          };
-        }
-        
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ HTTP Error:', response.status, errorText);
         return { 
           ok: false, 
-          error: 'HTTP_ERROR', 
-          message: errorData.error || errorText || `HTTP ${r.status} error`,
-          status: r.status
+          code: 'HTTP_ERROR', 
+          message: `HTTP ${response.status}: ${errorText}` 
         };
       }
 
-      const data = await r.json();
-      
-      // Enhanced response logging
-      const out: ExecResult = { 
-        ok: r.ok && data?.success !== false, 
-        status: r.status, 
-        data,
-        message: data?.message,
-        error: data?.error
-      };
-      console.log('🧭 TradingGateway.execute OUT:', out);
-      
-      // Enhanced SL/TP confirmation logging
-      if (data.success && data.data) {
-        const result = data.data;
-        console.log('🔍 Order Execution Details:', {
-          mainOrder: result.orderId || result.order_id,
-          slAttached: !!(result.slOrder || result.stopLossOrder),
-          tpAttached: !!(result.tpOrder || result.takeProfitOrder),
-          orderType: result.orderType || payload.orderType,
-          slPrice: result.slOrder?.triggerPrice || result.stopLossOrder?.price,
-          tpPrice: result.tpOrder?.triggerPrice || result.takeProfitOrder?.price
-        });
-      }
+      const data = await response.json();
       
       if (!data.success) {
         console.error('❌ Trade execution failed:', data);
-        return { 
-          ok: false, 
-          error: 'TRADE_FAILED', 
-          message: data?.error || data?.message || 'Unknown error',
-          data: data?.details
-        };
+        const errorMessage = data?.error || data?.message || 'Unknown error';
+        return { ok: false, code: 'TRADE_FAILED', message: errorMessage };
       }
 
       console.log('✅ Live trade executed successfully:', data);
-      return out;
+      return { ok: true, data: data.data || data };
       
     } catch (error: any) {
       console.error('❌ Trading gateway error:', error);
-      return { ok: false, error: 'NETWORK_ERROR', message: error.message };
+      return { ok: false, code: 'NETWORK_ERROR', message: error.message };
     }
   },
 
@@ -300,6 +153,68 @@ export const TradingGateway = {
       
     } catch (error: any) {
       console.error('❌ Error fetching balance:', error);
+      return { ok: false, error: error.message };
+    }
+  },
+
+  async bulkExecute(list: ExecParams[]) {
+    if (!FEATURES.AUTOTRADE_ENABLED) {
+      return { ok: false, code: 'DISABLED', message: 'Auto-trading disabled' }
+    }
+
+    try {
+      console.log('🚀 Queuing bulk trades:', list.length, 'orders');
+      
+      // Import trade queue here to avoid circular dependencies
+      const { tradeQueue } = await import('./tradeQueue');
+      
+      const tradeIds = list.map(params => tradeQueue.addTrade(params));
+      
+      console.log(`📋 ${tradeIds.length} trades queued for execution`);
+
+      return { 
+        ok: true, 
+        data: { 
+          queued: tradeIds.length, 
+          tradeIds,
+          message: 'Trades queued for execution'
+        }
+      };
+      
+    } catch (error: any) {
+      console.error('❌ Bulk trading error:', error);
+      return { ok: false, code: 'BULK_ERROR', message: error.message };
+    }
+  },
+
+  // Test function to check edge function connectivity
+  async testConnection() {
+    try {
+      const functionsBase = getFunctionsBaseUrl();
+      const sessionToken = await getSessionToken();
+      
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+      };
+      
+      if (sessionToken) {
+        headers['authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'status' })
+      });
+
+      if (!response.ok) {
+        return { ok: false, status: response.status, statusText: response.statusText };
+      }
+
+      const data = await response.json();
+      return { ok: true, data };
+      
+    } catch (error: any) {
       return { ok: false, error: error.message };
     }
   }

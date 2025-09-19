@@ -12,10 +12,14 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface TradingAuthState {
   isAuthenticated: boolean;
-  accountType?: string; // Allow any string to match database
+  accountType?: 'testnet' | 'mainnet';
   balance?: any;
   permissions?: string[];
-  riskSettings?: any; // Allow any type to match database Json
+  riskSettings?: {
+    maxPositionSize: number;
+    stopLossEnabled: boolean;
+    takeProfitEnabled: boolean;
+  };
 }
 
 const BybitTradingAuth = () => {
@@ -48,10 +52,10 @@ const BybitTradingAuth = () => {
       if (accounts && !error) {
         setAuthState({
           isAuthenticated: true,
-          accountType: (accounts.account_type as string) || 'testnet',
+          accountType: accounts.account_type || 'testnet',
           balance: accounts.balance_info,
           permissions: accounts.permissions || [],
-          riskSettings: (typeof accounts.risk_settings === 'object' && accounts.risk_settings) || { maxPositionSize: 1000, stopLossEnabled: true, takeProfitEnabled: true }
+          riskSettings: accounts.risk_settings
         });
         setUseTestnet(accounts.account_type === 'testnet');
       }
@@ -78,7 +82,7 @@ const BybitTradingAuth = () => {
         body: {
           apiKey: credentials.apiKey.trim(),
           apiSecret: credentials.apiSecret.trim(),
-          testnet: useTestnet
+          isTestnet: useTestnet
         }
       });
 
@@ -86,7 +90,20 @@ const BybitTradingAuth = () => {
         throw new Error(data?.message || error?.message || 'Authentication failed');
       }
 
-      // Connection already stored by the edge function
+      // Save connection state to database
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('user_trading_accounts').upsert({
+          user_id: user.id,
+          exchange: 'bybit',
+          account_type: useTestnet ? 'testnet' : 'mainnet',
+          is_active: true,
+          connected_at: new Date().toISOString(),
+          balance_info: data.balance,
+          permissions: data.permissions || ['read', 'trade'],
+          risk_settings: data.riskSettings
+        }, { onConflict: 'user_id,exchange' });
+      }
 
       setAuthState({
         isAuthenticated: true,
@@ -186,7 +203,7 @@ const BybitTradingAuth = () => {
                 <div className="space-y-1">
                   <Label>Trading Environment</Label>
                   <p className="text-sm text-muted-foreground">
-                    {useTestnet ? 'Testnet Mode' : 'Mainnet (Live Trading)'}
+                    {useTestnet ? 'Testnet (Paper Trading)' : 'Mainnet (Live Trading)'}
                   </p>
                 </div>
                 <Switch

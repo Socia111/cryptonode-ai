@@ -58,12 +58,21 @@ export default function AutoTradingToggle() {
         <div>
           <div className="text-sm text-muted-foreground">Trading Mode</div>
           <div className="text-lg font-semibold flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            Live Trading
+            {mode === 'live' ? (
+              <>
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                Live Trading
+              </>
+            ) : (
+              <>
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                Paper Trading
+              </>
+            )}
           </div>
         </div>
-        <Badge variant="destructive">
-          REAL MONEY
+        <Badge variant={mode === 'live' ? 'destructive' : 'secondary'}>
+          {mode === 'live' ? 'REAL MONEY' : 'SIMULATION'}
         </Badge>
       </div>
 
@@ -85,11 +94,24 @@ export default function AutoTradingToggle() {
         </AuthGuardedButton>
       </div>
 
-      {/* Live Trading Only */}
+      {/* Mode Selector */}
       <div className="pt-3 border-t border-border/50">
-        <div className="text-xs text-muted-foreground mb-2">Live Trading Only</div>
-        <div className="bg-red-600 text-white px-3 py-2 rounded-md text-xs">
-          ⚡ Real Money Trading
+        <div className="text-xs text-muted-foreground mb-2">Trading Mode</div>
+        <div className="grid grid-cols-2 gap-2">
+          <AuthGuardedButton 
+            onClick={() => onMode('paper')}
+            className={`px-3 py-2 rounded-md text-xs transition-colors
+                        ${mode==='paper' ? 'bg-blue-600 text-white' : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}
+          >
+            📝 Paper Mode
+          </AuthGuardedButton>
+          <AuthGuardedButton 
+            onClick={() => onMode('live')}
+            className={`px-3 py-2 rounded-md text-xs transition-colors
+                        ${mode==='live' ? 'bg-red-600 text-white' : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}
+          >
+            ⚡ Live Mode
+          </AuthGuardedButton>
         </div>
       </div>
 
@@ -104,9 +126,15 @@ export default function AutoTradingToggle() {
 
       {/* Clear Status Message */}
       <div className="mt-3 text-xs">
-        <div className="text-red-400">
-          ⚠️ Live trading — real money at risk on Bybit exchange
-        </div>
+        {mode === 'paper' ? (
+          <div className="text-blue-400">
+            📝 Simulation mode — no real trades, no exchange calls
+          </div>
+        ) : (
+          <div className="text-red-400">
+            ⚠️ Live mode — real money at risk on Bybit exchange
+          </div>
+        )}
       </div>
     </div>
   )

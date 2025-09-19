@@ -1,476 +1,621 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts'
+import { sendAlert } from '../_shared/alerts.ts'
 
+// CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
+  'Access-Control-Max-Age': '86400',
 };
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+function json(body: any, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders,
+    },
+  });
+}
 
-// Type definitions matching the frontend interfaces
-interface TradeRequest {
+// =================== VALIDATION SCHEMAS ===================
+
+const SignalSchema = z.object({
+  symbol: z.string().min(1),
+  side: z.enum(['Buy', 'Sell']),
+  amountUSD: z.number().min(1),
+  leverage: z.number().min(1).max(100)
+}).or(z.object({
+  symbol: z.string().regex(/USDT$/, "Symbol must end with USDT"),
+  direction: z.enum(['LONG', 'SHORT']),
+  entry_price: z.number().positive().optional(),
+  stop_loss: z.number().positive().optional(), 
+  take_profit: z.number().positive().optional(),
+  pms_score: z.number().min(0).max(1),
+  confidence_score: z.number().min(0).max(1),
+  risk_reward_ratio: z.number().min(1.5),
+  regime: z.string(),
+  atr: z.number().positive(),
+  indicators: z.object({
+    notionalUSD: z.number().min(5),
+    leverage: z.number().min(1).max(25)
+  })
+}));
+
+// =================== PRECISION UTILITIES ===================
+
+// Utility functions for number rounding
+function roundToStep(value: number, stepSize: number): number {
+  return Math.floor(value / stepSize + 1e-12) * stepSize;
+}
+
+function roundToTick(value: number, tickSize: number): number {
+  return Math.round(value / tickSize) * tickSize;
+}
+
+// Symbol validation - allow all symbols including digits
+function isSymbolAllowed(symbol: string): boolean {
+  const allowAll = (Deno.env.get("ALLOWED_SYMBOLS") || "*").trim();
+  if (allowAll === "*") return true;
+
+  const list = allowAll.split(",").map(s => s.trim().toUpperCase());
+  return list.includes(symbol.toUpperCase());
+}
+
+// Instrument info types
+type Instrument = {
+  category: "spot" | "linear";
   symbol: string;
-  side: 'BUY' | 'SELL';
-  qty?: number;
-  amount_usd?: number;
-  leverage?: number;
-  paper_mode?: boolean;
-  user_id?: string;
-  signal_id?: string;
-  order_type?: 'Market' | 'Limit';
-  time_in_force?: 'GTC' | 'IOC' | 'FOK';
-  reduce_only?: boolean;
+  tickSize: number;
+  qtyStep: number;
+  minOrderValue?: number;
+  minOrderQty?: number;
+  minOrderAmt?: number;
+};
+
+// Get instrument information from Bybit
+async function getInstrument(symbol: string): Promise<Instrument> {
+  const base = Deno.env.get("BYBIT_BASE")!;
+  
+  for (const category of ["linear", "spot"] as const) {
+    const url = new URL("/v5/market/instruments-info", base);
+    url.searchParams.set("category", category);
+    url.searchParams.set("symbol", symbol);
+    
+    const r = await fetch(url.toString());
+    const j = await r.json();
+
+    if (j?.result?.list?.length) {
+      const it = j.result.list[0];
+      const tickSize = Number(it.priceFilter?.tickSize ?? 0.01);
+      const qtyStep = Number(it.lotSizeFilter?.qtyStep ?? 0.000001);
+      const minOrderValue = it.minOrderValue ? Number(it.minOrderValue) : undefined;
+      const minOrderQty = it.lotSizeFilter?.minOrderQty ? Number(it.lotSizeFilter.minOrderQty) : undefined;
+      const minOrderAmt = it.minOrderAmt ? Number(it.minOrderAmt) : undefined;
+
+      return { category, symbol, tickSize, qtyStep, minOrderValue, minOrderQty, minOrderAmt };
+    }
+  }
+  throw new Error(`Symbol ${symbol} not found on Bybit`);
 }
 
-interface TradeExecutionResult {
-  success: boolean;
-  trade_id?: string;
+// Get mark price from Bybit
+async function getMarkPrice(symbol: string): Promise<number> {
+  const base = Deno.env.get("BYBIT_BASE")!;
   
-  result: any;
-  message: string;
-  execution_time_ms?: number;
-  avg_price?: string;
-  executed_qty?: string;
-  error_code?: string;
-  retry_count?: number;
+  for (const category of ["linear", "spot"] as const) {
+    const url = new URL("/v5/market/tickers", base);
+    url.searchParams.set("category", category);
+    url.searchParams.set("symbol", symbol);
+    
+    const r = await fetch(url.toString());
+    const j = await r.json();
+    const p = Number(j?.result?.list?.[0]?.lastPrice);
+    if (p > 0) return p;
+  }
+  throw new Error("Mark price unavailable");
 }
+
+// Compute proper order quantity with exchange minimums
+function computeOrderQtyUSD(
+  amountUSD: number, 
+  leverage: number, 
+  price: number, 
+  inst: Instrument
+) {
+  const targetNotional = Math.max(1, amountUSD) * Math.max(1, leverage);
+  
+  let qty = targetNotional / price;
+  qty = roundToStep(qty, inst.qtyStep || 0.000001);
+
+  // Ensure exchange minimums
+  if (inst.category === "linear" && inst.minOrderValue) {
+    const notional = qty * price;
+    if (notional + 1e-12 < inst.minOrderValue) {
+      qty = roundToStep(inst.minOrderValue / price, inst.qtyStep);
+    }
+  }
+
+  if (inst.category === "spot") {
+    if (inst.minOrderAmt) {
+      const notional = qty * price;
+      if (notional + 1e-12 < inst.minOrderAmt) {
+        qty = roundToStep(inst.minOrderAmt / price, inst.qtyStep);
+      }
+    }
+    if (inst.minOrderQty && qty + 1e-12 < inst.minOrderQty) {
+      qty = roundToStep(inst.minOrderQty, inst.qtyStep);
+    }
+  }
+
+  return { qty, targetNotional };
+}
+
+// =================== STRUCTURED LOGGING ===================
+
+const structuredLog = (event: string, data: Record<string, any> = {}) => {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    event,
+    requestId: data.requestId || crypto.randomUUID(),
+    ...data
+  };
+  console.log(JSON.stringify(logEntry));
+  return logEntry.requestId;
+};
+
+// =================== BYBIT V5 API INTEGRATION ===================
 
 interface BybitCredentials {
-  api_key: string;
-  api_secret: string;
-  testnet: boolean;
+  apiKey: string
+  apiSecret: string
+  testnet: boolean
 }
 
-async function getUserCredentials(userId: string): Promise<BybitCredentials | null> {
-  try {
-    console.log(`🔍 Fetching credentials for user: ${userId}`);
-    
-    const { data, error } = await supabase
-      .from('user_trading_accounts')
-      .select('api_key_encrypted, api_secret_encrypted, account_type')
-      .eq('user_id', userId)
-      .eq('exchange', 'bybit')
-      .eq('is_active', true)
-      .single();
+class BybitV5Client {
+  private baseURL: string
+  private apiKey: string
+  private apiSecret: string
 
-    if (error || !data) {
-      console.log('❌ No user credentials found:', error?.message);
-      return null;
-    }
-
-    // Note: In production, these should be properly encrypted/decrypted
-    // For now, we're storing them as plain text (not recommended for production)
-    console.log(`✅ Found user credentials for ${data.account_type} account`);
-    
-    return {
-      api_key: data.api_key_encrypted,
-      api_secret: data.api_secret_encrypted,
-      testnet: data.account_type === 'testnet'
-    };
-  } catch (error) {
-    console.error('❌ Error fetching user credentials:', error);
-    return null;
+  constructor(credentials: BybitCredentials) {
+    this.baseURL = credentials.testnet 
+      ? 'https://api-testnet.bybit.com' 
+      : (Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com')
+    this.apiKey = credentials.apiKey
+    this.apiSecret = credentials.apiSecret
   }
-}
 
-async function getSystemCredentials(): Promise<BybitCredentials> {
-  const isTestnet = Deno.env.get('PAPER_TRADING') === 'true' || Deno.env.get('BYBIT_TESTNET') === 'true';
-  const apiKey = Deno.env.get('BYBIT_API_KEY') || '';
-  const apiSecret = Deno.env.get('BYBIT_API_SECRET') || '';
-  
-  console.log(`🔧 Using system credentials for ${isTestnet ? 'testnet' : 'mainnet'}`);
-  console.log(`🔑 System API key available: ${apiKey ? 'YES' : 'NO'}`);
-  
-  if (!apiKey || !apiSecret) {
-    throw new Error('System credentials not configured. Please set BYBIT_API_KEY and BYBIT_API_SECRET environment variables.');
+  private async signRequest(method: string, path: string, params: any = {}): Promise<string> {
+    const timestamp = Date.now().toString()
+    const paramString = Object.keys(params).length 
+      ? JSON.stringify(params)
+      : ''
+
+    const message = timestamp + this.apiKey + '5000' + paramString
+    const signature = await this.hmacSha256(this.apiSecret, message)
+    
+    return signature
   }
-  
-  return {
-    api_key: apiKey,
-    api_secret: apiSecret,
-    testnet: isTestnet
-  };
-}
 
-async function createBybitSignature(params: string, secret: string, timestamp: string, apiKey: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(timestamp + apiKey + '5000' + params);
-  const key = encoder.encode(secret);
-  
-  try {
-    const cryptoKey = await crypto.subtle.importKey(
+  private async hmacSha256(secret: string, message: string): Promise<string> {
+    const encoder = new TextEncoder()
+    const key = await crypto.subtle.importKey(
       'raw',
-      key,
+      encoder.encode(secret),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['sign']
-    );
+    )
     
-    const signature = await crypto.subtle.sign('HMAC', cryptoKey, data);
-    
+    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message))
     return Array.from(new Uint8Array(signature))
       .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-  } catch (error) {
-    console.error('❌ Signature generation failed:', error);
-    throw new Error(`Failed to generate signature: ${error.message}`);
-  }
-}
-
-async function executeBybitTrade(trade: TradeRequest, credentials: BybitCredentials) {
-  const timestamp = Date.now().toString();
-  const baseUrl = credentials.testnet 
-    ? 'https://api-testnet.bybit.com' 
-    : 'https://api.bybit.com';
-
-  // Validate symbol is provided
-  if (!trade.symbol) {
-    throw new Error('Symbol is required for trade execution');
+      .join('')
   }
 
-  const symbol = trade.symbol.replace('/', '').toUpperCase();
-  console.log(`🔄 Executing ${trade.side} trade for ${symbol}`);
-
-  // 1. Get proper instrument info from Bybit
-  let instrumentInfo;
-  try {
-    const instrumentResponse = await fetch(`${baseUrl}/v5/market/instruments-info?category=linear&symbol=${symbol}`);
-    const instrumentData = await instrumentResponse.json();
+  async signedRequest(method: string, endpoint: string, params: any = {}): Promise<any> {
+    const timestamp = Date.now().toString()
+    const signature = await this.signRequest(method, endpoint, params)
     
-    if (instrumentData.retCode === 0 && instrumentData.result?.list && instrumentData.result.list.length > 0) {
-      const instrument = instrumentData.result.list[0];
-      instrumentInfo = {
-        minQty: parseFloat(instrument.lotSizeFilter.minOrderQty),
-        qtyStep: parseFloat(instrument.lotSizeFilter.qtyStep),
-        tickSize: parseFloat(instrument.priceFilter.tickSize),
-        minNotional: parseFloat(instrument.lotSizeFilter.minOrderAmt || "5")
-      };
-      console.log(`📊 Instrument info for ${symbol}:`, instrumentInfo);
-    } else {
-      throw new Error(`Failed to get instrument info: ${instrumentData.retMsg || 'Unknown error'}`);
-    }
-  } catch (error) {
-    console.error(`❌ Failed to fetch instrument info for ${symbol}:`, error);
-    // Fallback to conservative defaults
-    instrumentInfo = {
-      minQty: 0.01,
-      qtyStep: 0.01,
-      tickSize: 0.01,
-      minNotional: 5
-    };
-    console.log(`⚠️ Using fallback instrument info:`, instrumentInfo);
-  }
-
-  // 2. Calculate quantity if amount_usd is provided
-  let qty = trade.qty;
-  let currentPrice = 0;
-
-  if (!qty && trade.amount_usd) {
-    // Get current price to calculate qty
-    console.log(`🔍 Fetching price for ${symbol}...`);
-    const priceResponse = await fetch(`${baseUrl}/v5/market/tickers?category=linear&symbol=${symbol}`);
-    const priceData = await priceResponse.json();
-    
-    console.log(`📊 Price response:`, priceData);
-    
-    if (priceData.retCode === 0 && priceData.result?.list && priceData.result.list.length > 0) {
-      currentPrice = parseFloat(priceData.result.list[0].lastPrice);
-      
-      if (!currentPrice || currentPrice <= 0) {
-        throw new Error(`Invalid price received: ${currentPrice} for ${symbol}`);
-      }
-      
-      // Calculate quantity with leverage
-      const leverage = trade.leverage || 1;
-      qty = trade.amount_usd / currentPrice; // Remove leverage from qty calculation
-      
-      // Apply quantity precision based on qtyStep
-      const qtyStepPrecision = instrumentInfo.qtyStep.toString().split('.')[1]?.length || 3;
-      qty = Math.floor(qty / instrumentInfo.qtyStep) * instrumentInfo.qtyStep;
-      qty = parseFloat(qty.toFixed(qtyStepPrecision));
-      
-      // Ensure minimum quantity
-      if (qty < instrumentInfo.minQty) {
-        qty = instrumentInfo.minQty;
-      }
-      
-      console.log(`💰 Calculated qty: ${qty} (price: ${currentPrice}, amount: ${trade.amount_usd}, leverage: ${leverage})`);
-    } else {
-      throw new Error(`Could not fetch current price for ${symbol}: ${priceData.retMsg || 'Unknown error'}`);
-    }
-  }
-
-  // 3. Validate calculated quantity
-  if (!qty || qty < instrumentInfo.minQty) {
-    throw new Error(`Quantity ${qty} is below minimum ${instrumentInfo.minQty} for ${symbol}`);
-  }
-
-  // 4. Calculate notional value for validation
-  const notionalValue = qty * (currentPrice || 1);
-  if (notionalValue < instrumentInfo.minNotional) {
-    throw new Error(`Notional value ${notionalValue} is below minimum ${instrumentInfo.minNotional} for ${symbol}`);
-  }
-
-  // 5. Create order parameters with proper precision and correct case
-  const orderParams = {
-    category: 'linear',
-    symbol: symbol,
-    side: trade.side === 'BUY' ? 'Buy' : 'Sell', // Fix: Bybit expects "Buy"/"Sell", not "BUY"/"SELL"
-    orderType: 'Market',
-    qty: qty.toString(),
-    timeInForce: 'IOC'
-  };
-
-  console.log(`📋 Order params:`, orderParams);
-
-  // Create query string for signature
-  const paramsString = JSON.stringify(orderParams);
-
-  const signature = await createBybitSignature(paramsString, credentials.api_secret, timestamp, credentials.api_key);
-
-  console.log(`🔐 Sending order to ${baseUrl}/v5/order/create`);
-
-  const response = await fetch(`${baseUrl}/v5/order/create`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-BAPI-API-KEY': credentials.api_key,
+    const headers = {
+      'X-BAPI-API-KEY': this.apiKey,
       'X-BAPI-SIGN': signature,
       'X-BAPI-SIGN-TYPE': '2',
       'X-BAPI-TIMESTAMP': timestamp,
-      'X-BAPI-RECV-WINDOW': '5000'
-    },
-    body: JSON.stringify(orderParams)
-  });
+      'X-BAPI-RECV-WINDOW': '5000',
+      'Content-Type': 'application/json'
+    }
 
-  const result = await response.json();
-  console.log(`📊 Bybit response:`, result);
-  
-  return result;
+    const url = `${this.baseURL}${endpoint}`
+    const options: RequestInit = {
+      method,
+      headers,
+      ...(method !== 'GET' && { body: JSON.stringify(params) })
+    }
+
+    const response = await fetch(url, options)
+    const data = await response.json()
+    
+    if (data.retCode !== 0) {
+      throw new Error(`Bybit API error: ${data.retMsg}`)
+    }
+    
+    return data
+  }
+
+  // Get account position mode (OneWay vs Hedge)
+  async getPositionMode(symbol: string, category: string): Promise<number> {
+    try {
+      // First, try to get account info to check position mode
+      const accountData = await this.signedRequest('GET', '/v5/account/info', {})
+      
+      // For unified account, we need to check position mode specifically
+      if (category === 'linear') {
+        // Try to get position info for this symbol to determine mode
+        const positionData = await this.signedRequest('GET', '/v5/position/list', {
+          category,
+          symbol,
+          limit: 1
+        })
+        
+        // If we get positions back, use their positionIdx
+        if (positionData?.result?.list?.length > 0) {
+          const positionIdx = Number(positionData.result.list[0].positionIdx) || 0
+          structuredLog('info', 'Found existing position, using its positionIdx', { 
+            symbol, 
+            positionIdx,
+            mode: positionIdx === 0 ? 'OneWay' : 'Hedge'
+          })
+          return positionIdx
+        }
+        
+        // No existing positions - try both modes to see which works
+        // Default to One-Way mode (0) which is most common
+        structuredLog('info', 'No existing positions, defaulting to OneWay mode', { symbol })
+        return 0
+      }
+      
+      // For spot trading, always return 0 (no position modes)
+      return 0
+    } catch (error) {
+      structuredLog('warn', 'Failed to determine position mode, defaulting to OneWay', { 
+        symbol, 
+        category,
+        error: error.message 
+      })
+      return 0
+    }
+  }
 }
 
+// =================== TRADING SIGNAL & CONFIG TYPES ===================
+
+interface TradingSignal {
+  symbol: string
+  direction: 'BUY' | 'SELL'
+  entry_price?: number
+  stop_loss?: number
+  take_profit?: number
+  score: number
+  leverage?: number
+  notional?: number
+  quantity?: number
+}
+
+interface TradingConfig {
+  enabled: boolean
+  maxPositionSize: number
+  allowedSymbols: string[]
+  riskLimits: {
+    maxLeverage: number
+    minRiskRewardRatio: number
+    maxDailyLoss: number
+  }
+}
+
+// =================== AUTO TRADING ENGINE ===================
+
+class AutoTradingEngine {
+  private supabase: any
+  private client?: BybitV5Client
+  private config?: TradingConfig
+
+  constructor(supabase: any) {
+    this.supabase = supabase
+  }
+
+  private async initializeClient(): Promise<void> {
+    const apiKey = Deno.env.get('BYBIT_API_KEY')
+    const apiSecret = Deno.env.get('BYBIT_API_SECRET')
+    
+    if (!apiKey || !apiSecret) {
+      throw new Error('Bybit credentials not configured')
+    }
+
+    this.client = new BybitV5Client({
+      apiKey,
+      apiSecret,
+      testnet: false
+    })
+  }
+
+  async executeSignal(signal: TradingSignal): Promise<any> {
+    await this.initializeClient()
+    
+    if (!this.client) {
+      throw new Error('Trading client not initialized')
+    }
+
+    // Validate signal
+    if (!isSymbolAllowed(signal.symbol)) {
+      throw new Error(`Symbol ${signal.symbol} not whitelisted`)
+    }
+
+    // Get instrument info and calculate proper size
+    const inst = await getInstrument(signal.symbol)
+    const price = await getMarkPrice(signal.symbol)
+    
+    const { qty } = computeOrderQtyUSD(
+      signal.notional || 10, 
+      signal.leverage || 1, 
+      price, 
+      inst
+    )
+
+    if (!qty || qty <= 0) {
+      throw new Error('Invalid quantity calculation')
+    }
+
+    // Place order
+    const orderData: any = {
+      category: inst.category,
+      symbol: signal.symbol,
+      side: signal.direction === 'BUY' ? 'Buy' : 'Sell',
+      orderType: 'Market',
+      qty: String(qty),
+      timeInForce: 'IOC'
+    }
+
+    // For linear contracts, we need to handle position mode correctly
+    if (inst.category === 'linear') {
+      // Get the appropriate positionIdx based on account mode
+      const positionIdx = await this.client.getPositionMode(signal.symbol, inst.category)
+      orderData.positionIdx = positionIdx
+      orderData.reduceOnly = false
+    }
+
+    const result = await this.client.signedRequest('POST', '/v5/order/create', orderData)
+    
+    // Log to database
+    await this.logExecution(signal, result, {
+      calculatedQty: qty,
+      instrumentInfo: inst,
+      markPrice: price
+    })
+
+    return result
+  }
+
+  private async logExecution(signal: TradingSignal, result: any, metadata: any): Promise<void> {
+    try {
+      await this.supabase.from('trade_executions').insert({
+        signal_data: signal,
+        execution_result: result,
+        metadata,
+        executed_at: new Date().toISOString()
+      })
+    } catch (error) {
+      structuredLog('error', 'Failed to log execution', { error: error.message })
+    }
+  }
+}
+
+// =================== MAIN HANDLER ===================
+
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Require auth (since verify_jwt=true)
+    const auth = req.headers.get("authorization") || "";
+    if (!auth.startsWith("Bearer ")) {
+      return json({ success: false, code: "AUTH", message: "Missing authorization header" }, 401);
+    }
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Parse request
     const requestBody = await req.json();
-    const { action, ...payload } = requestBody;
+    const { action, symbol, side, amountUSD, leverage } = requestBody;
     
-    console.log('🎯 Trade executor request:', { action, hasPayload: !!payload });
+    structuredLog('info', 'Trade executor called', { action, symbol, side, amountUSD, leverage });
 
-    switch (action) {
-      case 'execute_trade': {
-        const trade: TradeRequest = payload;
+    // Handle status requests
+    if (action === 'status') {
+      return json({
+        ok: true,
+        status: 'operational',
+        trading_enabled: Deno.env.get('LIVE_TRADING_ENABLED') === 'true',
+        allowed_symbols: Deno.env.get('ALLOWED_SYMBOLS') || '*',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Handle place order requests
+    if (action === 'place_order' || action === 'signal') {
+      if (!symbol || !side || !amountUSD) {
+        return json({
+          success: false,
+          message: 'Missing required fields: symbol, side, amountUSD'
+        }, 400);
+      }
+
+      structuredLog('info', 'Trade execution request', {
+        symbol,
+        side,
+        amountUSD,
+        leverage: leverage || 1
+      });
+
+      try {
+        // Get instrument info and price
+        const inst = await getInstrument(symbol);
+        const price = await getMarkPrice(symbol);
         
-        console.log('🎯 Trade execution request:', {
-          symbol: trade.symbol,
-          side: trade.side,
-          qty: trade.qty,
-          amount_usd: trade.amount_usd,
-          user_id: trade.user_id ? 'provided' : 'system',
-          paper_mode: trade.paper_mode || false
-        });
-
-        // Check if paper trading mode is requested
-        const paperMode = trade.paper_mode === true;
-        const liveTradeEnabled = Deno.env.get('LIVE_TRADING_ENABLED') === 'true';
+        // Calculate proper quantity
+        const { qty } = computeOrderQtyUSD(amountUSD, leverage || 1, price, inst);
         
-        let result;
-        let credentials = null;
-        const startTime = Date.now();
+        if (!qty || qty <= 0) {
+          return json({
+            success: false,
+            message: 'Size calculation failed'
+          }, 400);
+        }
 
-        if (paperMode) {
-          // Paper trading - simulate realistic trade execution
-          console.log('🎮 PAPER TRADING MODE - Simulating trade execution');
-          
-          // Get real market price for accurate simulation
-          const symbol = trade.symbol.replace('/', '').toUpperCase();
-          const baseUrl = 'https://api.bybit.com'; // Use live prices even for paper trading
+        // Create order data
+        const orderData: any = {
+          category: inst.category,
+          symbol,
+          side: side === 'Buy' ? 'Buy' : 'Sell',
+          orderType: 'Market',
+          qty: String(qty),
+          timeInForce: 'IOC'
+        }
+
+        // Initialize trading engine and client once
+        const engine = new AutoTradingEngine(supabase);
+        await engine.initializeClient();
+
+        // For linear contracts, handle position mode correctly
+        if (inst.category === 'linear') {
+          // Try to determine the correct position mode
+          let positionIdx = 0; // Default to OneWay mode
           
           try {
-            const priceResponse = await fetch(`${baseUrl}/v5/market/tickers?category=linear&symbol=${symbol}`);
-            const priceData = await priceResponse.json();
+            // Check if account has any existing positions to determine mode
+            const accountInfo = await engine.client!.signedRequest('GET', '/v5/account/info', {})
+            structuredLog('info', 'Account info retrieved', { 
+              accountType: accountInfo?.result?.accountType || 'unknown'
+            })
             
-            let currentPrice = 50000; // Default fallback
-            if (priceData.retCode === 0 && priceData.result?.list?.length > 0) {
-              currentPrice = parseFloat(priceData.result.list[0].lastPrice);
+            // For unified accounts, we need to be more careful about position mode
+            // Try to get existing positions first
+            try {
+              const positionData = await engine.client!.signedRequest('GET', '/v5/position/list', {
+                category: 'linear',
+                symbol,
+                limit: 1
+              })
+              
+              if (positionData?.result?.list?.length > 0) {
+                positionIdx = Number(positionData.result.list[0].positionIdx) || 0
+                structuredLog('info', 'Using positionIdx from existing position', { positionIdx })
+              }
+            } catch (posError) {
+              structuredLog('warn', 'Could not get position info', { error: posError.message })
             }
-            
-            const mockQty = trade.qty || (trade.amount_usd || 50) / currentPrice;
-            const mockFee = (trade.amount_usd || 50) * 0.0005; // 0.05% fee
-            
-            result = {
-              retCode: 0,
-              retMsg: 'Paper trade executed successfully',
-              result: {
-                orderId: `PAPER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                orderLinkId: `paper_link_${Date.now()}`,
-                avgPrice: currentPrice.toString(),
-                cumExecQty: mockQty.toString(),
-                qty: mockQty.toString(),
-                side: trade.side === 'BUY' ? 'Buy' : 'Sell',
-                symbol: trade.symbol,
-                orderType: 'Market',
-                orderStatus: 'Filled',
-                cumExecValue: (trade.amount_usd || 50).toString(),
-                cumExecFee: mockFee.toString()
-              }
-            };
-            
-            console.log('🎮 Paper trade simulated with real market price:', currentPrice);
-          } catch (error) {
-            console.log('⚠️ Could not fetch real price for paper trade, using defaults');
-            result = {
-              retCode: 0,
-              retMsg: 'Paper trade executed successfully (with default pricing)',
-              result: {
-                orderId: `PAPER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                orderLinkId: `paper_link_${Date.now()}`,
-                avgPrice: '50000.00',
-                cumExecQty: (trade.qty || (trade.amount_usd || 50) / 50000).toString(),
-                qty: (trade.qty || (trade.amount_usd || 50) / 50000).toString(),
-                side: trade.side === 'BUY' ? 'Buy' : 'Sell',
-                symbol: trade.symbol,
-                orderType: 'Market',
-                orderStatus: 'Filled',
-                cumExecValue: (trade.amount_usd || 50).toString(),
-                cumExecFee: '0.025'
-              }
-            };
-          }
-        } else {
-          // Live trading
-          if (!liveTradeEnabled) {
-            throw new Error('Live trading is disabled. Use paper_mode: true for testing.');
+          } catch (accountError) {
+            structuredLog('warn', 'Could not get account info', { error: accountError.message })
           }
           
-          console.log('💰 Executing live trade...');
+          orderData.positionIdx = positionIdx
+          orderData.reduceOnly = false
           
-          // Get credentials with user preference first, then system fallback
-          if (trade.user_id) {
-            console.log('🔍 Attempting to use user credentials...');
-            credentials = await getUserCredentials(trade.user_id);
-          }
-          
-          if (!credentials) {
-            console.log('🔧 Falling back to system credentials...');
-            credentials = await getSystemCredentials();
-          }
-
-          result = await executeBybitTrade(trade, credentials);
+          structuredLog('info', 'Position configuration set', {
+            symbol,
+            category: inst.category,
+            positionIdx,
+            mode: positionIdx === 0 ? 'OneWay' : 'Hedge'
+          })
         }
 
-        const executionTime = Date.now() - startTime;
-
-        // Enhanced trade logging with more details
-        const logData = {
-          user_id: trade.user_id || '00000000-0000-0000-0000-000000000000',
-          symbol: trade.symbol,
-          side: trade.side,
-          qty: trade.qty || (result.result?.cumExecQty ? parseFloat(result.result.cumExecQty) : null),
-          amount_usd: trade.amount_usd,
-          leverage: trade.leverage || 1,
-          paper_mode: paperMode,
-          status: result.retCode === 0 ? 'executed' : 'failed',
-          exchange_order_id: result.result?.orderId || null,
-          ret_code: result.retCode,
-          ret_msg: result.retMsg,
-          raw_response: result,
-          execution_time_ms: executionTime,
-          avg_price: result.result?.avgPrice || result.result?.price || null,
-          credentials_source: credentials ? (trade.user_id ? 'user' : 'system') : 'none'
-        };
-
-        const { error: logError } = await supabase
-          .from('execution_orders')
-          .insert(logData);
-
-        if (logError) {
-          console.error('❌ Failed to log trade execution:', logError);
-        } else {
-          console.log('📊 Trade logged successfully');
-        }
-
-        const responseData = {
-          success: result.retCode === 0,
-          trade_id: result.result?.orderId || result.result?.orderLinkId,
-          paper_mode: paperMode,
-          result: result,
-          message: result.retMsg || 'Trade executed successfully',
-          execution_time_ms: executionTime,
-          avg_price: result.result?.avgPrice || result.result?.price || null,
-          executed_qty: result.result?.cumExecQty || result.result?.qty || null
-        };
-
-        console.log('✅ Trade execution completed:', {
-          success: responseData.success,
-          trade_id: responseData.trade_id,
-          paper_mode: responseData.paper_mode,
-          execution_time: `${executionTime}ms`
-        });
-
-        return new Response(JSON.stringify(responseData), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      case 'validate_credentials': {
-        const { user_id } = payload;
+        // Execute the order with retry logic for position mode
+        let result;
+        let lastError;
         
-        let credentials = null;
-        if (user_id) {
-          credentials = await getUserCredentials(user_id);
+        // Try the detected position mode first
+        try {
+          result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+        } catch (error) {
+          lastError = error;
+          structuredLog('warn', 'First attempt failed, trying alternative position mode', { 
+            error: error.message,
+            originalPositionIdx: orderData.positionIdx 
+          })
+          
+          // If it's a position mode error and we're in linear category, try the opposite mode
+          if (inst.category === 'linear' && error.message?.includes('position')) {
+            const alternativeIdx = orderData.positionIdx === 0 ? 1 : 0
+            orderData.positionIdx = alternativeIdx
+            
+            try {
+              structuredLog('info', 'Retrying with alternative positionIdx', { 
+                symbol,
+                newPositionIdx: alternativeIdx
+              })
+              result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+            } catch (secondError) {
+              // If both modes fail, throw the original error
+              structuredLog('error', 'Both position modes failed', {
+                originalError: error.message,
+                secondError: secondError.message
+              })
+              throw error
+            }
+          } else {
+            throw error
+          }
         }
-        
-        if (!credentials) {
-          credentials = await getSystemCredentials();
-        }
 
-        const hasValidCredentials = !!(credentials?.api_key && credentials?.api_secret);
-
-        return new Response(JSON.stringify({
-          success: true,
-          has_credentials: hasValidCredentials,
-          testnet: credentials?.testnet || false,
-          paper_mode: Deno.env.get('PAPER_TRADING') === 'true'
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        structuredLog('info', 'Order executed successfully', { 
+          symbol, 
+          side, 
+          qty, 
+          category: inst.category, 
+          positionIdx: orderData.positionIdx,
+          orderId: result?.result?.orderId 
         });
-      }
 
-      case 'status': {
-        return new Response(JSON.stringify({
+        return json({
           success: true,
-          status: 'active',
-          paper_mode: Deno.env.get('PAPER_TRADING') === 'true',
-          timestamp: new Date().toISOString()
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          data: result
         });
-      }
-
-      default:
-        return new Response(JSON.stringify({
+      } catch (error) {
+        structuredLog('error', 'Trade execution failed', { 
+          error: error.message, 
+          symbol, 
+          side, 
+          amountUSD, 
+          leverage 
+        });
+        return json({
           success: false,
-          error: 'Unknown action'
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+          message: error.message
+        }, 500);
+      }
     }
-  } catch (error) {
-    console.error('Error in trade executor:', error);
-    return new Response(JSON.stringify({
+
+    // Unknown action
+    return json({
       success: false,
-      error: error.message
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+      message: `Unknown action: ${action}`
+    }, 400);
+
+  } catch (error) {
+    structuredLog('error', 'Execution error', { error: error.message });
+    
+    return json({
+      success: false,
+      message: error.message || 'Internal server error'
+    }, 500);
   }
 });

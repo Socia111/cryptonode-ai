@@ -17,11 +17,9 @@ const SpynxScoreCard = () => {
     setLoadingAira(true);
     try {
       const { data, error } = await supabase
-        .from('signals')
+        .from('aira_rankings')
         .select('*')
-        .eq('is_active', true)
-        .gte('score', 85)
-        .order('score', { ascending: false })
+        .order('rank_position', { ascending: true })
         .limit(10);
       
       if (error) throw error;
