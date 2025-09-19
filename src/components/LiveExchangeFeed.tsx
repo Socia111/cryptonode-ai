@@ -46,7 +46,10 @@ export function LiveExchangeFeed() {
         .order('exchange');
 
       if (error) throw error;
-      setExchangeStatuses(data || []);
+      setExchangeStatuses((data || []).map(item => ({
+        ...item,
+        status: (item.status as 'active' | 'error' | 'disabled') || 'disabled'
+      })));
     } catch (err) {
       console.error('Error fetching exchange statuses:', err);
       setError('Failed to fetch exchange statuses');

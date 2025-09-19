@@ -12,14 +12,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface TradingAuthState {
   isAuthenticated: boolean;
-  accountType?: 'testnet' | 'mainnet';
+  accountType?: string; // Allow any string to match database
   balance?: any;
   permissions?: string[];
-  riskSettings?: {
-    maxPositionSize: number;
-    stopLossEnabled: boolean;
-    takeProfitEnabled: boolean;
-  };
+  riskSettings?: any; // Allow any type to match database Json
 }
 
 const BybitTradingAuth = () => {
@@ -52,10 +48,10 @@ const BybitTradingAuth = () => {
       if (accounts && !error) {
         setAuthState({
           isAuthenticated: true,
-          accountType: accounts.account_type || 'testnet',
+          accountType: (accounts.account_type as string) || 'testnet',
           balance: accounts.balance_info,
           permissions: accounts.permissions || [],
-          riskSettings: accounts.risk_settings
+          riskSettings: (typeof accounts.risk_settings === 'object' && accounts.risk_settings) || { maxPositionSize: 1000, stopLossEnabled: true, takeProfitEnabled: true }
         });
         setUseTestnet(accounts.account_type === 'testnet');
       }

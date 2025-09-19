@@ -47,7 +47,13 @@ export function WhitelistManager() {
       }
 
       if (data?.value) {
-        setSettings(data.value as WhitelistSettings);
+        setSettings((data.value as any) || {
+          whitelist_enabled: false,
+          whitelist_pairs: [],
+          max_symbols: 2000,
+          auto_update: true,
+          last_updated: new Date().toISOString()
+        });
       }
     } catch (error) {
       console.error('Error loading whitelist settings:', error);

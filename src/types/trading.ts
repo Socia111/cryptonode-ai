@@ -3,7 +3,7 @@
 export interface Signal {
   id?: string;
   symbol: string;
-  direction: 'LONG' | 'SHORT';
+  direction: string; // Allow any string to match database
   timeframe: string;
   price: number;
   entry_price?: number;
@@ -15,7 +15,7 @@ export interface Signal {
   algo?: string;
   exchange?: string;
   exchange_source?: string;
-  side?: 'BUY' | 'SELL';
+  side?: string; // Allow any string to match database
   signal_type?: string;
   signal_grade?: string;
   bar_time?: string;
@@ -23,9 +23,9 @@ export interface Signal {
   atr?: number;
   volume_ratio?: number;
   hvp_value?: number;
-  filters?: Record<string, any>;
-  metadata?: Record<string, any>;
-  meta?: Record<string, any>;
+  filters?: any; // Allow any type to match database Json
+  metadata?: any; // Allow any type to match database Json
+  meta?: any; // Allow any type to match database Json
   is_active?: boolean;
   created_at?: string;
 }
@@ -88,13 +88,13 @@ export interface TradeExecution {
 export interface TradingCredentials {
   id?: string;
   user_id: string;
-  exchange: 'bybit' | 'binance' | 'okx';
-  account_type: 'testnet' | 'mainnet';
+  exchange: string; // Allow any string to match database
+  account_type: string; // Allow any string to match database
   api_key_encrypted: string;
   api_secret_encrypted: string;
   is_active: boolean;
   permissions?: string[];
-  risk_settings?: Record<string, any>;
+  risk_settings?: any; // Allow any type to match database Json
   balance_info?: Record<string, any>;
   connected_at?: string;
   last_used_at?: string;

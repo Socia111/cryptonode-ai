@@ -37,7 +37,7 @@ export function useWhitelistSettings() {
       }
 
       if (data?.value) {
-        setSettings(data.value as WhitelistSettings);
+        setSettings((data.value as any) || DEFAULT_SETTINGS);
       } else {
         // Initialize with default settings
         await saveSettings(DEFAULT_SETTINGS);

@@ -45,8 +45,8 @@ const ThreeCommasAuth = () => {
       if (accounts && !error) {
         setAuthState({
           isAuthenticated: true,
-          apiKey: accounts.api_key?.substring(0, 8) + '...',
-          accountInfo: accounts.account_info,
+          apiKey: (accounts as any).api_key?.substring(0, 8) + '...',
+          accountInfo: (accounts as any).account_info,
           permissions: accounts.permissions || []
         });
       }

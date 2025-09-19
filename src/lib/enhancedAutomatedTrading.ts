@@ -81,8 +81,8 @@ export class EnhancedAutomatedTradingEngine {
         return defaultConfig;
       }
 
-      this.config = data;
-      return data;
+      this.config = data as any;
+      return data as any;
     } catch (error) {
       console.error('Failed to load auto trading config:', error);
       return null;
