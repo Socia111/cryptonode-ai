@@ -18,30 +18,50 @@ export const TradingErrorHandler: React.FC<TradingErrorHandlerProps> = ({
 
   const getErrorType = (errorMessage: string) => {
     const msg = errorMessage.toLowerCase();
-    if (msg.includes('position mode') || msg.includes('position idx')) {
+    
+    if (msg.includes('position mode') || msg.includes('position idx') || msg.includes('switch between one-way and hedge')) {
       return {
         type: 'Position Mode Error',
-        suggestion: 'Check your Bybit account position mode settings. Try switching between One-Way and Hedge mode.',
+        suggestion: 'Your Bybit account position mode needs adjustment. Go to Bybit → Trading → Position Mode and try switching between "One-Way Mode" and "Hedge Mode". The system will automatically retry with different configurations.',
         canRetry: true
       };
     }
-    if (msg.includes('balance') || msg.includes('insufficient')) {
+    
+    if (msg.includes('balance') || msg.includes('insufficient') || msg.includes('margin')) {
       return {
         type: 'Insufficient Balance',
-        suggestion: 'Please check your Bybit account balance and ensure you have sufficient funds.',
+        suggestion: 'Please check your Bybit account balance and ensure you have sufficient funds for this trade size.',
         canRetry: false
       };
     }
-    if (msg.includes('auth') || msg.includes('unauthorized')) {
+    
+    if (msg.includes('auth') || msg.includes('unauthorized') || msg.includes('sign in')) {
       return {
         type: 'Authentication Error',
-        suggestion: 'Please sign in to execute trades or check your API credentials.',
+        suggestion: 'Please sign in to execute trades or check your Bybit API credentials in settings.',
         canRetry: false
       };
     }
+    
+    if (msg.includes('qty') || msg.includes('quantity') || msg.includes('lot')) {
+      return {
+        type: 'Order Size Error',
+        suggestion: 'The order size is outside Bybit limits. Try adjusting the trade amount.',
+        canRetry: true
+      };
+    }
+    
+    if (msg.includes('symbol') || msg.includes('not found')) {
+      return {
+        type: 'Symbol Error',
+        suggestion: 'The trading symbol is not available or not supported on Bybit.',
+        canRetry: false
+      };
+    }
+    
     return {
       type: 'Trading Error',
-      suggestion: 'Please try again or contact support if the issue persists.',
+      suggestion: 'An unexpected error occurred. The system has multiple retry mechanisms - please try again.',
       canRetry: true
     };
   };

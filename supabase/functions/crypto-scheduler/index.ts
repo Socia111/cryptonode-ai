@@ -41,23 +41,11 @@ serve(async (req) => {
       });
     }
 
-    // Trigger signal generation
-    console.log('📡 Triggering signal generation...');
-    const signalResponse = await fetch(`${supabaseUrl}/functions/v1/live-signal-engine`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseServiceKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ scheduler: true })
-    });
-
-    const signalResult = await signalResponse.json();
-    console.log('Signal generation result:', signalResult);
-
-    // Trigger trade execution for any new signals
-    console.log('🚀 Triggering trade execution...');
-    const executionResponse = await fetch(`${supabaseUrl}/functions/v1/aitradex1-trade-executor`, {
+    // Trigger multiple signal generation engines
+    console.log('📡 Triggering signal generation engines...');
+    
+    // Run enhanced signal generation
+    const enhancedResponse = await fetch(`${supabaseUrl}/functions/v1/enhanced-signal-generation`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${supabaseServiceKey}`,
@@ -65,13 +53,35 @@ serve(async (req) => {
       },
       body: JSON.stringify({ 
         scheduler: true,
-        min_score: 60,
-        consensus_required: false
+        symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT", "DOTUSDT", "BNBUSDT", "XRPUSDT", "LINKUSDT"]
+      })
+    });
+    
+    // Run live scanner production
+    const scannerResponse = await fetch(`${supabaseUrl}/functions/v1/live-scanner-production`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        exchange: "bybit",
+        timeframe: "15m",
+        relaxed_filters: true,
+        symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT", "DOTUSDT", "BNBUSDT", "XRPUSDT", "LINKUSDT"]
       })
     });
 
-    const executionResult = await executionResponse.json();
-    console.log('Trade execution result:', executionResult);
+    // Parse results
+    const enhancedResult = await enhancedResponse.json();
+    const scannerResult = await scannerResponse.json();
+    
+    console.log('Enhanced signal generation result:', enhancedResult);
+    console.log('Scanner result:', scannerResult);
+    
+    const totalSignalsGenerated = (enhancedResult.signals_inserted || 0) + (scannerResult.signals_found || 0);
+    
+    console.log(`📊 Total signals generated: ${totalSignalsGenerated}`);
 
     // Update scheduler status
     await supabase
@@ -82,8 +92,9 @@ serve(async (req) => {
         last_update: new Date().toISOString(),
         success_count: 1,
         metadata: {
-          signals_generated: signalResult.generated || 0,
-          trades_executed: executionResult.executed || 0,
+          signals_generated: totalSignalsGenerated,
+          enhanced_signals: enhancedResult.signals_inserted || 0,
+          scanner_signals: scannerResult.signals_found || 0,
           last_run: new Date().toISOString()
         }
       });
@@ -93,8 +104,11 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       scheduler_run: new Date().toISOString(),
-      signals: signalResult,
-      execution: executionResult
+      signals: {
+        enhanced: enhancedResult,
+        scanner: scannerResult,
+        total_generated: totalSignalsGenerated
+      }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

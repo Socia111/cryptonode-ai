@@ -278,74 +278,66 @@ class BybitV5Client {
   }
 
   // Get account position mode by checking unified account settings
-  async getPositionMode(symbol: string, category: string): Promise<number> {
+  async getPositionMode(symbol: string, category: string): Promise<number | null> {
     try {
-      if (category === 'linear') {
-        // For unified accounts, get position mode settings
+      if (category !== 'linear') {
+        return null // Spot trading doesn't use position modes
+      }
+
+      // First check if account supports One-Way mode (most common)
+      try {
+        const accountData = await this.signedRequest('GET', '/v5/account/info', {})
+        const accountType = accountData?.result?.accountType || 'UNIFIED'
+        
+        structuredLog('info', 'Account type detected', { 
+          accountType,
+          marginMode: accountData?.result?.marginMode || 'unknown' 
+        })
+        
+        // Check current position mode for this symbol
         try {
-          const accountData = await this.signedRequest('GET', '/v5/account/info', {})
-          const accountType = accountData?.result?.accountType || 'UNIFIED'
-          
-          if (accountType === 'UNIFIED') {
-            // For unified accounts, check the position mode setting
-            try {
-              const positionModeData = await this.signedRequest('GET', '/v5/position/switch-mode', {
-                category: 'linear',
-                symbol,
-                coin: symbol.replace('USDT', '')
-              })
-              
-              // If successful, use the returned mode
-              if (positionModeData?.result) {
-                return 0 // Unified accounts typically use 0 for both modes
-              }
-            } catch (modeError) {
-              // Position mode endpoint might not be available, continue with default logic
-            }
-          }
-          
-          // Check for existing positions to determine current mode
           const positionData = await this.signedRequest('GET', '/v5/position/list', {
-            category,
+            category: 'linear',
             symbol
           })
           
+          // If we have existing positions, use their positionIdx
           if (positionData?.result?.list?.length > 0) {
-            // Use the position index from existing position
-            const existingPosition = positionData.result.list[0]
-            const positionIdx = Number(existingPosition.positionIdx) || 0
+            const position = positionData.result.list[0]
+            const currentIdx = Number(position.positionIdx)
             
-            structuredLog('info', 'Using existing position mode', { 
+            structuredLog('info', 'Found existing position, using its mode', { 
               symbol, 
-              positionIdx,
-              size: existingPosition.size,
-              side: existingPosition.side
+              positionIdx: currentIdx,
+              size: position.size,
+              side: position.side
             })
-            return positionIdx
+            
+            return currentIdx
           }
-          
-          // For new positions in unified accounts, always use 0
-          structuredLog('info', 'No existing positions, using unified mode (0)', { symbol, accountType })
-          return 0
-          
-        } catch (accountError) {
-          structuredLog('warn', 'Could not determine account type, using default mode', { 
-            symbol,
-            error: accountError.message 
-          })
+        } catch (posError) {
+          structuredLog('warn', 'Could not check existing positions', { error: posError.message })
         }
+        
+        // For unified accounts with no existing positions, try One-Way mode first
+        structuredLog('info', 'No existing positions, defaulting to One-Way mode', { symbol, accountType })
+        return 0
+        
+      } catch (accountError) {
+        structuredLog('warn', 'Account info not available, using safe default', { 
+          symbol,
+          error: accountError.message 
+        })
+        return 0
       }
       
-      // For spot trading, no position modes needed
-      return 0
-      
     } catch (error) {
-      structuredLog('warn', 'Position mode detection failed, using safe default', { 
+      structuredLog('error', 'Position mode detection completely failed', { 
         symbol, 
         category,
         error: error.message 
       })
-      return 0
+      return null // Return null to indicate we should try without positionIdx
     }
   }
 }
@@ -581,46 +573,32 @@ serve(async (req) => {
 
         // For linear contracts, handle position mode correctly
         if (inst.category === 'linear') {
-          // Try to determine the correct position mode
-          let positionIdx = 0; // Default to OneWay mode
-          
           try {
-            // Get account info to understand the account type
-            const accountInfo = await engine.client!.signedRequest('GET', '/v5/account/info', {})
-            const accountType = accountInfo?.result?.accountType || 'UNIFIED'
+            // Get the appropriate position mode
+            const positionIdx = await engine.client!.getPositionMode(symbol, inst.category)
             
-            structuredLog('info', 'Account info retrieved', { 
-              accountType,
-              marginMode: accountInfo?.result?.marginMode || 'unknown'
+            if (positionIdx !== null) {
+              orderData.positionIdx = positionIdx
+              
+              structuredLog('info', 'Position configuration set', {
+                symbol,
+                category: inst.category,
+                positionIdx,
+                mode: positionIdx === 0 ? 'OneWay' : 'Hedge'
+              })
+            } else {
+              structuredLog('info', 'No position mode required', { symbol })
+            }
+            
+            orderData.reduceOnly = false
+            
+          } catch (positionError) {
+            structuredLog('warn', 'Position mode detection failed, will try multiple approaches', { 
+              error: positionError.message,
+              symbol 
             })
-            
-            // For all modern Bybit accounts, use position mode 0 (One-Way mode)
-            // This is the safest approach that works with all account types
-            positionIdx = 0
-            
-            structuredLog('info', 'Using One-Way position mode (0)', { 
-              symbol, 
-              accountType,
-              reason: 'Safe default for all account types'
-            })
-            
-          } catch (accountError) {
-            structuredLog('warn', 'Could not get account info, using safe default', { 
-              error: accountError.message,
-              fallback: 'positionIdx=0'
-            })
-            positionIdx = 0
+            // Don't set positionIdx initially - let the retry logic handle it
           }
-          
-          orderData.positionIdx = positionIdx
-          orderData.reduceOnly = false
-          
-          structuredLog('info', 'Position configuration set', {
-            symbol,
-            category: inst.category,
-            positionIdx,
-            mode: positionIdx === 0 ? 'OneWay' : 'Hedge'
-          })
         }
 
         // Execute the order with comprehensive retry logic
@@ -665,35 +643,64 @@ serve(async (req) => {
           // For linear contracts, try alternative approaches
           if (inst.category === 'linear') {
             
-            // Case 1: Position mode issues
+            // Case 1: Position mode issues - try systematic approach
             if (errorMsg.includes('position') || errorMsg.includes('mode') || errorMsg.includes('idx')) {
               
-              // First, try without positionIdx for some unified accounts
+              structuredLog('info', 'Position mode error detected, trying systematic fixes', { 
+                symbol,
+                originalError: error.message,
+                currentPositionIdx: orderData.positionIdx
+              })
+              
+              // Strategy 1: Try without positionIdx (for some unified accounts)
               try {
                 const orderDataNoIdx = { ...orderData }
                 delete orderDataNoIdx.positionIdx
                 
-                structuredLog('info', 'Retrying without positionIdx', { symbol })
+                structuredLog('info', 'Trying without positionIdx', { symbol })
                 result = await engine.client!.signedRequest('POST', '/v5/order/create', orderDataNoIdx)
+                structuredLog('info', 'Success without positionIdx', { symbol })
                 
               } catch (noIdxError) {
-                // If that fails, try the opposite position mode
-                const alternativeIdx = orderData.positionIdx === 0 ? 1 : 0
-                orderData.positionIdx = alternativeIdx
+                structuredLog('warn', 'Without positionIdx failed', { 
+                  symbol, 
+                  error: noIdxError.message 
+                })
                 
+                // Strategy 2: Try with positionIdx = 0 (One-Way mode)
                 try {
-                  structuredLog('info', 'Retrying with alternative positionIdx', { 
-                    symbol,
-                    newPositionIdx: alternativeIdx
-                  })
+                  orderData.positionIdx = 0
+                  structuredLog('info', 'Trying with positionIdx = 0 (One-Way)', { symbol })
                   result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
-                } catch (altError) {
-                  structuredLog('error', 'All position mode attempts failed', {
-                    originalError: error.message,
-                    noIdxError: noIdxError.message,
-                    altError: altError.message
+                  structuredLog('info', 'Success with One-Way mode', { symbol })
+                  
+                } catch (oneWayError) {
+                  structuredLog('warn', 'One-Way mode failed', { 
+                    symbol, 
+                    error: oneWayError.message 
                   })
-                  throw new Error(`Position mode configuration error. Check Bybit account settings. Original: ${error.message}`)
+                  
+                  // Strategy 3: Try with positionIdx = 1 (Hedge mode - Buy side)
+                  try {
+                    orderData.positionIdx = orderData.side === 'Buy' ? 1 : 2
+                    structuredLog('info', 'Trying with Hedge mode', { 
+                      symbol, 
+                      positionIdx: orderData.positionIdx,
+                      side: orderData.side
+                    })
+                    result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
+                    structuredLog('info', 'Success with Hedge mode', { symbol })
+                    
+                  } catch (hedgeError) {
+                    structuredLog('error', 'All position strategies failed', {
+                      symbol,
+                      originalError: error.message,
+                      noIdxError: noIdxError.message,
+                      oneWayError: oneWayError.message,
+                      hedgeError: hedgeError.message
+                    })
+                    throw new Error(`Position mode configuration error. Check your Bybit account position mode settings. Try switching between One-Way and Hedge mode in your Bybit account. Original error: ${error.message}`)
+                  }
                 }
               }
               
