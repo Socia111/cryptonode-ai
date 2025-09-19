@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AutomatedTradingDashboard } from '@/components/AutomatedTradingDashboard';
+import { EnhancedAutomatedTradingDashboard } from '@/components/EnhancedAutomatedTradingDashboard';
 import { AutoTradingQuickStart } from '@/components/AutoTradingQuickStart';
 import { useAutomatedTrading } from '@/hooks/useAutomatedTrading';
 import MainLayout from '@/layouts/MainLayout';
@@ -33,7 +33,7 @@ export default function Automation() {
           </TabsContent>
           
           <TabsContent value="dashboard" className="space-y-6">
-            <AutomatedTradingDashboard />
+            <EnhancedAutomatedTradingDashboard />
           </TabsContent>
         </Tabs>
       </div>
