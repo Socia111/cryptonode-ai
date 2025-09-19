@@ -1,361 +1,297 @@
 import { supabase } from '@/integrations/supabase/client';
-import { Signal, TradeExecution } from '@/types/trading';
-import { TradingAlgorithm } from '@/types/algorithms';
-import { algorithmRegistry } from './algorithmRegistry';
-import { automatedTradingEngine, AutoTradingConfig } from './automatedTrading';
+import { useToast } from '@/hooks/use-toast';
 
-export interface EnhancedAutoTradingConfig extends AutoTradingConfig {
-  algorithmWeights: Record<string, number>;
-  multiAlgorithmConsensus: boolean;
-  consensusThreshold: number;
-  algorithmDiversification: boolean;
-  maxActiveAlgorithms: number;
+export interface AutoTradingConfig {
+  enabled: boolean;
+  max_concurrent_trades: number;
+  max_daily_trades: number;
+  risk_per_trade: number;
+  min_signal_score: number;
+  preferred_timeframes: string[];
+  excluded_symbols: string[];
+  trading_hours: {
+    start: string;
+    end: string;
+    timezone: string;
+  };
+}
+
+export interface TradingExecution {
+  id: string;
+  signal_id: string;
+  symbol: string;
+  side: string;
+  amount_usd: number;
+  leverage: number;
+  status: string;
+  executed_at: string;
+  error_message?: string;
 }
 
 export class EnhancedAutomatedTradingEngine {
-  private baseEngine = automatedTradingEngine;
-  private config: EnhancedAutoTradingConfig;
-  private algorithmPerformance = new Map<string, { trades: number; profit: number; winRate: number }>();
+  private config: AutoTradingConfig | null = null;
+  private isRunning = false;
+  private intervalId: NodeJS.Timeout | null = null;
+  private toast: any;
 
-  constructor(config: EnhancedAutoTradingConfig) {
-    this.config = config;
+  constructor(toast: any) {
+    this.toast = toast;
   }
 
-  async start() {
-    console.log('🚀 Starting Enhanced Automated Trading Engine...');
-    
-    // Start the base engine
-    await this.baseEngine.start();
-    
-    // Start algorithm monitoring
-    this.startAlgorithmMonitoring();
-    
-    // Subscribe to multi-algorithm signals
-    this.subscribeToMultiAlgorithmSignals();
-  }
-
-  async stop() {
-    console.log('🛑 Stopping Enhanced Automated Trading Engine...');
-    await this.baseEngine.stop();
-  }
-
-  private subscribeToMultiAlgorithmSignals() {
-    const channel = supabase
-      .channel('enhanced-auto-trading-signals')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'signals'
-        },
-        (payload) => this.processMultiAlgorithmSignal(payload.new as Signal)
-      )
-      .subscribe();
-  }
-
-  private async processMultiAlgorithmSignal(signal: Signal) {
-    console.log('📊 Processing multi-algorithm signal:', signal.symbol, signal.direction);
-    
-    if (this.config.multiAlgorithmConsensus) {
-      // Check for consensus across multiple algorithms
-      const consensus = await this.checkAlgorithmConsensus(signal);
-      
-      if (consensus.strength < this.config.consensusThreshold) {
-        console.log('❌ Insufficient algorithm consensus, skipping signal');
-        return;
-      }
-      
-      console.log(`✅ Strong consensus (${consensus.strength}%) from ${consensus.algorithms.length} algorithms`);
-      
-      // Weight the signal based on algorithm consensus
-      const weightedSignal = this.applyAlgorithmWeights(signal, consensus.algorithms);
-      
-      // Execute trade with enhanced parameters
-      await this.executeWeightedTrade(weightedSignal, consensus);
-    } else {
-      // Process individual algorithm signal
-      await this.processSingleAlgorithmSignal(signal);
-    }
-  }
-
-  private async checkAlgorithmConsensus(signal: Signal): Promise<{
-    strength: number;
-    algorithms: string[];
-    avgScore: number;
-  }> {
-    // Get recent signals for the same symbol and direction
-    const { data: recentSignals } = await supabase
-      .from('signals')
-      .select('*')
-      .eq('symbol', signal.symbol)
-      .eq('direction', signal.direction)
-      .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // Last 5 minutes
-      .order('created_at', { ascending: false });
-
-    if (!recentSignals || recentSignals.length < 2) {
-      return { strength: 0, algorithms: [], avgScore: 0 };
-    }
-
-    // Group by algorithm source
-    const algorithmGroups = recentSignals.reduce((acc, s) => {
-      const source = s.source || 'unknown';
-      if (!acc[source]) acc[source] = [];
-      acc[source].push(s);
-      return acc;
-    }, {} as Record<string, Signal[]>);
-
-    const algorithms = Object.keys(algorithmGroups);
-    const avgScore = recentSignals.reduce((sum, s) => sum + s.score, 0) / recentSignals.length;
-    
-    // Calculate consensus strength (% of active algorithms agreeing)
-    const activeAlgorithms = algorithmRegistry.getActiveAlgorithms();
-    const consensusStrength = (algorithms.length / Math.max(activeAlgorithms.length, 1)) * 100;
-
-    return {
-      strength: consensusStrength,
-      algorithms,
-      avgScore
-    };
-  }
-
-  private applyAlgorithmWeights(signal: Signal, algorithms: string[]): Signal {
-    let totalWeight = 0;
-    let weightedScore = 0;
-
-    algorithms.forEach(algoId => {
-      const weight = this.config.algorithmWeights[algoId] || 1.0;
-      totalWeight += weight;
-      weightedScore += signal.score * weight;
-    });
-
-    const finalScore = Math.min(100, weightedScore / totalWeight);
-
-    return {
-      ...signal,
-      score: Math.round(finalScore),
-      metadata: {
-        ...signal.metadata,
-        consensus: true,
-        algorithmCount: algorithms.length,
-        weightedScore: finalScore
-      }
-    };
-  }
-
-  private async executeWeightedTrade(signal: Signal, consensus: any) {
+  async loadConfig(userId?: string): Promise<AutoTradingConfig | null> {
     try {
-      console.log('🎯 Executing consensus-weighted trade:', signal.symbol);
-      
-      // Calculate position size based on consensus strength
-      const basePositionSize = this.config.positionSizeUSD;
-      const consensusMultiplier = Math.min(2.0, consensus.strength / 50); // Max 2x for 100% consensus
-      const adjustedPositionSize = basePositionSize * consensusMultiplier;
+      const { data, error } = await supabase
+        .from('automated_trading_config')
+        .select('*')
+        .eq('user_id', userId || 'anonymous')
+        .eq('enabled', true)
+        .maybeSingle();
 
-      // Execute trade with enhanced parameters
-      const tradeParams = {
-        symbol: signal.symbol,
-        side: signal.direction === 'LONG' ? 'Buy' : 'Sell' as 'Buy' | 'Sell',
-        amount: adjustedPositionSize,
-        stopLoss: this.calculateEnhancedStopLoss(signal, consensus),
-        takeProfit: this.calculateEnhancedTakeProfit(signal, consensus),
-        paper_mode: this.config.paperMode,
-        signal_id: signal.id,
-        metadata: {
-          consensus: true,
-          algorithmCount: consensus.algorithms.length,
-          consensusStrength: consensus.strength
-        }
-      };
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
 
-      const { data, error } = await supabase.functions.invoke('aitradex1-trade-executor', {
-        body: {
-          action: 'place_order',
-          ...tradeParams
+      if (!data) {
+        // Create default config
+        const defaultConfig: AutoTradingConfig = {
+          enabled: false,
+          max_concurrent_trades: 3,
+          max_daily_trades: 10,
+          risk_per_trade: 0.02,
+          min_signal_score: 75,
+          preferred_timeframes: ['15m', '30m', '1h'],
+          excluded_symbols: [],
+          trading_hours: {
+            start: '00:00',
+            end: '23:59',
+            timezone: 'UTC'
+          }
+        };
+
+        if (userId) {
+          await supabase
+            .from('automated_trading_config')
+            .upsert({
+              user_id: userId,
+              ...defaultConfig
+            });
         }
-      });
+
+        this.config = defaultConfig;
+        return defaultConfig;
+      }
+
+      this.config = data;
+      return data;
+    } catch (error) {
+      console.error('Failed to load auto trading config:', error);
+      return null;
+    }
+  }
+
+  async updateConfig(updates: Partial<AutoTradingConfig>, userId?: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('automated_trading_config')
+        .upsert({
+          user_id: userId || 'anonymous',
+          ...updates,
+          updated_at: new Date().toISOString()
+        });
 
       if (error) throw error;
 
-      console.log('✅ Consensus trade executed successfully:', data);
+      this.config = { ...this.config, ...updates } as AutoTradingConfig;
+      console.log('⚙️ Auto trading config updated');
       
-      // Update algorithm performance tracking
-      consensus.algorithms.forEach((algoId: string) => {
-        this.updateAlgorithmPerformance(algoId, 1); // Track trade execution
+      return true;
+    } catch (error) {
+      console.error('Failed to update auto trading config:', error);
+      this.toast?.({
+        title: "Config Update Failed",
+        description: "Failed to save automated trading settings",
+        variant: "destructive"
+      });
+      return false;
+    }
+  }
+
+  async startEngine(userId?: string): Promise<boolean> {
+    if (this.isRunning) {
+      console.log('🔄 Auto trading engine already running');
+      return true;
+    }
+
+    try {
+      await this.loadConfig(userId);
+      
+      if (!this.config?.enabled) {
+        console.log('🛑 Auto trading not enabled in config');
+        return false;
+      }
+
+      this.isRunning = true;
+      console.log('🤖 Starting Automated Trading Engine...');
+
+      // Start the main loop
+      this.intervalId = setInterval(async () => {
+        await this.processSignals(userId);
+      }, 30000); // Check every 30 seconds
+
+      this.toast?.({
+        title: "🤖 Auto Trading Started",
+        description: "Automated trading engine is now active",
       });
 
+      return true;
     } catch (error) {
-      console.error('❌ Failed to execute consensus trade:', error);
+      console.error('Failed to start auto trading engine:', error);
+      this.isRunning = false;
+      return false;
     }
   }
 
-  private async processSingleAlgorithmSignal(signal: Signal) {
-    // Get algorithm performance history
-    const algorithmId = signal.source || 'unknown';
-    const performance = this.algorithmPerformance.get(algorithmId);
-    
-    if (performance && performance.winRate < 50 && performance.trades > 10) {
-      console.log(`❌ Algorithm ${algorithmId} has poor performance (${performance.winRate}%), skipping signal`);
-      return;
+  async stopEngine(): Promise<void> {
+    if (!this.isRunning) return;
+
+    console.log('🛑 Stopping Automated Trading Engine...');
+    this.isRunning = false;
+
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
     }
 
-    // Apply algorithm-specific weight
-    const weight = this.config.algorithmWeights[algorithmId] || 1.0;
-    const adjustedScore = Math.min(100, signal.score * weight);
-
-    if (adjustedScore < this.config.minSignalScore) {
-      console.log(`❌ Weighted score ${adjustedScore} below threshold ${this.config.minSignalScore}`);
-      return;
-    }
-
-    // Execute standard trade through base engine
-    console.log(`📈 Processing single algorithm signal from ${algorithmId} (weight: ${weight})`);
+    this.toast?.({
+      title: "🛑 Auto Trading Stopped",
+      description: "Automated trading engine has been disabled",
+    });
   }
 
-  private calculateEnhancedStopLoss(signal: Signal, consensus: any): number {
-    if (signal.stop_loss) return signal.stop_loss;
-    
-    const price = signal.entry_price || signal.price;
-    
-    // Tighter stop loss for high consensus signals
-    const baseStopLoss = this.config.stopLossPercent / 100;
-    const consensusAdjustment = 1 - (consensus.strength / 200); // Reduce SL by up to 50% for 100% consensus
-    const adjustedStopLoss = baseStopLoss * consensusAdjustment;
-    
-    return signal.direction === 'LONG' 
-      ? price * (1 - adjustedStopLoss)
-      : price * (1 + adjustedStopLoss);
-  }
+  private async processSignals(userId?: string): Promise<void> {
+    if (!this.isRunning || !this.config?.enabled) return;
 
-  private calculateEnhancedTakeProfit(signal: Signal, consensus: any): number {
-    if (signal.take_profit) return signal.take_profit;
-    
-    const price = signal.entry_price || signal.price;
-    
-    // Higher take profit for high consensus signals
-    const baseTakeProfit = this.config.takeProfitPercent / 100;
-    const consensusMultiplier = 1 + (consensus.strength / 100); // Up to 2x TP for 100% consensus
-    const adjustedTakeProfit = baseTakeProfit * consensusMultiplier;
-    
-    return signal.direction === 'LONG' 
-      ? price * (1 + adjustedTakeProfit)
-      : price * (1 - adjustedTakeProfit);
-  }
-
-  private startAlgorithmMonitoring() {
-    // Monitor algorithm performance every minute
-    const interval = setInterval(() => {
-      this.monitorAlgorithmPerformance();
-    }, 60000);
-  }
-
-  private async monitorAlgorithmPerformance() {
-    const activeAlgorithms = algorithmRegistry.getActiveAlgorithms();
-    
-    for (const algorithm of activeAlgorithms) {
-      // Get recent signals from this algorithm
-      const { data: signals } = await supabase
+    try {
+      // Get high-quality signals
+      const { data: signals, error } = await supabase
         .from('signals')
         .select('*')
-        .eq('source', algorithm.id)
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
-        .limit(50);
+        .eq('is_active', true)
+        .gte('score', this.config.min_signal_score)
+        .in('timeframe', this.config.preferred_timeframes)
+        .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // Last 5 minutes
+        .order('score', { ascending: false })
+        .limit(5);
 
-      if (signals && signals.length > 0) {
-        const avgScore = signals.reduce((sum, s) => sum + s.score, 0) / signals.length;
-        
-        // Update algorithm performance in registry
-        algorithmRegistry.updateAlgorithmPerformance(algorithm.id, `signal-${Date.now()}`, 0);
-        
-        console.log(`📊 Algorithm ${algorithm.name}: ${signals.length} signals, avg score: ${avgScore.toFixed(1)}`);
+      if (error) throw error;
+
+      if (!signals || signals.length === 0) {
+        console.log('🔍 No qualifying signals found');
+        return;
       }
+
+      // Filter out excluded symbols
+      const filteredSignals = signals.filter(signal => 
+        !this.config!.excluded_symbols.includes(signal.symbol)
+      );
+
+      if (filteredSignals.length === 0) {
+        console.log('🔍 No signals after symbol filtering');
+        return;
+      }
+
+      console.log(`🎯 Found ${filteredSignals.length} qualifying signals for auto trading`);
+
+      // Check current positions to avoid over-trading
+      const { data: currentExecutions, error: execError } = await supabase
+        .from('trading_executions')
+        .select('*')
+        .eq('user_id', userId || 'anonymous')
+        .eq('status', 'completed')
+        .gte('executed_at', new Date().toISOString().split('T')[0]) // Today
+
+      if (execError) throw execError;
+
+      const todayExecutions = currentExecutions?.length || 0;
+      const activePositions = currentExecutions?.filter(e => 
+        ['pending', 'completed'].includes(e.status)
+      )?.length || 0;
+
+      // Check limits
+      if (todayExecutions >= this.config.max_daily_trades) {
+        console.log(`📊 Daily trade limit reached: ${todayExecutions}/${this.config.max_daily_trades}`);
+        return;
+      }
+
+      if (activePositions >= this.config.max_concurrent_trades) {
+        console.log(`📊 Concurrent trade limit reached: ${activePositions}/${this.config.max_concurrent_trades}`);
+        return;
+      }
+
+      // Execute trades for top signals
+      const signalsToExecute = filteredSignals.slice(0, 
+        Math.min(
+          this.config.max_concurrent_trades - activePositions,
+          this.config.max_daily_trades - todayExecutions,
+          3 // Max 3 at once for safety
+        )
+      );
+
+      if (signalsToExecute.length > 0) {
+        console.log(`🚀 Executing ${signalsToExecute.length} signals automatically`);
+        
+        // Call the trading executor
+        const { data, error: executeError } = await supabase.functions.invoke(
+          'automated-trading-executor',
+          {
+            body: {
+              signals: signalsToExecute,
+              user_id: userId || 'anonymous'
+            }
+          }
+        );
+
+        if (executeError) {
+          console.error('Auto trading execution error:', executeError);
+        } else {
+          console.log(`✅ Auto trading results:`, data);
+          
+          if (data.successful_executions > 0) {
+            this.toast?.({
+              title: "🎉 Auto Trade Executed",
+              description: `Successfully executed ${data.successful_executions} trades`,
+            });
+          }
+        }
+      }
+
+    } catch (error) {
+      console.error('Error in auto trading signal processing:', error);
     }
   }
 
-  private updateAlgorithmPerformance(algorithmId: string, trades: number): void {
-    const current = this.algorithmPerformance.get(algorithmId) || { trades: 0, profit: 0, winRate: 50 };
-    current.trades += trades;
-    this.algorithmPerformance.set(algorithmId, current);
+  isEngineRunning(): boolean {
+    return this.isRunning;
   }
 
-  public updateConfig(newConfig: Partial<EnhancedAutoTradingConfig>) {
-    this.config = { ...this.config, ...newConfig };
-    
-    // Extract base config properties for the base engine
-    const baseConfig = {
-      enabled: this.config.enabled,
-      maxPositions: this.config.maxPositions,
-      maxRiskPerTrade: this.config.maxRiskPerTrade,
-      minSignalScore: this.config.minSignalScore,
-      allowedTimeframes: this.config.allowedTimeframes,
-      allowedSymbols: this.config.allowedSymbols,
-      positionSizeUSD: this.config.positionSizeUSD,
-      stopLossPercent: this.config.stopLossPercent,
-      takeProfitPercent: this.config.takeProfitPercent,
-      useSignalAggregation: this.config.useSignalAggregation,
-      consensusRequired: this.config.consensusRequired,
-      minSourcesForTrade: this.config.minSourcesForTrade,
-      liveTrading: this.config.liveTrading,
-      paperMode: this.config.paperMode,
-      slippageProtection: this.config.slippageProtection,
-      emergencyStopEnabled: this.config.emergencyStopEnabled,
-      riskManagement: this.config.riskManagement
-    };
-    
-    this.baseEngine.updateConfig(baseConfig);
-    console.log('⚙️ Enhanced auto trading config updated');
+  getConfig(): AutoTradingConfig | null {
+    return this.config;
   }
 
-  public getStatus() {
-    const baseStatus = this.baseEngine.getStatus();
-    const activeAlgorithms = algorithmRegistry.getActiveAlgorithms().length;
-    
-    return {
-      ...baseStatus,
-      activeAlgorithms,
-      algorithmPerformance: Object.fromEntries(this.algorithmPerformance),
-      multiAlgorithmMode: this.config.multiAlgorithmConsensus
-    };
+  async getExecutionHistory(userId?: string): Promise<TradingExecution[]> {
+    try {
+      const { data, error } = await supabase
+        .from('trading_executions')
+        .select('*')
+        .eq('user_id', userId || 'anonymous')
+        .order('executed_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Failed to fetch execution history:', error);
+      return [];
+    }
   }
 }
-
-// Default enhanced configuration
-export const defaultEnhancedAutoTradingConfig: EnhancedAutoTradingConfig = {
-  enabled: false,
-  maxPositions: 5,
-  maxRiskPerTrade: 2,
-  minSignalScore: 80,
-  allowedTimeframes: ['15m', '30m', '1h'],
-  allowedSymbols: [],
-  positionSizeUSD: 100,
-  stopLossPercent: 3,
-  takeProfitPercent: 6,
-  useSignalAggregation: true,
-  consensusRequired: false,
-  minSourcesForTrade: 2,
-  liveTrading: false,
-  paperMode: true,
-  slippageProtection: 0.5,
-  emergencyStopEnabled: true,
-  riskManagement: {
-    maxDailyLoss: 200,
-    maxDrawdown: 500,
-    dailyProfitTarget: 300,
-    maxLeverage: 10
-  },
-  // Enhanced features
-  algorithmWeights: {
-    'aitradex1-enhanced': 1.0,
-    'enhanced-signal-generation': 0.9,
-    'aitradex1-original': 0.8,
-    'all-symbols-scanner': 0.7,
-    'live-scanner-production': 0.8
-  },
-  multiAlgorithmConsensus: true,
-  consensusThreshold: 60, // 60% of algorithms must agree
-  algorithmDiversification: true,
-  maxActiveAlgorithms: 5
-};
-
-// Enhanced singleton instance
-export const enhancedAutomatedTradingEngine = new EnhancedAutomatedTradingEngine(defaultEnhancedAutoTradingConfig);

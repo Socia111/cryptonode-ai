@@ -76,6 +76,51 @@ export type Database = {
           },
         ]
       }
+      automated_trading_config: {
+        Row: {
+          created_at: string | null
+          enabled: boolean | null
+          excluded_symbols: string[] | null
+          id: string
+          max_concurrent_trades: number | null
+          max_daily_trades: number | null
+          min_signal_score: number | null
+          preferred_timeframes: string[] | null
+          risk_per_trade: number | null
+          trading_hours: Json | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean | null
+          excluded_symbols?: string[] | null
+          id?: string
+          max_concurrent_trades?: number | null
+          max_daily_trades?: number | null
+          min_signal_score?: number | null
+          preferred_timeframes?: string[] | null
+          risk_per_trade?: number | null
+          trading_hours?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean | null
+          excluded_symbols?: string[] | null
+          id?: string
+          max_concurrent_trades?: number | null
+          max_daily_trades?: number | null
+          min_signal_score?: number | null
+          preferred_timeframes?: string[] | null
+          risk_per_trade?: number | null
+          trading_hours?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       edge_event_log: {
         Row: {
           created_at: string | null
@@ -469,6 +514,7 @@ export type Database = {
       signals: {
         Row: {
           algo: string | null
+          algorithm_version: string | null
           atr: number | null
           bar_time: string
           confidence: number | null
@@ -478,15 +524,18 @@ export type Database = {
           entry_price: number | null
           exchange: string | null
           exchange_source: string | null
+          execution_priority: number | null
           expires_at: string | null
           filters: Json | null
           hvp_value: number | null
           id: string
           indicators: Json | null
           is_active: boolean | null
+          market_conditions: Json | null
           meta: Json | null
           metadata: Json | null
           price: number
+          risk: number | null
           score: number
           side: string | null
           signal_grade: string | null
@@ -500,6 +549,7 @@ export type Database = {
         }
         Insert: {
           algo?: string | null
+          algorithm_version?: string | null
           atr?: number | null
           bar_time: string
           confidence?: number | null
@@ -509,15 +559,18 @@ export type Database = {
           entry_price?: number | null
           exchange?: string | null
           exchange_source?: string | null
+          execution_priority?: number | null
           expires_at?: string | null
           filters?: Json | null
           hvp_value?: number | null
           id?: string
           indicators?: Json | null
           is_active?: boolean | null
+          market_conditions?: Json | null
           meta?: Json | null
           metadata?: Json | null
           price: number
+          risk?: number | null
           score: number
           side?: string | null
           signal_grade?: string | null
@@ -531,6 +584,7 @@ export type Database = {
         }
         Update: {
           algo?: string | null
+          algorithm_version?: string | null
           atr?: number | null
           bar_time?: string
           confidence?: number | null
@@ -540,15 +594,18 @@ export type Database = {
           entry_price?: number | null
           exchange?: string | null
           exchange_source?: string | null
+          execution_priority?: number | null
           expires_at?: string | null
           filters?: Json | null
           hvp_value?: number | null
           id?: string
           indicators?: Json | null
           is_active?: boolean | null
+          market_conditions?: Json | null
           meta?: Json | null
           metadata?: Json | null
           price?: number
+          risk?: number | null
           score?: number
           side?: string | null
           signal_grade?: string | null
@@ -581,6 +638,7 @@ export type Database = {
           meta: Json | null
           metadata: Json | null
           price: number
+          risk: number | null
           score: number
           side: string | null
           signal_grade: string | null
@@ -610,6 +668,7 @@ export type Database = {
           meta?: Json | null
           metadata?: Json | null
           price: number
+          risk?: number | null
           score: number
           side?: string | null
           signal_grade?: string | null
@@ -639,6 +698,7 @@ export type Database = {
           meta?: Json | null
           metadata?: Json | null
           price?: number
+          risk?: number | null
           score?: number
           side?: string | null
           signal_grade?: string | null
@@ -804,6 +864,85 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      trading_executions: {
+        Row: {
+          amount_usd: number
+          entry_price: number | null
+          error_message: string | null
+          exchange_order_id: string | null
+          exchange_response: Json | null
+          executed_at: string | null
+          id: string
+          leverage: number | null
+          side: string
+          signal_id: string | null
+          status: string | null
+          stop_loss: number | null
+          symbol: string
+          take_profit: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount_usd: number
+          entry_price?: number | null
+          error_message?: string | null
+          exchange_order_id?: string | null
+          exchange_response?: Json | null
+          executed_at?: string | null
+          id?: string
+          leverage?: number | null
+          side: string
+          signal_id?: string | null
+          status?: string | null
+          stop_loss?: number | null
+          symbol: string
+          take_profit?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount_usd?: number
+          entry_price?: number | null
+          error_message?: string | null
+          exchange_order_id?: string | null
+          exchange_response?: Json | null
+          executed_at?: string | null
+          id?: string
+          leverage?: number | null
+          side?: string
+          signal_id?: string | null
+          status?: string | null
+          stop_loss?: number | null
+          symbol?: string
+          take_profit?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trading_executions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trading_executions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals_latest_per_pair"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trading_executions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals_live"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trading_preferences: {
         Row: {
