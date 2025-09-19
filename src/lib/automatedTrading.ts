@@ -298,21 +298,21 @@ export class AutomatedTradingEngine {
 
 // Default configuration
 export const defaultAutoTradingConfig: AutoTradingConfig = {
-  enabled: false,
+  enabled: true, // ✅ Enable by default
   maxPositions: 5,
   maxRiskPerTrade: 2, // 2% per trade
-  minSignalScore: 80,
+  minSignalScore: 70, // ✅ Lowered for more signals
   allowedTimeframes: ['15m', '30m', '1h'],
   allowedSymbols: [], // Empty = all symbols allowed
   positionSizeUSD: 100,
   stopLossPercent: 3,
   takeProfitPercent: 6,
   // Smart Signal Features
-  useSignalAggregation: true,
+  useSignalAggregation: false, // ✅ Disabled for immediate execution
   consensusRequired: false,
-  minSourcesForTrade: 2,
+  minSourcesForTrade: 1, // ✅ Reduced requirement
   // Live Trading Features
-  liveTrading: false,
+  liveTrading: true, // ✅ Enable live trading
   slippageProtection: 0.5,
   emergencyStopEnabled: true,
   riskManagement: {

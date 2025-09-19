@@ -817,6 +817,36 @@ export type Database = {
         }
         Relationships: []
       }
+      system_status: {
+        Row: {
+          error_count: number | null
+          id: string
+          last_update: string
+          metadata: Json | null
+          service_name: string
+          status: string
+          success_count: number | null
+        }
+        Insert: {
+          error_count?: number | null
+          id?: string
+          last_update?: string
+          metadata?: Json | null
+          service_name: string
+          status?: string
+          success_count?: number | null
+        }
+        Update: {
+          error_count?: number | null
+          id?: string
+          last_update?: string
+          metadata?: Json | null
+          service_name?: string
+          status?: string
+          success_count?: number | null
+        }
+        Relationships: []
+      }
       token_purchases: {
         Row: {
           created_at: string
