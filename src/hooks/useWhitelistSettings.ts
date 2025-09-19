@@ -11,10 +11,10 @@ interface WhitelistSettings {
 }
 
 const DEFAULT_SETTINGS: WhitelistSettings = {
-  whitelist_enabled: true,
-  whitelist_pairs: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'BNBUSDT', 'XRPUSDT', 'AVAXUSDT'],
-  max_symbols: 8,
-  auto_update: false,
+  whitelist_enabled: false, // Changed to false to show ALL symbols by default
+  whitelist_pairs: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'BNBUSDT', 'XRPUSDT', 'AVAXUSDT', 'LINKUSDT', 'MATICUSDT', 'UNIUSDT', 'LTCUSDT', 'BCHUSDT', 'XLMUSDT', 'VETUSDT', 'TRXUSDT', 'EOSUSDT', 'IOTAUSDT', 'ONTUSDT', 'ICXUSDT'],
+  max_symbols: 2000, // Increased to show many more symbols
+  auto_update: true, // Enable auto-update to get new symbols
   last_updated: new Date().toISOString()
 };
 

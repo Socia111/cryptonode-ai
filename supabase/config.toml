@@ -72,6 +72,15 @@ verify_jwt = false
 [functions.signals-api]
 verify_jwt = false
 
+[functions.automated-trading-executor]
+verify_jwt = false
+
+[functions.live-signal-orchestrator]
+verify_jwt = false
+
+[functions.system-restart]
+verify_jwt = false
+
 [api]
 enabled = true
 port = 54321

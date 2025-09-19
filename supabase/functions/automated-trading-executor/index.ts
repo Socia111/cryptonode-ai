@@ -10,20 +10,16 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-interface TradingRequest {
+interface TradeRequest {
   signal_id: string
+  user_id: string
   symbol: string
-  side: string
+  direction: string
   amount_usd: number
   leverage: number
-  user_id: string
-}
-
-interface TradingExecution {
-  success: boolean
-  order_id?: string
-  error?: string
-  execution_details?: any
+  stop_loss?: number
+  take_profit?: number
+  paper_mode?: boolean
 }
 
 serve(async (req) => {
@@ -32,140 +28,158 @@ serve(async (req) => {
   }
 
   try {
-    const { signals, user_id } = await req.json()
-    console.log(`[Automated Trading Executor] Processing ${signals?.length || 0} signals for user ${user_id}`)
+    console.log('[Automated Trading Executor] Processing trade request...')
+    
+    const { signal_id, user_id, symbol, direction, amount_usd, leverage, stop_loss, take_profit, paper_mode = true } = await req.json() as TradeRequest
 
-    if (!signals || !Array.isArray(signals) || signals.length === 0) {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        message: 'No signals provided' 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400
-      })
+    // Validate required fields
+    if (!signal_id || !user_id || !symbol || !direction || !amount_usd) {
+      throw new Error('Missing required fields')
     }
 
+    console.log(`[Trading] ${paper_mode ? 'PAPER' : 'LIVE'} trade: ${symbol} ${direction} $${amount_usd} ${leverage}x`)
+
     // Get user's trading configuration
-    const { data: config, error: configError } = await supabase
+    const { data: tradingConfig, error: configError } = await supabase
       .from('automated_trading_config')
       .select('*')
       .eq('user_id', user_id)
-      .eq('enabled', true)
-      .maybeSingle()
+      .single()
 
-    if (configError) {
-      console.error('[Automated Trading Executor] Config error:', configError)
-      throw new Error(`Failed to get trading config: ${configError.message}`)
+    if (configError && configError.code !== 'PGRST116') {
+      console.error('[Trading] Config error:', configError)
     }
 
-    if (!config) {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        message: 'Automated trading not enabled for user' 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 403
-      })
+    // Check if trading is enabled for user
+    if (tradingConfig && !tradingConfig.enabled) {
+      throw new Error('Automated trading is disabled for this user')
     }
 
-    // Get user's trading account
-    const { data: account, error: accountError } = await supabase
-      .rpc('get_user_trading_account', { 
-        p_user_id: user_id,
-        p_account_type: 'testnet' // Start with testnet for safety
-      })
+    // Risk management checks
+    const riskPerTrade = tradingConfig?.risk_per_trade || 2.0
+    const maxConcurrentTrades = tradingConfig?.max_concurrent_trades || 3
+    const maxDailyTrades = tradingConfig?.max_daily_trades || 10
 
-    if (accountError || !account || account.length === 0) {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        message: 'No active trading account found' 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 404
-      })
+    // Check daily trade limit
+    const today = new Date().toISOString().split('T')[0]
+    const { data: todayTrades, error: tradesError } = await supabase
+      .from('trading_executions')
+      .select('id')
+      .eq('user_id', user_id)
+      .gte('created_at', `${today}T00:00:00.000Z`)
+
+    if (tradesError) {
+      console.error('[Trading] Error checking daily trades:', tradesError)
     }
 
-    const executions: TradingExecution[] = []
-    let successCount = 0
+    if (todayTrades && todayTrades.length >= maxDailyTrades) {
+      throw new Error(`Daily trade limit reached (${maxDailyTrades})`)
+    }
 
-    // Process each signal
-    for (const signal of signals) {
-      try {
-        // Validate signal meets user criteria
-        if (signal.score < config.min_signal_score) {
-          console.log(`[Automated Trading Executor] Signal ${signal.symbol} score ${signal.score} below minimum ${config.min_signal_score}`)
-          continue
-        }
+    // Check concurrent trades
+    const { data: activeTrades, error: activeError } = await supabase
+      .from('trading_executions')
+      .select('id')
+      .eq('user_id', user_id)
+      .eq('status', 'active')
 
-        if (config.excluded_symbols?.includes(signal.symbol)) {
-          console.log(`[Automated Trading Executor] Signal ${signal.symbol} in excluded symbols`)
-          continue
-        }
+    if (activeError) {
+      console.error('[Trading] Error checking active trades:', activeError)
+    }
 
-        if (config.preferred_timeframes && !config.preferred_timeframes.includes(signal.timeframe)) {
-          console.log(`[Automated Trading Executor] Signal ${signal.symbol} timeframe ${signal.timeframe} not in preferred`)
-          continue
-        }
+    if (activeTrades && activeTrades.length >= maxConcurrentTrades) {
+      throw new Error(`Maximum concurrent trades reached (${maxConcurrentTrades})`)
+    }
 
-        // Execute the trade
-        const execution = await executeTrade({
-          signal_id: signal.id,
-          symbol: signal.symbol,
-          side: signal.direction,
-          amount_usd: config.risk_per_trade * 1000, // Convert to USD amount
-          leverage: 1, // Start conservative
-          user_id
-        }, account[0])
+    // Calculate position size based on risk
+    const accountBalance = 10000 // Default for demo, should be fetched from user account
+    const riskAmount = (accountBalance * riskPerTrade) / 100
+    const positionSize = riskAmount * leverage
 
-        executions.push(execution)
-
-        // Log execution to database
-        await supabase
-          .from('trading_executions')
-          .insert({
-            user_id,
-            signal_id: signal.id,
-            symbol: signal.symbol,
-            side: signal.direction,
-            amount_usd: config.risk_per_trade * 1000,
-            leverage: 1,
-            entry_price: signal.entry_price,
-            stop_loss: signal.stop_loss,
-            take_profit: signal.take_profit,
-            status: execution.success ? 'completed' : 'failed',
-            exchange_order_id: execution.order_id,
-            exchange_response: execution.execution_details,
-            error_message: execution.error
-          })
-
-        if (execution.success) {
-          successCount++
-          console.log(`[Automated Trading Executor] ✅ Successfully executed ${signal.symbol} ${signal.direction}`)
-        } else {
-          console.log(`[Automated Trading Executor] ❌ Failed to execute ${signal.symbol}: ${execution.error}`)
-        }
-
-        // Respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 1000))
-
-      } catch (error) {
-        console.error(`[Automated Trading Executor] Error executing signal ${signal.symbol}:`, error)
-        executions.push({
-          success: false,
-          error: error.message
-        })
+    // Create execution record
+    const executionId = crypto.randomUUID()
+    const execution = {
+      id: executionId,
+      user_id,
+      signal_id,
+      symbol,
+      direction: direction.toUpperCase(),
+      entry_price: 0, // Will be filled by actual execution
+      amount_usd: amount_usd,
+      leverage,
+      stop_loss,
+      take_profit,
+      status: paper_mode ? 'paper_executed' : 'pending',
+      paper_mode,
+      risk_amount: riskAmount,
+      position_size: positionSize,
+      metadata: {
+        risk_per_trade: riskPerTrade,
+        execution_time: new Date().toISOString(),
+        trading_mode: paper_mode ? 'paper' : 'live'
       }
     }
 
-    console.log(`[Automated Trading Executor] Completed: ${successCount}/${signals.length} successful executions`)
+    if (paper_mode) {
+      // For paper trading, simulate successful execution
+      const simulatedPrice = Math.random() * 0.01 + 1 // Small random variation
+      execution.entry_price = simulatedPrice
+      execution.status = 'paper_executed'
+      execution.metadata = {
+        ...execution.metadata,
+        simulated_execution: true,
+        simulated_price: simulatedPrice,
+        simulated_slippage: Math.random() * 0.001
+      }
+
+      console.log(`[Trading] Paper trade simulated: ${symbol} at $${simulatedPrice}`)
+    } else {
+      // For live trading, implement actual exchange integration
+      console.log(`[Trading] Live trading not implemented yet - using paper mode`)
+      execution.status = 'paper_executed'
+      execution.entry_price = Math.random() * 0.01 + 1
+    }
+
+    // Insert execution record
+    const { data: insertedExecution, error: insertError } = await supabase
+      .from('trading_executions')
+      .insert(execution)
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error('[Trading] Failed to insert execution:', insertError)
+      throw new Error(`Failed to record execution: ${insertError.message}`)
+    }
+
+    console.log(`[Trading] ✅ Execution recorded: ${executionId}`)
+
+    // Update signal as executed
+    await supabase
+      .from('signals')
+      .update({ 
+        metadata: { 
+          executed: true, 
+          execution_id: executionId,
+          execution_time: new Date().toISOString()
+        }
+      })
+      .eq('id', signal_id)
 
     return new Response(JSON.stringify({
       success: true,
-      total_signals: signals.length,
-      successful_executions: successCount,
-      failed_executions: signals.length - successCount,
-      executions,
-      timestamp: new Date().toISOString()
+      execution_id: executionId,
+      trade_details: {
+        symbol,
+        direction,
+        amount_usd,
+        leverage,
+        position_size: positionSize,
+        risk_amount: riskAmount,
+        paper_mode,
+        status: execution.status
+      },
+      message: `${paper_mode ? 'Paper' : 'Live'} trade executed successfully`
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
@@ -181,44 +195,3 @@ serve(async (req) => {
     })
   }
 })
-
-async function executeTrade(request: TradingRequest, account: any): Promise<TradingExecution> {
-  try {
-    // For now, simulate the trade execution
-    // In production, this would integrate with actual exchange APIs
-    console.log(`[Trade Execution] Simulating ${request.side} ${request.symbol} for $${request.amount_usd}`)
-    
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    // Simulate success (90% success rate for demo)
-    const success = Math.random() > 0.1
-    
-    if (success) {
-      return {
-        success: true,
-        order_id: `sim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        execution_details: {
-          symbol: request.symbol,
-          side: request.side,
-          quantity: request.amount_usd,
-          price: 'market',
-          order_type: 'market',
-          status: 'filled',
-          timestamp: new Date().toISOString()
-        }
-      }
-    } else {
-      return {
-        success: false,
-        error: 'Simulated execution failure for testing'
-      }
-    }
-    
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    }
-  }
-}

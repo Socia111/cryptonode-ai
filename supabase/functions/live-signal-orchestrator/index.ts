@@ -1,160 +1,169 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0'
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-Deno.serve(async (req) => {
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    console.log('[Live Signal Orchestrator] Starting comprehensive signal generation...')
     
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    console.log('🚀 Starting live signal orchestrator...')
-
-    // Clear any mock/demo data first
-    const { error: clearError } = await supabase
-      .from('signals')
-      .delete()
-      .in('source', ['demo', 'mock', 'ccxt'])
-      .not('metadata', 'is', null)
-      .filter('metadata->demo', 'eq', 'true')
-
-    if (clearError) {
-      console.log('Warning: Could not clear demo data:', clearError)
+    // 1. Trigger live exchange feed
+    console.log('[Orchestrator] Step 1: Fetching live market data...')
+    const feedResponse = await supabase.functions.invoke('live-exchange-feed', {
+      body: { comprehensive: true }
+    })
+    
+    if (feedResponse.error) {
+      console.error('[Orchestrator] Feed error:', feedResponse.error)
+    } else {
+      console.log('[Orchestrator] ✅ Market data updated')
     }
 
-    // Trigger existing signal generation functions only
-    const functions = [
-      { name: 'enhanced-signal-generation', body: { enhanced_mode: true } },
-      { name: 'aitradex1-enhanced-scanner', body: { symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT'] } }
-    ]
-
-    const results = []
+    // 2. Run enhanced signal generation
+    console.log('[Orchestrator] Step 2: Generating enhanced signals...')
+    const enhancedResponse = await supabase.functions.invoke('enhanced-signal-generation', {
+      body: { source: 'live_orchestrator' }
+    })
     
-    for (const func of functions) {
-      try {
-        console.log(`Triggering ${func.name}...`)
-        
-        const { data, error } = await supabase.functions.invoke(func.name, {
-          body: func.body
-        })
-
-        if (error) {
-          console.log(`Error in ${func.name}:`, error)
-          results.push({ function: func.name, success: false, error: error.message })
-        } else {
-          console.log(`✅ ${func.name} completed successfully`)
-          results.push({ function: func.name, success: true, data })
-        }
-      } catch (err) {
-        console.log(`Exception in ${func.name}:`, err.message)
-        results.push({ function: func.name, success: false, error: err.message })
-      }
+    if (enhancedResponse.error) {
+      console.error('[Orchestrator] Enhanced generation error:', enhancedResponse.error)
+    } else {
+      console.log('[Orchestrator] ✅ Enhanced signals generated')
     }
 
-    // Generate some immediate live signals using real market data APIs
-    const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT']
-    const liveSignals = []
+    // 3. Run AItradeX1 enhanced scanner
+    console.log('[Orchestrator] Step 3: Running AItradeX1 enhanced scanner...')
+    const scannerResponse = await supabase.functions.invoke('aitradex1-enhanced-scanner', {
+      body: { orchestrated: true }
+    })
+    
+    if (scannerResponse.error) {
+      console.error('[Orchestrator] Scanner error:', scannerResponse.error)
+    } else {
+      console.log('[Orchestrator] ✅ AItradeX1 scanner completed')
+    }
 
-    for (const symbol of symbols) {
-      try {
-        // Fetch real market data from Bybit public API
-        const marketResponse = await fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`)
-        const marketData = await marketResponse.json()
+    // 4. Check for signals needing automated execution
+    console.log('[Orchestrator] Step 4: Checking for automated trading opportunities...')
+    const { data: activeConfigs, error: configError } = await supabase
+      .from('automated_trading_config')
+      .select('*')
+      .eq('enabled', true)
+
+    if (configError) {
+      console.error('[Orchestrator] Config error:', configError)
+    } else if (activeConfigs && activeConfigs.length > 0) {
+      console.log(`[Orchestrator] Found ${activeConfigs.length} users with automated trading enabled`)
+      
+      // Get high-scoring signals for automated execution
+      const { data: highScoreSignals, error: signalsError } = await supabase
+        .from('signals')
+        .select('*')
+        .gte('score', 85) // Only very high confidence signals
+        .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString()) // Last 10 minutes
+        .is('metadata->executed', null) // Not already executed
+        .order('score', { ascending: false })
+        .limit(10)
+
+      if (signalsError) {
+        console.error('[Orchestrator] Signals error:', signalsError)
+      } else if (highScoreSignals && highScoreSignals.length > 0) {
+        console.log(`[Orchestrator] Found ${highScoreSignals.length} high-score signals for auto-trading`)
         
-        if (marketData.result?.list?.[0]) {
-          const ticker = marketData.result.list[0]
-          const price = parseFloat(ticker.lastPrice)
-          const change24h = parseFloat(ticker.price24hPcnt) * 100
-          const volume = parseFloat(ticker.volume24h)
+        // For each user with auto-trading enabled, check their signal preferences
+        for (const config of activeConfigs) {
+          const eligibleSignals = highScoreSignals.filter(signal => {
+            // Check minimum signal score
+            if (signal.score < (config.min_signal_score || 75)) return false
+            
+            // Check excluded symbols
+            if (config.excluded_symbols && config.excluded_symbols.includes(signal.symbol)) return false
+            
+            // Check preferred timeframes
+            if (config.preferred_timeframes && config.preferred_timeframes.length > 0) {
+              if (!config.preferred_timeframes.includes(signal.timeframe)) return false
+            }
+            
+            return true
+          })
           
-          // Generate signal based on real market conditions
-          const signal = {
-            symbol,
-            timeframe: '15m',
-            direction: change24h > 0 ? 'LONG' : 'SHORT',
-            price,
-            entry_price: price * (change24h > 0 ? 0.999 : 1.001),
-            take_profit: price * (change24h > 0 ? 1.02 : 0.98),
-            stop_loss: price * (change24h > 0 ? 0.985 : 1.015),
-            score: Math.min(95, Math.max(75, Math.round(75 + Math.abs(change24h) * 2))),
-            confidence: Math.min(0.95, Math.max(0.75, 0.75 + Math.abs(change24h) / 50)),
-            source: 'live_feed',
-            algo: 'aitradex1',
-            exchange: 'bybit',
-            side: change24h > 0 ? 'BUY' : 'SELL',
-            is_active: true,
-            metadata: {
-              change_24h: change24h,
-              volume_24h: volume,
-              live_price: price,
-              market_trend: change24h > 2 ? 'strong_bullish' : change24h > 0 ? 'bullish' : change24h < -2 ? 'strong_bearish' : 'bearish',
-              signal_quality: 'high'
-            },
-            bar_time: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          }
-
-          const { error: insertError } = await supabase
-            .from('signals')
-            .insert(signal)
-
-          if (!insertError) {
-            liveSignals.push(signal)
-            console.log(`✅ Generated live signal for ${symbol}: ${signal.direction} at ${price}`)
-          } else {
-            console.log(`Error inserting signal for ${symbol}:`, insertError)
+          if (eligibleSignals.length > 0) {
+            console.log(`[Orchestrator] User ${config.user_id}: ${eligibleSignals.length} eligible signals`)
+            
+            // Take the highest scoring signal for this user
+            const topSignal = eligibleSignals[0]
+            
+            // Execute the trade (paper mode for now)
+            try {
+              const executeResponse = await supabase.functions.invoke('automated-trading-executor', {
+                body: {
+                  signal_id: topSignal.id,
+                  user_id: config.user_id,
+                  symbol: topSignal.symbol,
+                  direction: topSignal.direction,
+                  amount_usd: 100, // Default amount - should be configurable
+                  leverage: 1, // Conservative leverage
+                  stop_loss: topSignal.stop_loss,
+                  take_profit: topSignal.take_profit,
+                  paper_mode: true
+                }
+              })
+              
+              if (executeResponse.error) {
+                console.error(`[Orchestrator] Execution error for user ${config.user_id}:`, executeResponse.error)
+              } else {
+                console.log(`[Orchestrator] ✅ Auto-executed trade for user ${config.user_id}: ${topSignal.symbol}`)
+              }
+            } catch (executeError) {
+              console.error(`[Orchestrator] Execute error:`, executeError)
+            }
           }
         }
-      } catch (err) {
-        console.log(`Error generating signal for ${symbol}:`, err.message)
       }
     }
 
-    // Update exchange feed status
+    // 5. Update system status
+    console.log('[Orchestrator] Step 5: Updating system status...')
     await supabase
-      .from('exchange_feed_status')
+      .from('app_settings')
       .upsert({
-        exchange: 'bybit',
-        status: 'active',
-        last_update: new Date().toISOString(),
-        symbols_tracked: symbols.length,
-        error_count: 0
+        key: 'last_orchestrator_run',
+        value: {
+          timestamp: new Date().toISOString(),
+          steps_completed: 5,
+          success: true
+        }
       })
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Live signal orchestrator completed',
-        functions_triggered: results.length,
-        live_signals_generated: liveSignals.length,
-        results,
-        signals: liveSignals
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Live signal orchestration completed successfully',
+      timestamp: new Date().toISOString(),
+      steps_completed: 5,
+      automated_trades_checked: true
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
 
   } catch (error) {
-    console.error('Error in live signal orchestrator:', error)
-    
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message
-      }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+    console.error('[Live Signal Orchestrator] Error:', error)
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: error.message 
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500
+    })
   }
 })

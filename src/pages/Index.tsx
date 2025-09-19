@@ -4,6 +4,7 @@ import { LiveTradingDashboard } from '@/components/LiveTradingDashboard';
 import { LaunchReadinessChecklist } from '@/components/LaunchReadinessChecklist';
 import { SymbolSelector } from '@/components/SymbolSelector';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FullMarketSignals } from '@/components/FullMarketSignals';
 
 export default function Index() {
   return (
@@ -19,14 +20,19 @@ export default function Index() {
         </div>
 
         <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="dashboard">Trading Dashboard</TabsTrigger>
+            <TabsTrigger value="fullmarket">Full Market</TabsTrigger>
             <TabsTrigger value="symbols">Symbol Selection</TabsTrigger>
             <TabsTrigger value="launch">Launch Status</TabsTrigger>
           </TabsList>
           
           <TabsContent value="dashboard" className="space-y-6">
             <LiveTradingDashboard />
+          </TabsContent>
+          
+          <TabsContent value="fullmarket" className="space-y-6">
+            <FullMarketSignals />
           </TabsContent>
           
           <TabsContent value="symbols" className="space-y-6">
