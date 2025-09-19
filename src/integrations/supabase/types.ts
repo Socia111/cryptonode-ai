@@ -556,6 +556,96 @@ export type Database = {
         }
         Relationships: []
       }
+      signals_archive: {
+        Row: {
+          algo: string | null
+          atr: number | null
+          bar_time: string
+          confidence: number | null
+          created_at: string | null
+          direction: string
+          entry_price: number | null
+          exchange: string | null
+          exchange_source: string | null
+          expires_at: string | null
+          filters: Json | null
+          hvp_value: number | null
+          id: string
+          is_active: boolean | null
+          meta: Json | null
+          metadata: Json | null
+          price: number
+          score: number
+          side: string | null
+          signal_grade: string | null
+          signal_type: string | null
+          source: string | null
+          stop_loss: number | null
+          symbol: string
+          take_profit: number | null
+          timeframe: string
+          volume_ratio: number | null
+        }
+        Insert: {
+          algo?: string | null
+          atr?: number | null
+          bar_time: string
+          confidence?: number | null
+          created_at?: string | null
+          direction: string
+          entry_price?: number | null
+          exchange?: string | null
+          exchange_source?: string | null
+          expires_at?: string | null
+          filters?: Json | null
+          hvp_value?: number | null
+          id?: string
+          is_active?: boolean | null
+          meta?: Json | null
+          metadata?: Json | null
+          price: number
+          score: number
+          side?: string | null
+          signal_grade?: string | null
+          signal_type?: string | null
+          source?: string | null
+          stop_loss?: number | null
+          symbol: string
+          take_profit?: number | null
+          timeframe: string
+          volume_ratio?: number | null
+        }
+        Update: {
+          algo?: string | null
+          atr?: number | null
+          bar_time?: string
+          confidence?: number | null
+          created_at?: string | null
+          direction?: string
+          entry_price?: number | null
+          exchange?: string | null
+          exchange_source?: string | null
+          expires_at?: string | null
+          filters?: Json | null
+          hvp_value?: number | null
+          id?: string
+          is_active?: boolean | null
+          meta?: Json | null
+          metadata?: Json | null
+          price?: number
+          score?: number
+          side?: string | null
+          signal_grade?: string | null
+          signal_type?: string | null
+          source?: string | null
+          stop_loss?: number | null
+          symbol?: string
+          take_profit?: number | null
+          timeframe?: string
+          volume_ratio?: number | null
+        }
+        Relationships: []
+      }
       token_purchases: {
         Row: {
           created_at: string
@@ -868,6 +958,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      archive_signals: {
+        Args: { days?: number }
+        Returns: undefined
+      }
+      expire_signals: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       get_user_trading_account: {
         Args: { p_account_type?: string; p_user_id: string }
         Returns: {
