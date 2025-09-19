@@ -45,11 +45,29 @@ const settingsItems = [
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
+const getItemDescription = (title: string) => {
+  const descriptions: Record<string, string> = {
+    "Dashboard": "Main overview and analytics",
+    "X Platform": "Advanced trading platform",
+    "X1 System": "AI-powered trading system",
+    "X2 Advanced": "Advanced analytics tools",
+    "Original AI": "Core AI trading engine",
+    "Trade": "Execute trading operations",
+    "Portfolio": "Portfolio management",
+    "Signals": "Trading signals and alerts",
+    "Markets": "Market data and analysis",
+    "Backtests": "Strategy testing tools",
+    "Automation": "Automated trading setup",
+    "Alerts": "Notification management",
+    "Settings": "Application preferences"
+  };
+  return descriptions[title] || "Navigation item";
+};
+
 export function AppSidebar() {
   const { state, openMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
-  const collapsed = state === "collapsed";
 
   const isActive = (path: string) => {
     if (path === "/") {
@@ -60,50 +78,53 @@ export function AppSidebar() {
 
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive 
-      ? "bg-primary/10 text-primary border-r-2 border-primary font-medium" 
+      ? "bg-primary/10 text-primary border-l-2 border-primary font-medium" 
       : "hover:bg-accent/50 text-muted-foreground hover:text-foreground";
 
   return (
     <Sidebar
-      className={collapsed ? "w-16" : "w-64"}
-      collapsible="icon"
-      side="left"
+      className="w-80"
+      collapsible="none"
+      side="right"
     >
-      <SidebarContent className="border-r border-border">
+      <SidebarContent className="border-l border-border">
         {/* Header */}
         <div className="p-4 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center shrink-0">
               <Zap className="w-5 h-5 text-white" />
             </div>
-            {!collapsed && (
-              <div className="min-w-0">
-                <h1 className="text-lg font-bold brand-display bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent truncate">
-                  AItradeX
-                </h1>
-                <p className="text-xs text-muted-foreground truncate">AI-Powered Trading</p>
-              </div>
-            )}
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold brand-display bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent truncate">
+                AItradeX
+              </h1>
+              <p className="text-xs text-muted-foreground truncate">AI-Powered Trading</p>
+            </div>
           </div>
         </div>
 
         {/* Navigation Menu */}
         <SidebarGroup className="flex-1">
-          <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
+          <SidebarGroupLabel>
             Navigation
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
+            <SidebarMenu className="space-y-2">
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink 
                       to={item.url} 
                       end={item.url === "/"}
-                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors`}
+                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors p-3 flex items-center gap-3`}
                     >
                       <item.icon className="w-5 h-5 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.title}</span>}
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium text-sm">{item.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {getItemDescription(item.title)}
+                        </span>
+                      </div>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -121,10 +142,15 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <NavLink 
                       to={item.url}
-                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors`}
+                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors p-3 flex items-center gap-3`}
                     >
                       <item.icon className="w-5 h-5 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.title}</span>}
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium text-sm">{item.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {getItemDescription(item.title)}
+                        </span>
+                      </div>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
