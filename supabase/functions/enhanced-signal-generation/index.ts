@@ -262,6 +262,7 @@ function generateEnhancedSignal(data: MarketData, timeframe: string, currentTime
     timeframe,
     direction,
     entry_price: price,
+    price: price, // Fix: Add price field to prevent null constraint violation
     stop_loss: Math.round(stopLoss * 10000) / 10000,
     take_profit: Math.round(takeProfit * 10000) / 10000,
     score: Math.round(score),

@@ -36,28 +36,34 @@ export function useTradingExecutor() {
         throw new Error('Missing required trade parameters');
       }
 
-      // Execute live trade using live trading system
+      // Execute live trade using new trade executor
       console.log('📡 Executing live trade with:', params);
       
-      const { data, error } = await supabase.functions.invoke('bybit-order-execution', {
+      const { data, error } = await supabase.functions.invoke('trade-executor-v2', {
         body: {
           symbol: params.symbol,
           side: params.side,
-          amount: params.amount,
-          orderType: params.orderType || 'Market',
-          leverage: params.leverage,
-          stopLoss: params.stopLoss,
-          takeProfit: params.takeProfit
+          mode: 'usd',
+          amountUSD: params.amount,
+          leverage: params.leverage || 1,
+          stopLossPrice: params.stopLoss,
+          takeProfitPrice: params.takeProfit,
+          dryRun: false
         }
       });
 
       if (error) throw error;
 
+      // Handle both success and validation errors with 200 status
+      if (!data.ok) {
+        throw new Error(data.error || 'Trade execution failed');
+      }
+
       const result: TradeResult = {
         success: true,
-        orderId: data.order_id,
+        orderId: data.orderId,
         message: `${params.side.toUpperCase()} order for ${params.amount} USDT of ${params.symbol} executed successfully`,
-        executedPrice: data.executed_price,
+        executedPrice: data.executedPrice,
         fees: data.fees
       };
 
