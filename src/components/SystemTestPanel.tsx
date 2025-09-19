@@ -22,27 +22,36 @@ export const SystemTestPanel = () => {
       });
 
       // Test 1: Check signals
+      console.log('[SystemTest] Testing signals database...');
       const { data: signalsData, error: signalsError } = await supabase
         .from('signals')
         .select('*')
         .limit(10);
+      console.log('[SystemTest] Signals result:', { count: signalsData?.length, error: signalsError });
 
       // Test 2: Check execution orders  
+      console.log('[SystemTest] Testing execution orders...');
       const { data: ordersData, error: ordersError } = await supabase
         .from('execution_orders')
         .select('*')
         .limit(5);
+      console.log('[SystemTest] Orders result:', { count: ordersData?.length, error: ordersError });
 
       // Test 3: Check exchange status
+      console.log('[SystemTest] Testing exchange feed status...');
       const { data: exchangeData, error: exchangeError } = await supabase
         .from('exchange_feed_status')
         .select('*')
         .limit(5);
+      console.log('[SystemTest] Exchange result:', { count: exchangeData?.length, error: exchangeError });
 
       // Test 4: Test enhanced signal generator
+      console.log('[SystemTest] Testing signal generator...');
       const { data: demoResult, error: demoError } = await supabase.functions.invoke('aitradex1-enhanced-scanner');
+      console.log('[SystemTest] Signal generator result:', { success: !demoError, error: demoError });
 
       // Test 5: Test paper trading executor
+      console.log('[SystemTest] Testing paper trading executor...');
       const { data: tradeResult, error: tradeError } = await supabase.functions.invoke('paper-trading-executor', {
         body: {
           symbol: 'BTCUSDT',
@@ -52,6 +61,7 @@ export const SystemTestPanel = () => {
           paperMode: true
         }
       });
+      console.log('[SystemTest] Paper trading result:', { success: !tradeError, data: tradeResult, error: tradeError });
 
       const testResults = {
         signals: {

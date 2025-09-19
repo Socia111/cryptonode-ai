@@ -12,6 +12,7 @@ import { ExchangeAuthentication } from './ExchangeAuthentication';
 import { TradingExecutionPanel } from './TradingExecutionPanel';
 import { SystemStatusIndicator } from './SystemStatusIndicator';
 import { SystemTestPanel } from './SystemTestPanel';
+import { QuickSystemTest } from './QuickSystemTest';
 import { useSignals } from '@/hooks/useSignals';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthenticationManager } from './AuthenticationManager';
@@ -307,7 +308,10 @@ export const LiveTradingDashboard = () => {
         </TabsContent>
 
         <TabsContent value="test">
-          <SystemTestPanel />
+          <div className="space-y-6">
+            <SystemTestPanel />
+            <QuickSystemTest />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
