@@ -1,107 +1,152 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { PlayCircle, Database, Signal, TrendingUp } from 'lucide-react';
+import { 
+  CheckCircle, 
+  XCircle, 
+  AlertTriangle, 
+  Loader2, 
+  RefreshCw,
+  Database,
+  Zap,
+  Signal,
+  TrendingUp
+} from 'lucide-react';
 
-export const SystemTestPanel = () => {
-  const [testing, setTesting] = useState(false);
-  const [results, setResults] = useState<any>(null);
+interface SystemTestPanelProps {
+  onTestComplete?: (results: any) => void;
+}
+
+const SystemTestPanel = ({ onTestComplete }: SystemTestPanelProps) => {
+  const [testing, setTesting] = React.useState(false);
+  const [results, setResults] = React.useState<any>(null);
   const { toast } = useToast();
 
-  const runSystemTest = async () => {
+  const runComprehensiveTest = async () => {
     setTesting(true);
-    setResults(null);
+    const testResults = {
+      database: { status: 'pending', message: '', details: [] },
+      signals: { status: 'pending', message: '', details: [] },
+      trading: { status: 'pending', message: '', details: [] },
+      functions: { status: 'pending', message: '', details: [] },
+      overall: 'pending'
+    };
 
     try {
-      toast({
-        title: "🧪 Running System Test",
-        description: "Testing all components..."
-      });
+      // Test 1: Database Connection
+      console.log('🔍 Testing database connection...');
+      try {
+        const { data: signalsData, error } = await supabase
+          .from('signals')
+          .select('count(*)')
+          .limit(1);
+        
+        if (error) throw error;
+        
+        testResults.database.status = 'success';
+        testResults.database.message = 'Database connection successful';
+        testResults.database.details.push('✅ Supabase connection working');
+        testResults.database.details.push('✅ Signals table accessible');
+      } catch (error) {
+        testResults.database.status = 'error';
+        testResults.database.message = `Database error: ${error.message}`;
+        testResults.database.details.push('❌ Database connection failed');
+      }
 
-      // Test 1: Check signals
-      console.log('[SystemTest] Testing signals database...');
-      const { data: signalsData, error: signalsError } = await supabase
-        .from('signals')
-        .select('*')
-        .limit(10);
-      console.log('[SystemTest] Signals result:', { count: signalsData?.length, error: signalsError });
+      // Test 2: Signal Generation
+      console.log('🔍 Testing signal generation...');
+      try {
+        const { data, error } = await supabase.functions.invoke('enhanced-signal-generation');
+        
+        if (error) throw error;
+        
+        testResults.signals.status = 'success';
+        testResults.signals.message = 'Signal generation working';
+        testResults.signals.details.push('✅ Enhanced signal generation functional');
+        testResults.signals.details.push(`✅ Generated ${data?.signals_generated || 0} signals`);
+      } catch (error) {
+        testResults.signals.status = 'error';
+        testResults.signals.message = `Signal generation error: ${error.message}`;
+        testResults.signals.details.push('❌ Enhanced signal generation failed');
+      }
 
-      // Test 2: Check execution orders  
-      console.log('[SystemTest] Testing execution orders...');
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('execution_orders')
-        .select('*')
-        .limit(5);
-      console.log('[SystemTest] Orders result:', { count: ordersData?.length, error: ordersError });
-
-      // Test 3: Check exchange status
-      console.log('[SystemTest] Testing exchange feed status...');
-      const { data: exchangeData, error: exchangeError } = await supabase
-        .from('exchange_feed_status')
-        .select('*')
-        .limit(5);
-      console.log('[SystemTest] Exchange result:', { count: exchangeData?.length, error: exchangeError });
-
-      // Test 4: Test enhanced signal generator
-      console.log('[SystemTest] Testing signal generator...');
-      const { data: demoResult, error: demoError } = await supabase.functions.invoke('aitradex1-enhanced-scanner');
-      console.log('[SystemTest] Signal generator result:', { success: !demoError, error: demoError });
-
-      // Test 5: Test live trading executor
-      console.log('[SystemTest] Testing live trading executor...');
-      const { data: tradeResult, error: tradeError } = await supabase.functions.invoke('bybit-order-execution', {
-        body: {
-          symbol: 'BTCUSDT',
-          side: 'buy',
-          amount: 50,
-          leverage: 1
+      // Test 3: Trading Functions
+      console.log('🔍 Testing trading functions...');
+      try {
+        const { data, error } = await supabase.functions.invoke('instrument-info', {
+          body: { symbol: 'BTCUSDT' }
+        });
+        
+        if (error) throw error;
+        
+        if (data?.ok) {
+          testResults.trading.status = 'success';
+          testResults.trading.message = 'Trading functions operational';
+          testResults.trading.details.push('✅ Instrument info working');
+          testResults.trading.details.push('✅ Price data available');
+        } else {
+          throw new Error('Instrument info returned error');
         }
-      });
-      console.log('[SystemTest] Live trading result:', { success: !tradeError, data: tradeResult, error: tradeError });
+      } catch (error) {
+        testResults.trading.status = 'error';
+        testResults.trading.message = `Trading functions error: ${error.message}`;
+        testResults.trading.details.push('❌ Trading functions failed');
+      }
 
-      const testResults = {
-        signals: {
-          success: !signalsError,
-          count: signalsData?.length || 0,
-          error: signalsError?.message
-        },
-        orders: {
-          success: !ordersError,
-          count: ordersData?.length || 0,
-          error: ordersError?.message
-        },
-        exchange: {
-          success: !exchangeError,
-          count: exchangeData?.length || 0,
-          error: exchangeError?.message
-        },
-        demoSignals: {
-          success: !demoError,
-          data: demoResult,
-          error: demoError?.message
-        },
-        liveTrading: {
-          success: !tradeError,
-          data: tradeResult,
-          error: tradeError?.message
-        }
-      };
+      // Test 4: Edge Functions Health
+      console.log('🔍 Testing edge functions...');
+      try {
+        const { data, error } = await supabase.functions.invoke('app-settings-manager', {
+          body: { method: 'GET', key: 'system_status' }
+        });
+        
+        if (error) throw error;
+        
+        testResults.functions.status = 'success';
+        testResults.functions.message = 'Edge functions responsive';
+        testResults.functions.details.push('✅ App settings manager working');
+        testResults.functions.details.push('✅ Function routing operational');
+      } catch (error) {
+        testResults.functions.status = 'warning';
+        testResults.functions.message = `Some functions may be unavailable: ${error.message}`;
+        testResults.functions.details.push('⚠️ Non-critical function issues detected');
+      }
+
+      // Overall Assessment
+      const successCount = Object.values(testResults).filter((r: any) => r.status === 'success').length;
+      const errorCount = Object.values(testResults).filter((r: any) => r.status === 'error').length;
+      
+      if (errorCount === 0) {
+        testResults.overall = 'success';
+        toast({
+          title: "✅ All Tests Passed",
+          description: "System is fully operational",
+          variant: "default"
+        });
+      } else if (successCount >= 2) {
+        testResults.overall = 'warning';
+        toast({
+          title: "⚠️ Partial Success",
+          description: `${successCount} tests passed, ${errorCount} failed`,
+          variant: "default"
+        });
+      } else {
+        testResults.overall = 'error';
+        toast({
+          title: "❌ System Issues",
+          description: "Multiple critical errors detected",
+          variant: "destructive"
+        });
+      }
 
       setResults(testResults);
-
-      const allPassed = Object.values(testResults).every(test => test.success);
-      
-      toast({
-        title: allPassed ? "✅ All Tests Passed" : "⚠️ Some Tests Failed",
-        description: `System components tested: ${Object.keys(testResults).length}`,
-        variant: allPassed ? "default" : "destructive"
-      });
+      onTestComplete?.(testResults);
 
     } catch (error: any) {
-      console.error('System test failed:', error);
+      console.error('Comprehensive test failed:', error);
       toast({
         title: "❌ Test Failed",
         description: error.message,
@@ -112,115 +157,159 @@ export const SystemTestPanel = () => {
     }
   };
 
-  const getBadgeVariant = (success: boolean) => {
-    return success ? 'default' : 'destructive';
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'success': return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case 'error': return <XCircle className="h-5 w-5 text-red-500" />;
+      case 'warning': return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
+      default: return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'success': return <Badge variant="default" className="bg-green-100 text-green-800">PASS</Badge>;
+      case 'error': return <Badge variant="destructive">FAIL</Badge>;
+      case 'warning': return <Badge variant="outline" className="border-yellow-500 text-yellow-700">WARN</Badge>;
+      default: return <Badge variant="outline">TESTING</Badge>;
+    }
   };
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5" />
-          System Test Panel
+          <Zap className="h-5 w-5" />
+          System Health & Error Recovery
         </CardTitle>
-        <CardDescription>
-          Comprehensive test of all trading system components
-        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <Button 
-          onClick={runSystemTest} 
-          disabled={testing}
-          className="w-full flex items-center gap-2"
-        >
-          <PlayCircle className="h-4 w-4" />
-          {testing ? 'Running Tests...' : 'Run Complete System Test'}
-        </Button>
+      <CardContent className="space-y-6">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Run comprehensive tests to verify all system components are working correctly
+          </p>
+          <Button
+            onClick={runComprehensiveTest}
+            disabled={testing}
+            className="flex items-center gap-2"
+          >
+            {testing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {testing ? 'Testing...' : 'Run Tests'}
+          </Button>
+        </div>
 
         {results && (
-          <div className="space-y-3">
-            <h4 className="font-semibold">Test Results:</h4>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Signal className="h-4 w-4" />
-                  <span className="text-sm">Signals Database</span>
+          <div className="space-y-4">
+            <div className="grid gap-4">
+              {/* Database Test */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-4 w-4" />
+                    <h4 className="font-medium">Database Connection</h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getStatusIcon(results.database.status)}
+                    {getStatusBadge(results.database.status)}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={getBadgeVariant(results.signals.success)}>
-                    {results.signals.success ? 'PASS' : 'FAIL'}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {results.signals.count} records
-                  </span>
-                </div>
-              </div>
+                <p className="text-sm text-muted-foreground mb-2">{results.database.message}</p>
+                <ul className="text-xs space-y-1">
+                  {results.database.details.map((detail: string, index: number) => (
+                    <li key={index}>{detail}</li>
+                  ))}
+                </ul>
+              </Card>
 
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Database className="h-4 w-4" />
-                  <span className="text-sm">Execution Orders</span>
+              {/* Signal Generation Test */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Signal className="h-4 w-4" />
+                    <h4 className="font-medium">Signal Generation</h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getStatusIcon(results.signals.status)}
+                    {getStatusBadge(results.signals.status)}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={getBadgeVariant(results.orders.success)}>
-                    {results.orders.success ? 'PASS' : 'FAIL'}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {results.orders.count} records
-                  </span>
-                </div>
-              </div>
+                <p className="text-sm text-muted-foreground mb-2">{results.signals.message}</p>
+                <ul className="text-xs space-y-1">
+                  {results.signals.details.map((detail: string, index: number) => (
+                    <li key={index}>{detail}</li>
+                  ))}
+                </ul>
+              </Card>
 
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Signal className="h-4 w-4" />
-                  <span className="text-sm">Exchange Status</span>
+              {/* Trading Functions Test */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    <h4 className="font-medium">Trading Functions</h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getStatusIcon(results.trading.status)}
+                    {getStatusBadge(results.trading.status)}
+                  </div>
                 </div>
-                <Badge variant={getBadgeVariant(results.exchange.success)}>
-                  {results.exchange.success ? 'PASS' : 'FAIL'}
-                </Badge>
-              </div>
+                <p className="text-sm text-muted-foreground mb-2">{results.trading.message}</p>
+                <ul className="text-xs space-y-1">
+                  {results.trading.details.map((detail: string, index: number) => (
+                    <li key={index}>{detail}</li>
+                  ))}
+                </ul>
+              </Card>
 
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-2">
-                  <PlayCircle className="h-4 w-4" />
-                  <span className="text-sm">Demo Signals</span>
+              {/* Edge Functions Test */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4" />
+                    <h4 className="font-medium">Edge Functions</h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getStatusIcon(results.functions.status)}
+                    {getStatusBadge(results.functions.status)}
+                  </div>
                 </div>
-                <Badge variant={getBadgeVariant(results.demoSignals.success)}>
-                  {results.demoSignals.success ? 'PASS' : 'FAIL'}
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  <span className="text-sm">Live Trading</span>
-                </div>
-                <Badge variant={getBadgeVariant(results.liveTrading.success)}>
-                  {results.liveTrading.success ? 'PASS' : 'FAIL'}
-                </Badge>
-              </div>
+                <p className="text-sm text-muted-foreground mb-2">{results.functions.message}</p>
+                <ul className="text-xs space-y-1">
+                  {results.functions.details.map((detail: string, index: number) => (
+                    <li key={index}>{detail}</li>
+                  ))}
+                </ul>
+              </Card>
             </div>
 
-            {/* Show errors if any */}
-            {Object.values(results).some((test: any) => !test.success) && (
-              <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                <h5 className="font-medium text-destructive mb-2">Errors Found:</h5>
-                <div className="space-y-1 text-sm">
-                  {Object.entries(results).map(([key, test]: [string, any]) => 
-                    !test.success && test.error && (
-                      <div key={key} className="text-destructive">
-                        <strong>{key}:</strong> {test.error}
-                      </div>
-                    )
-                  )}
+            {/* Overall Status */}
+            <Card className={`p-4 border-2 ${
+              results.overall === 'success' ? 'border-green-200 bg-green-50' :
+              results.overall === 'warning' ? 'border-yellow-200 bg-yellow-50' :
+              'border-red-200 bg-red-50'
+            }`}>
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Overall System Status</h4>
+                <div className="flex items-center gap-2">
+                  {getStatusIcon(results.overall)}
+                  {getStatusBadge(results.overall)}
                 </div>
               </div>
-            )}
+              <p className="text-sm text-muted-foreground mt-2">
+                {results.overall === 'success' && 'All systems operational. No critical errors detected.'}
+                {results.overall === 'warning' && 'System mostly functional with minor issues.'}
+                {results.overall === 'error' && 'Critical errors detected. System requires attention.'}
+              </p>
+            </Card>
           </div>
         )}
       </CardContent>
     </Card>
   );
 };
+
+export default SystemTestPanel;

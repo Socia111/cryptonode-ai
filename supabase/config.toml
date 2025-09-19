@@ -9,9 +9,6 @@ verify_jwt = false
 [functions.enhanced-signal-generation]
 verify_jwt = false
 
-[functions.ccxt-market-scanner]
-verify_jwt = false
-
 [functions.aitradex1-enhanced-scanner]
 verify_jwt = false
 
@@ -22,4 +19,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.diagnostics]
+verify_jwt = false
+
+[functions.app-settings-manager]
 verify_jwt = false

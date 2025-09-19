@@ -1,6 +1,8 @@
 import React from 'react';
 import MainLayout from '@/layouts/MainLayout';
 import SystemDiagnosticsReport from '@/components/SystemDiagnosticsReport';
+import SystemTestPanel from '@/components/SystemTestPanel';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function SystemDiagnostics() {
   return (
@@ -13,7 +15,20 @@ export default function SystemDiagnostics() {
           </p>
         </div>
         
-        <SystemDiagnosticsReport />
+        <Tabs defaultValue="health" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="health">System Health</TabsTrigger>
+            <TabsTrigger value="tests">Live Tests</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="health" className="space-y-4">
+            <SystemDiagnosticsReport />
+          </TabsContent>
+          
+          <TabsContent value="tests" className="space-y-4">
+            <SystemTestPanel />
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
   );
