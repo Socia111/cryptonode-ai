@@ -47,7 +47,7 @@ export function useTradingExecutor() {
           amount_usd: params.amount,
           leverage: params.leverage || 1,
           order_type: 'Market',
-          paper_mode: true, // FAKE/PAPER TRADING for testing
+          paper_mode: false, // REAL TRADING with Bybit API
           user_id: null // Will use system credentials
         }
       });

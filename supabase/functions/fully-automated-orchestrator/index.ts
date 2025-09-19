@@ -84,7 +84,7 @@ serve(async (req) => {
               direction: signal.direction,
               amount_usd: 100, // Default amount
               leverage: 1,
-              paper_mode: true, // Start with paper trading
+              paper_mode: false, // LIVE TRADING with Bybit API
               entry_price: signal.price,
               stop_loss: signal.stop_loss,
               take_profit: signal.take_profit
