@@ -178,6 +178,60 @@ export type Database = {
         }
         Relationships: []
       }
+      bookings: {
+        Row: {
+          booking_date: string
+          created_at: string
+          currency: string | null
+          email: string
+          id: string
+          participants: number | null
+          phone: string | null
+          status: string | null
+          stripe_session_id: string | null
+          total_price: number
+          tour_date: string
+          tour_id: string
+          tour_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          booking_date: string
+          created_at?: string
+          currency?: string | null
+          email: string
+          id?: string
+          participants?: number | null
+          phone?: string | null
+          status?: string | null
+          stripe_session_id?: string | null
+          total_price: number
+          tour_date: string
+          tour_id: string
+          tour_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          booking_date?: string
+          created_at?: string
+          currency?: string | null
+          email?: string
+          id?: string
+          participants?: number | null
+          phone?: string | null
+          status?: string | null
+          stripe_session_id?: string | null
+          total_price?: number
+          tour_date?: string
+          tour_id?: string
+          tour_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       edge_event_log: {
         Row: {
           created_at: string | null
@@ -697,6 +751,54 @@ export type Database = {
           updated_at?: string | null
           username?: string | null
           wallet_address?: string | null
+        }
+        Relationships: []
+      }
+      reviews: {
+        Row: {
+          booking_id: string | null
+          content: string
+          created_at: string
+          helpful_count: number | null
+          id: string
+          is_published: boolean | null
+          photos: string[] | null
+          rating: number
+          title: string
+          tour_id: string
+          updated_at: string
+          user_id: string
+          verified_booking: boolean | null
+        }
+        Insert: {
+          booking_id?: string | null
+          content: string
+          created_at?: string
+          helpful_count?: number | null
+          id?: string
+          is_published?: boolean | null
+          photos?: string[] | null
+          rating: number
+          title: string
+          tour_id: string
+          updated_at?: string
+          user_id: string
+          verified_booking?: boolean | null
+        }
+        Update: {
+          booking_id?: string | null
+          content?: string
+          created_at?: string
+          helpful_count?: number | null
+          id?: string
+          is_published?: boolean | null
+          photos?: string[] | null
+          rating?: number
+          title?: string
+          tour_id?: string
+          updated_at?: string
+          user_id?: string
+          verified_booking?: boolean | null
         }
         Relationships: []
       }
