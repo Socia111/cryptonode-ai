@@ -139,100 +139,112 @@ export default function StrategySignalsTab() {
   return (
     <div className="space-y-6">
       {/* Settings Header */}
-      <Card className="glass-card">
+      <Card className="bg-gradient-to-r from-primary/5 to-accent/5 border-primary/20">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings size={20} />
+          <CardTitle className="text-xl flex items-center gap-2">
+            <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
             Strategy Settings
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <label className="metric-label">Min Confidence</label>
-              <input
-                type="number"
-                min={50}
-                max={100}
-                value={minConf}
-                onChange={e => setMinConf(Number(e.target.value))}
-                className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-md text-foreground"
-              />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">Min Confidence</label>
+              <div className="space-y-1">
+                <input
+                  type="range"
+                  value={minConf}
+                  onChange={(e) => setMinConf(Number(e.target.value))}
+                  className="w-full accent-primary"
+                  min="50"
+                  max="100"
+                />
+                <div className="text-center text-sm font-bold text-primary">{minConf}%</div>
+              </div>
             </div>
-            <div>
-              <label className="metric-label">Max Open Trades</label>
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={maxTrades}
-                onChange={e => setMaxTrades(Number(e.target.value))}
-                className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-md text-foreground"
-              />
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">Max Trades</label>
+              <div className="space-y-1">
+                <input
+                  type="range"
+                  value={maxTrades}
+                  onChange={(e) => setMaxTrades(Number(e.target.value))}
+                  className="w-full accent-primary"
+                  min="1"
+                  max="20"
+                />
+                <div className="text-center text-sm font-bold text-primary">{maxTrades}</div>
+              </div>
             </div>
-            <div>
-              <label className="metric-label">Leverage</label>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                value={leverage}
-                onChange={e => setLeverage(Number(e.target.value))}
-                className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-md text-foreground"
-              />
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">Leverage</label>
+              <div className="space-y-1">
+                <input
+                  type="range"
+                  value={leverage}
+                  onChange={(e) => setLeverage(Number(e.target.value))}
+                  className="w-full accent-primary"
+                  min="1"
+                  max="100"
+                />
+                <div className="text-center text-sm font-bold text-primary">{leverage}x</div>
+              </div>
             </div>
-            <div>
-              <label className="metric-label">Risk %</label>
-              <input
-                type="number"
-                min={0.1}
-                max={10}
-                step={0.1}
-                value={riskPercent}
-                onChange={e => setRiskPercent(Number(e.target.value))}
-                className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-md text-foreground"
-              />
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">Risk %</label>
+              <div className="space-y-1">
+                <input
+                  type="range"
+                  value={riskPercent}
+                  onChange={(e) => setRiskPercent(Number(e.target.value))}
+                  className="w-full accent-primary"
+                  min="0.1"
+                  max="10"
+                  step="0.1"
+                />
+                <div className="text-center text-sm font-bold text-primary">{riskPercent}%</div>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Status Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-foreground">Live Strategy Signals</h2>
-          <Badge variant={filteredSignals.length > 0 ? "default" : "secondary"}>
-            {filteredSignals.length} Active
-          </Badge>
-          {isLive && (
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
-              <span className="text-xs text-success">LIVE</span>
-            </div>
-          )}
+      <div className="flex items-center justify-between mb-6 p-4 bg-gradient-to-r from-primary/10 to-accent/10 rounded-xl border border-primary/20">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${isLive ? 'bg-green-500 animate-pulse shadow-lg shadow-green-500/50' : 'bg-muted-foreground'}`}></div>
+            <span className="font-bold text-foreground">
+              {isLive ? 'LIVE DATA' : 'OFFLINE'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Active Signals:</span>
+            <span className="font-bold text-lg text-primary">{filteredSignals.length}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <Activity size={16} />
-          {lastUpdate ? `Last update: ${lastUpdate.toLocaleTimeString()}` : '—'}
+          Last Update: {lastUpdate ? lastUpdate.toLocaleTimeString() : 'Never'}
         </div>
       </div>
 
       {/* Signals Grid */}
       {loading ? (
-        <div className="text-center py-8">
-          <div className="inline-flex items-center gap-2 text-muted-foreground">
-            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            Loading signals...
-          </div>
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-lg font-medium text-muted-foreground">Loading signals...</p>
         </div>
       ) : filteredSignals.length === 0 ? (
-        <Card className="text-center py-8">
-          <CardContent>
-            <p className="text-muted-foreground">No signals available at current confidence level</p>
-          </CardContent>
-        </Card>
+        <div className="text-center py-16">
+          <Settings className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
+          <h3 className="text-2xl font-bold mb-3">No Active Signals</h3>
+          <p className="text-muted-foreground text-lg">
+            Waiting for high-confidence trading opportunities...
+          </p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid gap-6 md:grid-cols-2">
           {filteredSignals.map(signal => (
             <SignalCard
               key={signal.id}
