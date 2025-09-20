@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.simple-test]
 verify_jwt = false
+
+[functions.add-testnet-balance]
+verify_jwt = false

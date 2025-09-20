@@ -371,7 +371,7 @@ interface TradingConfig {
 
 class AutoTradingEngine {
   private supabase: any
-  private client?: BybitV5Client
+  public client?: BybitV5Client
   private config?: TradingConfig
 
   constructor(supabase: any) {
@@ -382,7 +382,8 @@ class AutoTradingEngine {
     // Try multiple environment variable names for compatibility
     const apiKey = Deno.env.get('BYBIT_API_KEY') || Deno.env.get('BYBIT_KEY')
     const apiSecret = Deno.env.get('BYBIT_API_SECRET') || Deno.env.get('BYBIT_SECRET') || Deno.env.get('BYBIT_SECRET_KEY')
-    const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true'
+    // Use testnet by default for testing to avoid insufficient balance issues
+    const isTestnet = Deno.env.get('BYBIT_TESTNET') !== 'false'
     
     if (!apiKey || !apiSecret) {
       const availableKeys = Object.keys(Deno.env.toObject()).filter(key => 
@@ -414,6 +415,28 @@ class AutoTradingEngine {
     // Validate signal
     if (!isSymbolAllowed(signal.symbol)) {
       throw new Error(`Symbol ${signal.symbol} not whitelisted`)
+    }
+
+    // Check account balance first
+    try {
+      const balance = await this.client.signedRequest('GET', '/v5/account/wallet-balance', {
+        accountType: 'UNIFIED'
+      })
+      
+      const usdtBalance = balance?.result?.list?.[0]?.coin?.find((c: any) => c.coin === 'USDT')
+      const availableBalance = parseFloat(usdtBalance?.availableToWithdraw || '0')
+      
+      structuredLog('info', 'Account balance check', {
+        availableBalance,
+        requestedAmount: signal.notional || 10
+      })
+      
+      if (availableBalance < (signal.notional || 10)) {
+        throw new Error(`Insufficient balance. Available: ${availableBalance} USDT, Required: ${signal.notional || 10} USDT`)
+      }
+    } catch (balanceError) {
+      structuredLog('warn', 'Balance check failed', { error: balanceError.message })
+      throw new Error(`Balance check failed: ${balanceError.message}`)
     }
 
     // Get instrument info and calculate proper size
@@ -570,6 +593,48 @@ serve(async (req) => {
         // Initialize trading engine and client once
         const engine = new AutoTradingEngine(supabase);
         await engine.initializeClient();
+
+        // Check account balance before placing order
+        try {
+          const balance = await engine.client!.signedRequest('GET', '/v5/account/wallet-balance', {
+            accountType: 'UNIFIED'
+          });
+          
+          const usdtBalance = balance?.result?.list?.[0]?.coin?.find((c: any) => c.coin === 'USDT');
+          const availableBalance = parseFloat(usdtBalance?.availableToWithdraw || '0');
+          
+          structuredLog('info', 'Account balance check', {
+            availableBalance,
+            requestedAmount: amountUSD,
+            hasEnoughBalance: availableBalance >= amountUSD
+          });
+          
+          if (availableBalance < amountUSD) {
+            return json({
+              success: false,
+              message: `Insufficient balance: Available ${availableBalance.toFixed(2)} USDT, Required ${amountUSD} USDT`,
+              error_code: 'INSUFFICIENT_BALANCE',
+              details: {
+                availableBalance: availableBalance.toFixed(2),
+                requiredAmount: amountUSD,
+                symbol,
+                timestamp: new Date().toISOString()
+              }
+            }, 400);
+          }
+        } catch (balanceError) {
+          structuredLog('warn', 'Balance check failed', { error: balanceError.message });
+          return json({
+            success: false,
+            message: `Balance verification failed: ${balanceError.message}`,
+            error_code: 'BALANCE_CHECK_FAILED',
+            details: {
+              symbol,
+              amountUSD,
+              timestamp: new Date().toISOString()
+            }
+          }, 500);
+        }
 
         // For linear contracts, handle position mode correctly
         if (inst.category === 'linear') {
