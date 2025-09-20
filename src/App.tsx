@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import AuthPage from "./pages/Auth";
 import Home from "./pages/Home";
 import Health from "./pages/Health";
+import Dashboard from "./pages/Dashboard";
 import AItradeX1Original from "./pages/AItradeX1Original";
 import X from "./pages/X";
 import X1 from "./pages/X1";
@@ -51,6 +52,7 @@ function App() {
           <Route path="/" element={<Index />} />
           <Route path="/home" element={<Home />} />
           <Route path="/health" element={<Health />} />
+          <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/AITRADEX1ORIGINAL" element={<AItradeX1Original />} />
             <Route path="/X" element={<X />} />
             <Route path="/X1" element={<X1 />} />
