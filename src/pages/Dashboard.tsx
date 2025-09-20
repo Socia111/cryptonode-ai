@@ -25,6 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import MainLayout from '@/layouts/MainLayout';
 import RealtimeSignalsFeed from '@/components/RealtimeSignalsFeed';
+import PlatformActivation from '@/components/PlatformActivation';
 
 interface SystemMetrics {
   totalSignals: number;
@@ -309,13 +310,19 @@ const Dashboard = () => {
         )}
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="signals" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="activation" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="activation">Platform</TabsTrigger>
             <TabsTrigger value="signals">Live Signals</TabsTrigger>
             <TabsTrigger value="system">System Status</TabsTrigger>
             <TabsTrigger value="functions">Functions</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
+
+          {/* Platform Activation Tab */}
+          <TabsContent value="activation">
+            <PlatformActivation />
+          </TabsContent>
 
           {/* Live Signals Tab */}
           <TabsContent value="signals" className="space-y-6">
