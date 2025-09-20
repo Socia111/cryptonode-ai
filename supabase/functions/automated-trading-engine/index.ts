@@ -498,6 +498,254 @@ class AutomatedTradingEngine {
   }
 
   async start(): Promise<void> {
+    if (this.isRunning) {
+      console.log('Automated trading engine is already running');
+      return;
+    }
+
+    console.log('🚀 Starting automated trading engine...');
+    this.isRunning = true;
+
+    try {
+      // Load current positions
+      await this.loadActivePositions();
+      
+      // Start main trading loop
+      await this.runTradingLoop();
+      
+    } catch (error) {
+      console.error('❌ Failed to start automated trading engine:', error);
+      this.isRunning = false;
+      throw error;
+    }
+  }
+
+  async stop(): Promise<void> {
+    console.log('🛑 Stopping automated trading engine...');
+    this.isRunning = false;
+  }
+
+  private async loadActivePositions(): Promise<void> {
+    try {
+      const positions = await this.trader.getPositions();
+      
+      for (const position of positions) {
+        if (position.size > 0) {
+          this.activePositions.set(position.symbol, position);
+        }
+      }
+      
+      console.log(`📊 Loaded ${this.activePositions.size} active positions`);
+    } catch (error) {
+      console.error('Failed to load active positions:', error);
+    }
+  }
+
+  private async runTradingLoop(): Promise<void> {
+    while (this.isRunning) {
+      try {
+        // Check for new signals
+        await this.processNewSignals();
+        
+        // Manage existing positions
+        await this.managePositions();
+        
+        // Risk management checks
+        await this.performRiskChecks();
+        
+        // Wait before next iteration (30 seconds)
+        await new Promise(resolve => setTimeout(resolve, 30000));
+        
+      } catch (error) {
+        console.error('Error in trading loop:', error);
+        await new Promise(resolve => setTimeout(resolve, 60000)); // Wait 1 minute on error
+      }
+    }
+  }
+
+  private async processNewSignals(): Promise<void> {
+    if (!supabase) return;
+
+    try {
+      // Get recent high-confidence signals
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      
+      const { data: signals, error } = await supabase
+        .from('signals')
+        .select('*')
+        .eq('is_active', true)
+        .gte('score', this.config.min_confidence_score)
+        .gte('created_at', fiveMinutesAgo)
+        .order('score', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Failed to fetch signals:', error);
+        return;
+      }
+
+      console.log(`📡 Found ${signals?.length || 0} new signals to process`);
+
+      for (const signal of signals || []) {
+        await this.processSignal(signal);
+      }
+
+    } catch (error) {
+      console.error('Error processing new signals:', error);
+    }
+  }
+
+  private async processSignal(signal: AutoTradeSignal): Promise<void> {
+    try {
+      // Check if we already have a position in this symbol
+      if (this.activePositions.has(signal.symbol)) {
+        console.log(`⏭️ Skipping ${signal.symbol} - already have position`);
+        return;
+      }
+
+      // Check if we're at max open positions
+      if (this.activePositions.size >= this.config.max_open_positions) {
+        console.log('⏭️ Skipping signal - at max open positions');
+        return;
+      }
+
+      // Check symbol whitelist/blacklist
+      if (!this.isSymbolAllowed(signal.symbol)) {
+        console.log(`⏭️ Skipping ${signal.symbol} - not in allowed symbols`);
+        return;
+      }
+
+      console.log(`📈 Processing signal: ${signal.symbol} ${signal.direction} (score: ${signal.score})`);
+
+      // Calculate position size
+      const balance = await this.trader.getAccountBalance();
+      const availableBalance = this.getAvailableBalance(balance);
+      const positionSize = this.calculatePositionSize(availableBalance, signal);
+
+      if (positionSize < 5) { // Minimum $5 position
+        console.log(`⏭️ Skipping ${signal.symbol} - position size too small: $${positionSize}`);
+        return;
+      }
+
+      // Place order
+      const orderResult = await this.trader.placeOrder({
+        symbol: signal.symbol,
+        side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
+        orderType: 'Market',
+        qty: this.calculateQuantity(positionSize, signal.price).toString(),
+        stopLoss: signal.sl?.toString(),
+        takeProfit: signal.tp?.toString()
+      });
+
+      console.log(`✅ Order placed for ${signal.symbol}:`, orderResult);
+
+      // Track the new position
+      const newPosition: Position = {
+        symbol: signal.symbol,
+        side: signal.direction === 'LONG' ? 'Buy' : 'Sell',
+        size: positionSize,
+        entry_price: signal.price,
+        stop_loss: signal.sl,
+        take_profit: signal.tp,
+        pnl: 0,
+        created_at: new Date().toISOString()
+      };
+
+      this.activePositions.set(signal.symbol, newPosition);
+
+    } catch (error) {
+      console.error(`❌ Failed to process signal for ${signal.symbol}:`, error);
+    }
+  }
+
+  private async managePositions(): Promise<void> {
+    for (const [symbol, position] of this.activePositions.entries()) {
+      try {
+        // Get current position from exchange
+        const currentPositions = await this.trader.getPositions();
+        const currentPosition = currentPositions.find(p => p.symbol === symbol);
+
+        if (!currentPosition || currentPosition.size === 0) {
+          // Position was closed, remove from tracking
+          this.activePositions.delete(symbol);
+          console.log(`📤 Position closed: ${symbol}`);
+          continue;
+        }
+
+        // Update PnL
+        position.pnl = currentPosition.pnl;
+
+        // Check for stop loss or take profit triggers
+        // (This would be handled by the exchange if we set SL/TP on the order)
+
+      } catch (error) {
+        console.error(`Error managing position ${symbol}:`, error);
+      }
+    }
+  }
+
+  private async performRiskChecks(): Promise<void> {
+    try {
+      const balance = await this.trader.getAccountBalance();
+      const availableBalance = this.getAvailableBalance(balance);
+      
+      // Check total exposure
+      const totalExposure = Array.from(this.activePositions.values())
+        .reduce((sum, pos) => sum + Math.abs(pos.size), 0);
+
+      if (totalExposure > availableBalance * 0.8) { // 80% max exposure
+        console.log('⚠️ High exposure detected, reducing position sizes');
+        // Implement position size reduction logic here
+      }
+
+      // Check daily loss limits
+      const dailyPnL = Array.from(this.activePositions.values())
+        .reduce((sum, pos) => sum + pos.pnl, 0);
+
+      if (dailyPnL < -availableBalance * 0.05) { // 5% daily loss limit
+        console.log('🛑 Daily loss limit reached, stopping trading');
+        this.isRunning = false;
+      }
+
+    } catch (error) {
+      console.error('Error performing risk checks:', error);
+    }
+  }
+
+  private isSymbolAllowed(symbol: string): boolean {
+    if (this.config.symbols_blacklist?.includes(symbol)) {
+      return false;
+    }
+    
+    if (this.config.symbols_whitelist && this.config.symbols_whitelist.length > 0) {
+      return this.config.symbols_whitelist.includes(symbol);
+    }
+    
+    return true;
+  }
+
+  private getAvailableBalance(balanceData: any): number {
+    try {
+      const usdtBalance = balanceData?.result?.list?.[0]?.coin?.find((c: any) => c.coin === 'USDT');
+      return parseFloat(usdtBalance?.availableToWithdraw || '0');
+    } catch {
+      return 0;
+    }
+  }
+
+  private calculatePositionSize(availableBalance: number, signal: AutoTradeSignal): number {
+    const maxRiskAmount = availableBalance * this.config.risk_per_trade;
+    const maxPositionSize = Math.min(maxRiskAmount, this.config.max_position_size);
+    
+    // Adjust based on signal confidence
+    const confidenceMultiplier = Math.min(signal.score / 100, 1);
+    
+    return maxPositionSize * confidenceMultiplier;
+  }
+
+  private calculateQuantity(positionSize: number, price: number): number {
+    return Math.floor((positionSize / price) * 100000) / 100000; // Round to 5 decimal places
+  }
     if (!this.config.enabled) {
       console.log('Automated trading is disabled');
       return;

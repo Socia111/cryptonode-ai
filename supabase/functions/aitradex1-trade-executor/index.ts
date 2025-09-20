@@ -382,8 +382,8 @@ class AutoTradingEngine {
     // Try multiple environment variable names for compatibility
     const apiKey = Deno.env.get('BYBIT_API_KEY') || Deno.env.get('BYBIT_KEY')
     const apiSecret = Deno.env.get('BYBIT_API_SECRET') || Deno.env.get('BYBIT_SECRET') || Deno.env.get('BYBIT_SECRET_KEY')
-    // Use testnet by default for testing to avoid insufficient balance issues
-    const isTestnet = Deno.env.get('BYBIT_TESTNET') !== 'false'
+    // Use mainnet for live trading - testnet often has balance issues
+    const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true'
     
     if (!apiKey || !apiSecret) {
       const availableKeys = Object.keys(Deno.env.toObject()).filter(key => 
