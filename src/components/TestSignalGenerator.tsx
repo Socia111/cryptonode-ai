@@ -66,51 +66,28 @@ const TestSignalGenerator: React.FC = () => {
         updateTestStatus(1, 'failed', err.message);
       }
 
-      // Test 3: Database Insert Test
+      // Test 3: Database Insert Test (using secure edge function)
       updateTestStatus(2, 'running');
       try {
-        const testSignal = {
-          symbol: 'TESTUSDT',
-          timeframe: '15m',
-          direction: 'LONG',
-          price: 1000,
-          entry_price: 1000,
-          stop_loss: 950,
-          take_profit: 1100,
-          score: 75,
-          confidence: 0.8,
-          source: 'test_signal_generator',
-          algo: 'test_algo',
-          bar_time: new Date().toISOString(),
-          is_active: true,
-          metadata: { test: true, generator: 'test_component' }
-        };
-
-        const { data, error } = await supabase
-          .from('signals')
-          .insert([testSignal])
-          .select()
-          .single();
-
+        const { data, error } = await supabase.functions.invoke('secure-signal-test', {
+          body: { action: 'test_insert' }
+        });
+        
         if (error) throw error;
-        updateTestStatus(2, 'passed', 'Test signal inserted successfully', { id: data.id });
+        updateTestStatus(2, 'passed', data.message, data.data);
       } catch (err: any) {
         updateTestStatus(2, 'failed', err.message);
       }
 
-      // Test 4: Signals Validation
+      // Test 4: Signals Validation (using secure edge function)
       updateTestStatus(3, 'running');
       try {
-        const { data, error } = await supabase
-          .from('signals')
-          .select('id, symbol, score, created_at')
-          .gte('score', 60)
-          .gte('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
-          .order('created_at', { ascending: false })
-          .limit(10);
-
+        const { data, error } = await supabase.functions.invoke('secure-signal-test', {
+          body: { action: 'validate_signals' }
+        });
+        
         if (error) throw error;
-        updateTestStatus(3, 'passed', `Found ${data?.length || 0} recent high-quality signals`, { count: data?.length || 0 });
+        updateTestStatus(3, 'passed', data.message, data.data);
       } catch (err: any) {
         updateTestStatus(3, 'failed', err.message);
       }

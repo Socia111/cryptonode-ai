@@ -481,22 +481,29 @@ serve(async (req) => {
 
     // Insert high-quality signals into database
     if (signals.length > 0) {
-      const insertPromises = signals.map(signal => {
-        return supabase
+      console.log(`💾 Inserting ${signals.length} signals into database...`);
+      
+      try {
+        const { data: insertData, error: insertError } = await supabase
           .from('signals')
-          .insert({
+          .insert(signals.map(signal => ({
             ...signal,
             created_at: new Date().toISOString(),
             bar_time: new Date().toISOString(),
             expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          })
-      })
+          })))
+          .select();
 
-      const results = await Promise.allSettled(insertPromises)
-      const successful = results.filter(r => r.status === 'fulfilled').length
-      const failed = results.filter(r => r.status === 'rejected').length
+        if (insertError) {
+          console.error('❌ [enhanced-signal-generation] Insert error:', insertError);
+          throw insertError;
+        }
 
-      console.log(`[enhanced-signal-generation] Success: ${successful} signals inserted, ${failed} failed`)
+        console.log(`✅ [enhanced-signal-generation] Successfully inserted ${insertData?.length || 0} signals`);
+      } catch (error) {
+        console.error('❌ [enhanced-signal-generation] Database error:', error);
+        // Continue execution even if insert fails
+      }
 
       return new Response(
         JSON.stringify({ 
