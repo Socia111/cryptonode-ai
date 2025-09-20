@@ -1618,6 +1618,10 @@ export type Database = {
         }
         Returns: string
       }
+      safe_edge_log_insert: {
+        Args: { event_data?: Json; fn_name: string; stage: string }
+        Returns: undefined
+      }
       trigger_crypto_scheduler: {
         Args: Record<PropertyKey, never>
         Returns: undefined
