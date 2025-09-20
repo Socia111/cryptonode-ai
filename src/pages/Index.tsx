@@ -19,6 +19,7 @@ import {
 import MainLayout from '../layouts/MainLayout';
 import TradingDashboard from '../components/TradingDashboard';
 import { TradingTest } from '@/components/TradingTest';
+import SystemDiagnostics from '@/components/SystemDiagnostics';
 
 const Index = () => {
   return (
@@ -192,8 +193,9 @@ const Index = () => {
           <div className="flex-1">
             <TradingDashboard />
           </div>
-          <div className="lg:w-96">
+          <div className="lg:w-96 space-y-6">
             <TradingTest />
+            <SystemDiagnostics />
           </div>
         </div>
       </div>
