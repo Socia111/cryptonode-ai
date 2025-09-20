@@ -224,10 +224,10 @@ async function getSymbolsForScanning(supabase: any): Promise<string[]> {
 
 async function fetchRealMarketData(supabase: any): Promise<MarketData[]> {
   const allSymbols = await getSymbolsForScanning(supabase);
-  const symbols = allSymbols.slice(0, Math.min(25, allSymbols.length)); // Process up to 25 symbols
+  const symbols = allSymbols; // Process ALL available symbols
   const marketData: MarketData[] = []
   
-  console.log(`📊 Fetching data for ${symbols.length} symbols from ${allSymbols.length} available`)
+  console.log(`📊 Fetching data for ALL ${symbols.length} symbols available`)
   
   for (const symbol of symbols) {
     try {

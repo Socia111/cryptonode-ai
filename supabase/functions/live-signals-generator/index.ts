@@ -358,9 +358,9 @@ serve(async (req) => {
 
     // Get dynamic symbol list
     const availableSymbols = await getSymbolsForScanning(supabase);
-    const symbolsToProcess = availableSymbols.slice(0, Math.min(20, availableSymbols.length)); // Process up to 20 symbols
+    const symbolsToProcess = availableSymbols; // Process ALL available symbols
     
-    console.log(`🎯 Processing ${symbolsToProcess.length} symbols from ${availableSymbols.length} available`);
+    console.log(`🎯 Processing ALL ${symbolsToProcess.length} symbols available`);
 
     const signals = [];
     
