@@ -484,12 +484,22 @@ serve(async (req) => {
       console.log(`💾 Inserting ${signals.length} signals into database...`);
       
       try {
+        // Delete old signals first to ensure fresh data
+        const { error: deleteError } = await supabase
+          .from('signals')
+          .delete()
+          .lt('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString());
+
+        if (deleteError) {
+          console.warn('Warning deleting old signals:', deleteError);
+        }
+
         const { data: insertData, error: insertError } = await supabase
           .from('signals')
-          .insert(signals.map(signal => ({
+          .insert(signals.map((signal, index) => ({
             ...signal,
-            created_at: new Date().toISOString(),
-            bar_time: new Date().toISOString(),
+            created_at: new Date(Date.now() + index * 100).toISOString(), // Stagger timestamps
+            bar_time: new Date(Date.now() + index * 100).toISOString(),
             expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
           })))
           .select();
