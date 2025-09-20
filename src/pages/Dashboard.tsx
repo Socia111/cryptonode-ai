@@ -28,6 +28,7 @@ import RealtimeSignalsFeed from '@/components/RealtimeSignalsFeed';
 import PlatformActivation from '@/components/PlatformActivation';
 import SystemStatus from '@/components/SystemStatus';
 import HealthCheck from '@/components/HealthCheck';
+import StrategySignalsTab from '@/components/StrategySignalsTab';
 
 interface SystemMetrics {
   totalSignals: number;
@@ -313,8 +314,9 @@ const Dashboard = () => {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="activation" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="activation">Platform</TabsTrigger>
+            <TabsTrigger value="strategy">Strategy Signals</TabsTrigger>
             <TabsTrigger value="signals">Live Signals</TabsTrigger>
             <TabsTrigger value="system">System Status</TabsTrigger>
             <TabsTrigger value="functions">Functions</TabsTrigger>
@@ -325,6 +327,10 @@ const Dashboard = () => {
           <TabsContent value="activation" className="space-y-6">
             <PlatformActivation />
             <HealthCheck />
+          </TabsContent>
+
+          <TabsContent value="strategy" className="space-y-6">
+            <StrategySignalsTab />
           </TabsContent>
 
           {/* Live Signals Tab */}
