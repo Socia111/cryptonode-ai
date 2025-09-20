@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { testComprehensiveSignalSystem } from './lib/testComprehensiveSystem'
+import { SimpleErrorBoundary } from './components/SimpleErrorBoundary.tsx'
 
 // Auto-run comprehensive system test after app loads
 setTimeout(() => {
@@ -10,4 +11,8 @@ setTimeout(() => {
   }
 }, 2000);
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <SimpleErrorBoundary>
+    <App />
+  </SimpleErrorBoundary>
+);

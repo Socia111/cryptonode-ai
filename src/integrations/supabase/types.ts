@@ -827,6 +827,7 @@ export type Database = {
           meta: Json | null
           metadata: Json | null
           price: number
+          relaxed_mode: boolean | null
           risk: number | null
           score: number
           side: string | null
@@ -863,6 +864,7 @@ export type Database = {
           meta?: Json | null
           metadata?: Json | null
           price: number
+          relaxed_mode?: boolean | null
           risk?: number | null
           score: number
           side?: string | null
@@ -899,6 +901,7 @@ export type Database = {
           meta?: Json | null
           metadata?: Json | null
           price?: number
+          relaxed_mode?: boolean | null
           risk?: number | null
           score?: number
           side?: string | null
