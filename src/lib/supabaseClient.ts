@@ -1,50 +1,8 @@
-// Single Supabase client for the entire app
-import { createClient } from '@supabase/supabase-js';
-import { env } from './env';
+// Remove this file to avoid multiple client instances
+// We'll use the main Supabase client from integrations
+export { supabase } from '@/integrations/supabase/client';
 
-// Use validated environment variables
-const url = env.VITE_SUPABASE_URL;
-const key = env.VITE_SUPABASE_ANON_KEY;
-
-// Create client with fallback handling
-let supabase: any;
-
-try {
-  supabase = createClient(url, key, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-  });
-} catch (error) {
-  console.warn('[Supabase] Failed to create client, using mock:', error);
-  // Create a mock client for development
-  supabase = {
-    from: () => ({
-      select: () => ({ error: null, data: [] }),
-      insert: () => ({ error: null, data: [] }),
-      update: () => ({ error: null, data: [] }),
-      delete: () => ({ error: null, data: [] }),
-      gte: () => ({ 
-        order: () => ({ 
-          limit: () => ({ error: null, data: [] }) 
-        }) 
-      }),
-      order: () => ({ 
-        limit: () => ({ error: null, data: [] }) 
-      })
-    }),
-    functions: {
-      invoke: () => Promise.resolve({ data: null, error: null })
-    },
-    removeChannel: () => {},
-    channel: () => ({
-      on: () => ({ subscribe: () => {} })
-    })
-  };
-}
-
-export { supabase };
+import { supabase } from '@/integrations/supabase/client';
 
 // A tiny health check that *really* verifies connectivity + RLS
 export async function isSupabaseConfigured(): Promise<boolean> {

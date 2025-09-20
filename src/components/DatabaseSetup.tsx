@@ -31,7 +31,7 @@ const DatabaseSetup = () => {
     
     for (const tableName of requiredTables) {
       try {
-        const { error } = await supabase.from(tableName).select('*').limit(1);
+        const { error } = await supabase.from(tableName as any).select('*').limit(1);
         status[tableName] = !error;
         if (error) {
           console.warn(`[DatabaseSetup] Table ${tableName} check failed:`, error.message);
