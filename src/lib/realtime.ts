@@ -120,11 +120,10 @@ export function subscribeSignals(
       } else if (status === 'CHANNEL_ERROR') {
         console.warn('[signals-realtime] Channel error:', {
           status,
-          error: err,
-          type: typeof err,
-          value: String(err)
+          error: err?.message || err,
+          type: typeof err
         });
-        // Gracefully handle subscription errors without throwing
+        // Don't throw - just log and continue
       } else if (status === 'CLOSED') {
         console.log('[signals-realtime] Channel closed - will auto-reconnect');
       } else {
