@@ -746,6 +746,8 @@ class AutomatedTradingEngine {
   private calculateQuantity(positionSize: number, price: number): number {
     return Math.floor((positionSize / price) * 100000) / 100000; // Round to 5 decimal places
   }
+
+  async start() {
     if (!this.config.enabled) {
       console.log('Automated trading is disabled');
       return;
