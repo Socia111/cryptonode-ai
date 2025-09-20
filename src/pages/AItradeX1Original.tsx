@@ -5,8 +5,6 @@ import SignalsList from '../components/SignalsList';
 import TradingChart from '../components/TradingChart';
 import PortfolioStats from '../components/PortfolioStats';
 import DatabaseSetup from '../components/DatabaseSetup';
-import SpynxScoreCard from '../components/SpynxScoreCard';
-import TelegramIntegration from '../components/TelegramIntegration';
 import TradingPanel from '../components/TradingPanel';
 import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
@@ -73,9 +71,7 @@ const AItradeX1Original = () => {
           <div className="space-y-6">
             <PortfolioStats />
             <TradingPanel />
-            <TelegramIntegration />
             <QuantumAnalysis />
-            <SpynxScoreCard />
             <SignalsList />
           </div>
         </div>

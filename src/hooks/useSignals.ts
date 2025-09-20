@@ -273,23 +273,6 @@ export async function generateSignals() {
   }
 }
 
-export async function updateSpynxScores() {
-  try {
-    console.info('[updateSpynxScores] Invoking calculate-spynx-scores...');
-    const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
-    
-    if (error) {
-      console.error('[updateSpynxScores] calculate-spynx-scores failed:', error.message);
-      throw error;
-    }
-    
-    console.info('[updateSpynxScores] Success:', data);
-    return data;
-  } catch (e: any) {
-    console.error('[updateSpynxScores] Exception:', e);
-    throw e;
-  }
-}
 
 export const useSignals = () => {
   const [signals, setSignals] = useState<Signal[]>([]);
@@ -353,22 +336,6 @@ export const useSignals = () => {
     setLoading(false);
   };
 
-  const handleUpdateSpynx = async () => {
-    try {
-      await updateSpynxScores();
-      toast({
-        title: "Spynx Scores Updated",
-        description: "Spynx scores have been recalculated successfully."
-      });
-    } catch (e: any) {
-      console.error('[useSignals] Update Spynx failed:', e);
-      toast({
-        title: "Update Failed",
-        description: e?.message ?? 'Failed to update Spynx scores',
-        variant: "destructive"
-      });
-    }
-  };
 
   useEffect(() => {
     let mounted = true;
@@ -428,61 +395,6 @@ export const useSignals = () => {
     loading, 
     error,
     refreshSignals,
-    generateSignals: handleGenerateSignals,
-    updateSpynxScores: handleUpdateSpynx
-  };
-};
-
-export const useSpynxScores = () => {
-  const [scores, setScores] = useState<any[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchScores();
-  }, []);
-
-  const fetchScores = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      console.log('[SPYNX] Fetching scores from spynx_scores table...');
-      
-      // Mock spynx scores for now since the table doesn't exist
-      const scores = [];
-
-      console.log('[SPYNX] Mock scores (table not available):', scores);
-      setScores(scores || []);
-      setLoading(false);
-    } catch (err) {
-      console.error('[SPYNX] Fetch error:', err);
-      setError('Failed to fetch Spynx scores');
-      setScores([]);
-      setLoading(false);
-    }
-  };
-
-  const updateSpynxScores = async () => {
-    try {
-      console.log('[SPYNX] Calling calculate-spynx-scores function...');
-      const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
-      if (error) throw error;
-      
-      console.log('[SPYNX] Scores updated successfully:', data);
-      
-      // Refresh scores after calculation
-      await fetchScores();
-      return data;
-    } catch (err) {
-      console.error('[SPYNX] Update error:', err);
-      throw err;
-    }
-  };
-
-  return {
-    scores,
-    loading,
-    error,
-    updateSpynxScores
+    generateSignals: handleGenerateSignals
   };
 };
