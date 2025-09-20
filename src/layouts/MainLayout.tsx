@@ -3,6 +3,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import TopNavigation from '@/components/TopNavigation';
 import BottomSignalsBar from '@/components/BottomSignalsBar';
+import LiveMonitoringWidget from '@/components/LiveMonitoringWidget';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 interface MainLayoutProps {
@@ -47,6 +48,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <div className="hidden lg:flex">
           <AppSidebar />
         </div>
+
+        {/* Live Monitoring Widget */}
+        <LiveMonitoringWidget />
       </div>
     </SidebarProvider>
   );
