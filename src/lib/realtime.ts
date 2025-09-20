@@ -115,15 +115,13 @@ export function subscribeSignals(
         }
       })
       .subscribe((status) => {
-      console.log('Live monitoring subscription status:', status);
+      console.log('Signals subscription status:', status);
       if (status === 'SUBSCRIBED') {
-        console.log('[signals-realtime] Successfully subscribed to signals channel');
+        console.log('✅ Successfully subscribed to signals channel');
       } else if (status === 'CLOSED') {
-        console.log('[signals-realtime] Channel closed - will auto-reconnect');
+        console.log('⚠️ Channel closed - will auto-reconnect');
       } else if (status === 'CHANNEL_ERROR') {
-        console.warn('Live monitoring channel error - will retry');
-      } else {
-        console.log('[signals-realtime] Status:', status);
+        console.error('❌ Channel error - will retry');
       }
     });
 

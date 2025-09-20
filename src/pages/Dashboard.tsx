@@ -26,6 +26,8 @@ import { useToast } from '@/hooks/use-toast';
 import MainLayout from '@/layouts/MainLayout';
 import RealtimeSignalsFeed from '@/components/RealtimeSignalsFeed';
 import PlatformActivation from '@/components/PlatformActivation';
+import SystemStatus from '@/components/SystemStatus';
+import HealthCheck from '@/components/HealthCheck';
 
 interface SystemMetrics {
   totalSignals: number;
@@ -320,8 +322,9 @@ const Dashboard = () => {
           </TabsList>
 
           {/* Platform Activation Tab */}
-          <TabsContent value="activation">
+          <TabsContent value="activation" className="space-y-6">
             <PlatformActivation />
+            <HealthCheck />
           </TabsContent>
 
           {/* Live Signals Tab */}
@@ -372,39 +375,7 @@ const Dashboard = () => {
 
           {/* System Status Tab */}
           <TabsContent value="system" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Database className="h-5 w-5" />
-                  <span>System Services</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {systemStatus.map((service, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-3 h-3 rounded-full ${getStatusColor(service.status)}`} />
-                        <div>
-                          <p className="font-medium">{service.service_name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Success: {service.success_count} • Errors: {service.error_count}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant={service.status === 'active' ? 'default' : 'destructive'}>
-                          {service.status}
-                        </Badge>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {new Date(service.last_update).toLocaleTimeString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <SystemStatus />
           </TabsContent>
 
           {/* Functions Tab */}
