@@ -207,9 +207,27 @@ function calculateBollingerBands(prices: number[], period: number = 20, stdDev: 
   }
 }
 
-async function fetchRealMarketData(): Promise<MarketData[]> {
-  const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'SOLUSDT', 'DOTUSDT', 'XRPUSDT', 'LINKUSDT']
+async function getSymbolsForScanning(supabase: any): Promise<string[]> {
+  try {
+    const { data: symbols } = await supabase.rpc('get_symbols_for_scanning');
+    if (symbols && symbols.length > 0) {
+      console.log(`🎯 Using whitelist: ${symbols.length} symbols`);
+      return symbols;
+    }
+  } catch (error) {
+    console.log('⚠️ Whitelist unavailable, using defaults');
+  }
+  
+  // Fallback to major pairs
+  return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'SOLUSDT', 'DOTUSDT', 'XRPUSDT', 'LINKUSDT'];
+}
+
+async function fetchRealMarketData(supabase: any): Promise<MarketData[]> {
+  const allSymbols = await getSymbolsForScanning(supabase);
+  const symbols = allSymbols.slice(0, Math.min(25, allSymbols.length)); // Process up to 25 symbols
   const marketData: MarketData[] = []
+  
+  console.log(`📊 Fetching data for ${symbols.length} symbols from ${allSymbols.length} available`)
   
   for (const symbol of symbols) {
     try {
@@ -433,8 +451,8 @@ serve(async (req) => {
 
     console.log('🚀 [enhanced-signal-generation] Fetching real market data...')
     
-    // Fetch real market data with OHLCV
-    const marketData = await fetchRealMarketData()
+    // Fetch real market data with OHLCV using dynamic symbols
+    const marketData = await fetchRealMarketData(supabase)
     
     if (marketData.length === 0) {
       throw new Error('No market data available')

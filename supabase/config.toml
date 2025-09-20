@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.auto-signals-scheduler]
 verify_jwt = false
+
+[functions.fetch-all-symbols]
+verify_jwt = false
+
+[functions.enable-all-symbols]
+verify_jwt = false

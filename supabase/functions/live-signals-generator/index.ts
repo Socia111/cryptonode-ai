@@ -6,12 +6,25 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Major crypto symbols for live signal generation
-const SYMBOLS = [
-  'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 
-  'DOGEUSDT', 'SOLUSDT', 'DOTUSDT', 'MATICUSDT', 'AVAXUSDT',
-  'LTCUSDT', 'LINKUSDT', 'UNIUSDT', 'ATOMUSDT', 'FILUSDT'
-];
+// Function to get symbols dynamically from whitelist settings
+async function getSymbolsForScanning(supabase: any): Promise<string[]> {
+  try {
+    const { data: symbols } = await supabase.rpc('get_symbols_for_scanning');
+    if (symbols && symbols.length > 0) {
+      console.log(`🎯 Using whitelist: ${symbols.length} symbols`);
+      return symbols;
+    }
+  } catch (error) {
+    console.log('⚠️ Whitelist unavailable, using defaults');
+  }
+  
+  // Fallback to major pairs
+  return [
+    'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 
+    'DOGEUSDT', 'SOLUSDT', 'DOTUSDT', 'MATICUSDT', 'AVAXUSDT',
+    'LTCUSDT', 'LINKUSDT', 'UNIUSDT', 'ATOMUSDT', 'FILUSDT'
+  ];
+}
 
 const TIMEFRAMES = ['5m', '15m', '30m', '1h', '4h'];
 
@@ -343,27 +356,53 @@ serve(async (req) => {
 
     console.log('🚀 [live-signals-generator] Starting advanced signal generation...');
 
+    // Get dynamic symbol list
+    const availableSymbols = await getSymbolsForScanning(supabase);
+    const symbolsToProcess = availableSymbols.slice(0, Math.min(20, availableSymbols.length)); // Process up to 20 symbols
+    
+    console.log(`🎯 Processing ${symbolsToProcess.length} symbols from ${availableSymbols.length} available`);
+
     const signals = [];
     
-    // Process fewer symbols but with better analysis
-    for (const symbol of SYMBOLS.slice(0, 6)) { // Process 6 symbols for quality over quantity
-      try {
-        const marketData = await fetchRealMarketData(symbol);
-        if (!marketData) continue;
+    // Process symbols in batches to avoid rate limits
+    const batchSize = 5;
+    for (let i = 0; i < symbolsToProcess.length; i += batchSize) {
+      const batch = symbolsToProcess.slice(i, i + batchSize);
+      
+      const batchPromises = batch.map(async (symbol) => {
+        try {
+          const marketData = await fetchRealMarketData(symbol);
+          if (!marketData) return [];
 
-        // Generate signals for 1-2 timeframes per symbol
-        const selectedTimeframes = ['15m', '1h'].slice(0, Math.random() > 0.6 ? 2 : 1);
-        
-        for (const timeframe of selectedTimeframes) {
-          const signal = generateAdvancedTechnicalSignal(marketData, timeframe);
+          // Generate signals for 1-2 timeframes per symbol
+          const selectedTimeframes = ['15m', '1h'].slice(0, Math.random() > 0.6 ? 2 : 1);
+          const symbolSignals = [];
           
-          // Only accept high-quality signals (score >= 70)
-          if (signal && signal.score >= 70) {
-            signals.push(signal);
+          for (const timeframe of selectedTimeframes) {
+            const signal = generateAdvancedTechnicalSignal(marketData, timeframe);
+            
+            // Only accept high-quality signals (score >= 70)
+            if (signal && signal.score >= 70) {
+              symbolSignals.push(signal);
+            }
           }
+          return symbolSignals;
+        } catch (error) {
+          console.error(`❌ Error processing ${symbol}:`, error);
+          return [];
         }
-      } catch (error) {
-        console.error(`❌ Error processing ${symbol}:`, error);
+      });
+      
+      const batchResults = await Promise.allSettled(batchPromises);
+      batchResults.forEach(result => {
+        if (result.status === 'fulfilled') {
+          signals.push(...result.value);
+        }
+      });
+      
+      // Small delay between batches to respect rate limits
+      if (i + batchSize < symbolsToProcess.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
 
@@ -400,7 +439,8 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       signals_created: signals.length,
-      symbols_processed: SYMBOLS.slice(0, 6).length,
+      symbols_processed: symbolsToProcess.length,
+      total_symbols_available: availableSymbols.length,
       average_score: avgScore.toFixed(1),
       signals: signals.map(s => ({
         symbol: s.symbol,
