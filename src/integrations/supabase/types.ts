@@ -14,19 +14,64 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          api_key_encrypted: string | null
+          api_secret_encrypted: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          service: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_key_encrypted?: string | null
+          api_secret_encrypted?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          service: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_key_encrypted?: string | null
+          api_secret_encrypted?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          service?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
+          created_at: string | null
+          description: string | null
           key: string
+          setting_key: string | null
+          setting_value: Json | null
           updated_at: string
           value: Json
         }
         Insert: {
+          created_at?: string | null
+          description?: string | null
           key: string
+          setting_key?: string | null
+          setting_value?: Json | null
           updated_at?: string
           value: Json
         }
         Update: {
+          created_at?: string | null
+          description?: string | null
           key?: string
+          setting_key?: string | null
+          setting_value?: Json | null
           updated_at?: string
           value?: Json
         }
@@ -822,6 +867,7 @@ export type Database = {
       }
       system_status: {
         Row: {
+          details: Json | null
           error_count: number | null
           id: string
           last_update: string
@@ -831,6 +877,7 @@ export type Database = {
           success_count: number | null
         }
         Insert: {
+          details?: Json | null
           error_count?: number | null
           id?: string
           last_update?: string
@@ -840,6 +887,7 @@ export type Database = {
           success_count?: number | null
         }
         Update: {
+          details?: Json | null
           error_count?: number | null
           id?: string
           last_update?: string
