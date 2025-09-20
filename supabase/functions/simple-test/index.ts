@@ -44,10 +44,10 @@ serve(async (req) => {
         })
 
       case 'db_test':
-        // Test database connection
+        // Test database connection using signals table (which we know works)
         const { data: testData, error: testError } = await supabase
-          .from('system_status')
-          .select('service_name, status')
+          .from('signals')
+          .select('id, symbol, created_at')
           .limit(1)
 
         if (testError) {
@@ -64,29 +64,9 @@ serve(async (req) => {
         })
 
       case 'mock_trade':
-        // Simulate a simple mock trade test
+        // Simulate a simple mock trade test without logging to restricted tables
         console.log('🧪 Mock trade test initiated')
         
-        // Insert a test log entry
-        const { error: logError } = await supabase
-          .from('edge_event_log')
-          .insert({
-            fn: 'simple-test',
-            stage: 'mock_trade_test',
-            payload: {
-              action: 'mock_trade',
-              symbol: 'BTCUSDT',
-              side: 'Buy',
-              amount: 5,
-              test: true,
-              timestamp: new Date().toISOString()
-            }
-          })
-
-        if (logError) {
-          console.error('Failed to log mock trade:', logError)
-        }
-
         return new Response(JSON.stringify({
           success: true,
           message: 'Mock trade test completed successfully',
