@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
-// Enhanced Bybit API client with V5 compatibility
+// Enhanced Bybit API client with V5 compatibility and better error handling
 class BybitV5Client {
   private apiKey: string
   private apiSecret: string
@@ -15,10 +15,18 @@ class BybitV5Client {
   constructor(isTestnet = false) {
     this.apiKey = Deno.env.get('BYBIT_API_KEY') || ''
     this.apiSecret = Deno.env.get('BYBIT_API_SECRET') || ''
-    this.baseUrl = isTestnet ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com'
+    
+    // Use mainnet for live trading (not testnet)
+    this.baseUrl = 'https://api.bybit.com'
+    
+    console.log(`🔧 Bybit V2 Broker initialized:`)
+    console.log(`  - Base URL: ${this.baseUrl}`)
+    console.log(`  - API Key present: ${!!this.apiKey}`)
+    console.log(`  - API Secret present: ${!!this.apiSecret}`)
+    console.log(`  - API Key preview: ${this.apiKey ? this.apiKey.substring(0, 8) + '...' : 'MISSING'}`)
     
     if (!this.apiKey || !this.apiSecret) {
-      throw new Error('Bybit API credentials not configured')
+      throw new Error('❌ Bybit API credentials not configured - please check BYBIT_API_KEY and BYBIT_API_SECRET')
     }
   }
 
@@ -59,6 +67,8 @@ class BybitV5Client {
       ? `${this.baseUrl}${endpoint}?${paramString}`
       : `${this.baseUrl}${endpoint}`
 
+    console.log(`📡 Making ${method} request to: ${url}`)
+
     const response = await fetch(url, {
       method,
       headers,
@@ -67,11 +77,20 @@ class BybitV5Client {
 
     const data = await response.json()
     
+    console.log(`📊 API Response (${data.retCode}): ${data.retMsg}`)
+    
     if (data.retCode !== 0) {
-      throw new Error(`Bybit API error: ${data.retMsg} (${data.retCode})`)
+      const errorMsg = `Bybit API error: ${data.retMsg} (Code: ${data.retCode})`
+      console.error(`❌ ${errorMsg}`)
+      throw new Error(errorMsg)
     }
 
     return data
+  }
+
+  // Server time for testing connectivity
+  async getServerTime() {
+    return this.request('GET', '/v5/market/time')
   }
 
   // Account methods
@@ -98,152 +117,164 @@ class BybitV5Client {
     orderType: 'Market' | 'Limit'
     qty: string
     price?: string
-    positionIdx?: number
     timeInForce?: string
   }) {
-    return this.request('POST', '/v5/order/create', {
-      timeInForce: 'GTC',
-      ...params
-    })
+    return this.request('POST', '/v5/order/create', params)
   }
 
-  async cancelOrder(category: string, symbol: string, orderId: string) {
-    return this.request('POST', '/v5/order/cancel', {
-      category,
-      symbol,
-      orderId
-    })
-  }
-
-  async getOrders(category = 'linear', symbol?: string, openOnly?: boolean) {
+  async getOrders(category = 'linear', symbol?: string) {
     const params: any = { category }
     if (symbol) params.symbol = symbol
-    if (openOnly !== undefined) params.openOnly = openOnly ? 1 : 0
     return this.request('GET', '/v5/order/realtime', params)
   }
 
-  // Market data methods
+  // Market data
   async getTickers(category = 'linear', symbol?: string) {
     const params: any = { category }
     if (symbol) params.symbol = symbol
     return this.request('GET', '/v5/market/tickers', params)
   }
 
-  async getInstruments(category = 'linear', symbol?: string) {
-    const params: any = { category }
-    if (symbol) params.symbol = symbol
-    return this.request('GET', '/v5/market/instruments-info', params)
+  async getKlines(category = 'linear', symbol: string, interval = '15', limit = 200) {
+    return this.request('GET', '/v5/market/kline', {
+      category,
+      symbol,
+      interval,
+      limit
+    })
   }
 }
 
 serve(async (req) => {
+  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const url = new URL(req.url)
-    const path = url.pathname.replace('/functions/v1/bybit-broker-v2', '')
+    const { action, ...params } = await req.json()
     
-    // Initialize client
-    const isTestnet = url.searchParams.get('testnet') === '1'
-    const client = new BybitV5Client(isTestnet)
+    // Initialize Bybit client (always mainnet for live trading)
+    const client = new BybitV5Client(false)
+    
+    console.log(`🚀 Bybit Broker V2 - Action: ${action}`)
 
-    // Route handling
-    switch (path) {
-      case '/ping':
-        return Response.json({ ok: true, timestamp: Date.now() }, { headers: corsHeaders })
-
-      case '/status':
+    switch (action) {
+      case 'test_connection':
+        console.log('🔌 Testing Bybit API connection...')
+        const serverTime = await client.getServerTime()
         const accountInfo = await client.getAccountInfo()
-        const balance = await client.getWalletBalance()
-        return Response.json({
+        
+        return new Response(JSON.stringify({
           success: true,
-          account: accountInfo.result,
+          message: 'Bybit API connection successful',
+          server_time: serverTime.result,
+          account_status: accountInfo.result,
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+
+      case 'get_balance':
+        console.log('💰 Getting wallet balance...')
+        const balance = await client.getWalletBalance('UNIFIED')
+        
+        return new Response(JSON.stringify({
+          success: true,
           balance: balance.result,
-          timestamp: Date.now()
-        }, { headers: corsHeaders })
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
 
-      case '/balance':
-        const balanceData = await client.getWalletBalance()
-        return Response.json({
+      case 'place_order':
+        console.log(`📋 Placing ${params.side} order for ${params.symbol}`)
+        const order = await client.placeOrder({
+          category: 'linear',
+          symbol: params.symbol,
+          side: params.side,
+          orderType: 'Market',
+          qty: params.qty.toString(),
+          timeInForce: 'IOC'
+        })
+        
+        return new Response(JSON.stringify({
           success: true,
-          data: balanceData.result,
-          timestamp: Date.now()
-        }, { headers: corsHeaders })
+          order: order.result,
+          message: `${params.side} order placed successfully`,
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
 
-      case '/positions':
-        const category = url.searchParams.get('category') || 'linear'
-        const symbol = url.searchParams.get('symbol') || undefined
-        const positions = await client.getPositions(category, symbol)
-        return Response.json({
+      case 'get_positions':
+        console.log('📊 Getting current positions...')
+        const positions = await client.getPositions('linear', params.symbol)
+        
+        return new Response(JSON.stringify({
           success: true,
-          data: positions.result,
-          timestamp: Date.now()
-        }, { headers: corsHeaders })
+          positions: positions.result,
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
 
-      case '/orders':
-        const orderCategory = url.searchParams.get('category') || 'linear'
-        const orderSymbol = url.searchParams.get('symbol') || undefined
-        const openOnly = url.searchParams.get('openOnly') === '1'
-        const orders = await client.getOrders(orderCategory, orderSymbol, openOnly)
-        return Response.json({
+      case 'get_tickers':
+        console.log('💹 Getting market tickers...')
+        const tickers = await client.getTickers('linear', params.symbol)
+        
+        return new Response(JSON.stringify({
           success: true,
-          data: orders.result,
-          timestamp: Date.now()
-        }, { headers: corsHeaders })
+          tickers: tickers.result,
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
 
-      case '/tickers':
-        const tickerCategory = url.searchParams.get('category') || 'linear'
-        const tickerSymbol = url.searchParams.get('symbol') || undefined
-        const tickers = await client.getTickers(tickerCategory, tickerSymbol)
-        return Response.json({
+      case 'ping':
+        console.log('🏓 Ping test...')
+        const pingTime = await client.getServerTime()
+        
+        return new Response(JSON.stringify({
           success: true,
-          data: tickers.result,
-          timestamp: Date.now()
-        }, { headers: corsHeaders })
-
-      case '/order':
-        if (req.method !== 'POST') {
-          return Response.json({ error: 'Method not allowed' }, { status: 405, headers: corsHeaders })
-        }
-        const orderParams = await req.json()
-        const orderResult = await client.placeOrder(orderParams)
-        return Response.json({
-          success: true,
-          data: orderResult.result,
-          timestamp: Date.now()
-        }, { headers: corsHeaders })
-
-      case '/cancel':
-        if (req.method !== 'POST') {
-          return Response.json({ error: 'Method not allowed' }, { status: 405, headers: corsHeaders })
-        }
-        const cancelParams = await req.json()
-        const cancelResult = await client.cancelOrder(
-          cancelParams.category,
-          cancelParams.symbol,
-          cancelParams.orderId
-        )
-        return Response.json({
-          success: true,
-          data: cancelResult.result,
-          timestamp: Date.now()
-        }, { headers: corsHeaders })
+          message: 'Bybit Broker V2 is operational',
+          server_time: pingTime.result,
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
 
       default:
-        return Response.json({ error: 'Endpoint not found' }, { status: 404, headers: corsHeaders })
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Unknown action: ${action}. Available actions: test_connection, get_balance, place_order, get_positions, get_tickers, ping`
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
     }
 
-  } catch (error: any) {
-    console.error('Bybit broker error:', error)
-    return Response.json({
+  } catch (error) {
+    console.error('❌ Bybit Broker V2 Error:', error)
+    
+    // Check if it's an API key issue
+    const isAPIKeyError = error.message.includes('API key') || 
+                         error.message.includes('invalid') || 
+                         error.message.includes('10003') ||
+                         error.message.includes('authentication')
+    
+    return new Response(JSON.stringify({
       success: false,
       error: error.message,
-      timestamp: Date.now()
-    }, { 
+      error_type: isAPIKeyError ? 'API_KEY_INVALID' : 'GENERAL_ERROR',
+      details: error.stack,
+      timestamp: new Date().toISOString(),
+      suggestion: isAPIKeyError ? 
+        'Please check your Bybit API key and secret are correct and have trading permissions' :
+        'Check system logs for more details'
+    }), {
       status: 500,
-      headers: corsHeaders 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
 })
