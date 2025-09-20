@@ -368,7 +368,7 @@ function generateRealSignal(data: MarketData, indicators: TechnicalIndicators): 
   // Determine signal
   const maxScore = Math.max(bullishScore, bearishScore)
   
-  if (maxScore < 65) return null // No strong signal
+  if (maxScore < 50) return null // Lowered threshold from 65 to 50
   
   const direction = bullishScore > bearishScore ? 'LONG' : 'SHORT'
   const score = Math.min(95, maxScore)
@@ -470,7 +470,7 @@ serve(async (req) => {
         // Generate signal based on real analysis
         const signal = generateRealSignal(data, indicators)
         
-        if (signal && signal.score >= 65) {
+        if (signal && signal.score >= 50) { // Lowered threshold from 65 to 50
           signals.push(signal)
           console.log(`✅ Generated ${signal.direction} signal for ${signal.symbol} (score: ${signal.score})`)
         }
@@ -508,10 +508,9 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          signals: successful,
-          failed,
+          signals: signals.length,
           total_processed: marketData.length,
-          average_score: signals.reduce((acc, s) => acc + s.score, 0) / signals.length
+          average_score: signals.length > 0 ? signals.reduce((acc, s) => acc + s.score, 0) / signals.length : 0
         }),
         { headers: corsHeaders }
       )

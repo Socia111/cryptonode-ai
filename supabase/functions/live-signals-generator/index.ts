@@ -252,9 +252,9 @@ function generateAdvancedTechnicalSignal(marketData: MarketData, timeframe: stri
   // Determine final signal
   const maxScore = Math.max(bullishScore, bearishScore);
   
-  // Only generate signals with strong conviction (>= 65%)
-  if (maxScore < 65) {
-    console.log(`⚠️ ${symbol} signal too weak: bull=${bullishScore.toFixed(1)}, bear=${bearishScore.toFixed(1)}`);
+  // Lower threshold for more signals (>= 50%)
+  if (maxScore < 50) {
+    console.log(`⚠️ ${symbol} signal below threshold: bull=${bullishScore.toFixed(1)}, bear=${bearishScore.toFixed(1)} (required: 50)`);
     return null;
   }
   
