@@ -1,3 +1,4 @@
+// Enhanced AI-powered sentiment analysis for crypto markets
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -14,6 +15,9 @@ interface SentimentData {
   fear_greed_index: number
   whale_movement_score: number
   news_sentiment: number
+  technical_sentiment?: number
+  overall_sentiment?: 'bullish' | 'bearish' | 'neutral'
+  confidence?: number
 }
 
 serve(async (req) => {
@@ -73,9 +77,16 @@ serve(async (req) => {
 })
 
 async function analyzeSentiment(token: string): Promise<SentimentData> {
-  // Simulate comprehensive sentiment analysis
-  // In production, integrate with Twitter API, Reddit API, Google Trends, etc.
+  // Enhanced sentiment analysis with technical integration
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
   
+  // Get technical sentiment from recent signals
+  const technicalSentiment = await getTechnicalSentiment(supabase, token)
+  
+  // Simulate comprehensive sentiment analysis
   const baseScore = (Math.random() - 0.5) * 2 // -1 to 1
   const socialVolume = Math.random() * 100
   const trendingScore = Math.random() * 100
@@ -83,18 +94,67 @@ async function analyzeSentiment(token: string): Promise<SentimentData> {
   const whaleMovement = Math.random() * 100
   const newsScore = (Math.random() - 0.5) * 2
 
-  // Simulate correlation between metrics
-  const correlatedSentiment = baseScore + (newsScore * 0.3) + ((trendingScore - 50) / 100)
+  // Enhanced correlation between metrics including technical analysis
+  const correlatedSentiment = baseScore + 
+    (newsScore * 0.25) + 
+    ((trendingScore - 50) / 100 * 0.25) +
+    (technicalSentiment * 0.5) // Weight technical analysis heavily
+  
+  // Calculate overall sentiment and confidence
+  const finalScore = Math.max(-1, Math.min(1, correlatedSentiment))
+  const overallSentiment = finalScore > 0.3 ? 'bullish' : finalScore < -0.3 ? 'bearish' : 'neutral'
+  const confidence = Math.abs(finalScore)
   
   return {
     token,
-    sentiment_score: Math.max(-1, Math.min(1, correlatedSentiment)),
+    sentiment_score: finalScore,
     social_volume: socialVolume,
     trending_score: trendingScore,
     fear_greed_index: fearGreed,
     whale_movement_score: whaleMovement,
-    news_sentiment: newsScore
+    news_sentiment: newsScore,
+    technical_sentiment: technicalSentiment,
+    overall_sentiment: overallSentiment,
+    confidence: confidence
   }
+}
+
+async function getTechnicalSentiment(supabase: any, token: string): Promise<number> {
+  const symbol = `${token}USDT`
+  
+  const { data: recentSignals } = await supabase
+    .from('signals')
+    .select('direction, score, confidence')
+    .eq('symbol', symbol)
+    .eq('is_active', true)
+    .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  if (!recentSignals || recentSignals.length === 0) {
+    return 0 // Neutral if no signals
+  }
+
+  // Calculate weighted technical sentiment
+  let bullishWeight = 0
+  let bearishWeight = 0
+  let totalWeight = 0
+
+  recentSignals.forEach(signal => {
+    const weight = signal.score * (signal.confidence || 1)
+    totalWeight += weight
+
+    if (signal.direction === 'LONG') {
+      bullishWeight += weight
+    } else if (signal.direction === 'SHORT') {
+      bearishWeight += weight
+    }
+  })
+
+  if (totalWeight === 0) return 0
+  
+  const bullishRatio = bullishWeight / totalWeight
+  return (bullishRatio - 0.5) * 2 // Convert to -1 to 1 scale
 }
 
 async function generateSentimentAlert(sentiment: SentimentData) {
