@@ -41,15 +41,15 @@ const RealtimeSignalsFeed: React.FC = () => {
           const newSignal = payload.new as any;
           
           // Only show signals that aren't 5m timeframe and have decent confidence
-          if (newSignal.timeframe !== '5m' && newSignal.confidence_score >= 70) {
+          if (newSignal.timeframe !== '5m' && newSignal.score >= 70) {
             const formattedSignal: RealtimeSignal = {
               id: newSignal.id,
               token: newSignal.token || newSignal.symbol,
               direction: newSignal.direction,
-              entry_price: newSignal.entry_price,
-              sl: newSignal.sl,
-              tp: newSignal.tp,
-              confidence_score: newSignal.confidence_score,
+              entry_price: newSignal.entry_price || newSignal.price,
+              sl: newSignal.sl || newSignal.stop_loss,
+              tp: newSignal.tp || newSignal.take_profit,
+              confidence_score: newSignal.confidence_score || newSignal.score,
               timeframe: newSignal.timeframe,
               created_at: newSignal.created_at,
               exchange: newSignal.exchange || 'Bybit',
@@ -71,7 +71,12 @@ const RealtimeSignalsFeed: React.FC = () => {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('Realtime channel error - will retry');
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);

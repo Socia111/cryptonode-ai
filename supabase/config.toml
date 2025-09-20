@@ -1,1 +1,4 @@
 project_id = "codhlwjogfjywmjyjbbn"
+
+[functions.simple-test]
+verify_jwt = false

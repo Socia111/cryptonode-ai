@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { testTradeExecutor, testMockTrade } from '@/lib/testTrading';
+import { testTradeExecutor, testMockTrade, testDatabaseConnection } from '@/lib/testTrading';
 
 export const TradingTest: React.FC = () => {
   const [isTesting, setIsTesting] = useState(false);
@@ -45,6 +45,42 @@ export const TradingTest: React.FC = () => {
     }
   };
 
+  const runDatabaseTest = async () => {
+    setIsTesting(true);
+    setTestResults(null);
+    
+    try {
+      console.log('🧪 Testing database connection...');
+      
+      const result = await testDatabaseConnection();
+      
+      setTestResults(result);
+      
+      if (result.success) {
+        toast({
+          title: "✅ Database Test Passed",
+          description: "Database connection is working correctly",
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "❌ Database Test Failed", 
+          description: result.error || "Database connection failed",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      setTestResults({ success: false, error: error.message });
+      toast({
+        title: "❌ Database Test Error",
+        description: error.message || "Test failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
   const runMockTrade = async () => {
     setIsTesting(true);
     
@@ -69,7 +105,7 @@ export const TradingTest: React.FC = () => {
         });
       }
     } catch (error: any) {
-      setTestResults({ ok: false, error: error.message });
+      setTestResults({ success: false, error: error.message });
       toast({
         title: "❌ Trade Test Error",
         description: error.message || "Test failed",
@@ -93,7 +129,16 @@ export const TradingTest: React.FC = () => {
             className="w-full"
             variant="outline"
           >
-            {isTesting ? "Testing..." : "Test Connection"}
+            {isTesting ? "Testing..." : "Test System Status"}
+          </Button>
+
+          <Button 
+            onClick={runDatabaseTest}
+            disabled={isTesting}
+            className="w-full"
+            variant="outline"
+          >
+            {isTesting ? "Testing..." : "Test Database"}
           </Button>
           
           <Button 

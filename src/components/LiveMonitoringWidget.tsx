@@ -99,15 +99,21 @@ const LiveMonitoringWidget: React.FC = () => {
           fetchMetrics(); // Refresh metrics
           
           // Show toast for high-quality signals
-          if (payload.new.score >= 75) {
+          const newSignal = payload.new as any;
+          if (newSignal.score >= 75) {
             toast({
               title: "High Quality Signal",
-              description: `${payload.new.symbol} ${payload.new.direction} - Score: ${payload.new.score}%`,
+              description: `${newSignal.symbol} ${newSignal.direction} - Score: ${newSignal.score}%`,
             });
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Live monitoring subscription status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('Live monitoring channel error - will retry');
+        }
+      });
 
     // Refresh metrics every 30 seconds
     const interval = setInterval(fetchMetrics, 30000);

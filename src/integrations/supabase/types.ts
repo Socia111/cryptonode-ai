@@ -632,6 +632,7 @@ export type Database = {
           execution_priority: number | null
           expires_at: string | null
           filters: Json | null
+          hvp: number | null
           hvp_value: number | null
           id: string
           indicators: Json | null
@@ -667,6 +668,7 @@ export type Database = {
           execution_priority?: number | null
           expires_at?: string | null
           filters?: Json | null
+          hvp?: number | null
           hvp_value?: number | null
           id?: string
           indicators?: Json | null
@@ -702,6 +704,7 @@ export type Database = {
           execution_priority?: number | null
           expires_at?: string | null
           filters?: Json | null
+          hvp?: number | null
           hvp_value?: number | null
           id?: string
           indicators?: Json | null
