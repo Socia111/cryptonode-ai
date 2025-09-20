@@ -493,6 +493,45 @@ export type Database = {
         }
         Relationships: []
       }
+      live_prices: {
+        Row: {
+          change_24h: number | null
+          created_at: string
+          high_24h: number | null
+          id: string
+          last_updated: string
+          low_24h: number | null
+          price: number
+          source: string | null
+          symbol: string
+          volume_24h: number | null
+        }
+        Insert: {
+          change_24h?: number | null
+          created_at?: string
+          high_24h?: number | null
+          id?: string
+          last_updated?: string
+          low_24h?: number | null
+          price: number
+          source?: string | null
+          symbol: string
+          volume_24h?: number | null
+        }
+        Update: {
+          change_24h?: number | null
+          created_at?: string
+          high_24h?: number | null
+          id?: string
+          last_updated?: string
+          low_24h?: number | null
+          price?: number
+          source?: string | null
+          symbol?: string
+          volume_24h?: number | null
+        }
+        Relationships: []
+      }
       markets: {
         Row: {
           base_asset: string
