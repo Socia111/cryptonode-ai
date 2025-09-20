@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { testTradeExecutor, testMockTrade, testDatabaseConnection } from '@/lib/testTrading';
+import { testAllSignalSystems, getSignalSystemStatus } from '@/lib/testAllSystems';
 
 export const TradingTest: React.FC = () => {
   const [isTesting, setIsTesting] = useState(false);
@@ -116,6 +117,46 @@ export const TradingTest: React.FC = () => {
     }
   };
 
+  const runComprehensiveTest = async () => {
+    setIsTesting(true);
+    setTestResults(null);
+    
+    try {
+      console.log('🧪 Running comprehensive signal system test...');
+      
+      const result = await testAllSignalSystems();
+      
+      setTestResults(result);
+      
+      const allWorking = Object.values(result).every((test: any) => 
+        test && (test.success || test.error?.includes('blocked'))
+      );
+      
+      if (allWorking) {
+        toast({
+          title: "✅ All Systems Working",
+          description: "Signal generation systems are operating correctly",
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "⚠️ Some Issues Found", 
+          description: "Check results for details",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      setTestResults({ ok: false, error: error.message });
+      toast({
+        title: "❌ Test Error",
+        description: error.message || "Comprehensive test failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
@@ -142,12 +183,21 @@ export const TradingTest: React.FC = () => {
           </Button>
           
           <Button 
-            onClick={runMockTrade}
+            onClick={runMockTrade} 
+            disabled={isTesting}
+            className="w-full"
+            variant="outline"
+          >
+            {isTesting ? "Testing..." : "Test Mock Trade"}
+          </Button>
+          
+          <Button 
+            onClick={runComprehensiveTest} 
             disabled={isTesting}
             className="w-full"
             variant="default"
           >
-            {isTesting ? "Testing..." : "Test Mock Trade"}
+            {isTesting ? "Testing..." : "🧪 Test All Signal Systems"}
           </Button>
         </div>
         

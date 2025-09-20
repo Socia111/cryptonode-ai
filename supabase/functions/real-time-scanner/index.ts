@@ -1,589 +1,423 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+  'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
+}
 
-// Professional-grade technical analysis scanner
-const CRYPTO_SYMBOLS = [
-  'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'SOLUSDT',
-  'DOTUSDT', 'LINKUSDT', 'AVAXUSDT', 'MATICUSDT', 'LTCUSDT', 'UNIUSDT',
-  'ATOMUSDT', 'FILUSDT', 'NEARUSDT', 'ICPUSDT', 'APTUSDT', 'OPUSDT'
-];
-
-interface OHLCData {
-  timestamp: number;
+interface OHLCV {
   open: number;
   high: number;
   low: number;
   close: number;
   volume: number;
+  time: number;
 }
 
 interface TechnicalIndicators {
-  sma20: number;
-  sma50: number;
-  sma200: number;
-  ema12: number;
-  ema26: number;
-  ema21: number;
   rsi: number;
   macd: number;
-  macdSignal: number;
-  macdHistogram: number;
-  stochK: number;
-  stochD: number;
+  macd_signal: number;
+  macd_histogram: number;
+  ema21: number;
+  ema50: number;
+  ema200: number;
+  bb_upper: number;
+  bb_middle: number;
+  bb_lower: number;
+  stoch_k: number;
+  stoch_d: number;
   atr: number;
   adx: number;
-  plusDI: number;
-  minusDI: number;
-  bollingerUpper: number;
-  bollingerLower: number;
-  bollingerMid: number;
-  volumeRatio: number;
-  priceChange: number;
-  volatility: number;
+  volume_ratio: number;
 }
 
-// Technical Analysis Calculations
-function calculateSMA(prices: number[], period: number): number {
-  if (prices.length < period) return NaN;
-  return prices.slice(-period).reduce((a, b) => a + b, 0) / period;
-}
-
-function calculateEMA(prices: number[], period: number): number {
-  if (prices.length < period) return NaN;
-  const multiplier = 2 / (period + 1);
-  let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  
-  for (let i = period; i < prices.length; i++) {
-    ema = (prices[i] * multiplier) + (ema * (1 - multiplier));
-  }
-  return ema;
-}
-
-function calculateRSI(prices: number[], period: number = 14): number {
-  if (prices.length < period + 1) return 50;
-  
-  const changes = [];
-  for (let i = 1; i < prices.length; i++) {
-    changes.push(prices[i] - prices[i - 1]);
-  }
-  
-  let avgGain = 0, avgLoss = 0;
-  
-  for (let i = 0; i < period; i++) {
-    if (changes[i] > 0) avgGain += changes[i];
-    else avgLoss += Math.abs(changes[i]);
-  }
-  avgGain /= period;
-  avgLoss /= period;
-  
-  for (let i = period; i < changes.length; i++) {
-    const change = changes[i];
-    if (change > 0) {
-      avgGain = (avgGain * (period - 1) + change) / period;
-      avgLoss = (avgLoss * (period - 1)) / period;
+// Enhanced technical analysis functions
+function calculateSMA(data: number[], period: number): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      result.push(0);
     } else {
-      avgGain = (avgGain * (period - 1)) / period;
-      avgLoss = (avgLoss * (period - 1) + Math.abs(change)) / period;
+      const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+      result.push(sum / period);
     }
   }
+  return result;
+}
+
+function calculateEMA(data: number[], period: number): number[] {
+  const result: number[] = [];
+  const multiplier = 2 / (period + 1);
+  let ema = data[0];
+  result.push(ema);
+  
+  for (let i = 1; i < data.length; i++) {
+    ema = (data[i] * multiplier) + (ema * (1 - multiplier));
+    result.push(ema);
+  }
+  return result;
+}
+
+function calculateRSI(data: number[], period: number = 14): number {
+  if (data.length < period + 1) return 50;
+  
+  let gains = 0;
+  let losses = 0;
+  
+  for (let i = 1; i <= period; i++) {
+    const change = data[data.length - i] - data[data.length - i - 1];
+    if (change > 0) gains += change;
+    else losses -= change;
+  }
+  
+  const avgGain = gains / period;
+  const avgLoss = losses / period;
   
   if (avgLoss === 0) return 100;
-  return 100 - (100 / (1 + (avgGain / avgLoss)));
+  const rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
 }
 
-function calculateMACD(prices: number[]): { macd: number, signal: number, histogram: number } {
-  const ema12 = calculateEMA(prices, 12);
-  const ema26 = calculateEMA(prices, 26);
-  const macd = ema12 - ema26;
+function calculateMACD(data: number[]): { macd: number; signal: number; histogram: number } {
+  const ema12 = calculateEMA(data, 12);
+  const ema26 = calculateEMA(data, 26);
   
-  // Simplified signal calculation
-  const signal = macd * 0.85;
+  const macdLine = ema12[ema12.length - 1] - ema26[ema26.length - 1];
+  const macdHistory = [];
   
-  return {
-    macd,
-    signal,
-    histogram: macd - signal
-  };
-}
-
-function calculateStochastic(ohlcv: OHLCData[], period: number = 14): { k: number, d: number } {
-  if (ohlcv.length < period) return { k: 50, d: 50 };
-  
-  const recent = ohlcv.slice(-period);
-  const highestHigh = Math.max(...recent.map(d => d.high));
-  const lowestLow = Math.min(...recent.map(d => d.low));
-  const currentClose = ohlcv[ohlcv.length - 1].close;
-  
-  const k = ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
-  const d = k * 0.8 + 10; // Simplified D calculation
-  
-  return { 
-    k: isNaN(k) ? 50 : Math.max(0, Math.min(100, k)),
-    d: isNaN(d) ? 50 : Math.max(0, Math.min(100, d))
-  };
-}
-
-function calculateATR(ohlcv: OHLCData[], period: number = 14): number {
-  if (ohlcv.length < period + 1) return 0;
-  
-  const trueRanges = [];
-  for (let i = 1; i < ohlcv.length; i++) {
-    const current = ohlcv[i];
-    const previous = ohlcv[i - 1];
-    
-    const tr = Math.max(
-      current.high - current.low,
-      Math.abs(current.high - previous.close),
-      Math.abs(current.low - previous.close)
-    );
-    trueRanges.push(tr);
+  for (let i = 0; i < Math.min(ema12.length, ema26.length); i++) {
+    macdHistory.push(ema12[i] - ema26[i]);
   }
   
-  return calculateSMA(trueRanges, period);
+  const signalLine = calculateEMA(macdHistory, 9);
+  const signal = signalLine[signalLine.length - 1];
+  const histogram = macdLine - signal;
+  
+  return { macd: macdLine, signal, histogram };
 }
 
-function calculateADX(ohlcv: OHLCData[], period: number = 14): { adx: number, plusDI: number, minusDI: number } {
-  if (ohlcv.length < period + 1) return { adx: 25, plusDI: 25, minusDI: 25 };
+function calculateBollingerBands(data: number[], period: number = 20, multiplier: number = 2) {
+  const sma = calculateSMA(data, period);
+  const currentSMA = sma[sma.length - 1];
   
-  const trueRanges = [];
-  const plusDMs = [];
-  const minusDMs = [];
-  
-  for (let i = 1; i < ohlcv.length; i++) {
-    const current = ohlcv[i];
-    const previous = ohlcv[i - 1];
-    
-    const tr = Math.max(
-      current.high - current.low,
-      Math.abs(current.high - previous.close),
-      Math.abs(current.low - previous.close)
-    );
-    trueRanges.push(tr);
-    
-    const upMove = current.high - previous.high;
-    const downMove = previous.low - current.low;
-    
-    const plusDM = (upMove > downMove && upMove > 0) ? upMove : 0;
-    const minusDM = (downMove > upMove && downMove > 0) ? downMove : 0;
-    
-    plusDMs.push(plusDM);
-    minusDMs.push(minusDM);
-  }
-  
-  const avgTR = calculateSMA(trueRanges, period);
-  const avgPlusDM = calculateSMA(plusDMs, period);
-  const avgMinusDM = calculateSMA(minusDMs, period);
-  
-  const plusDI = avgTR === 0 ? 0 : (avgPlusDM / avgTR) * 100;
-  const minusDI = avgTR === 0 ? 0 : (avgMinusDM / avgTR) * 100;
-  
-  const dx = (plusDI + minusDI) === 0 ? 0 : Math.abs(plusDI - minusDI) / (plusDI + minusDI) * 100;
-  const adx = dx; // Simplified, should use smoothed average
-  
-  return { adx, plusDI, minusDI };
-}
-
-function calculateBollingerBands(prices: number[], period: number = 20): { upper: number, middle: number, lower: number } {
-  const sma = calculateSMA(prices, period);
-  if (isNaN(sma) || prices.length < period) return { upper: 0, middle: 0, lower: 0 };
-  
-  const recent = prices.slice(-period);
-  const variance = recent.reduce((sum, price) => sum + Math.pow(price - sma, 2), 0) / period;
+  const recentData = data.slice(-period);
+  const variance = recentData.reduce((sum, price) => sum + Math.pow(price - currentSMA, 2), 0) / period;
   const stdDev = Math.sqrt(variance);
   
   return {
-    upper: sma + (stdDev * 2),
-    middle: sma,
-    lower: sma - (stdDev * 2)
+    upper: currentSMA + (stdDev * multiplier),
+    middle: currentSMA,
+    lower: currentSMA - (stdDev * multiplier)
   };
 }
 
-async function fetchOHLCVData(symbol: string, timeframe: string = '1h', limit: number = 200): Promise<OHLCData[]> {
+function calculateStochastic(bars: OHLCV[], kPeriod: number = 14, dPeriod: number = 3): { k: number; d: number } {
+  const recentBars = bars.slice(-kPeriod);
+  const currentClose = bars[bars.length - 1].close;
+  const lowestLow = Math.min(...recentBars.map(b => b.low));
+  const highestHigh = Math.max(...recentBars.map(b => b.high));
+  
+  const k = highestHigh === lowestLow ? 50 : ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
+  
+  // Simple approximation for %D
+  const d = k; // In practice, you'd calculate SMA of recent %K values
+  
+  return { k, d };
+}
+
+function calculateATR(bars: OHLCV[], period: number = 14): number {
+  if (bars.length < period + 1) return 0;
+  
+  const trueRanges = [];
+  for (let i = 1; i < bars.length; i++) {
+    const high = bars[i].high;
+    const low = bars[i].low;
+    const prevClose = bars[i - 1].close;
+    
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    );
+    trueRanges.push(tr);
+  }
+  
+  const recentTRs = trueRanges.slice(-period);
+  return recentTRs.reduce((sum, tr) => sum + tr, 0) / period;
+}
+
+async function fetchCryptoData(symbol: string): Promise<OHLCV[]> {
+  const bybitUrl = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=15&limit=200`;
+  
   try {
-    const url = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${timeframe === '1h' ? '60' : '15'}&limit=${limit}`;
-    const response = await fetch(url);
+    const response = await fetch(bybitUrl);
+    if (!response.ok) {
+      throw new Error(`Bybit API error: ${response.status}`);
+    }
+    
     const data = await response.json();
     
-    if (data.result?.list) {
-      // Bybit returns newest first, reverse to get oldest first
-      return data.result.list.reverse().map((item: any) => ({
-        timestamp: parseInt(item[0]),
-        open: parseFloat(item[1]),
-        high: parseFloat(item[2]),
-        low: parseFloat(item[3]),
-        close: parseFloat(item[4]),
-        volume: parseFloat(item[5])
-      }));
+    if (!data.result?.list) {
+      throw new Error('Invalid Bybit response format');
     }
-    return [];
+    
+    return data.result.list.map((item: any) => ({
+      time: parseInt(item[0]),
+      open: parseFloat(item[1]),
+      high: parseFloat(item[2]),
+      low: parseFloat(item[3]),
+      close: parseFloat(item[4]),
+      volume: parseFloat(item[5])
+    })).reverse(); // Reverse to get chronological order
+    
   } catch (error) {
-    console.error(`Failed to fetch OHLCV for ${symbol}:`, error);
-    return [];
+    console.error(`❌ Failed to fetch data for ${symbol}:`, error);
+    throw error;
   }
 }
 
-function calculateAllIndicators(ohlcv: OHLCData[]): TechnicalIndicators {
-  const closes = ohlcv.map(d => d.close);
-  const highs = ohlcv.map(d => d.high);
-  const lows = ohlcv.map(d => d.low);
-  const volumes = ohlcv.map(d => d.volume);
+function calculateTechnicalIndicators(bars: OHLCV[]): TechnicalIndicators {
+  const closes = bars.map(b => b.close);
+  const volumes = bars.map(b => b.volume);
   
-  const sma20 = calculateSMA(closes, 20);
-  const sma50 = calculateSMA(closes, 50);
-  const sma200 = calculateSMA(closes, 200);
-  const ema12 = calculateEMA(closes, 12);
-  const ema26 = calculateEMA(closes, 26);
+  const rsi = calculateRSI(closes);
+  const macd = calculateMACD(closes);
   const ema21 = calculateEMA(closes, 21);
+  const ema50 = calculateEMA(closes, 50);
+  const ema200 = calculateEMA(closes, 200);
+  const bb = calculateBollingerBands(closes);
+  const stoch = calculateStochastic(bars);
+  const atr = calculateATR(bars);
   
-  const rsi = calculateRSI(closes, 14);
-  const macdData = calculateMACD(closes);
-  const stochData = calculateStochastic(ohlcv, 14);
-  const atr = calculateATR(ohlcv, 14);
-  const adxData = calculateADX(ohlcv, 14);
-  const bbData = calculateBollingerBands(closes, 20);
+  // Simple ADX approximation
+  const adx = Math.abs(ema21[ema21.length - 1] - ema50[ema50.length - 1]) / atr * 100;
   
-  const currentPrice = closes[closes.length - 1];
-  const previousPrice = closes[closes.length - 2] || currentPrice;
-  const priceChange = ((currentPrice - previousPrice) / previousPrice) * 100;
-  
-  const avgVolume = calculateSMA(volumes, 21);
+  // Volume ratio (current vs average)
+  const avgVolume = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
   const currentVolume = volumes[volumes.length - 1];
-  const volumeRatio = avgVolume > 0 ? currentVolume / avgVolume : 1;
-  
-  // Calculate volatility (standard deviation of returns)
-  const returns = [];
-  for (let i = 1; i < closes.length; i++) {
-    returns.push((closes[i] - closes[i-1]) / closes[i-1]);
-  }
-  const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
-  const volatility = Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length) * 100;
+  const volume_ratio = currentVolume / avgVolume;
   
   return {
-    sma20: isNaN(sma20) ? currentPrice : sma20,
-    sma50: isNaN(sma50) ? currentPrice : sma50,
-    sma200: isNaN(sma200) ? currentPrice : sma200,
-    ema12: isNaN(ema12) ? currentPrice : ema12,
-    ema26: isNaN(ema26) ? currentPrice : ema26,
-    ema21: isNaN(ema21) ? currentPrice : ema21,
-    rsi: isNaN(rsi) ? 50 : rsi,
-    macd: macdData.macd,
-    macdSignal: macdData.signal,
-    macdHistogram: macdData.histogram,
-    stochK: stochData.k,
-    stochD: stochData.d,
-    atr: isNaN(atr) ? currentPrice * 0.02 : atr,
-    adx: adxData.adx,
-    plusDI: adxData.plusDI,
-    minusDI: adxData.minusDI,
-    bollingerUpper: bbData.upper,
-    bollingerLower: bbData.lower,
-    bollingerMid: bbData.middle,
-    volumeRatio: isNaN(volumeRatio) ? 1 : volumeRatio,
-    priceChange,
-    volatility: isNaN(volatility) ? 2 : volatility
+    rsi,
+    macd: macd.macd,
+    macd_signal: macd.signal,
+    macd_histogram: macd.histogram,
+    ema21: ema21[ema21.length - 1],
+    ema50: ema50[ema50.length - 1],
+    ema200: ema200[ema200.length - 1],
+    bb_upper: bb.upper,
+    bb_middle: bb.middle,
+    bb_lower: bb.lower,
+    stoch_k: stoch.k,
+    stoch_d: stoch.d,
+    atr,
+    adx: Math.min(100, Math.max(0, adx)),
+    volume_ratio
   };
 }
 
-function generateProfessionalSignal(symbol: string, indicators: TechnicalIndicators, currentPrice: number, timeframe: string): any {
-  // Professional signal analysis using multiple confirmations
-  const {
-    sma20, sma50, sma200, ema21, rsi, macd, macdSignal, macdHistogram,
-    stochK, stochD, atr, adx, plusDI, minusDI, bollingerUpper, bollingerLower,
-    volumeRatio, priceChange, volatility
-  } = indicators;
+function generateProfessionalSignal(symbol: string, bars: OHLCV[], indicators: TechnicalIndicators) {
+  const currentPrice = bars[bars.length - 1].close;
   
-  // Trend Analysis
-  const shortTermTrend = ema21 > sma20 && sma20 > sma50;
-  const longTermTrend = sma50 > sma200;
-  const overallBullish = shortTermTrend && longTermTrend;
-  const overallBearish = ema21 < sma20 && sma20 < sma50 && sma50 < sma200;
+  // Advanced signal scoring system
+  let bullScore = 0;
+  let bearScore = 0;
   
-  // Momentum Analysis
-  const rsiOversold = rsi < 30;
-  const rsiOverbought = rsi > 70;
-  const rsiNeutral = rsi >= 40 && rsi <= 60;
-  const macdBullish = macd > macdSignal && macdHistogram > 0;
-  const macdBearish = macd < macdSignal && macdHistogram < 0;
+  // RSI Analysis
+  if (indicators.rsi < 30) bullScore += 25;
+  else if (indicators.rsi > 70) bearScore += 25;
+  else if (indicators.rsi < 45) bullScore += 10;
+  else if (indicators.rsi > 55) bearScore += 10;
   
-  // Stochastic Analysis
-  const stochOversold = stochK < 20 && stochD < 20;
-  const stochOverbought = stochK > 80 && stochD > 80;
-  const stochBullishCross = stochK > stochD && stochK < 80;
-  const stochBearishCross = stochK < stochD && stochK > 20;
+  // MACD Analysis
+  if (indicators.macd > indicators.macd_signal && indicators.macd_histogram > 0) bullScore += 20;
+  else if (indicators.macd < indicators.macd_signal && indicators.macd_histogram < 0) bearScore += 20;
   
-  // Volume and Volatility
-  const strongVolume = volumeRatio > 1.5;
-  const weakVolume = volumeRatio < 0.8;
-  const highVolatility = volatility > 3;
-  const normalVolatility = volatility >= 1 && volatility <= 3;
-  
-  // ADX Trend Strength
-  const strongTrend = adx > 25;
-  const weakTrend = adx < 20;
-  const bullishDMI = plusDI > minusDI;
-  const bearishDMI = minusDI > plusDI;
+  // EMA Trend Analysis
+  if (currentPrice > indicators.ema21 && indicators.ema21 > indicators.ema50) bullScore += 20;
+  else if (currentPrice < indicators.ema21 && indicators.ema21 < indicators.ema50) bearScore += 20;
   
   // Bollinger Bands
-  const nearUpperBB = currentPrice > (bollingerUpper * 0.98);
-  const nearLowerBB = currentPrice < (bollingerLower * 1.02);
+  if (currentPrice < indicators.bb_lower) bullScore += 15;
+  else if (currentPrice > indicators.bb_upper) bearScore += 15;
   
-  // Signal Scoring System (Professional Grade)
-  let bullishScore = 0;
-  let bearishScore = 0;
+  // Stochastic
+  if (indicators.stoch_k < 20 && indicators.stoch_d < 20) bullScore += 10;
+  else if (indicators.stoch_k > 80 && indicators.stoch_d > 80) bearScore += 10;
   
-  // Trend Factors (35% weight)
-  if (overallBullish) bullishScore += 35;
-  if (overallBearish) bearishScore += 35;
-  if (currentPrice > ema21) bullishScore += 10;
-  if (currentPrice < ema21) bearishScore += 10;
-  
-  // Momentum Factors (25% weight)
-  if (rsiOversold) bullishScore += 15;
-  if (rsiOverbought) bearishScore += 15;
-  if (macdBullish) bullishScore += 10;
-  if (macdBearish) bearishScore += 10;
-  
-  // Stochastic Factors (15% weight)
-  if (stochOversold || stochBullishCross) bullishScore += 15;
-  if (stochOverbought || stochBearishCross) bearishScore += 15;
-  
-  // Volume Confirmation (15% weight)
-  if (strongVolume) {
-    bullishScore += 8;
-    bearishScore += 8; // Volume confirms both directions
-  }
-  if (weakVolume) {
-    bullishScore -= 5;
-    bearishScore -= 5;
+  // Volume confirmation
+  if (indicators.volume_ratio > 1.5) {
+    bullScore += 10;
+    bearScore += 10; // Volume confirms both directions
   }
   
-  // ADX and DMI (10% weight)
-  if (strongTrend && bullishDMI) bullishScore += 10;
-  if (strongTrend && bearishDMI) bearishScore += 10;
-  if (weakTrend) {
-    bullishScore -= 5;
-    bearishScore -= 5;
+  // ADX strength filter
+  if (indicators.adx > 25) {
+    bullScore += 5;
+    bearScore += 5;
   }
   
-  // Bollinger Bands Support/Resistance
-  if (nearLowerBB && !rsiOverbought) bullishScore += 5;
-  if (nearUpperBB && !rsiOversold) bearishScore += 5;
+  const totalScore = Math.max(bullScore, bearScore);
+  const direction = bullScore > bearScore ? 'LONG' : 'SHORT';
+  const confidence = Math.min(100, totalScore) / 100;
   
-  // Volatility Adjustment
-  if (normalVolatility) {
-    bullishScore += 3;
-    bearishScore += 3;
-  }
-  if (highVolatility) {
-    bullishScore -= 2;
-    bearishScore -= 2;
-  }
-  
-  // Determine signal direction and quality
-  const maxScore = Math.max(bullishScore, bearishScore);
-  
-  // Professional threshold: Only signals with 70%+ conviction
-  if (maxScore < 70) {
+  // Only generate signals with score >= 70
+  if (totalScore < 70) {
+    console.log(`⚠️ ${symbol} signal too weak: bull=${bullScore}, bear=${bearScore}, total=${totalScore}`);
     return null;
   }
   
-  const direction = bullishScore > bearishScore ? 'LONG' : 'SHORT';
-  const score = Math.min(95, maxScore);
+  // Calculate stop loss and take profit using ATR
+  const atrMultiplier = 2.0;
+  const stopLoss = direction === 'LONG' 
+    ? currentPrice - (indicators.atr * atrMultiplier)
+    : currentPrice + (indicators.atr * atrMultiplier);
   
-  // Professional risk management
-  const stopLossATR = Math.max(1.5, Math.min(3.0, volatility / 2)); // Dynamic ATR multiplier
-  const takeProfitATR = stopLossATR * (score > 85 ? 3.0 : score > 75 ? 2.5 : 2.0); // Risk:Reward based on conviction
-  
-  const stopLoss = direction === 'LONG' ? 
-    currentPrice - (atr * stopLossATR) : 
-    currentPrice + (atr * stopLossATR);
-  
-  const takeProfit = direction === 'LONG' ? 
-    currentPrice + (atr * takeProfitATR) : 
-    currentPrice - (atr * takeProfitATR);
+  const takeProfitMultiplier = 3.0;
+  const takeProfit = direction === 'LONG'
+    ? currentPrice + (indicators.atr * takeProfitMultiplier)
+    : currentPrice - (indicators.atr * takeProfitMultiplier);
   
   return {
     symbol,
+    timeframe: '15m',
     direction,
     price: currentPrice,
     entry_price: currentPrice,
     stop_loss: stopLoss,
     take_profit: takeProfit,
-    score: Math.round(score),
-    confidence: score / 100,
-    timeframe,
+    score: Math.round(totalScore),
+    confidence,
     source: 'real_time_scanner',
-    algo: 'aitradex1_professional',
-    atr,
+    algo: 'professional_v1',
+    bar_time: new Date(bars[bars.length - 1].time).toISOString(),
     exchange: 'bybit',
-    exchange_source: 'bybit',
-    is_active: true,
-    risk: 1.0,
-    algorithm_version: 'v3.0',
-    execution_priority: Math.round(score),
+    atr: indicators.atr,
     metadata: {
-      grade: score > 90 ? 'A+' : score > 85 ? 'A' : score > 80 ? 'B+' : score > 75 ? 'B' : 'C',
+      grade: totalScore >= 85 ? 'A' : totalScore >= 75 ? 'B' : 'C',
       data_source: 'live_market',
       verified_real_data: true,
-      confluence_factors: Math.round(score / 8), // Number of confirming factors
-      professional_grade: true,
-      technical_setup: {
-        trend: overallBullish ? 'strong_bullish' : overallBearish ? 'strong_bearish' : 'neutral',
-        momentum: rsiOversold ? 'oversold_bounce' : rsiOverbought ? 'overbought_reversal' : 'momentum_follow',
-        volume_profile: strongVolume ? 'strong_confirmation' : weakVolume ? 'weak_volume' : 'normal',
-        volatility_regime: highVolatility ? 'high_vol' : 'normal_vol'
+      technical_indicators: {
+        rsi: indicators.rsi,
+        macd: indicators.macd,
+        adx: indicators.adx,
+        stoch_k: indicators.stoch_k,
+        volume_ratio: indicators.volume_ratio
       }
     },
-    market_conditions: {
-      trend_strength: adx > 30 ? 'very_strong' : adx > 25 ? 'strong' : adx > 20 ? 'moderate' : 'weak',
-      momentum_state: rsiOverbought ? 'overbought' : rsiOversold ? 'oversold' : 'neutral',
-      volume_pattern: strongVolume ? 'accumulation' : weakVolume ? 'distribution' : 'balanced',
-      volatility_level: highVolatility ? 'high' : normalVolatility ? 'normal' : 'low'
-    },
     indicators: {
-      rsi: Math.round(rsi * 10) / 10,
-      macd: Math.round(macd * 10000) / 10000,
-      macd_signal: Math.round(macdSignal * 10000) / 10000,
-      macd_histogram: Math.round(macdHistogram * 10000) / 10000,
-      stoch_k: Math.round(stochK * 10) / 10,
-      stoch_d: Math.round(stochD * 10) / 10,
-      adx: Math.round(adx * 10) / 10,
-      plus_di: Math.round(plusDI * 10) / 10,
-      minus_di: Math.round(minusDI * 10) / 10,
-      atr: Math.round(atr * 100) / 100,
-      volume_ratio: Math.round(volumeRatio * 100) / 100,
-      volatility: Math.round(volatility * 100) / 100,
-      bollinger_position: Math.round(((currentPrice - bollingerLower) / (bollingerUpper - bollingerLower)) * 100)
+      rsi: indicators.rsi,
+      macd: indicators.macd,
+      adx: indicators.adx,
+      atr: indicators.atr,
+      ema21: indicators.ema21,
+      ema200: indicators.ema200,
+      stoch_k: indicators.stoch_k,
+      stoch_d: indicators.stoch_d,
+      volume_ratio: indicators.volume_ratio
+    },
+    market_conditions: {
+      trend: indicators.ema21 > indicators.ema200 ? 'bullish' : 'bearish',
+      volume: indicators.volume_ratio > 1.5 ? 'high' : 'normal',
+      momentum: indicators.adx > 25 ? 'strong' : 'weak'
     },
     diagnostics: {
-      signal_quality: score > 90 ? 'institutional_grade' : score > 85 ? 'professional' : score > 80 ? 'high_quality' : 'acceptable',
-      risk_assessment: volatility > 3 ? 'high_risk' : volatility > 1.5 ? 'medium_risk' : 'low_risk',
-      execution_timing: strongTrend ? 'immediate' : 'wait_for_confirmation',
-      confidence_level: score > 85 ? 'very_high' : score > 75 ? 'high' : 'moderate',
-      stop_loss_atr: stopLossATR.toFixed(1),
-      take_profit_atr: takeProfitATR.toFixed(1),
-      risk_reward_ratio: (takeProfitATR / stopLossATR).toFixed(1)
-    }
+      market_phase: indicators.adx > 25 ? 'trending' : 'ranging',
+      signal_quality: totalScore >= 85 ? 'excellent' : totalScore >= 75 ? 'good' : 'acceptable',
+      confluence_factors: Math.round((bullScore + bearScore) / 10)
+    },
+    risk: 1.0,
+    algorithm_version: 'v1.0',
+    execution_priority: Math.round(totalScore),
+    is_active: true,
+    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
   };
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseKey)
 
-    console.log('🚀 [real-time-scanner] Starting professional-grade market analysis...');
+    console.log('🚀 [real-time-scanner] Starting professional signal scanning...')
 
-    const signals = [];
-    const timeframes = ['15m', '1h'];
-    
-    // Process top crypto symbols with professional analysis
-    for (const symbol of CRYPTO_SYMBOLS.slice(0, 8)) { // Top 8 for quality analysis
-      for (const timeframe of timeframes) {
-        try {
-          console.log(`📊 Analyzing ${symbol} ${timeframe}...`);
-          
-          const ohlcv = await fetchOHLCVData(symbol, timeframe, 200);
-          if (ohlcv.length < 100) {
-            console.log(`⚠️ Insufficient data for ${symbol} ${timeframe}: ${ohlcv.length} bars`);
-            continue;
-          }
-          
-          const indicators = calculateAllIndicators(ohlcv);
-          const currentPrice = ohlcv[ohlcv.length - 1].close;
-          
-          const signal = generateProfessionalSignal(symbol, indicators, currentPrice, timeframe);
-          
-          if (signal && signal.score >= 75) { // Professional threshold
-            signals.push(signal);
-            console.log(`✅ ${signal.direction} signal for ${symbol} ${timeframe}: ${signal.score}% (${signal.metadata.grade})`);
-          }
-        } catch (error) {
-          console.error(`❌ Error analyzing ${symbol} ${timeframe}:`, error);
+    const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'SOLUSDT', 'DOTUSDT', 'LINKUSDT'];
+    const generatedSignals = [];
+    let processedCount = 0;
+    let failedCount = 0;
+
+    for (const symbol of symbols) {
+      try {
+        console.log(`📊 Analyzing ${symbol} with professional indicators...`);
+        
+        const bars = await fetchCryptoData(symbol);
+        if (bars.length < 50) {
+          console.log(`⚠️ Insufficient data for ${symbol}, skipping...`);
+          continue;
         }
+        
+        const indicators = calculateTechnicalIndicators(bars);
+        const signal = generateProfessionalSignal(symbol, bars, indicators);
+        
+        if (signal) {
+          console.log(`✅ Generated ${signal.direction} signal for ${symbol} (score: ${signal.score})`);
+          generatedSignals.push(signal);
+        }
+        
+        processedCount++;
+      } catch (error) {
+        console.error(`❌ Error processing ${symbol}:`, error);
+        failedCount++;
       }
     }
 
-    if (signals.length === 0) {
-      console.log('⚠️ No professional-grade signals found in current market conditions');
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'No professional-grade signals found',
-        signals_created: 0,
-        market_note: 'Waiting for clearer technical setups',
-        timestamp: new Date().toISOString()
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // Insert high-quality signals into database
+    if (generatedSignals.length > 0) {
+      const { error: insertError } = await supabase
+        .from('signals')
+        .insert(generatedSignals);
+
+      if (insertError) {
+        console.error('❌ Error inserting signals:', insertError);
+        throw insertError;
+      }
+
+      console.log(`✅ [real-time-scanner] Successfully inserted ${generatedSignals.length} professional signals`);
+    } else {
+      console.log('⚠️ No high-quality signals generated this scan');
     }
-
-    // Insert only high-conviction signals
-    const insertResults = await Promise.allSettled(
-      signals.map(signal => 
-        supabase.from('signals').insert({
-          ...signal,
-          created_at: new Date().toISOString(),
-          bar_time: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        })
-      )
-    );
-
-    const successful = insertResults.filter(r => r.status === 'fulfilled').length;
-    const failed = insertResults.filter(r => r.status === 'rejected').length;
-    const avgScore = signals.reduce((sum, s) => sum + s.score, 0) / signals.length;
-
-    console.log(`✅ Professional scanner complete: ${successful} signals created (avg: ${avgScore.toFixed(1)}%)`);
 
     return new Response(JSON.stringify({
       success: true,
-      signals_created: successful,
-      signals_failed: failed,
-      average_score: avgScore.toFixed(1),
-      grade_distribution: {
-        'A+': signals.filter(s => s.metadata.grade === 'A+').length,
-        'A': signals.filter(s => s.metadata.grade === 'A').length,
-        'B+': signals.filter(s => s.metadata.grade === 'B+').length,
-        'B': signals.filter(s => s.metadata.grade === 'B').length,
-        'C': signals.filter(s => s.metadata.grade === 'C').length
-      },
-      market_analysis: {
-        symbols_scanned: CRYPTO_SYMBOLS.slice(0, 8).length,
-        timeframes_analyzed: timeframes.length,
-        total_combinations: CRYPTO_SYMBOLS.slice(0, 8).length * timeframes.length,
-        success_rate: `${((successful / (CRYPTO_SYMBOLS.slice(0, 8).length * timeframes.length)) * 100).toFixed(1)}%`
-      },
-      top_signals: signals
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 3)
-        .map(s => ({
-          symbol: s.symbol,
-          direction: s.direction,
-          score: s.score,
-          grade: s.metadata.grade,
-          timeframe: s.timeframe
-        })),
+      signals_generated: generatedSignals.length,
+      symbols_processed: processedCount,
+      symbols_failed: failedCount,
+      total_symbols: symbols.length,
+      scanner_type: 'professional_real_time',
       timestamp: new Date().toISOString()
-    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
 
   } catch (error) {
-    console.error('❌ [real-time-scanner] Critical error:', error);
+    console.error('❌ [real-time-scanner] Error:', error);
+    
     return new Response(JSON.stringify({
       success: false,
       error: error.message,
+      scanner_type: 'professional_real_time',
       timestamp: new Date().toISOString()
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
-});
+})
