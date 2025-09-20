@@ -27,7 +27,7 @@ import MainLayout from '@/layouts/MainLayout';
 import RealtimeSignalsFeed from '@/components/RealtimeSignalsFeed';
 import PlatformActivation from '@/components/PlatformActivation';
 import SystemStatus from '@/components/SystemStatus';
-import HealthCheck from '@/components/HealthCheck';
+
 import StrategySignalsTab from '@/components/StrategySignalsTab';
 
 interface SystemMetrics {
@@ -326,7 +326,6 @@ const Dashboard = () => {
           {/* Platform Activation Tab */}
           <TabsContent value="activation" className="space-y-6">
             <PlatformActivation />
-            <HealthCheck />
           </TabsContent>
 
           <TabsContent value="strategy" className="space-y-6">

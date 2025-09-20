@@ -1,6 +1,6 @@
 import MainLayout from '@/layouts/MainLayout';
 import TradingDiagnostics from '@/components/TradingDiagnostics';
-import { TradingConnectionTest } from '@/components/TradingConnectionTest';
+
 import { ProductionControls } from '@/components/ProductionControls';
 import { TestnetTradeTest } from '@/components/TestnetTradeTest';
 import AutoTradingToggle from '@/components/AutoTradingToggle';
@@ -25,7 +25,7 @@ export default function Settings() {
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-6 lg:grid-cols-2">
           <div>
             <h2 className="text-xl font-semibold mb-4">Automation Control</h2>
             <AutoTradingToggle />
@@ -36,10 +36,6 @@ export default function Settings() {
             <ProductionControls />
           </div>
           
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Quick Tests</h2>
-            <TradingConnectionTest />
-          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">

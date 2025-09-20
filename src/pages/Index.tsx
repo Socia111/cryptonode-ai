@@ -18,10 +18,7 @@ import {
 } from 'lucide-react';
 import MainLayout from '../layouts/MainLayout';
 import TradingDashboard from '../components/TradingDashboard';
-import { TradingTest } from '@/components/TradingTest';
 import SystemDiagnostics from '@/components/SystemDiagnostics';
-import ComprehensiveSystemTest from '@/components/ComprehensiveSystemTest';
-import TestSignalGenerator from '@/components/TestSignalGenerator';
 
 const Index = () => {
   return (
@@ -196,10 +193,7 @@ const Index = () => {
             <TradingDashboard />
           </div>
           <div className="lg:w-96 space-y-6">
-            <TradingTest />
             <SystemDiagnostics />
-            <ComprehensiveSystemTest />
-            <TestSignalGenerator />
           </div>
         </div>
       </div>
