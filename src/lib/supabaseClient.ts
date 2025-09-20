@@ -7,8 +7,8 @@ import { supabase } from '@/integrations/supabase/client';
 // A tiny health check that *really* verifies connectivity + RLS
 export async function isSupabaseConfigured(): Promise<boolean> {
   try {
-    // Choose a public-read table; markets is ideal if you created it
-    const { error } = await supabase.from('markets').select('id').limit(1);
+    // Use signals table which has proper permissions and is always available
+    const { error } = await supabase.from('signals').select('id').limit(1);
     if (error) {
       console.warn('[Supabase] Config present but query failed:', error.message);
       return false;
