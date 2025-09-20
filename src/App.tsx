@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
 import { isSupabaseConfigured } from '@/lib/supabaseClient';
@@ -46,6 +47,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <PWAInstallPrompt />
           <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
