@@ -1,5 +1,11 @@
 project_id = "codhlwjogfjywmjyjbbn"
 
+[functions.unified-signal-engine]
+verify_jwt = false
+
+[functions.crypto-scheduler]
+verify_jwt = false
+
 [functions.test-signal-generation]
 verify_jwt = false
 
@@ -7,9 +13,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.add-testnet-balance]
-verify_jwt = false
-
-[functions.live-signals-generator]
 verify_jwt = false
 
 [functions.live-price-feed]
@@ -22,12 +25,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.enable-all-symbols]
-verify_jwt = false
-
-[functions.enhanced-signal-generation]
-verify_jwt = false
-
-[functions.real-time-scanner]
 verify_jwt = false
 
 [functions.aitradex1-enhanced-scanner]
