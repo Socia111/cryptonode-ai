@@ -129,12 +129,17 @@ async function bybitRequest(
 serve(async (req) => {
   // Preflight: never fail, reflect additional requested headers
   if (req.method === "OPTIONS") {
-    const reqHdrs = req.headers.get("access-control-request-headers") ?? "";
-    const headers = {
-      ...baseCors,
-      "Access-Control-Allow-Headers": `${baseCors["Access-Control-Allow-Headers"]}${reqHdrs ? `, ${reqHdrs}` : ""}`,
-    };
-    return new Response("ok", { status: 204, headers });
+    try {
+      const reqHdrs = req.headers.get("access-control-request-headers") ?? "";
+      const headers = {
+        ...baseCors,
+        "Access-Control-Allow-Headers": `${baseCors["Access-Control-Allow-Headers"]}${reqHdrs ? `, ${reqHdrs}` : ""}`,
+      };
+      return new Response("ok", { status: 204, headers });
+    } catch (error) {
+      console.error('OPTIONS request error:', error);
+      return new Response("ok", { status: 204, headers: baseCors });
+    }
   }
 
   try {
