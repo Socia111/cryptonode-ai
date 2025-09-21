@@ -26,11 +26,11 @@ const AItradeX1ScannerChart: React.FC = () => {
   const [timeRemaining, setTimeRemaining] = useState(60);
   const [isActive, setIsActive] = useState(false);
 
-  // Filter for AItradeX1 signals: 15m and 30m timeframes with ROI over 5%
+  // Filter for AItradeX1 signals: 1h timeframe with ROI over 5%
   const activeSignals = signals.filter(signal => 
     signal.status === 'active' && 
     signal.confidence_score >= 70 &&
-    (signal.timeframe === '15m' || signal.timeframe === '30m') &&
+    signal.timeframe === '1h' &&
     signal.roi_projection > 5
   );
 

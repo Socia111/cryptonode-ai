@@ -324,8 +324,8 @@ const TradePlanGenerator = () => {
             <div>
               <h4 className="font-medium mb-3">Winning Formula:</h4>
               <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>• Focus on 15m timeframe for balance</li>
-                <li>• Use 5-10x leverage based on liquidity</li>
+                <li>• Focus on 1h timeframe for stability</li>
+                <li>• Use 3-5x leverage based on liquidity</li>
                 <li>• Strict 2% risk per trade, max 3 positions</li>
                 <li>• Only trade 80%+ confidence signals</li>
                 <li>• Minimum 2:1 risk-reward ratio</li>

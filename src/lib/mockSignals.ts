@@ -16,7 +16,7 @@ export type MockSignal = {
 
 export function generateMockSignals(): MockSignal[] {
   const symbols = ['BTCUSDT', 'ETHUSDT', 'ADAUSDT', 'DOTUSDT', 'LINKUSDT'];
-  const timeframes = ['5m', '15m', '1h', '4h'];
+  const timeframes = ['1h']; // Only 1h signals now
   const algorithms = ['AItradeX1', 'Enhanced', 'Confluence'];
   
   return symbols.map((symbol, index) => {
