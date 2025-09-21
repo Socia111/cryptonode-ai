@@ -41,7 +41,7 @@ serve(async (req) => {
 
     // Major crypto pairs for comprehensive scanning
     const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'SOLUSDT', 'DOTUSDT', 'LINKUSDT'];
-    const timeframes = ['1h']; // Only 1-hour signals
+    const timeframes = ['1h']; // ONLY 1-hour signals allowed - updated for final enforcement
     const signals = [];
 
     for (const symbol of symbols) {
