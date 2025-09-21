@@ -148,100 +148,114 @@ function generateSignal(candles: OHLCV[], symbol: string, timeframe: string) {
   const ema200 = calculateEMA(closes, 200);
 
   // === Indicators ===
-  const stoch = calculateStochRSI(candles, settings.stoch.k, settings.stoch.d, settings.stoch.smooth);
+  const stoch = calculateStochRSI(candles, 14, 14, 3, 3);
   const dmiVals = calculateDMI(candles, settings.dmi.length, settings.dmi.adxSmoothing);
   const hvpVals = calculateHVP(candles, settings.hvp.length, settings.hvp.percentileLookback);
 
   const volSMA20 = calculateSMA(volumes, 20);
-  const isVolSpike = volume > settings.volSpikeFactor * volSMA20;
+  const volSpike = volume > settings.volSpikeFactor * volSMA20;
 
   // === Trend Regime ===
-  const bullRegime = close > sma200 && close > ema200;
-  const bearRegime = close < sma200 && close < ema200;
+  const bull = close > sma200 && close > ema200;
+  const bear = close < sma200 && close < ema200;
 
-  // === Long Setup ===
-  if (bullRegime && pullbackTo(close, ema21, ema50)) {
-    if (stoch.k > stoch.d && stoch.k < 30 && dmiVals.plusDI > dmiVals.minusDI && dmiVals.adx > 20) {
-      if (isVolSpike || hvpVals.expanding) {
-        const entry = close;
-        const stopLoss = Math.min(sma200, ema200);
-        const risk = entry - stopLoss;
-        const tp1 = entry + risk * settings.riskReward.tp1;
-        const tp2 = entry + risk * settings.riskReward.tp2;
+  // === Pullback Zone ===
+  const inPullback = close >= Math.min(ema21, ema50) && close <= Math.max(ema21, ema50);
 
-        return {
-          side: "LONG",
-          entry,
-          stopLoss,
-          takeProfits: [tp1, tp2],
-          confidence: "☄️ HIGH",
-          score: calculateScore(stoch, dmiVals, hvpVals, isVolSpike, true),
-          confidenceScore: 0.85,
-          filters: {
-            stochRSI: { k: stoch.k, d: stoch.d },
-            dmi: { plusDI: dmiVals.plusDI, minusDI: dmiVals.minusDI, adx: dmiVals.adx },
-            hvp: { value: hvpVals.value, expanding: hvpVals.expanding },
-            volumeSpike: isVolSpike
-          }
-        };
-      }
+  // === Scoring System ===
+  let score = 70;
+
+  // === LONG Setup ===
+  if (bull && inPullback && stoch.k > stoch.d && stoch.k < 30 && dmiVals.plusDI > dmiVals.minusDI && dmiVals.adx > 20) {
+    if (stoch.k < 20) score += 10;
+    if (dmiVals.adx > 25) score += 10;
+    if (dmiVals.adx > 30) score += 5;
+    if (hvpVals.expanding) score += 10;
+    if (volSpike) score += 10;
+
+    if (score >= 75) {
+      const entry = close;
+      const stopLoss = Math.min(sma200, ema200);
+      const risk = entry - stopLoss;
+      const tp1 = entry + risk * settings.riskReward.tp1;
+      const tp2 = entry + risk * settings.riskReward.tp2;
+
+      return {
+        side: "LONG",
+        entry,
+        stopLoss,
+        takeProfits: [tp1, tp2],
+        confidence: score >= 85 ? "☄️ HIGH" : score >= 75 ? "☢️ MEDIUM" : "🦾 CONSERVATIVE",
+        score,
+        confidenceScore: score / 100,
+        filters: {
+          stochRSI: { k: stoch.k, d: stoch.d },
+          dmi: { plusDI: dmiVals.plusDI, minusDI: dmiVals.minusDI, adx: dmiVals.adx },
+          hvp: hvpVals,
+          volumeSpike: volSpike
+        }
+      };
     }
   }
 
-  // === Short Setup ===
-  if (bearRegime && pullbackTo(close, ema21, ema50)) {
-    if (stoch.k < stoch.d && stoch.k > 70 && dmiVals.minusDI > dmiVals.plusDI && dmiVals.adx > 20) {
-      if (isVolSpike || hvpVals.expanding) {
-        const entry = close;
-        const stopLoss = Math.max(sma200, ema200);
-        const risk = stopLoss - entry;
-        const tp1 = entry - risk * settings.riskReward.tp1;
-        const tp2 = entry - risk * settings.riskReward.tp2;
+  // === SHORT Setup ===
+  if (bear && inPullback && stoch.k < stoch.d && stoch.k > 70 && dmiVals.minusDI > dmiVals.plusDI && dmiVals.adx > 20) {
+    if (stoch.k > 80) score += 10;
+    if (dmiVals.adx > 25) score += 10;
+    if (dmiVals.adx > 30) score += 5;
+    if (hvpVals.expanding) score += 10;
+    if (volSpike) score += 10;
 
-        return {
-          side: "SHORT",
-          entry,
-          stopLoss,
-          takeProfits: [tp1, tp2],
-          confidence: "☄️ HIGH",
-          score: calculateScore(stoch, dmiVals, hvpVals, isVolSpike, false),
-          confidenceScore: 0.85,
-          filters: {
-            stochRSI: { k: stoch.k, d: stoch.d },
-            dmi: { plusDI: dmiVals.plusDI, minusDI: dmiVals.minusDI, adx: dmiVals.adx },
-            hvp: { value: hvpVals.value, expanding: hvpVals.expanding },
-            volumeSpike: isVolSpike
-          }
-        };
-      }
+    if (score >= 75) {
+      const entry = close;
+      const stopLoss = Math.max(sma200, ema200);
+      const risk = stopLoss - entry;
+      const tp1 = entry - risk * settings.riskReward.tp1;
+      const tp2 = entry - risk * settings.riskReward.tp2;
+
+      return {
+        side: "SHORT",
+        entry,
+        stopLoss,
+        takeProfits: [tp1, tp2],
+        confidence: score >= 85 ? "☄️ HIGH" : score >= 75 ? "☢️ MEDIUM" : "🦾 CONSERVATIVE",
+        score,
+        confidenceScore: score / 100,
+        filters: {
+          stochRSI: { k: stoch.k, d: stoch.d },
+          dmi: { plusDI: dmiVals.plusDI, minusDI: dmiVals.minusDI, adx: dmiVals.adx },
+          hvp: hvpVals,
+          volumeSpike: volSpike
+        }
+      };
     }
   }
 
   return null;
 }
 
-function pullbackTo(price: number, emaLow: number, emaHigh: number): boolean {
-  return price >= emaLow && price <= emaHigh;
+function calculateTrueRange(candles: OHLCV[], index: number): number {
+  if (index === 0) return candles[index].high - candles[index].low;
+  
+  const current = candles[index];
+  const previous = candles[index - 1];
+  
+  return Math.max(
+    current.high - current.low,
+    Math.abs(current.high - previous.close),
+    Math.abs(current.low - previous.close)
+  );
 }
 
-function calculateScore(stoch: any, dmi: any, hvp: any, volSpike: boolean, isLong: boolean): number {
-  let score = 70; // Base score
-
-  // Stoch RSI quality
-  if (isLong && stoch.k < 20) score += 10;
-  if (!isLong && stoch.k > 80) score += 10;
-
-  // DMI/ADX strength
-  if (dmi.adx > 25) score += 10;
-  if (dmi.adx > 30) score += 5;
-
-  // HVP expansion
-  if (hvp.expanding) score += 10;
-
-  // Volume confirmation
-  if (volSpike) score += 10;
-
-  return Math.min(score, 95);
+function calculateATR(candles: OHLCV[], period: number): number {
+  if (candles.length < period) return 0;
+  
+  const trValues = [];
+  for (let i = 1; i < candles.length; i++) {
+    trValues.push(calculateTrueRange(candles, i));
+  }
+  
+  return calculateSMA(trValues.slice(-period), period);
 }
 
 function getExpiryTime(timeframe: string): number {
@@ -265,14 +279,31 @@ function calculateSMA(data: number[], period: number): number {
   return data.slice(-period).reduce((a, b) => a + b, 0) / period;
 }
 
-function calculateStochRSI(candles: OHLCV[], kLength: number, dLength: number, smooth: number) {
+function calculateStochRSI(candles: OHLCV[], rsiLength: number, stochLength: number, kSmooth: number, dSmooth: number) {
   const closes = candles.map(c => c.close);
-  const rsi = calculateRSI(closes, 14);
-  const rsiArray = [rsi]; // Simplified for single value
   
-  // Stochastic of RSI
-  const k = ((rsi - 0) / (100 - 0)) * 100; // Simplified calculation
-  const d = k; // Simplified
+  // Calculate RSI values for the last 'stochLength' periods
+  const rsiValues = [];
+  for (let i = rsiLength; i < closes.length; i++) {
+    const rsi = calculateRSI(closes.slice(0, i + 1), rsiLength);
+    rsiValues.push(rsi);
+  }
+  
+  if (rsiValues.length < stochLength) {
+    return { k: 50, d: 50 }; // Default values
+  }
+  
+  // Get the last 'stochLength' RSI values
+  const recentRSI = rsiValues.slice(-stochLength);
+  const minRSI = Math.min(...recentRSI);
+  const maxRSI = Math.max(...recentRSI);
+  const currentRSI = rsiValues[rsiValues.length - 1];
+  
+  // Calculate Stochastic of RSI
+  const k = maxRSI !== minRSI ? ((currentRSI - minRSI) / (maxRSI - minRSI)) * 100 : 50;
+  
+  // Smooth %K to get %D (simple average for now)
+  const d = k; // Simplified - in practice you'd smooth this
   
   return { k, d };
 }
@@ -291,24 +322,66 @@ function calculateRSI(data: number[], period: number): number {
 }
 
 function calculateDMI(candles: OHLCV[], length: number, adxSmoothing: number) {
-  if (candles.length < length + 1) return { plusDI: 0, minusDI: 0, adx: 0 };
+  if (candles.length < length + 1) return { plusDI: 20, minusDI: 20, adx: 25 };
   
-  const highs = candles.map(c => c.high);
-  const lows = candles.map(c => c.low);
-  const closes = candles.map(c => c.close);
+  const trueRanges = [];
+  const plusDMs = [];
+  const minusDMs = [];
   
-  // Simplified DMI calculation
-  const plusDI = 25; // Placeholder
-  const minusDI = 15; // Placeholder  
-  const adx = 28; // Placeholder
+  // Calculate True Range, +DM, and -DM
+  for (let i = 1; i < candles.length; i++) {
+    const tr = calculateTrueRange(candles, i);
+    trueRanges.push(tr);
+    
+    const highDiff = candles[i].high - candles[i - 1].high;
+    const lowDiff = candles[i - 1].low - candles[i].low;
+    
+    const plusDM = highDiff > lowDiff && highDiff > 0 ? highDiff : 0;
+    const minusDM = lowDiff > highDiff && lowDiff > 0 ? lowDiff : 0;
+    
+    plusDMs.push(plusDM);
+    minusDMs.push(minusDM);
+  }
+  
+  // Calculate smoothed averages
+  const atrSmoothed = calculateSMA(trueRanges.slice(-length), length);
+  const plusDMSmoothed = calculateSMA(plusDMs.slice(-length), length);
+  const minusDMSmoothed = calculateSMA(minusDMs.slice(-length), length);
+  
+  // Calculate DI values
+  const plusDI = atrSmoothed !== 0 ? (plusDMSmoothed / atrSmoothed) * 100 : 0;
+  const minusDI = atrSmoothed !== 0 ? (minusDMSmoothed / atrSmoothed) * 100 : 0;
+  
+  // Calculate ADX
+  const dx = (plusDI + minusDI) !== 0 ? Math.abs(plusDI - minusDI) / (plusDI + minusDI) * 100 : 0;
+  const adx = dx; // Simplified - should be smoothed
   
   return { plusDI, minusDI, adx };
 }
 
 function calculateHVP(candles: OHLCV[], length: number, lookback: number) {
-  // Historical Volatility Percentile (simplified)
-  const value = 65; // Placeholder percentile value
-  const expanding = value > 50; // Expanding if above median
+  if (candles.length < lookback) return { value: 50, expanding: false };
   
-  return { value, expanding };
+  // Calculate historical volatility using ATR
+  const atrValues = [];
+  for (let i = length; i < candles.length; i++) {
+    const atr = calculateATR(candles.slice(i - length, i + 1), length);
+    atrValues.push(atr);
+  }
+  
+  if (atrValues.length < lookback) return { value: 50, expanding: false };
+  
+  // Get recent ATR values for percentile calculation
+  const recentATRs = atrValues.slice(-lookback);
+  const currentATR = atrValues[atrValues.length - 1];
+  
+  // Calculate percentile rank
+  const sortedATRs = [...recentATRs].sort((a, b) => a - b);
+  const rank = sortedATRs.findIndex(val => val >= currentATR);
+  const percentile = (rank / sortedATRs.length) * 100;
+  
+  // Determine if volatility is expanding (above 70th percentile)
+  const expanding = percentile > 70;
+  
+  return { value: percentile, expanding };
 }
