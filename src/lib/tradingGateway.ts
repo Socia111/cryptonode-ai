@@ -62,15 +62,17 @@ export const TradingGateway = {
         leverage: leverage
       };
       
-      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
+      
+      const response = await fetch(`${functionsBase}/bybit-broker`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          action: 'place_order',
           symbol: params.symbol.replace('/', ''),
           side: params.side === 'BUY' ? 'Buy' : 'Sell',
-          amountUSD: amount,
-          leverage: leverage
+          qty: String((amount * leverage / 50000).toFixed(6)), // Approximate qty calculation
+          orderType: 'Market',
+          category: 'linear',
+          timeInForce: 'IOC'
         })
       });
 

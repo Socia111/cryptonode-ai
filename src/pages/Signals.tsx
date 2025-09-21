@@ -3,6 +3,7 @@ import MainLayout from '../layouts/MainLayout';
 import SignalsList from '../components/SignalsList';
 import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
 import TradePlanGenerator from '../components/TradePlanGenerator';
+import LiveTradeExecutor from '../components/LiveTradeExecutor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Zap, Target, Activity } from 'lucide-react';
 
@@ -26,6 +27,9 @@ const Signals = () => {
 
         {/* Trade Plan Generator */}
         <TradePlanGenerator />
+
+        {/* Live Trade Executor */}
+        <LiveTradeExecutor />
 
         {/* Signals List */}
         <SignalsList />

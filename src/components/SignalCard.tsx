@@ -84,24 +84,26 @@ export default function SignalCard({
                 const res = await TradingGateway.execute({
                   symbol: symbol,
                   side: side === 'Buy' ? 'BUY' : 'SELL',
-                  amountUSD: 25
+                  amountUSD: 25,
+                  leverage: 3 // Use moderate leverage for 1h signals
                 });
                 
                 if (res.ok) {
                   toast({
                     title: "✅ Trade Executed",
-                    description: `${symbol} ${side} trade placed successfully`,
+                    description: `${symbol} ${side} order placed successfully`,
                     variant: "default",
                   });
                   onExecute?.();
                 } else {
                   toast({
-                    title: "❌ Trade Failed",
+                    title: "❌ Trade Failed", 
                     description: res.message || 'Failed to execute trade',
                     variant: "destructive",
                   });
                 }
               } catch (error: any) {
+                console.error('Trade execution error:', error);
                 toast({
                   title: "❌ Trade Error",
                   description: error.message || 'Failed to execute trade',

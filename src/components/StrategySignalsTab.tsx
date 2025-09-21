@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import SignalCard from './SignalCard';
+import TradeExecutionButton from './TradeExecutionButton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Settings, Activity } from 'lucide-react';
@@ -17,6 +17,7 @@ type SignalRow = {
   metadata: any;
   is_active: boolean;
   created_at: string;
+  timeframe: string;
 };
 
 export default function StrategySignalsTab() {
@@ -246,17 +247,56 @@ export default function StrategySignalsTab() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
           {filteredSignals.map(signal => (
-            <SignalCard
+            <div 
               key={signal.id}
-              symbol={signal.symbol}
-              side={signal.direction === 'LONG' ? 'Buy' : 'Sell'}
-              entry={signal.entry_price}
-              sl={signal.stop_loss}
-              tp={signal.take_profit}
-              confidence={signal.score}
-              rr={calculateRR(signal)}
-              onExecute={() => handleExecuteSignal(signal)}
-            />
+              className={`p-4 rounded-lg border transition-all hover:scale-[1.02] ${
+                signal.direction === 'LONG' 
+                  ? 'bg-success/10 border-success/20' 
+                  : 'bg-destructive/10 border-destructive/20'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-3">
+                  <div className="text-lg font-bold">{signal.symbol}</div>
+                  <Badge 
+                    variant={signal.direction === 'LONG' ? 'default' : 'destructive'}
+                    className="text-xs"
+                  >
+                    {signal.direction}
+                  </Badge>
+                  <div className="text-sm text-muted-foreground">
+                    {signal.score}% confidence
+                  </div>
+                </div>
+                
+                <TradeExecutionButton
+                  signal={signal}
+                  amountUSD={25}
+                  leverage={leverage}
+                  onSuccess={() => console.log('Trade executed for:', signal.id)}
+                  onError={(error) => console.error('Trade failed:', error)}
+                />
+              </div>
+
+              <div className="grid grid-cols-4 gap-3 text-xs">
+                <div>
+                  <p className="text-muted-foreground">Entry</p>
+                  <p className="font-mono">${signal.entry_price.toFixed(4)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Stop Loss</p>
+                  <p className="font-mono text-destructive">${signal.stop_loss?.toFixed(4)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Take Profit</p>
+                  <p className="font-mono text-success">${signal.take_profit?.toFixed(4)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">R:R</p>
+                  <p className="font-mono">{calculateRR(signal)?.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       )}
