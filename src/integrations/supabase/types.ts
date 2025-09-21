@@ -232,6 +232,72 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_feedback: {
+        Row: {
+          allow_marketing: boolean
+          allow_review_request: boolean
+          created_at: string
+          customer_name: string
+          email: string
+          experience_highlights: string[] | null
+          feedback: string | null
+          group_size: number
+          guide_rating: number
+          id: string
+          improvement_suggestions: string | null
+          overall_rating: number
+          phone: string | null
+          recommend_to_friends: string
+          submitted_at: string
+          tour_date: string
+          tour_type: string
+          updated_at: string
+          value_rating: number
+        }
+        Insert: {
+          allow_marketing?: boolean
+          allow_review_request?: boolean
+          created_at?: string
+          customer_name: string
+          email: string
+          experience_highlights?: string[] | null
+          feedback?: string | null
+          group_size?: number
+          guide_rating: number
+          id?: string
+          improvement_suggestions?: string | null
+          overall_rating: number
+          phone?: string | null
+          recommend_to_friends: string
+          submitted_at?: string
+          tour_date: string
+          tour_type: string
+          updated_at?: string
+          value_rating: number
+        }
+        Update: {
+          allow_marketing?: boolean
+          allow_review_request?: boolean
+          created_at?: string
+          customer_name?: string
+          email?: string
+          experience_highlights?: string[] | null
+          feedback?: string | null
+          group_size?: number
+          guide_rating?: number
+          id?: string
+          improvement_suggestions?: string | null
+          overall_rating?: number
+          phone?: string | null
+          recommend_to_friends?: string
+          submitted_at?: string
+          tour_date?: string
+          tour_type?: string
+          updated_at?: string
+          value_rating?: number
+        }
+        Relationships: []
+      }
       edge_event_log: {
         Row: {
           created_at: string | null
@@ -754,6 +820,98 @@ export type Database = {
         }
         Relationships: []
       }
+      review_analytics: {
+        Row: {
+          average_rating: number | null
+          conversion_rate: number | null
+          created_at: string
+          date: string
+          id: string
+          review_requests_sent: number | null
+          reviews_received: number | null
+          total_feedback_received: number | null
+          updated_at: string
+        }
+        Insert: {
+          average_rating?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          date: string
+          id?: string
+          review_requests_sent?: number | null
+          reviews_received?: number | null
+          total_feedback_received?: number | null
+          updated_at?: string
+        }
+        Update: {
+          average_rating?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          date?: string
+          id?: string
+          review_requests_sent?: number | null
+          reviews_received?: number | null
+          total_feedback_received?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      review_requests: {
+        Row: {
+          created_at: string
+          customer_email: string
+          customer_feedback_id: string | null
+          customer_name: string
+          id: string
+          request_type: string
+          response_received: boolean | null
+          sent_at: string
+          status: string
+          template_language: string
+          tour_type: string
+          tripadvisor_review_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_email: string
+          customer_feedback_id?: string | null
+          customer_name: string
+          id?: string
+          request_type: string
+          response_received?: boolean | null
+          sent_at?: string
+          status?: string
+          template_language?: string
+          tour_type: string
+          tripadvisor_review_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string
+          customer_feedback_id?: string | null
+          customer_name?: string
+          id?: string
+          request_type?: string
+          response_received?: boolean | null
+          sent_at?: string
+          status?: string
+          template_language?: string
+          tour_type?: string
+          tripadvisor_review_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_requests_customer_feedback_id_fkey"
+            columns: ["customer_feedback_id"]
+            isOneToOne: false
+            referencedRelation: "customer_feedback"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
           booking_id: string | null
@@ -1090,6 +1248,42 @@ export type Database = {
           updated_at?: string
           usd_amount?: number
           user_id?: string
+        }
+        Relationships: []
+      }
+      tours: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_hours: number | null
+          id: string
+          is_active: boolean
+          max_group_size: number | null
+          name: string
+          price_euros: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_hours?: number | null
+          id?: string
+          is_active?: boolean
+          max_group_size?: number | null
+          name: string
+          price_euros?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_hours?: number | null
+          id?: string
+          is_active?: boolean
+          max_group_size?: number | null
+          name?: string
+          price_euros?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1728,6 +1922,10 @@ export type Database = {
         Returns: undefined
       }
       trigger_crypto_scheduler: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      update_daily_analytics: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
