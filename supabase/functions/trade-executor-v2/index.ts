@@ -231,51 +231,66 @@ async function placeOrder(supabase: any, orderRequest: OrderRequest): Promise<Re
 }
 
 async function executeBybitTrade(credentials: any, orderRequest: OrderRequest): Promise<ExecutionResult> {
-  const apiKey = credentials.api_key_encrypted;
-  const apiSecret = credentials.api_secret_encrypted;
-  const timestamp = Date.now().toString();
-  const recvWindow = '5000';
+  try {
+    const apiKey = credentials.api_key_encrypted;
+    const apiSecret = credentials.api_secret_encrypted;
+    
+    if (!apiKey || !apiSecret) {
+      throw new Error('Missing API credentials');
+    }
 
-  // Prepare order parameters
-  const orderParams = {
-    category: 'linear',
-    symbol: orderRequest.symbol,
-    side: orderRequest.side,
-    orderType: orderRequest.orderType,
-    qty: orderRequest.qty,
-    timeInForce: orderRequest.timeInForce || 'GTC',
-    ...(orderRequest.price && { price: orderRequest.price }),
-    ...(orderRequest.positionIdx !== undefined && { positionIdx: orderRequest.positionIdx }),
-    ...(orderRequest.reduceOnly && { reduceOnly: orderRequest.reduceOnly }),
-    ...(orderRequest.closeOnTrigger && { closeOnTrigger: orderRequest.closeOnTrigger })
-  };
+    const timestamp = Date.now().toString();
+    const recvWindow = '5000';
 
-  const queryString = new URLSearchParams(orderParams as any).toString();
-  const signature = await createBybitSignature(timestamp, apiKey, recvWindow, queryString, apiSecret);
-
-  const response = await fetch('https://api.bybit.com/v5/order/create', {
-    method: 'POST',
-    headers: {
-      'X-BAPI-API-KEY': apiKey,
-      'X-BAPI-SIGN': signature,
-      'X-BAPI-SIGN-TYPE': '2',
-      'X-BAPI-TIMESTAMP': timestamp,
-      'X-BAPI-RECV-WINDOW': recvWindow,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(orderParams)
-  });
-
-  const result = await response.json();
-
-  if (result.retCode === 0) {
-    return {
-      success: true,
-      order_id: result.result.orderId,
-      execution_details: result.result
+    // Prepare order parameters for Bybit V5 API
+    const orderParams = {
+      category: 'linear',
+      symbol: orderRequest.symbol,
+      side: orderRequest.side,
+      orderType: orderRequest.orderType,
+      qty: orderRequest.qty,
+      timeInForce: orderRequest.timeInForce || 'IOC',
+      ...(orderRequest.price && { price: orderRequest.price }),
+      ...(orderRequest.positionIdx !== undefined && { positionIdx: orderRequest.positionIdx }),
+      ...(orderRequest.reduceOnly && { reduceOnly: orderRequest.reduceOnly }),
+      ...(orderRequest.closeOnTrigger && { closeOnTrigger: orderRequest.closeOnTrigger })
     };
-  } else {
-    throw new Error(`Bybit API error: ${result.retMsg} (Code: ${result.retCode})`);
+
+    // Create signature for Bybit V5 API
+    const requestBody = JSON.stringify(orderParams);
+    const signature = await createBybitV5Signature(timestamp, apiKey, recvWindow, requestBody, apiSecret);
+
+    console.log(`📡 Executing trade: ${orderRequest.side} ${orderRequest.qty} ${orderRequest.symbol}`);
+
+    const response = await fetch('https://api.bybit.com/v5/order/create', {
+      method: 'POST',
+      headers: {
+        'X-BAPI-API-KEY': apiKey,
+        'X-BAPI-SIGN': signature,
+        'X-BAPI-SIGN-TYPE': '2',
+        'X-BAPI-TIMESTAMP': timestamp,
+        'X-BAPI-RECV-WINDOW': recvWindow,
+        'Content-Type': 'application/json'
+      },
+      body: requestBody
+    });
+
+    const result = await response.json();
+    console.log(`📊 Bybit API response: ${JSON.stringify(result)}`);
+
+    if (result.retCode === 0) {
+      return {
+        success: true,
+        order_id: result.result.orderId,
+        execution_details: result.result
+      };
+    } else {
+      throw new Error(`Bybit API error: ${result.retMsg} (Code: ${result.retCode})`);
+    }
+
+  } catch (error) {
+    console.error('❌ Trade execution failed:', error);
+    throw error;
   }
 }
 
@@ -418,6 +433,28 @@ async function getPositions(supabase: any): Promise<Response> {
     JSON.stringify({ success: true, positions: [] }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
+}
+
+async function createBybitV5Signature(timestamp: string, apiKey: string, recvWindow: string, requestBody: string, apiSecret: string): Promise<string> {
+  const message = timestamp + apiKey + recvWindow + requestBody;
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(apiSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    new TextEncoder().encode(message)
+  );
+  
+  return Array.from(new Uint8Array(signature))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 async function createBybitSignature(timestamp: string, apiKey: string, recvWindow: string, queryString: string, apiSecret: string): Promise<string> {
