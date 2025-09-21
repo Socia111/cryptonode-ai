@@ -41,15 +41,15 @@ serve(async (req) => {
 
     // Major crypto pairs for comprehensive scanning
     const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'SOLUSDT', 'DOTUSDT', 'LINKUSDT'];
-    const timeframes = ['15m', '1h', '4h', '1d'];
+    const timeframes = ['1h']; // Only 1-hour signals
     const signals = [];
 
     for (const symbol of symbols) {
       for (const timeframe of timeframes) {
         try {
-          // Fetch OHLCV data from Bybit
-          const interval = timeframe === '15m' ? '15' : timeframe === '1h' ? '60' : timeframe === '4h' ? '240' : 'D';
-          const limit = timeframe === '1d' ? 365 : 200;
+          // Fetch OHLCV data from Bybit - 1h interval
+          const interval = '60';  // 1 hour
+          const limit = 200;
           
           const klineUrl = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${interval}&limit=${limit}`;
           const response = await fetch(klineUrl);
@@ -259,8 +259,8 @@ function calculateATR(candles: OHLCV[], period: number): number {
 }
 
 function getExpiryTime(timeframe: string): number {
-  const multipliers = { '15m': 4, '1h': 12, '4h': 24, '1d': 7 * 24 };
-  return (multipliers[timeframe] || 12) * 60 * 60 * 1000;
+  // 1h signals expire after 4 hours
+  return 4 * 60 * 60 * 1000;
 }
 
 function calculateEMA(data: number[], period: number): number {
