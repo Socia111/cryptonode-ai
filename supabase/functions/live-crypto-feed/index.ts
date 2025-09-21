@@ -196,7 +196,7 @@ async function startRealTimeAITRADEX1Scanning(supabase: any) {
         
         await Promise.all(batch.map(async (symbol) => {
           try {
-            const data = await fetchRealTimeCryptoData(symbol, ['5m', '15m', '1h'])
+            const data = await fetchRealTimeCryptoData(symbol, ['1h']) // Only 1h signals
             const signals = await processAITRADEX1Signals(data, supabase)
             signalsFound += signals.length
             
@@ -232,7 +232,7 @@ async function startRealTimeAITRADEX1Scanning(supabase: any) {
     status: 'active',
     initial_signals: initialSignals,
     scan_interval: '5 minutes',
-    timeframes: ['5m', '15m', '1h']
+    timeframes: ['1h'] // Only 1h signals
   }
 }
 
@@ -356,10 +356,10 @@ async function fetchRealTimeCryptoData(symbol: string, timeframes: string[]) {
 
 function convertTimeframeToPeriodId(timeframe: string): string {
   const mapping: { [key: string]: string } = {
-    '1m': '1MIN', '5m': '5MIN', '15m': '15MIN', '30m': '30MIN',
+    '1m': '1MIN', '5m': '5MIN', '15m': '15MIN', '30m': '30MIN', // Legacy support
     '1h': '1HRS', '4h': '4HRS', '1d': '1DAY'
   }
-  return mapping[timeframe] || '15MIN'
+  return mapping[timeframe] || '1HRS' // Default to 1h instead of 15m
 }
 
 async function processAITRADEX1Signals(marketData: any, supabase: any) {
@@ -639,7 +639,7 @@ async function checkSignalCooldown(supabase: any, exchange: string, symbol: stri
   const cooldownWindows = {
     '1m': 2 * 60 * 1000,    // 2 minutes
     '5m': 3 * 60 * 1000,    // 3 minutes  
-    '15m': 10 * 60 * 1000,  // 10 minutes
+    '15m': 10 * 60 * 1000,  // 10 minutes (legacy)
     '30m': 20 * 60 * 1000,  // 20 minutes
     '1h': 30 * 60 * 1000,   // 30 minutes
     '4h': 2 * 60 * 60 * 1000, // 2 hours

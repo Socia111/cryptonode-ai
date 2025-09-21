@@ -78,7 +78,7 @@ serve(async (req) => {
         body: JSON.stringify({
           exchange: 'bybit',
           symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT'],
-          timeframes: ['15m', '1h', '4h']
+          timeframes: ['1h'] // Only 1h signals allowed
         })
       });
       
@@ -106,7 +106,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           exchange: 'bybit',
-          timeframe: '15m',
+          timeframe: '1h', // Only 1h signals
           symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']
         })
       });

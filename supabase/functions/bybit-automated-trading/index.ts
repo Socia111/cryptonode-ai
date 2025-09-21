@@ -264,7 +264,7 @@ serve(async (req) => {
           .select('*')
           .gte('confidence_score', config?.min_confidence_score || 80)
           .eq('status', 'active')
-          .in('timeframe', ['15m', '30m']) // AItradeX1 criteria
+          .in('timeframe', ['1h']) // Only 1h signals
           .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Last 2 hours
           .order('confidence_score', { ascending: false })
           .limit(config?.max_open_positions || 3);

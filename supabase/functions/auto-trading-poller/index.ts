@@ -23,7 +23,7 @@ serve(async (req) => {
     const { data: signalsToExecute, error: signalsError } = await supabase
       .rpc('fetch_signals_to_execute', {
         p_min_confidence: 80,
-        p_timeframes: ['15m', '30m'],
+        p_timeframes: ['1h'], // Only 1h signals
         p_limit: 10
       });
 

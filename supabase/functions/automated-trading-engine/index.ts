@@ -1276,7 +1276,7 @@ Deno.serve(async (req) => {
       risk_per_trade: 2, // 2% risk per trade
       max_open_positions: 5,
       min_confidence_score: 77, // Based on your signals data
-      timeframes: ['5m', '15m'],
+      timeframes: ['1h'], // Only 1h signals
       symbols_whitelist: [], // All symbols allowed
       symbols_blacklist: ['USDCUSDT'] // Exclude stablecoins
     };

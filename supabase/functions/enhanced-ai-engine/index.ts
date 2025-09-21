@@ -135,7 +135,7 @@ async function fetchAIMarketData(symbol: string) {
     const bybitBase = Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com'
     
     // Multi-timeframe data collection
-    const timeframes = ['5m', '15m', '1h', '4h']
+    const timeframes = ['1h'] // Only 1h signals allowed
     const marketData: any = { symbol, timeframes: {} }
     
     // Get current ticker
@@ -250,7 +250,7 @@ async function detectPatterns(data: any) {
   }
   
   // Reversal pattern detection
-  const reversalPattern = detectReversalPatterns(data.timeframes['15m'] || [])
+  const reversalPattern = detectReversalPatterns(data.timeframes['1h'] || [])
   if (reversalPattern.probability > 0.6) {
     patterns.push({
       type: 'reversal',

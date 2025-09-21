@@ -21,7 +21,7 @@ serve(async (req) => {
     const { symbols, timeframes, min_score } = await req.json()
     
     const targetSymbols = symbols || ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT']
-    const targetTimeframes = timeframes || ['5m', '15m', '1h']
+    const targetTimeframes = timeframes || ['1h'] // Only 1h signals
     const scoreThreshold = min_score || 65
 
     console.log(`🎯 Comprehensive analysis: ${targetSymbols.length} symbols, ${targetTimeframes.length} timeframes`)
