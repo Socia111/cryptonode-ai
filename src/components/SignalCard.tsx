@@ -1,5 +1,8 @@
 import React from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { AuthGuardedButton } from '@/components/AuthGuardedButton';
+import { TradingGateway } from '@/lib/tradingGateway';
+import { toast } from '@/hooks/use-toast';
 
 type Props = {
   symbol: string;
@@ -75,16 +78,46 @@ export default function SignalCard({
           <div className="text-muted-foreground text-sm font-medium">
             R:R {rr ? rr.toFixed(2) : '—'}
           </div>
-          <button
-            onClick={onExecute}
+          <AuthGuardedButton
+            onClick={async () => {
+              try {
+                const res = await TradingGateway.execute({
+                  symbol: symbol,
+                  side: side === 'Buy' ? 'BUY' : 'SELL',
+                  amountUSD: 25
+                });
+                
+                if (res.ok) {
+                  toast({
+                    title: "✅ Trade Executed",
+                    description: `${symbol} ${side} trade placed successfully`,
+                    variant: "default",
+                  });
+                  onExecute?.();
+                } else {
+                  toast({
+                    title: "❌ Trade Failed",
+                    description: res.message || 'Failed to execute trade',
+                    variant: "destructive",
+                  });
+                }
+              } catch (error: any) {
+                toast({
+                  title: "❌ Trade Error",
+                  description: error.message || 'Failed to execute trade',
+                  variant: "destructive",
+                });
+              }
+            }}
             className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all duration-200 hover:scale-105 ${
               isLong
                 ? 'bg-green-500 hover:bg-green-600 text-white shadow-lg'
                 : 'bg-red-500 hover:bg-red-600 text-white shadow-lg'
             }`}
+            size="sm"
           >
             Execute Trade
-          </button>
+          </AuthGuardedButton>
         </div>
       </div>
     </div>

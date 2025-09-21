@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Play, Clock, Target, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { AuthGuardedButton } from '@/components/AuthGuardedButton';
+import { TradingGateway } from '@/lib/tradingGateway';
+import { toast } from '@/hooks/use-toast';
 
 interface Signal {
   id: string;
@@ -174,9 +177,44 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
                     </div>
                   </div>
 
-                  <Button
+                  <AuthGuardedButton
                     size="sm"
-                    onClick={() => handleExecuteTrade(signal)}
+                    onClick={async () => {
+                      try {
+                        setExecutingSignals(prev => new Set(prev).add(signal.id));
+                        const res = await TradingGateway.execute({
+                          symbol: signal.symbol,
+                          side: signal.direction === 'LONG' ? 'BUY' : 'SELL',
+                          amountUSD: 25
+                        });
+                        
+                        if (res.ok) {
+                          toast({
+                            title: "✅ Trade Executed",
+                            description: `${signal.symbol} ${signal.direction} trade placed successfully`,
+                            variant: "default",
+                          });
+                        } else {
+                          toast({
+                            title: "❌ Trade Failed", 
+                            description: res.message || 'Failed to execute trade',
+                            variant: "destructive",
+                          });
+                        }
+                      } catch (error: any) {
+                        toast({
+                          title: "❌ Trade Error",
+                          description: error.message || 'Failed to execute trade',
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setExecutingSignals(prev => {
+                          const newSet = new Set(prev);
+                          newSet.delete(signal.id);
+                          return newSet;
+                        });
+                      }
+                    }}
                     disabled={executingSignals.has(signal.id)}
                     className="min-w-[80px]"
                   >
@@ -188,7 +226,7 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
                         Execute
                       </>
                     )}
-                  </Button>
+                  </AuthGuardedButton>
                 </div>
               </div>
             </Card>
