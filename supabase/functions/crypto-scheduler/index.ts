@@ -41,11 +41,11 @@ serve(async (req) => {
       });
     }
 
-    // Trigger multiple signal generation engines
-    console.log('📡 Triggering signal generation engines...');
+    // Trigger unified signal engine (1-hour signals only)
+    console.log('📡 Triggering unified signal engine for 1h signals...');
     
-    // Run enhanced signal generation
-    const enhancedResponse = await fetch(`${supabaseUrl}/functions/v1/enhanced-signal-generation`, {
+    // Run unified signal engine with 1h timeframe only
+    const unifiedResponse = await fetch(`${supabaseUrl}/functions/v1/unified-signal-engine`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${supabaseServiceKey}`,
@@ -53,33 +53,16 @@ serve(async (req) => {
       },
       body: JSON.stringify({ 
         scheduler: true,
-        symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT", "DOTUSDT", "BNBUSDT", "XRPUSDT", "LINKUSDT"]
-      })
-    });
-    
-    // Run live scanner production
-    const scannerResponse = await fetch(`${supabaseUrl}/functions/v1/live-scanner-production`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseServiceKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        exchange: "bybit",
-        timeframe: "15m",
-        relaxed_filters: true,
-        symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT", "DOTUSDT", "BNBUSDT", "XRPUSDT", "LINKUSDT"]
+        timeframes: ["1h"]
       })
     });
 
     // Parse results
-    const enhancedResult = await enhancedResponse.json();
-    const scannerResult = await scannerResponse.json();
+    const unifiedResult = await unifiedResponse.json();
     
-    console.log('Enhanced signal generation result:', enhancedResult);
-    console.log('Scanner result:', scannerResult);
+    console.log('Unified signal engine result:', unifiedResult);
     
-    const totalSignalsGenerated = (enhancedResult.signals_inserted || 0) + (scannerResult.signals_found || 0);
+    const totalSignalsGenerated = unifiedResult.signals_generated || 0;
     
     console.log(`📊 Total signals generated: ${totalSignalsGenerated}`);
 
@@ -93,8 +76,8 @@ serve(async (req) => {
         success_count: 1,
         metadata: {
           signals_generated: totalSignalsGenerated,
-          enhanced_signals: enhancedResult.signals_inserted || 0,
-          scanner_signals: scannerResult.signals_found || 0,
+          unified_signals: unifiedResult.signals_generated || 0,
+          algorithm: unifiedResult.algorithm || 'unified_1h',
           last_run: new Date().toISOString()
         }
       });
@@ -105,9 +88,9 @@ serve(async (req) => {
       success: true,
       scheduler_run: new Date().toISOString(),
       signals: {
-        enhanced: enhancedResult,
-        scanner: scannerResult,
-        total_generated: totalSignalsGenerated
+        unified: unifiedResult,
+        total_generated: totalSignalsGenerated,
+        algorithm: 'unified_1h_only'
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
