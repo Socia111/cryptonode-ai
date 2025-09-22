@@ -8,7 +8,7 @@ import { TradingGateway } from '@/lib/tradingGateway';
 import { toast } from '@/hooks/use-toast';
 import TradingDiagnostics from '@/components/TradingDiagnostics';
 import ManualAPITest from '@/components/ManualAPITest';
-import DirectBybitTest from '@/components/DirectBybitTest';
+// Remove DirectBybitTest import
 import BybitTradingAuth from '@/components/BybitTradingAuth';
 import TradingViewIntegration from '@/components/TradingViewIntegration';
 
@@ -95,10 +95,7 @@ const LiveTradingSetup = () => {
       
       <TradingViewIntegration />
       
-      {/* API Testing Components */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <DirectBybitTest />
-      </div>
+      {/* API Testing Components - DirectBybitTest removed */}
       
       <TradingDiagnostics />
       

@@ -50,7 +50,7 @@ const aiPlatforms = [
 ];
 
 const toolsItems = [
-  { title: "Backtests", url: "/backtests", icon: TestTube, description: "Strategy testing tools" },
+  // Remove backtests link
   { title: "Automation", url: "/automation", icon: Bot, description: "Automated trading setup" },
   { title: "Alerts", url: "/alerts", icon: Bell, description: "Notification management" },
 ];

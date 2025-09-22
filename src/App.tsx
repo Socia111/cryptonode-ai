@@ -20,7 +20,7 @@ import Trade from "./pages/Trade";
 import Portfolio from "./pages/Portfolio";
 import Signals from "./pages/Signals";
 import Markets from "./pages/Markets";
-import Backtests from "./pages/Backtests";
+// Remove unused imports
 import Automation from "./pages/Automation";
 import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/Settings";
@@ -63,7 +63,7 @@ function App() {
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/signals" element={<Signals />} />
             <Route path="/markets" element={<Markets />} />
-            <Route path="/backtests" element={<Backtests />} />
+            {/* Remove backtest route */}
             <Route path="/automation" element={<Automation />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/settings" element={<SettingsPage />} />

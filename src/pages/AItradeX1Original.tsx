@@ -6,7 +6,7 @@ import TradingChart from '../components/TradingChart';
 import PortfolioStats from '../components/PortfolioStats';
 import DatabaseSetup from '../components/DatabaseSetup';
 import TradingPanel from '../components/TradingPanel';
-import BacktestEngine from '../components/BacktestEngine';
+// Remove BacktestEngine import
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
@@ -64,7 +64,7 @@ const AItradeX1Original = () => {
           {/* Main Trading Chart */}
           <div className="lg:col-span-2 space-y-6">
             <TradingChart />
-            <BacktestEngine />
+            {/* BacktestEngine removed */}
           </div>
           
           {/* Signals Panel */}

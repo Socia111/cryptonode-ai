@@ -106,9 +106,9 @@ async function fetchSignals(): Promise<Signal[]> {
       return mapSignalsToInterface(allSignals);
     }
 
-    // Fallback to mock signals for demo purposes
-    console.log('[Signals] No live signals found, using demo signals');
-    return getMockSignals();
+    // No mock data anymore - return empty array if no real signals
+    console.log('[useSignals] No signals found in database');
+    return [];
 
   } catch (e) {
     console.error('[Signals] Failed to fetch signals:', e);
@@ -144,54 +144,23 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
     .slice(0, 20); // Limit to 20 most recent signals
 }
 
-function getMockSignals(): Signal[] {
-  // For development - show mock signals when no real signals available
-  const { generateMockSignals } = require('@/lib/mockSignals');
-  const mockData = generateMockSignals();
-  
-  return mockData.map((mock: any): Signal => ({
-    id: mock.id,
-    token: mock.symbol.replace('USDT', '/USDT'),
-    direction: mock.direction === 'LONG' ? 'BUY' : 'SELL',
-    signal_type: `${mock.algo} ${mock.timeframe}`,
-    timeframe: mock.timeframe,
-    entry_price: mock.price,
-    exit_target: mock.tp,
-    stop_loss: mock.sl,
-    leverage: 1,
-    confidence_score: mock.score,
-    pms_score: mock.score,
-    trend_projection: mock.direction === 'LONG' ? '⬆️' : '⬇️',
-    volume_strength: 1.0,
-    roi_projection: Math.abs((mock.tp - mock.price) / mock.price * 100),
-    signal_strength: mock.score > 90 ? 'STRONG' : mock.score > 85 ? 'MEDIUM' : 'WEAK',
-    risk_level: mock.score > 90 ? 'LOW' : mock.score > 85 ? 'MEDIUM' : 'HIGH',
-    quantum_probability: mock.score / 100,
-    status: 'active',
-    created_at: mock.created_at,
-  }));
-}
+// Remove mock signals function - no more mock data
 
 // Function removed - now using subscribeSignalsRealtime from @/lib/realtime
 
 export async function generateSignals() {
   try {
-    console.info('[generateSignals] Triggering 1h signal generation...');
+    console.info('[generateSignals] Triggering real signal generation from live market data...');
     
-    // Use the unified-signal-engine for 1h signals only
-    const { data, error } = await supabase.functions.invoke('unified-signal-engine', {
-      body: {
-        enforce_1h_only: true,
-        exchange: 'bybit'
-      }
-    });
+    // Use the new production signal generator
+    const { data, error } = await supabase.functions.invoke('production-signal-generator');
 
     if (error) {
       throw error;
     }
 
     const totalSignals = data?.signals_generated || 0;
-    console.info(`[generateSignals] Success: ${totalSignals} 1h signals generated`);
+    console.info(`[generateSignals] Success: ${totalSignals} real signals generated from Bybit API`);
     return { signals_created: totalSignals, success: true };
   } catch (e: any) {
     console.error('[generateSignals] Exception:', e);
