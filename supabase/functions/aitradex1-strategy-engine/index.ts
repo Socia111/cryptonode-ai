@@ -74,11 +74,12 @@ serve(async (req) => {
     });
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error('❌ Strategy engine error:', error);
     
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: errorMessage,
       timestamp: new Date().toISOString()
     }), {
       status: 500,
@@ -390,8 +391,9 @@ async function generateStrategySignals(supabase: any) {
         await new Promise(resolve => setTimeout(resolve, 100));
         
       } catch (error) {
-        console.error(`❌ Error analyzing ${symbol}:`, error.message);
-        errors.push({ symbol, error: error.message });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        console.error(`❌ Error analyzing ${symbol}:`, errorMessage);
+        errors.push({ symbol, error: errorMessage });
       }
     }
     

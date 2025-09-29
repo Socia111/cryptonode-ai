@@ -10,7 +10,7 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-console.log('🧠 AItradeX1 Strategy Engine - EMA21/SMA200 + StochRSI + ADX + Volatility')
+console.log('🧠 AItradeX1 Comprehensive Engine - EMA21/SMA200 + StochRSI + ADX + Volatility')
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -18,7 +18,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🎯 Starting strategy-based signal analysis...')
+    console.log('🎯 Starting comprehensive strategy-based signal analysis...')
 
     const results = []
     const errors = []
@@ -51,11 +51,11 @@ serve(async (req) => {
         // Enhanced signal with proper metadata
         const enhancedSignal = {
           ...signal,
-          source: 'aitradex1_strategy_engine',
+          source: 'aitradex1_comprehensive_engine',
           algo: 'ema21_sma200_stochrsi_adx_vol',
           metadata: {
             ...signal.metadata,
-            strategy: 'rule_based',
+            strategy: 'rule_based_comprehensive',
             indicators: 'ema21_sma200_stochrsi_adx_volatility',
             timeframe: '1h'
           }
@@ -65,12 +65,13 @@ serve(async (req) => {
         const inserted = await safeSignalInsert(enhancedSignal)
         if (inserted) {
           results.push(enhancedSignal)
-          console.log(`✅ Strategy signal: ${symbol} ${signal.direction} (Grade: ${signal.metadata?.grade}, Score: ${signal.score})`)
+          console.log(`✅ Comprehensive signal: ${symbol} ${signal.direction} (Grade: ${signal.metadata?.grade}, Score: ${signal.score})`)
         }
 
       } catch (error) {
-        console.error(`❌ Error analyzing ${symbol}:`, error.message)
-        errors.push({ symbol, error: error.message })
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        console.error(`❌ Error analyzing ${symbol}:`, errorMessage)
+        errors.push({ symbol, error: errorMessage })
       }
     }
 
@@ -81,7 +82,7 @@ serve(async (req) => {
       analysis_summary: {
         symbols_processed: targetSymbols.length,
         score_threshold: scoreThreshold,
-        strategy: 'ema21_sma200_stochrsi_adx_volatility'
+        strategy: 'ema21_sma200_stochrsi_adx_volatility_comprehensive'
       },
       errors,
       timestamp: new Date().toISOString()
@@ -90,11 +91,12 @@ serve(async (req) => {
     })
 
   } catch (error) {
-    console.error('❌ Strategy Engine error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('❌ Comprehensive Engine error:', error)
     
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: errorMessage
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -128,289 +130,197 @@ async function fetchCandleData(symbol: string) {
 }
 
 async function applyStrategyRules(symbol: string, candles: any[]) {
-  // Simplified strategy application - just return a basic signal for now
-  // The full implementation is in the aitradex1-strategy-engine
   const currentCandle = candles[candles.length - 1]
   const closes = candles.map(c => c.close)
   
-  // Basic trend check
-  const sma20 = closes.slice(-20).reduce((sum, price) => sum + price, 0) / 20
+  // Calculate indicators
+  const ema21 = calculateEMA(closes, 21)
+  const sma200 = calculateSMA(closes, 200)
+  const stochRSI = calculateStochRSI(candles, 14)
+  const adx = calculateADX(candles, 14)
+  const volExpansion = calculateVolatilityExpansion(candles, 30)
+  const atr14 = calculateATR(candles, 14)
+  
+  let signal = null
+  let score = 60
+  let grade = 'C'
+  
+  // Strategy Rules: EMA21 vs SMA200 + Volatility Expansion + StochRSI + ADX
+  if (
+    ema21 > sma200 &&          // Bullish trend
+    volExpansion > 1.2 &&      // Volatility expansion  
+    stochRSI < 0.20 &&         // Oversold
+    adx > 25                   // Trend strength
+  ) {
+    signal = 'LONG'
+    score = adx > 30 ? 85 : 75
+    grade = adx > 30 ? 'A' : 'B'
+  } else if (
+    ema21 < sma200 &&          // Bearish trend
+    volExpansion > 1.2 &&      // Volatility expansion
+    stochRSI > 0.80 &&         // Overbought  
+    adx > 25                   // Trend strength
+  ) {
+    signal = 'SHORT'
+    score = adx > 30 ? 85 : 75
+    grade = adx > 30 ? 'A' : 'B'
+  }
+  
+  if (!signal) return null
+  
   const currentPrice = currentCandle.close
+  const stopDistance = Math.max(atr14 * 1.5, currentPrice * 0.003)
   
-  if (currentPrice > sma20 * 1.02) {
-    return {
-      symbol,
-      direction: 'LONG',
-      timeframe: '1h',
-      price: currentPrice,
-      entry_price: currentPrice,
-      stop_loss: currentPrice * 0.98,
-      take_profit: currentPrice * 1.04,
-      score: 70,
-      confidence: 0.70,
-      bar_time: new Date(currentCandle.timestamp).toISOString(),
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      metadata: {
-        grade: 'B',
-        algorithm_version: 'v2.0_simplified'
-      },
-      is_active: true
-    }
-  }
+  const stopLoss = signal === 'LONG' ? 
+    currentPrice - stopDistance : 
+    currentPrice + stopDistance
+    
+  const takeProfit = signal === 'LONG' ? 
+    currentPrice + (stopDistance * 2.0) : 
+    currentPrice - (stopDistance * 2.0)
   
-  return null
-}
-
-async function safeSignalInsert(signal: any): Promise<boolean> {
-  try {
-    const { error } = await supabase
-      .from('signals')
-      .insert(signal)
-
-    if (error) {
-      if (error.code === '23505') return false // Duplicate
-      throw error
-    }
-    
-    return true
-  } catch (error) {
-    console.error(`Failed to insert signal:`, error)
-    return false
+  return {
+    symbol,
+    direction: signal,
+    timeframe: '1h',
+    price: currentPrice,
+    entry_price: currentPrice,
+    stop_loss: stopLoss,
+    take_profit: takeProfit,
+    score,
+    confidence: score / 100,
+    bar_time: new Date(currentCandle.timestamp).toISOString(),
+    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    diagnostics: {
+      ema21,
+      sma200,
+      stoch_rsi: stochRSI,
+      adx,
+      volatility_expansion: volExpansion,
+      atr14
+    },
+    metadata: {
+      grade,
+      algorithm_version: 'v2.0_comprehensive',
+      trend: ema21 > sma200 ? 'bullish' : 'bearish',
+      volatility_expanded: volExpansion > 1.2,
+      momentum: signal === 'LONG' ? 'oversold_recovery' : 'overbought_decline',
+      trend_strength: adx
+    },
+    is_active: true
   }
 }
 
-// Fetch comprehensive market data with multiple indicators
-async function fetchComprehensiveData(symbol: string, timeframe: string) {
-  try {
-    const bybitBase = Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com'
-    
-    // Get current ticker data
-    const tickerUrl = `${bybitBase}/v5/market/tickers?category=linear&symbol=${symbol}`
-    const tickerResponse = await fetch(tickerUrl)
-    const tickerData = await tickerResponse.json()
-    
-    if (!tickerData?.result?.list?.length) return null
-    
-    const ticker = tickerData.result.list[0]
-    
-    // Get kline data for technical analysis
-    const interval = timeframe
-    const klineUrl = `${bybitBase}/v5/market/kline?category=linear&symbol=${symbol}&interval=${interval}&limit=200`
-    const klineResponse = await fetch(klineUrl)
-    const klineData = await klineResponse.json()
-    
-    if (!klineData?.result?.list?.length) return null
-    
-    const klines = klineData.result.list.reverse() // Reverse for chronological order
-    
-    return {
-      symbol,
-      timeframe,
-      current_price: parseFloat(ticker.lastPrice),
-      volume24h: parseFloat(ticker.volume24h),
-      change24h: parseFloat(ticker.price24hPcnt) * 100,
-      high24h: parseFloat(ticker.highPrice24h),
-      low24h: parseFloat(ticker.lowPrice24h),
-      klines: klines.map(k => ({
-        timestamp: parseInt(k[0]),
-        open: parseFloat(k[1]),
-        high: parseFloat(k[2]),
-        low: parseFloat(k[3]),
-        close: parseFloat(k[4]),
-        volume: parseFloat(k[5])
-      })),
-      timestamp: Date.now()
-    }
-  } catch (error) {
-    console.error(`Error fetching comprehensive data for ${symbol}:`, error)
-    return null
-  }
-}
-
-// Comprehensive multi-algorithm analysis
-async function comprehensiveAnalysis(symbol: string, timeframe: string, data: any) {
-  try {
-    const klines = data.klines
-    if (klines.length < 50) return null
-    
-    // Calculate technical indicators
-    const smaShort = calculateSMA(klines, 20)
-    const smaLong = calculateSMA(klines, 50)
-    const emaShort = calculateEMA(klines, 12)
-    const emaLong = calculateEMA(klines, 26)
-    const rsi = calculateRSI(klines, 14)
-    const macd = calculateMACD(klines)
-    const bb = calculateBollingerBands(klines, 20, 2)
-    const stoch = calculateStochastic(klines, 14, 3, 3)
-    
-    // Multi-algorithm scoring
-    const trendScore = calculateTrendScore(smaShort, smaLong, emaShort, emaLong)
-    const momentumScore = calculateMomentumScore(rsi, macd, stoch)
-    const volatilityScore = calculateVolatilityScore(bb, data.current_price)
-    const volumeScore = calculateVolumeScore(klines, data.volume24h)
-    
-    // Combine scores with weights
-    const finalScore = Math.round(
-      (trendScore * 0.3) +
-      (momentumScore * 0.3) +
-      (volatilityScore * 0.2) +
-      (volumeScore * 0.2)
-    )
-    
-    // Determine direction based on multiple factors
-    const trendDirection = smaShort > smaLong ? 1 : -1
-    const momentumDirection = rsi > 50 ? 1 : -1
-    const macdDirection = macd.histogram > 0 ? 1 : -1
-    
-    const directionScore = trendDirection + momentumDirection + macdDirection
-    const direction = directionScore > 0 ? 'LONG' : 'SHORT'
-    
-    // Calculate price levels
-    const currentPrice = data.current_price
-    const atr = calculateATR(klines, 14)
-    
-    const stopLossDistance = atr * 1.5
-    const takeProfitDistance = atr * 3.0
-    
-    const stopLoss = direction === 'LONG' 
-      ? currentPrice - stopLossDistance 
-      : currentPrice + stopLossDistance
-    
-    const takeProfit = direction === 'LONG' 
-      ? currentPrice + takeProfitDistance 
-      : currentPrice - takeProfitDistance
-    
-    return {
-      symbol,
-      timeframe,
-      direction,
-      score: finalScore,
-      price: currentPrice,
-      entry_price: currentPrice,
-      stop_loss: stopLoss,
-      take_profit: takeProfit,
-      confidence: finalScore / 100,
-      bar_time: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      diagnostics: {
-        trend_score: trendScore,
-        momentum_score: momentumScore,
-        volatility_score: volatilityScore,
-        volume_score: volumeScore,
-        direction_score: directionScore,
-        indicators: {
-          sma_20: smaShort,
-          sma_50: smaLong,
-          ema_12: emaShort,
-          ema_26: emaLong,
-          rsi: rsi,
-          macd: macd.value,
-          bb_upper: bb.upper,
-          bb_lower: bb.lower,
-          stoch_k: stoch.k,
-          atr: atr
-        }
-      },
-      metadata: {
-        algorithm_version: '2.0',
-        analysis_type: 'comprehensive',
-        indicators_count: 8,
-        timeframe_analyzed: timeframe,
-        risk_reward_ratio: takeProfitDistance / stopLossDistance
-      }
-    }
-  } catch (error) {
-    console.error(`Error in comprehensive analysis for ${symbol}:`, error)
-    return null
-  }
-}
-
-// Technical indicator calculations
-function calculateSMA(klines: any[], period: number): number {
-  const closes = klines.slice(-period).map(k => k.close)
-  return closes.reduce((sum, price) => sum + price, 0) / closes.length
-}
-
-function calculateEMA(klines: any[], period: number): number {
+// Technical Indicator Functions
+function calculateEMA(values: number[], period: number): number {
   const multiplier = 2 / (period + 1)
-  let ema = klines[0].close
+  let ema = values[0]
   
-  for (let i = 1; i < klines.length; i++) {
-    ema = (klines[i].close * multiplier) + (ema * (1 - multiplier))
+  for (let i = 1; i < values.length; i++) {
+    ema = (values[i] * multiplier) + (ema * (1 - multiplier))
   }
   
   return ema
 }
 
-function calculateRSI(klines: any[], period: number): number {
+function calculateSMA(values: number[], period: number): number {
+  const slice = values.slice(-period)
+  return slice.reduce((sum, val) => sum + val, 0) / slice.length
+}
+
+function calculateStochRSI(candles: any[], period = 14): number {
+  // Calculate RSI first
   const changes = []
-  for (let i = 1; i < klines.length; i++) {
-    changes.push(klines[i].close - klines[i - 1].close)
+  for (let i = 1; i < candles.length; i++) {
+    changes.push(candles[i].close - candles[i - 1].close)
   }
   
-  const gains = changes.slice(-period).filter(change => change > 0)
-  const losses = changes.slice(-period).filter(change => change < 0).map(Math.abs)
+  const recentChanges = changes.slice(-period)
+  const gains = recentChanges.filter(c => c > 0)
+  const losses = recentChanges.filter(c => c < 0).map(Math.abs)
   
-  const avgGain = gains.reduce((sum, gain) => sum + gain, 0) / period
-  const avgLoss = losses.reduce((sum, loss) => sum + loss, 0) / period
+  const avgGain = gains.length > 0 ? gains.reduce((sum, gain) => sum + gain, 0) / period : 0
+  const avgLoss = losses.length > 0 ? losses.reduce((sum, loss) => sum + loss, 0) / period : 0
   
-  if (avgLoss === 0) return 100
+  if (avgLoss === 0) return 1.0
+  
   const rs = avgGain / avgLoss
-  return 100 - (100 / (1 + rs))
+  const rsi = 100 - (100 / (1 + rs))
+  
+  // Convert RSI to StochRSI (0-1 range)
+  return rsi / 100
 }
 
-function calculateMACD(klines: any[]) {
-  const ema12 = calculateEMA(klines, 12)
-  const ema26 = calculateEMA(klines, 26)
-  const macdLine = ema12 - ema26
+function calculateADX(candles: any[], period = 14): number {
+  const trs = []
+  const plusDMs = []
+  const minusDMs = []
   
-  // Simple signal line approximation
-  const signalLine = macdLine * 0.9 // Simplified
-  const histogram = macdLine - signalLine
-  
-  return {
-    value: macdLine,
-    signal: signalLine,
-    histogram: histogram
+  for (let i = 1; i < candles.length; i++) {
+    const high = candles[i].high
+    const low = candles[i].low
+    const prevHigh = candles[i - 1].high
+    const prevLow = candles[i - 1].low
+    const prevClose = candles[i - 1].close
+    
+    // True Range
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    )
+    trs.push(tr)
+    
+    // Directional Movement
+    const upMove = high - prevHigh
+    const downMove = prevLow - low
+    
+    const plusDM = (upMove > downMove && upMove > 0) ? upMove : 0
+    const minusDM = (downMove > upMove && downMove > 0) ? downMove : 0
+    
+    plusDMs.push(plusDM)
+    minusDMs.push(minusDM)
   }
+  
+  // Calculate averages
+  const avgTR = trs.slice(-period).reduce((sum, tr) => sum + tr, 0) / period
+  const avgPlusDM = plusDMs.slice(-period).reduce((sum, dm) => sum + dm, 0) / period
+  const avgMinusDM = minusDMs.slice(-period).reduce((sum, dm) => sum + dm, 0) / period
+  
+  const plusDI = (avgPlusDM / avgTR) * 100
+  const minusDI = (avgMinusDM / avgTR) * 100
+  
+  if ((plusDI + minusDI) === 0) return 0
+  
+  const dx = Math.abs(plusDI - minusDI) / (plusDI + minusDI) * 100
+  return dx
 }
 
-function calculateBollingerBands(klines: any[], period: number, deviation: number) {
-  const sma = calculateSMA(klines, period)
-  const closes = klines.slice(-period).map(k => k.close)
-  
-  const variance = closes.reduce((sum, price) => sum + Math.pow(price - sma, 2), 0) / period
-  const stdDev = Math.sqrt(variance)
-  
-  return {
-    middle: sma,
-    upper: sma + (stdDev * deviation),
-    lower: sma - (stdDev * deviation)
+function calculateVolatilityExpansion(candles: any[], period = 30): number {
+  const returns = []
+  for (let i = 1; i < candles.length; i++) {
+    const ret = (candles[i].close - candles[i - 1].close) / candles[i - 1].close
+    returns.push(ret)
   }
+  
+  if (returns.length < period + 1) return 1.0
+  
+  const currentPeriod = returns.slice(-period)
+  const previousPeriod = returns.slice(-(period + 1), -1)
+  
+  const currentVol = Math.sqrt(currentPeriod.reduce((sum, ret) => sum + ret * ret, 0) / period)
+  const previousVol = Math.sqrt(previousPeriod.reduce((sum, ret) => sum + ret * ret, 0) / period)
+  
+  return previousVol === 0 ? 1.0 : currentVol / previousVol
 }
 
-function calculateStochastic(klines: any[], kPeriod: number, kSlowing: number, dPeriod: number) {
-  const recentKlines = klines.slice(-kPeriod)
-  const highestHigh = Math.max(...recentKlines.map(k => k.high))
-  const lowestLow = Math.min(...recentKlines.map(k => k.low))
-  const currentClose = klines[klines.length - 1].close
-  
-  const kPercent = ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100
-  const dPercent = kPercent * 0.9 // Simplified D%
-  
-  return {
-    k: kPercent,
-    d: dPercent
-  }
-}
-
-function calculateATR(klines: any[], period: number): number {
+function calculateATR(candles: any[], period = 14): number {
   const trs = []
   
-  for (let i = 1; i < klines.length; i++) {
-    const high = klines[i].high
-    const low = klines[i].low
-    const prevClose = klines[i - 1].close
+  for (let i = 1; i < candles.length; i++) {
+    const high = candles[i].high
+    const low = candles[i].low
+    const prevClose = candles[i - 1].close
     
     const tr = Math.max(
       high - low,
@@ -424,65 +334,6 @@ function calculateATR(klines: any[], period: number): number {
   return trs.slice(-period).reduce((sum, tr) => sum + tr, 0) / period
 }
 
-// Scoring functions
-function calculateTrendScore(smaShort: number, smaLong: number, emaShort: number, emaLong: number): number {
-  const smaAlignment = smaShort > smaLong ? 25 : 0
-  const emaAlignment = emaShort > emaLong ? 25 : 0
-  const convergence = Math.abs((smaShort / smaLong - 1) * 100) * 2
-  
-  return Math.min(100, smaAlignment + emaAlignment + convergence)
-}
-
-function calculateMomentumScore(rsi: number, macd: any, stoch: any): number {
-  const rsiScore = rsi > 30 && rsi < 70 ? 30 : rsi > 50 ? 20 : 10
-  const macdScore = macd.histogram > 0 ? 30 : 15
-  const stochScore = stoch.k > 20 && stoch.k < 80 ? 25 : 10
-  
-  return Math.min(100, rsiScore + macdScore + stochScore)
-}
-
-function calculateVolatilityScore(bb: any, currentPrice: number): number {
-  const bbPosition = (currentPrice - bb.lower) / (bb.upper - bb.lower)
-  const volatilityScore = bbPosition > 0.2 && bbPosition < 0.8 ? 50 : 25
-  
-  return Math.min(100, volatilityScore * 2)
-}
-
-function calculateVolumeScore(klines: any[], volume24h: number): number {
-  const recentVolumes = klines.slice(-20).map(k => k.volume)
-  const avgVolume = recentVolumes.reduce((sum, vol) => sum + vol, 0) / recentVolumes.length
-  const volumeRatio = avgVolume / (volume24h / 24) // Hourly average
-  
-  return Math.min(100, volumeRatio * 50)
-}
-
-// Helper functions
-async function getTimeframeConsensus(symbol: string, timeframes: string[]) {
-  // Simplified consensus calculation
-  return {
-    bullish_timeframes: Math.floor(timeframes.length * 0.6),
-    bearish_timeframes: Math.floor(timeframes.length * 0.4),
-    consensus_strength: 'moderate'
-  }
-}
-
-async function detectMarketRegime(symbol: string) {
-  return {
-    regime: 'trending',
-    confidence: 0.75,
-    volatility_level: 'medium'
-  }
-}
-
-async function calculateVolatilityProfile(data: any) {
-  const volatility = (data.high24h - data.low24h) / data.current_price
-  return {
-    daily_volatility: volatility,
-    volatility_percentile: volatility > 0.05 ? 'high' : volatility > 0.02 ? 'medium' : 'low',
-    stability_score: Math.max(0, 1 - volatility * 10)
-  }
-}
-
 async function safeSignalInsert(signal: any): Promise<boolean> {
   try {
     const { error } = await supabase
@@ -490,7 +341,7 @@ async function safeSignalInsert(signal: any): Promise<boolean> {
       .insert(signal)
 
     if (error) {
-      if (error.code === '23505') return false // Cooldown active
+      if (error.code === '23505') return false // Duplicate/Cooldown
       throw error
     }
     
