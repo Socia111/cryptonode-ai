@@ -1,37 +1,13 @@
 project_id = "codhlwjogfjywmjyjbbn"
 
-[functions.unified-signal-engine]
+[functions.aitradex1-strategy-engine]
 verify_jwt = false
 
-[functions.crypto-scheduler]
+[functions.aitradex1-comprehensive-engine]
 verify_jwt = false
 
-[functions.test-signal-generation]
+[functions.aitradex1-config]
 verify_jwt = false
 
-[functions.simple-test]
-verify_jwt = false
-
-[functions.add-testnet-balance]
-verify_jwt = false
-
-[functions.live-price-feed]
-verify_jwt = false
-
-[functions.auto-signals-scheduler]
-verify_jwt = false
-
-[functions.fetch-all-symbols]
-verify_jwt = false
-
-[functions.enable-all-symbols]
-verify_jwt = false
-
-[functions.aitradex1-enhanced-scanner]
-verify_jwt = false
-
-[functions.secure-signal-test]
-verify_jwt = false
-
-[functions.database-setup]
+[functions.bybit-broker]
 verify_jwt = false
