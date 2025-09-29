@@ -11,3 +11,39 @@ verify_jwt = false
 
 [functions.bybit-broker]
 verify_jwt = false
+
+[functions.unified-signal-engine]
+verify_jwt = false
+
+[functions.crypto-scheduler]
+verify_jwt = false
+
+[functions.live-price-feed]
+verify_jwt = false
+
+[functions.auto-signals-scheduler]
+verify_jwt = false
+
+[functions.bybit-live-trading]
+verify_jwt = false
+
+[functions.production-signal-generator]
+verify_jwt = false
+
+[functions.live-scanner-production]
+verify_jwt = false
+
+[functions.debug-trading-status]
+verify_jwt = false
+
+[functions.aitradex1-trade-executor]
+verify_jwt = false
+
+[functions.fetch-all-symbols]
+verify_jwt = false
+
+[functions.enable-all-symbols]
+verify_jwt = false
+
+[functions.aitradex1-enhanced-scanner]
+verify_jwt = false
