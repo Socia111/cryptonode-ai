@@ -184,10 +184,11 @@ function computeOrderQtyUSD(
 
 // =================== STRUCTURED LOGGING ===================
 
-const structuredLog = (event: string, data: Record<string, any> = {}) => {
+const structuredLog = (level: string, message: string, data: Record<string, any> = {}) => {
   const logEntry = {
     timestamp: new Date().toISOString(),
-    event,
+    level,
+    message,
     requestId: data.requestId || crypto.randomUUID(),
     ...data
   };
@@ -316,7 +317,8 @@ class BybitV5Client {
             return currentIdx
           }
         } catch (posError) {
-          structuredLog('warn', 'Could not check existing positions', { error: posError.message })
+          const error = posError instanceof Error ? posError : new Error(String(posError))
+          structuredLog('warn', 'Could not check existing positions', { error: error.message })
         }
         
         // For unified accounts with no existing positions, try One-Way mode first
@@ -324,18 +326,20 @@ class BybitV5Client {
         return 0
         
       } catch (accountError) {
+        const error = accountError instanceof Error ? accountError : new Error(String(accountError))
         structuredLog('warn', 'Account info not available, using safe default', { 
           symbol,
-          error: accountError.message 
+          error: error.message 
         })
         return 0
       }
       
     } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error))
       structuredLog('error', 'Position mode detection completely failed', { 
         symbol, 
         category,
-        error: error.message 
+        error: err.message 
       })
       return null // Return null to indicate we should try without positionIdx
     }
@@ -373,17 +377,18 @@ class AutoTradingEngine {
   private supabase: any
   public client?: BybitV5Client
   private config?: TradingConfig
+  public isTestnet: boolean = false
 
   constructor(supabase: any) {
     this.supabase = supabase
   }
 
-  private async initializeClient(): Promise<void> {
+  public async initializeClient(): Promise<void> {
     // Try multiple environment variable names for compatibility
     const apiKey = Deno.env.get('BYBIT_API_KEY') || Deno.env.get('BYBIT_KEY')
     const apiSecret = Deno.env.get('BYBIT_API_SECRET') || Deno.env.get('BYBIT_SECRET') || Deno.env.get('BYBIT_SECRET_KEY')
     // Use mainnet for live trading - testnet often has balance issues
-    const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true'
+    this.isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true'
     
     if (!apiKey || !apiSecret) {
       const availableKeys = Object.keys(Deno.env.toObject()).filter(key => 
@@ -394,14 +399,14 @@ class AutoTradingEngine {
 
     structuredLog('info', 'Initializing Bybit client', {
       apiKeyPrefix: apiKey.substring(0, 8) + '...',
-      testnet: isTestnet,
-      baseUrl: isTestnet ? 'https://api-testnet.bybit.com' : (Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com')
+      testnet: this.isTestnet,
+      baseUrl: this.isTestnet ? 'https://api-testnet.bybit.com' : (Deno.env.get('BYBIT_BASE') || 'https://api.bybit.com')
     })
 
     this.client = new BybitV5Client({
       apiKey,
       apiSecret,
-      testnet: isTestnet
+      testnet: this.isTestnet
     })
   }
 
@@ -435,8 +440,9 @@ class AutoTradingEngine {
         throw new Error(`Insufficient balance. Available: ${availableBalance} USDT, Required: ${signal.notional || 10} USDT`)
       }
     } catch (balanceError) {
-      structuredLog('warn', 'Balance check failed', { error: balanceError.message })
-      throw new Error(`Balance check failed: ${balanceError.message}`)
+      const error = balanceError instanceof Error ? balanceError : new Error(String(balanceError))
+      structuredLog('warn', 'Balance check failed', { error: error.message })
+      throw new Error(`Balance check failed: ${error.message}`)
     }
 
     // Get instrument info and calculate proper size
@@ -493,7 +499,8 @@ class AutoTradingEngine {
         executed_at: new Date().toISOString()
       })
     } catch (error) {
-      structuredLog('error', 'Failed to log execution', { error: error.message })
+      const err = error instanceof Error ? error : new Error(String(error))
+      structuredLog('error', 'Failed to log execution', { error: err.message })
     }
   }
 }
@@ -562,9 +569,10 @@ serve(async (req) => {
           const { qty } = computeOrderQtyUSD(amountUSD, leverage || 1, price, inst);
           orderQty = qty;
         } catch (qtyError) {
+          const error = qtyError instanceof Error ? qtyError : new Error(String(qtyError))
           return json({
             success: false,
-            message: `Quantity calculation failed: ${qtyError.message}`,
+            message: `Quantity calculation failed: ${error.message}`,
             details: { symbol, price, amountUSD, leverage }
           }, 400);
         }
@@ -650,8 +658,9 @@ serve(async (req) => {
             }
           } catch (balanceError) {
             // For testnet or when balance check fails, proceed with trade
+            const error = balanceError instanceof Error ? balanceError : new Error(String(balanceError))
             structuredLog('warn', 'Balance check failed - proceeding with trade', { 
-              error: balanceError.message,
+              error: error.message,
               testnetMode: engine.isTestnet
             });
           }
@@ -679,8 +688,9 @@ serve(async (req) => {
             orderData.reduceOnly = false
             
           } catch (positionError) {
+            const error = positionError instanceof Error ? positionError : new Error(String(positionError))
             structuredLog('warn', 'Position mode detection failed, will try multiple approaches', { 
-              error: positionError.message,
+              error: error.message,
               symbol 
             })
             // Don't set positionIdx initially - let the retry logic handle it
@@ -718,8 +728,9 @@ serve(async (req) => {
           lastError = error;
           const errorMsg = error.message?.toLowerCase() || '';
           
+          const err = error instanceof Error ? error : new Error(String(error))
           structuredLog('warn', 'Order execution failed', { 
-            error: error.message,
+            error: err.message,
             symbol,
             side: orderData.side,
             qty: orderData.qty,
@@ -734,7 +745,7 @@ serve(async (req) => {
               
               structuredLog('info', 'Position mode error detected, trying systematic fixes', { 
                 symbol,
-                originalError: error.message,
+                originalError: err.message,
                 currentPositionIdx: orderData.positionIdx
               })
               
@@ -747,10 +758,11 @@ serve(async (req) => {
                 result = await engine.client!.signedRequest('POST', '/v5/order/create', orderDataNoIdx)
                 structuredLog('info', 'Success without positionIdx', { symbol })
                 
-              } catch (noIdxError) {
+                } catch (noIdxError) {
+                const error = noIdxError instanceof Error ? noIdxError : new Error(String(noIdxError))
                 structuredLog('warn', 'Without positionIdx failed', { 
                   symbol, 
-                  error: noIdxError.message 
+                  error: error.message 
                 })
                 
                 // Strategy 2: Try with positionIdx = 0 (One-Way mode)
@@ -761,9 +773,10 @@ serve(async (req) => {
                   structuredLog('info', 'Success with One-Way mode', { symbol })
                   
                 } catch (oneWayError) {
+                  const error = oneWayError instanceof Error ? oneWayError : new Error(String(oneWayError))
                   structuredLog('warn', 'One-Way mode failed', { 
                     symbol, 
-                    error: oneWayError.message 
+                    error: error.message 
                   })
                   
                   // Strategy 3: Try with positionIdx = 1 (Hedge mode - Buy side)
@@ -778,14 +791,17 @@ serve(async (req) => {
                     structuredLog('info', 'Success with Hedge mode', { symbol })
                     
                   } catch (hedgeError) {
+                    const hedgeErr = hedgeError instanceof Error ? hedgeError : new Error(String(hedgeError))
+                    const noIdxErr = noIdxError instanceof Error ? noIdxError : new Error(String(noIdxError))
+                    const oneWayErr = oneWayError instanceof Error ? oneWayError : new Error(String(oneWayError))
                     structuredLog('error', 'All position strategies failed', {
                       symbol,
-                      originalError: error.message,
-                      noIdxError: noIdxError.message,
-                      oneWayError: oneWayError.message,
-                      hedgeError: hedgeError.message
+                      originalError: err.message,
+                      noIdxError: noIdxErr.message,
+                      oneWayError: oneWayErr.message,
+                      hedgeError: hedgeErr.message
                     })
-                    throw new Error(`Position mode configuration error. Check your Bybit account position mode settings. Try switching between One-Way and Hedge mode in your Bybit account. Original error: ${error.message}`)
+                    throw new Error(`Position mode configuration error. Check your Bybit account position mode settings. Try switching between One-Way and Hedge mode in your Bybit account. Original error: ${err.message}`)
                   }
                 }
               }
@@ -807,7 +823,7 @@ serve(async (req) => {
                 })
                 result = await engine.client!.signedRequest('POST', '/v5/order/create', orderData)
               } catch (qtyError) {
-                throw new Error(`Quantity validation failed: ${error.message}. Minimum qty: ${minQty}`)
+                throw new Error(`Quantity validation failed: ${err.message}. Minimum qty: ${minQty}`)
               }
               
             // Case 3: Balance or margin issues
@@ -816,12 +832,12 @@ serve(async (req) => {
               
             // Case 4: Other errors
             } else {
-              throw new Error(`Bybit API error: ${error.message}`)
+              throw new Error(`Bybit API error: ${err.message}`)
             }
             
           } else {
             // For spot trading, throw the original error
-            throw new Error(`Spot trading error: ${error.message}`)
+            throw new Error(`Spot trading error: ${err.message}`)
           }
         }
 
@@ -841,8 +857,9 @@ serve(async (req) => {
           data: result
         });
       } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error))
         structuredLog('error', 'Trade execution failed', { 
-          error: error.message, 
+          error: err.message, 
           symbol, 
           side, 
           amountUSD, 
@@ -858,14 +875,14 @@ serve(async (req) => {
             side,
             amountUSD,
             leverage,
-            error: error.message,
+            error: err.message,
             timestamp: new Date().toISOString()
           }
         })
 
         return json({
           success: false,
-          message: error.message,
+          message: err.message,
           error_code: 'TRADE_EXECUTION_FAILED',
           details: {
             symbol,
@@ -886,11 +903,12 @@ serve(async (req) => {
     }, 400);
 
   } catch (error) {
-    structuredLog('error', 'Execution error', { error: error.message });
+    const err = error instanceof Error ? error : new Error(String(error))
+    structuredLog('error', 'Execution error', { error: err.message });
     
     return json({
       success: false,
-      message: error.message || 'Internal server error'
+      message: err.message || 'Internal server error'
     }, 500);
   }
 });
