@@ -150,17 +150,17 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
 
 export async function generateSignals() {
   try {
-    console.info('[generateSignals] Triggering real signal generation from live market data...');
+    console.info('[generateSignals] Triggering EMA21/SMA200 + StochRSI + ADX strategy...');
     
-    // Use the new production signal generator
-    const { data, error } = await supabase.functions.invoke('production-signal-generator');
+    // Use the proper strategy engine
+    const { data, error } = await supabase.functions.invoke('aitradex1-strategy-engine');
 
     if (error) {
       throw error;
     }
 
     const totalSignals = data?.signals_generated || 0;
-    console.info(`[generateSignals] Success: ${totalSignals} real signals generated from Bybit API`);
+    console.info(`[generateSignals] Success: ${totalSignals} strategy-based signals generated`);
     return { signals_created: totalSignals, success: true };
   } catch (e: any) {
     console.error('[generateSignals] Exception:', e);

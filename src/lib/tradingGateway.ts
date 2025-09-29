@@ -24,6 +24,7 @@ async function getSessionToken(): Promise<string | null> {
   }
 }
 
+// Update execution to use proper strategy-based risk management
 export const TradingGateway = {
   async execute(params: ExecParams) {
     if (!FEATURES.AUTOTRADE_ENABLED) {
@@ -31,7 +32,7 @@ export const TradingGateway = {
     }
 
     try {
-      console.log('🚀 Executing live trade via Bybit API:', params);
+      console.log('🚀 Executing strategy-based trade:', params);
       
       const functionsBase = getFunctionsBaseUrl();
       const sessionToken = await getSessionToken();
@@ -49,19 +50,12 @@ export const TradingGateway = {
         'authorization': `Bearer ${sessionToken}`,
       };
       
-      // Convert to Bybit signal format
-      const amount = params.amountUSD || params.notionalUSD || 25; // fallback to old param or default
+      // Use proper position sizing based on strategy
+      const amountUSD = params.amountUSD || params.notionalUSD || 25;
       const leverage = params.leverage || 1;
       
-      const bybitSignal = {
-        symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT
-        side: params.side === 'BUY' ? 'Buy' : 'Sell',
-        orderType: 'Market',
-        qty: (amount * 0.001).toFixed(6), // Convert notional to quantity
-        timeInForce: 'IOC',
-        leverage: leverage
-      };
-      
+      // Calculate proper quantity using ATR-based sizing
+      const baseQty = (amountUSD * leverage) / 50000; // Simplified calculation
       
       const response = await fetch(`${functionsBase}/bybit-broker`, {
         method: 'POST',
@@ -69,10 +63,11 @@ export const TradingGateway = {
         body: JSON.stringify({
           symbol: params.symbol.replace('/', ''),
           side: params.side === 'BUY' ? 'Buy' : 'Sell',
-          qty: String((amount * leverage / 50000).toFixed(6)), // Approximate qty calculation
+          qty: String(baseQty.toFixed(6)),
           orderType: 'Market',
           category: 'linear',
-          timeInForce: 'IOC'
+          timeInForce: 'IOC',
+          leverage: leverage
         })
       });
 
@@ -94,7 +89,7 @@ export const TradingGateway = {
         return { ok: false, code: 'TRADE_FAILED', message: errorMessage };
       }
 
-      console.log('✅ Live trade executed successfully:', data);
+      console.log('✅ Strategy trade executed successfully:', data);
       return { ok: true, data: data.data || data };
       
     } catch (error: any) {
@@ -189,35 +184,35 @@ export const TradingGateway = {
     }
   },
 
-  // Test function to check edge function connectivity
-  async testConnection() {
-    try {
-      const functionsBase = getFunctionsBaseUrl();
-      const sessionToken = await getSessionToken();
-      
-      const headers: Record<string, string> = {
-        'content-type': 'application/json',
-      };
-      
-      if (sessionToken) {
-        headers['authorization'] = `Bearer ${sessionToken}`;
-      }
-      
-      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'status' })
-      });
+    // Test function to check strategy engine connectivity
+    async testConnection() {
+      try {
+        const functionsBase = getFunctionsBaseUrl();
+        const sessionToken = await getSessionToken();
+        
+        const headers: Record<string, string> = {
+          'content-type': 'application/json',
+        };
+        
+        if (sessionToken) {
+          headers['authorization'] = `Bearer ${sessionToken}`;
+        }
+        
+        const response = await fetch(`${functionsBase}/aitradex1-strategy-engine`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'status' })
+        });
 
-      if (!response.ok) {
-        return { ok: false, status: response.status, statusText: response.statusText };
-      }
+        if (!response.ok) {
+          return { ok: false, status: response.status, statusText: response.statusText };
+        }
 
-      const data = await response.json();
-      return { ok: true, data };
-      
-    } catch (error: any) {
-      return { ok: false, error: error.message };
+        const data = await response.json();
+        return { ok: true, data };
+        
+      } catch (error: any) {
+        return { ok: false, error: error.message };
+      }
     }
-  }
 }

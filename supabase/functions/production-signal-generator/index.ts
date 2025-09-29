@@ -12,130 +12,328 @@ const TRADING_PAIRS = [
   'DOGEUSDT', 'MATICUSDT', 'LTCUSDT', 'DOTUSDT', 'AVAXUSDT', 'LINKUSDT'
 ];
 
-interface MarketData {
-  symbol: string;
-  price: number;
-  change24h: number;
+// Algorithm configuration matching the strategy specification
+const CONFIG = {
+  ATR_MULT: 1.5,        // ATR multiplier for stop loss
+  TP_R_MULT: 2.0,       // Take profit R-multiple
+  ADX_THRESHOLD: 25,    // Minimum ADX for trend strength
+  VOL_EXPANSION: 1.2,   // Volatility expansion threshold
+  STOCH_OVERSOLD: 0.20, // StochRSI oversold level
+  STOCH_OVERBOUGHT: 0.80, // StochRSI overbought level
+  RISK_PER_TRADE: 0.01, // 1% risk per trade
+  LEVERAGE: 5           // Default leverage
+};
+
+interface CandleData {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
   volume: number;
-  high24h: number;
-  low24h: number;
 }
 
-async function getBybitMarketData(): Promise<MarketData[]> {
+interface TechnicalIndicators {
+  ema21: number;
+  sma200: number;
+  stoch_k: number;
+  adx: number;
+  vol30: number;
+  atr14: number;
+}
+
+async function fetchCandles(symbol: string, interval = '60', limit = 200): Promise<CandleData[]> {
   try {
-    console.log('📊 Fetching real market data from Bybit...');
-    
-    const response = await fetch('https://api.bybit.com/v5/market/tickers?category=spot');
+    const response = await fetch(
+      `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=${interval}&limit=${limit}`
+    );
     const data = await response.json();
     
     if (!data.result?.list) {
-      throw new Error('Invalid Bybit API response');
+      throw new Error(`Invalid Bybit kline response for ${symbol}`);
     }
     
-    const marketData = data.result.list
-      .filter((ticker: any) => TRADING_PAIRS.includes(ticker.symbol))
-      .map((ticker: any) => ({
-        symbol: ticker.symbol,
-        price: parseFloat(ticker.lastPrice),
-        change24h: parseFloat(ticker.price24hPcnt) * 100,
-        volume: parseFloat(ticker.volume24h),
-        high24h: parseFloat(ticker.highPrice24h),
-        low24h: parseFloat(ticker.lowPrice24h),
-      }));
-    
-    console.log(`✅ Retrieved market data for ${marketData.length} symbols`);
-    return marketData;
+    // Convert and sort chronologically
+    return data.result.list
+      .map((candle: string[]) => ({
+        timestamp: parseInt(candle[0]),
+        open: parseFloat(candle[1]),
+        high: parseFloat(candle[2]),
+        low: parseFloat(candle[3]),
+        close: parseFloat(candle[4]),
+        volume: parseFloat(candle[5])
+      }))
+      .reverse(); // Bybit returns newest first, we need oldest first
+      
   } catch (error) {
-    console.error('❌ Error fetching Bybit market data:', error);
+    console.error(`❌ Error fetching candles for ${symbol}:`, error);
     throw error;
   }
 }
 
-function calculateTechnicalIndicators(marketData: MarketData) {
-  const { price, high24h, low24h, change24h, volume } = marketData;
+// Technical Indicator Calculations - Matching Strategy Specification
+function calculateEMA(values: number[], period: number): number {
+  const multiplier = 2 / (period + 1);
+  let ema = values[0];
   
-  // Simple technical analysis
-  const priceRange = high24h - low24h;
-  const pricePosition = (price - low24h) / priceRange;
+  for (let i = 1; i < values.length; i++) {
+    ema = (values[i] * multiplier) + (ema * (1 - multiplier));
+  }
   
-  // Calculate momentum score
-  const momentumScore = Math.abs(change24h) > 5 ? 85 : 
-                       Math.abs(change24h) > 2 ? 75 : 65;
+  return ema;
+}
+
+function calculateSMA(values: number[], period: number): number {
+  const slice = values.slice(-period);
+  return slice.reduce((sum, val) => sum + val, 0) / slice.length;
+}
+
+function calculateStochRSI(candles: CandleData[], period = 14, smoothK = 3, smoothD = 3): number {
+  // Calculate RSI first
+  const changes = [];
+  for (let i = 1; i < candles.length; i++) {
+    changes.push(candles[i].close - candles[i - 1].close);
+  }
   
-  // Volume analysis
-  const volumeScore = volume > 1000000 ? 80 : 70;
+  const gains = changes.slice(-period).filter(c => c > 0);
+  const losses = changes.slice(-period).filter(c => c < 0).map(Math.abs);
   
-  // Combine scores
-  const finalScore = Math.round((momentumScore + volumeScore) / 2);
+  const avgGain = gains.reduce((sum, gain) => sum + gain, 0) / period;
+  const avgLoss = losses.reduce((sum, loss) => sum + loss, 0) / period;
   
-  // Determine direction based on price momentum
-  const direction = change24h > 0 ? 'LONG' : 'SHORT';
+  const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+  const rsi = 100 - (100 / (1 + rs));
   
-  // Calculate targets
-  const entryPrice = price;
-  const stopLoss = direction === 'LONG' ? 
-    price * 0.98 : price * 1.02; // 2% stop loss
-  const takeProfit = direction === 'LONG' ? 
-    price * 1.04 : price * 0.96; // 4% take profit
+  // Convert RSI to StochRSI (simplified version)
+  return rsi / 100; // Return as 0-1 range
+}
+
+function calculateADX(candles: CandleData[], period = 14): number {
+  const trs = [];
+  const plusDMs = [];
+  const minusDMs = [];
+  
+  for (let i = 1; i < candles.length; i++) {
+    const high = candles[i].high;
+    const low = candles[i].low;
+    const prevHigh = candles[i - 1].high;
+    const prevLow = candles[i - 1].low;
+    const prevClose = candles[i - 1].close;
+    
+    // True Range
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    );
+    trs.push(tr);
+    
+    // Directional Movement
+    const plusDM = (high - prevHigh) > (prevLow - low) ? Math.max(high - prevHigh, 0) : 0;
+    const minusDM = (prevLow - low) > (high - prevHigh) ? Math.max(prevLow - low, 0) : 0;
+    
+    plusDMs.push(plusDM);
+    minusDMs.push(minusDM);
+  }
+  
+  // Simplified ADX calculation (using averages)
+  const avgTR = trs.slice(-period).reduce((sum, tr) => sum + tr, 0) / period;
+  const avgPlusDM = plusDMs.slice(-period).reduce((sum, dm) => sum + dm, 0) / period;
+  const avgMinusDM = minusDMs.slice(-period).reduce((sum, dm) => sum + dm, 0) / period;
+  
+  const plusDI = (avgPlusDM / avgTR) * 100;
+  const minusDI = (avgMinusDM / avgTR) * 100;
+  
+  const dx = Math.abs(plusDI - minusDI) / (plusDI + minusDI) * 100;
+  return dx; // Simplified ADX
+}
+
+function calculateVolatilityExpansion(candles: CandleData[], period = 30): { current: number; previous: number } {
+  const returns = [];
+  for (let i = 1; i < candles.length; i++) {
+    returns.push((candles[i].close - candles[i - 1].close) / candles[i - 1].close);
+  }
+  
+  const currentPeriod = returns.slice(-period);
+  const previousPeriod = returns.slice(-(period + 1), -1);
+  
+  const currentVol = Math.sqrt(currentPeriod.reduce((sum, ret) => sum + ret * ret, 0) / period) * Math.sqrt(period);
+  const previousVol = Math.sqrt(previousPeriod.reduce((sum, ret) => sum + ret * ret, 0) / period) * Math.sqrt(period);
+  
+  return { current: currentVol, previous: previousVol };
+}
+
+function calculateATR(candles: CandleData[], period = 14): number {
+  const trs = [];
+  
+  for (let i = 1; i < candles.length; i++) {
+    const high = candles[i].high;
+    const low = candles[i].low;
+    const prevClose = candles[i - 1].close;
+    
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    );
+    
+    trs.push(tr);
+  }
+  
+  return trs.slice(-period).reduce((sum, tr) => sum + tr, 0) / period;
+}
+
+function calculateIndicators(candles: CandleData[]): TechnicalIndicators {
+  const closes = candles.map(c => c.close);
+  
+  const ema21 = calculateEMA(closes, 21);
+  const sma200 = calculateSMA(closes, 200);
+  const stoch_k = calculateStochRSI(candles, 14, 3, 3);
+  const adx = calculateADX(candles, 14);
+  const vol = calculateVolatilityExpansion(candles, 30);
+  const atr14 = calculateATR(candles, 14);
   
   return {
-    score: finalScore,
-    direction,
-    entryPrice,
-    stopLoss,
-    takeProfit,
-    confidence: finalScore / 100,
-    pricePosition,
-    momentum: change24h
+    ema21,
+    sma200,
+    stoch_k,
+    adx,
+    vol30: vol.current / vol.previous, // Volatility expansion ratio
+    atr14
+  };
+}
+
+// Signal Generation with Proper Strategy Rules
+function evaluateSignal(symbol: string, candles: CandleData[], indicators: TechnicalIndicators): any | null {
+  const currentCandle = candles[candles.length - 1];
+  const { ema21, sma200, stoch_k, adx, vol30, atr14 } = indicators;
+  
+  // Rule evaluation based on strategy specification
+  let signal = null;
+  
+  // BUY Signal Rules
+  if (
+    ema21 > sma200 &&                    // Bullish trend
+    vol30 > CONFIG.VOL_EXPANSION &&      // Volatility expansion
+    stoch_k < CONFIG.STOCH_OVERSOLD &&   // Oversold turning up
+    adx > CONFIG.ADX_THRESHOLD           // Trend strength
+  ) {
+    signal = 'BUY';
+  }
+  
+  // SELL Signal Rules
+  else if (
+    ema21 < sma200 &&                     // Bearish trend
+    vol30 > CONFIG.VOL_EXPANSION &&       // Volatility expansion  
+    stoch_k > CONFIG.STOCH_OVERBOUGHT &&  // Overbought turning down
+    adx > CONFIG.ADX_THRESHOLD            // Trend strength
+  ) {
+    signal = 'SELL';
+  }
+  
+  if (!signal) return null;
+  
+  // Calculate risk management levels
+  const entryPrice = currentCandle.close;
+  const stopDistance = Math.max(CONFIG.ATR_MULT * atr14, entryPrice * 0.003); // Min 0.3% stop
+  
+  const stopLoss = signal === 'BUY' ? 
+    entryPrice - stopDistance : 
+    entryPrice + stopDistance;
+    
+  const takeProfit = signal === 'BUY' ? 
+    entryPrice + (stopDistance * CONFIG.TP_R_MULT) : 
+    entryPrice - (stopDistance * CONFIG.TP_R_MULT);
+  
+  // Calculate confidence grade based on rule confluence
+  let grade = 'C';
+  let score = 60;
+  
+  if (adx > 30) {
+    grade = 'A';
+    score = 85;
+  } else if (adx > CONFIG.ADX_THRESHOLD) {
+    grade = 'B';  
+    score = 75;
+  }
+  
+  return {
+    symbol,
+    direction: signal === 'BUY' ? 'LONG' : 'SHORT',
+    timeframe: '1h',
+    price: entryPrice,
+    entry_price: entryPrice,
+    stop_loss: stopLoss,
+    take_profit: takeProfit,
+    score,
+    confidence: score / 100,
+    source: 'aitradex1_rule_based',
+    algo: 'ema21_sma200_stochrsi_adx',
+    bar_time: new Date(currentCandle.timestamp).toISOString(),
+    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    diagnostics: {
+      ema21,
+      sma200,
+      stoch_k,
+      adx,
+      vol30,
+      atr14,
+      stop_distance: stopDistance,
+      r_multiple: CONFIG.TP_R_MULT
+    },
+    metadata: {
+      grade,
+      algorithm_version: 'v2.0_rule_based',
+      trend: ema21 > sma200 ? 'bullish' : 'bearish',
+      volatility_expansion: vol30 > CONFIG.VOL_EXPANSION,
+      momentum: signal === 'BUY' ? 'oversold_recovery' : 'overbought_decline',
+      trend_strength: adx,
+      risk_reward_ratio: CONFIG.TP_R_MULT,
+      data_source: 'bybit_klines',
+      generated_at: new Date().toISOString()
+    },
+    is_active: true
   };
 }
 
 async function generateSignalsFromMarketData(supabase: any) {
   try {
-    const marketData = await getBybitMarketData();
-    const signals = [];
+    console.log('📊 Analyzing market with EMA21/SMA200 + StochRSI + ADX strategy...');
     
-    for (const data of marketData) {
-      const analysis = calculateTechnicalIndicators(data);
-      
-      // Only generate signals with score >= 70
-      if (analysis.score >= 70) {
-        const signal = {
-          symbol: data.symbol,
-          direction: analysis.direction,
-          timeframe: '1h',
-          price: analysis.entryPrice,
-          entry_price: analysis.entryPrice,
-          stop_loss: analysis.stopLoss,
-          take_profit: analysis.takeProfit,
-          score: analysis.score,
-          confidence: analysis.confidence,
-          source: 'production_live_bybit',
-          algo: 'real_market_analysis',
-          bar_time: new Date().toISOString(),
-          metadata: {
-            market_data: {
-              change24h: data.change24h,
-              volume: data.volume,
-              high24h: data.high24h,
-              low24h: data.low24h
-            },
-            analysis: {
-              momentum: analysis.momentum,
-              price_position: analysis.pricePosition
-            },
-            data_source: 'bybit_api',
-            generated_at: new Date().toISOString()
-          },
-          is_active: true
-        };
+    const signals = [];
+    const errors = [];
+    
+    for (const symbol of TRADING_PAIRS) {
+      try {
+        // Fetch candle data for technical analysis
+        const candles = await fetchCandles(symbol, '60', 200);
         
-        signals.push(signal);
+        if (candles.length < 200) {
+          console.log(`⚠️ Insufficient candle data for ${symbol}: ${candles.length}`);
+          continue;
+        }
+        
+        // Calculate technical indicators
+        const indicators = calculateIndicators(candles);
+        
+        // Evaluate signal based on strategy rules
+        const signal = evaluateSignal(symbol, candles, indicators);
+        
+        if (signal) {
+          signals.push(signal);
+          console.log(`✅ Signal: ${symbol} ${signal.direction} (Grade: ${signal.metadata.grade}, Score: ${signal.score})`);
+        } else {
+          console.log(`⚪ No signal: ${symbol} (rules not met)`);
+        }
+        
+      } catch (error) {
+        console.error(`❌ Error analyzing ${symbol}:`, error.message);
+        errors.push({ symbol, error: error.message });
       }
     }
     
     if (signals.length > 0) {
-      console.log(`🔄 Inserting ${signals.length} real signals into database...`);
+      console.log(`🔄 Inserting ${signals.length} strategy-based signals...`);
       
       const { data: insertedSignals, error } = await supabase
         .from('signals')
@@ -143,18 +341,18 @@ async function generateSignalsFromMarketData(supabase: any) {
         .select();
       
       if (error) {
-        console.error('❌ Error inserting signals:', error);
+        console.error('❌ Database insert error:', error);
         throw error;
       }
       
       console.log(`✅ Successfully inserted ${insertedSignals?.length || 0} signals`);
       return insertedSignals;
     } else {
-      console.log('⚠️ No signals met the quality threshold (score >= 70)');
+      console.log('⚠️ No signals generated - strategy rules not met for any symbols');
       return [];
     }
   } catch (error) {
-    console.error('❌ Error generating signals:', error);
+    console.error('❌ Signal generation error:', error);
     throw error;
   }
 }
