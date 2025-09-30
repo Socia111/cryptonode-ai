@@ -14,7 +14,17 @@ serve(async (req) => {
   try {
     console.log('🚀 AItradeX1 Strategy Engine started')
     
-    const { symbols, timeframe = '1h', action = 'generate' } = await req.json()
+    let requestData = {}
+    try {
+      const text = await req.text()
+      if (text) {
+        requestData = JSON.parse(text)
+      }
+    } catch (e) {
+      console.log('No body or invalid JSON, using defaults')
+    }
+    
+    const { symbols, timeframe = '1h', action = 'generate' } = requestData as any
     
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
