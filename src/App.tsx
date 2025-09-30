@@ -17,6 +17,7 @@ import X from "./pages/X";
 import X1 from "./pages/X1";
 import X2 from "./pages/X2";
 import Trade from "./pages/Trade";
+import TradingSystem from "./pages/TradingSystem";
 import Portfolio from "./pages/Portfolio";
 import Signals from "./pages/Signals";
 import Markets from "./pages/Markets";
@@ -60,6 +61,7 @@ function App() {
             <Route path="/X1" element={<X1 />} />
             <Route path="/X2" element={<X2 />} />
             <Route path="/trade" element={<Trade />} />
+            <Route path="/trading-system" element={<TradingSystem />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/signals" element={<Signals />} />
             <Route path="/markets" element={<Markets />} />
