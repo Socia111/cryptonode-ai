@@ -19,3 +19,39 @@ enabled = true
 port = 54324
 smtp_port = 54325
 pop3_port = 54326
+
+[functions.aitradex1-trade-executor]
+verify_jwt = false
+
+[functions.live-scanner-production]
+verify_jwt = false
+
+[functions.auto-trading-poller]
+verify_jwt = false
+
+[functions.crypto-scheduler]
+verify_jwt = false
+
+[functions.live-crypto-feed]
+verify_jwt = false
+
+[functions.connect-bybit]
+verify_jwt = true
+
+[functions.bybit-authenticate]
+verify_jwt = true
+
+[functions.3commas-authenticate]
+verify_jwt = true
+
+[functions.generate-signals]
+verify_jwt = false
+
+[functions.signals-api]
+verify_jwt = false
+
+[functions.backtest-engine]
+verify_jwt = false
+
+[functions.jwt-token-generator]
+verify_jwt = false
