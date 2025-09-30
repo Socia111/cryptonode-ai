@@ -23,3 +23,9 @@ verify_jwt = false
 
 [functions.debug-trading-status]
 verify_jwt = false
+
+[functions.bybit-live-trading]
+verify_jwt = false
+
+[functions.telegram-signals]
+verify_jwt = false

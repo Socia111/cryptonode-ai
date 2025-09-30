@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, symbol, side, quantity, orderType = 'Market' } = await req.json()
+    const { action, symbol, side, amount, leverage = 1, price } = await req.json()
     
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -24,24 +24,49 @@ serve(async (req) => {
     const apiSecret = Deno.env.get('BYBIT_API_SECRET') || Deno.env.get('BYBIT_SECRET')
     const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true'
     const isLiveTradingEnabled = Deno.env.get('LIVE_TRADING_ENABLED') === 'true'
-    const autoTradingEnabled = Deno.env.get('AUTO_TRADING_ENABLED') === 'true'
+    const defaultTradeAmount = parseFloat(Deno.env.get('DEFAULT_TRADE_AMOUNT') || '100')
+    const defaultLeverage = parseInt(Deno.env.get('DEFAULT_LEVERAGE') || '1')
     
     const baseUrl = isTestnet 
       ? 'https://api-testnet.bybit.com'
       : 'https://api.bybit.com'
 
-    if (action === 'place_order') {
-      if (!symbol || !side || !quantity) {
-        throw new Error('Missing required parameters: symbol, side, quantity')
+    console.log(`🔄 Bybit Live Trading: ${action} - ${symbol} - ${side} - $${amount}`)
+
+    if (action === 'execute_trade') {
+      if (!symbol || !side || !amount) {
+        throw new Error('Missing required parameters: symbol, side, amount')
+      }
+
+      // Validate trading is enabled
+      if (!isLiveTradingEnabled) {
+        console.log('⚠️ Live trading disabled, simulating trade')
+        // Return simulated success for testing
+        return new Response(
+          JSON.stringify({
+            success: true,
+            simulated: true,
+            message: 'Trade simulated (live trading disabled)',
+            order_id: `sim_${Date.now()}`,
+            symbol,
+            side,
+            amount
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
 
       const timestamp = Date.now().toString()
+      const finalAmount = amount || defaultTradeAmount
+      const finalLeverage = leverage || defaultLeverage
+      
       const params = {
-        category: 'spot',
+        category: 'linear',
         symbol,
         side,
-        orderType,
-        qty: quantity.toString(),
+        orderType: 'Market',
+        qty: finalAmount.toString(),
+        leverage: finalLeverage.toString(),
         timeInForce: 'IOC'
       }
 
@@ -67,19 +92,48 @@ serve(async (req) => {
 
       const data = await response.json()
       
-      // Log order to database
+      // Log trade execution
       await supabaseClient
         .from('execution_orders')
         .insert({
           symbol,
           side,
-          quantity: parseFloat(quantity),
-          order_type: orderType,
+          quantity: parseFloat(finalAmount),
+          leverage: finalLeverage,
           status: data.retCode === 0 ? 'filled' : 'failed',
           external_order_id: data.result?.orderId,
-          response_data: data
+          response_data: data,
+          real_trade: true
         })
 
+      console.log(`✅ Trade executed: ${symbol} ${side} $${finalAmount}`)
+
+      return new Response(
+        JSON.stringify({
+          success: data.retCode === 0,
+          data,
+          trade_details: { symbol, side, amount: finalAmount, leverage: finalLeverage }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (action === 'get_positions') {
+      const timestamp = Date.now().toString()
+      const queryString = 'category=linear'
+      const signature = hmac('sha256', apiSecret, timestamp + apiKey + '5000' + queryString, 'hex')
+
+      const response = await fetch(`${baseUrl}/v5/position/list?${queryString}`, {
+        headers: {
+          'X-BAPI-API-KEY': apiKey,
+          'X-BAPI-SIGN': signature,
+          'X-BAPI-SIGN-TYPE': '2',
+          'X-BAPI-TIMESTAMP': timestamp,
+          'X-BAPI-RECV-WINDOW': '5000'
+        }
+      })
+
+      const data = await response.json()
       return new Response(
         JSON.stringify(data),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -113,7 +167,7 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
     )
   } catch (error) {
-    console.error('Bybit broker error:', error)
+    console.error('❌ Bybit Live Trading error:', error)
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
