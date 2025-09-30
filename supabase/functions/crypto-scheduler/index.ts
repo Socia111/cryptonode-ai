@@ -23,41 +23,24 @@ serve(async (req) => {
     
     // 1. Generate unified signals
     tasks.push(
-      fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/unified-signal-engine`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ timeframes: ["5m", "15m", "1h"] })
+      supabaseClient.functions.invoke('unified-signal-engine', {
+        body: { timeframes: ["15m", "1h"], symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT"] }
       })
     )
     
     // 2. Update live price feeds
     tasks.push(
-      fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/live-price-feed`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action: 'update_prices' })
+      supabaseClient.functions.invoke('live-price-feed', {
+        body: { action: 'update_prices' }
       })
     )
     
-    // 3. Process automated trading
-    if (Deno.env.get('AUTO_TRADING_ENABLED') === 'true') {
-      tasks.push(
-        fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/bybit-live-trading`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ action: 'process_queue' })
-        })
-      )
-    }
+    // 3. Generate production signals
+    tasks.push(
+      supabaseClient.functions.invoke('production-signal-generator', {
+        body: { timeframes: ["1h"], force_refresh: true }
+      })
+    )
     
     // Execute all tasks in parallel
     const results = await Promise.allSettled(tasks)

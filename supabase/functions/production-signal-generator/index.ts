@@ -12,65 +12,98 @@ serve(async (req) => {
   }
 
   try {
+    console.log('🏭 Production Signal Generator started')
+    
+    const { 
+      timeframes = ['1h'], 
+      symbols,
+      force_refresh = false,
+      min_score = 70 
+    } = await req.json()
+    
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('🎯 Production Signal Generator started')
+    // Get production symbols from database or use defaults
+    const targetSymbols = symbols || await getProductionSymbols(supabaseClient)
     
-    const symbols = [
-      'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'SOLUSDT',
-      'DOTUSDT', 'LINKUSDT', 'AVAXUSDT', 'MATICUSDT', 'ATOMUSDT', 'LTCUSDT'
-    ]
-    
-    const signals = []
-    let marketPairsAnalyzed = 0
+    const productionSignals = []
 
-    for (const symbol of symbols) {
-      try {
-        // Fetch comprehensive market data
-        const [tickerResponse, candleResponse] = await Promise.all([
-          fetch(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${symbol}`),
-          fetch(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=1h&limit=100`)
-        ])
-
-        const [tickerData, candleData] = await Promise.all([
-          tickerResponse.json(),
-          candleResponse.json()
-        ])
-
-        if (tickerData?.result?.list?.[0] && candleData?.result?.list?.length > 0) {
-          const ticker = tickerData.result.list[0]
-          const candles = candleData.result.list.reverse()
+    for (const timeframe of timeframes) {
+      for (const symbol of targetSymbols) {
+        try {
+          const signal = await generateProductionSignal(symbol, timeframe, min_score)
           
-          const signal = await analyzeAndCreateSignal(symbol, ticker, candles, supabaseClient)
-          if (signal) {
-            signals.push(signal)
+          if (signal && signal.score >= min_score) {
+            // Insert high-quality production signal
+            const { data: insertedSignal, error } = await supabaseClient
+              .from('signals')
+              .insert({
+                symbol: signal.symbol,
+                timeframe: signal.timeframe,
+                direction: signal.direction,
+                price: signal.price,
+                entry_price: signal.price,
+                score: signal.score,
+                algo: 'AITRADEX1_PRODUCTION',
+                source: 'production_signal_generator',
+                metadata: {
+                  ...signal.metadata,
+                  production_grade: 'A',
+                  confidence_level: signal.confidence,
+                  generated_at: new Date().toISOString(),
+                  quality_score: signal.quality_score
+                },
+                expires_at: new Date(Date.now() + (4 * 60 * 60 * 1000)) // 4 hours expiry
+              })
+              .select()
+              .single()
+
+            if (!error) {
+              productionSignals.push(insertedSignal)
+              console.log(`🎯 Production signal: ${symbol} ${timeframe} ${signal.direction} (${signal.score})`)
+            }
           }
-          
-          marketPairsAnalyzed++
+        } catch (error) {
+          console.error(`Error generating production signal for ${symbol}:`, error)
         }
-      } catch (error) {
-        console.error(`Error analyzing ${symbol}:`, error)
       }
     }
 
-    console.log(`✅ Generated ${signals.length} production signals from ${marketPairsAnalyzed} pairs`)
+    // Log production stats
+    await supabaseClient
+      .from('edge_event_log')
+      .insert({
+        fn: 'production_signal_generator',
+        stage: 'completed',
+        payload: {
+          signals_generated: productionSignals.length,
+          symbols_processed: targetSymbols.length,
+          timeframes,
+          min_score,
+          force_refresh,
+          timestamp: new Date().toISOString()
+        }
+      })
+
+    console.log(`✅ Production Generator completed: ${productionSignals.length} signals`)
 
     return new Response(
       JSON.stringify({
         success: true,
-        signals_generated: signals.length,
-        market_pairs_analyzed: marketPairsAnalyzed,
-        signals: signals.slice(0, 5), // Return first 5 for preview
-        algorithm: 'production_grade',
+        production_signals: productionSignals.length,
+        signals: productionSignals,
+        quality_threshold: min_score,
+        symbols_scanned: targetSymbols.length,
+        timeframes_processed: timeframes,
         timestamp: new Date().toISOString()
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Production signal generator error:', error)
+    console.error('❌ Production Signal Generator error:', error)
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
@@ -78,101 +111,153 @@ serve(async (req) => {
   }
 })
 
-async function analyzeAndCreateSignal(symbol: string, ticker: any, candles: any[], supabaseClient: any) {
+async function getProductionSymbols(supabaseClient: any): Promise<string[]> {
   try {
-    const closes = candles.slice(-50).map((c: any) => parseFloat(c[4]))
-    const highs = candles.slice(-50).map((c: any) => parseFloat(c[2]))
-    const lows = candles.slice(-50).map((c: any) => parseFloat(c[3]))
-    const volumes = candles.slice(-50).map((c: any) => parseFloat(c[5]))
+    // Try to get whitelist symbols from database
+    const { data } = await supabaseClient
+      .from('whitelist_settings')
+      .select('whitelist_pairs, whitelist_enabled')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (data?.whitelist_enabled && data?.whitelist_pairs?.length) {
+      return data.whitelist_pairs
+    }
+  } catch (error) {
+    console.log('Using default symbols')
+  }
+
+  // Default production symbols
+  return [
+    'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT', 
+    'XRPUSDT', 'DOTUSDT', 'LINKUSDT', 'AVAXUSDT', 'MATICUSDT'
+  ]
+}
+
+async function generateProductionSignal(symbol: string, timeframe: string, minScore: number) {
+  try {
+    // Fetch enhanced market data
+    const response = await fetch(
+      `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${timeframe}&limit=200`
+    )
+    const data = await response.json()
     
-    if (closes.length < 21) return null
+    if (!data?.result?.list?.length) return null
     
-    const currentPrice = parseFloat(ticker.lastPrice)
-    const volume24h = parseFloat(ticker.volume24h || 0)
-    const change24h = parseFloat(ticker.price24hPcnt || 0) * 100
+    const candles = data.result.list.reverse()
+    const closes = candles.map((c: any) => parseFloat(c[4]))
+    const highs = candles.map((c: any) => parseFloat(c[2]))
+    const lows = candles.map((c: any) => parseFloat(c[3]))
+    const volumes = candles.map((c: any) => parseFloat(c[5]))
+    
+    if (closes.length < 50) return null
+    
+    const currentPrice = closes[closes.length - 1]
     
     // Advanced technical analysis
     const ema21 = calculateEMA(closes, 21)
     const ema50 = calculateEMA(closes, 50)
+    const ema200 = calculateEMA(closes, 200)
     const rsi = calculateRSI(closes, 14)
-    const avgVolume = volumes.reduce((sum, v) => sum + v, 0) / volumes.length
-    const volumeRatio = volume24h / avgVolume
+    const macd = calculateMACD(closes)
+    const bb = calculateBollingerBands(closes, 20, 2)
+    const atr = calculateATR(highs, lows, closes, 14)
+    const volumeMA = calculateSMA(volumes, 20)
     
-    // Multi-factor scoring system
+    // Market structure analysis
+    const trendStrength = calculateTrendStrength(closes, ema21, ema50)
+    const volatility = atr / currentPrice * 100
+    const momentum = calculateMomentum(closes, 10)
+    const volumeConfirmation = volumes[volumes.length - 1] > volumeMA
+    
     let score = 50
     let direction = null
+    let confidence = 'low'
+    let qualityScore = 0
     
-    // Trend analysis
-    const trendUp = ema21 > ema50 && currentPrice > ema21
-    const trendDown = ema21 < ema50 && currentPrice < ema21
+    // Multi-timeframe trend alignment
+    const longTermBullish = ema50 > ema200
+    const mediumTermBullish = ema21 > ema50
+    const shortTermBullish = currentPrice > ema21
     
-    if (trendUp) {
-      score += 15
+    // Bullish setup
+    if (shortTermBullish && mediumTermBullish) {
+      score += 20
       direction = 'LONG'
-    } else if (trendDown) {
-      score += 15
+      
+      // Additional bullish confirmations
+      if (longTermBullish) score += 15 // Strong trend alignment
+      if (rsi > 45 && rsi < 75) score += 10 // Healthy RSI
+      if (macd.histogram > 0) score += 10 // MACD momentum
+      if (currentPrice > bb.middle) score += 5 // Above BB middle
+      if (volumeConfirmation) score += 10 // Volume confirmation
+      if (momentum > 0.01) score += 5 // Strong momentum
+      
+      // Quality adjustments
+      if (volatility < 3 && volatility > 1) qualityScore += 10 // Good volatility
+      if (trendStrength > 2) qualityScore += 15 // Strong trend
+    }
+    // Bearish setup
+    else if (!shortTermBullish && !mediumTermBullish) {
+      score += 20
       direction = 'SHORT'
+      
+      // Additional bearish confirmations
+      if (!longTermBullish) score += 15 // Strong trend alignment
+      if (rsi > 25 && rsi < 55) score += 10 // Healthy RSI
+      if (macd.histogram < 0) score += 10 // MACD momentum
+      if (currentPrice < bb.middle) score += 5 // Below BB middle
+      if (volumeConfirmation) score += 10 // Volume confirmation
+      if (momentum < -0.01) score += 5 // Strong momentum
+      
+      // Quality adjustments
+      if (volatility < 3 && volatility > 1) qualityScore += 10 // Good volatility
+      if (trendStrength > 2) qualityScore += 15 // Strong trend
     }
     
-    // RSI momentum
-    if (direction === 'LONG' && rsi > 30 && rsi < 70) score += 10
-    if (direction === 'SHORT' && rsi > 30 && rsi < 70) score += 10
+    // Risk management filters
+    if (volatility > 5) score -= 15 // Too volatile
+    if (rsi > 80 || rsi < 20) score -= 10 // Overbought/oversold
     
-    // Volume confirmation
-    if (volumeRatio > 1.2) score += 10
-    if (volumeRatio > 1.5) score += 5
+    // Set confidence levels
+    if (score >= 85) confidence = 'very_high'
+    else if (score >= 75) confidence = 'high'
+    else if (score >= 65) confidence = 'medium'
     
-    // Price momentum
-    if (Math.abs(change24h) > 2) score += 5
-    if (Math.abs(change24h) > 5) score += 5
-    
-    // Volatility check
-    const volatility = calculateVolatility(closes, 20)
-    if (volatility > 0.02 && volatility < 0.08) score += 10
-    
-    // Only create high-quality signals
-    if (!direction || score < 70) return null
-    
-    const signal = {
-      symbol,
-      timeframe: '1h',
-      direction,
-      price: currentPrice,
-      entry_price: currentPrice,
-      stop_loss: direction === 'LONG' ? currentPrice * 0.97 : currentPrice * 1.03,
-      take_profit: direction === 'LONG' ? currentPrice * 1.06 : currentPrice * 0.94,
-      score,
-      source: 'production_signal_generator',
-      algo: 'production_grade',
-      is_active: true,
-      metadata: {
-        ema21: ema21.toFixed(2),
-        ema50: ema50.toFixed(2),
-        rsi: rsi.toFixed(2),
-        volume_ratio: volumeRatio.toFixed(2),
-        volatility: volatility.toFixed(4),
-        change_24h: change24h.toFixed(2),
-        grade: score >= 85 ? 'A' : score >= 75 ? 'B' : 'C'
+    // Only return high-quality signals
+    if (score >= minScore && direction && qualityScore >= 15) {
+      return {
+        symbol,
+        timeframe,
+        direction,
+        price: currentPrice,
+        score: Math.round(Math.min(score, 100)),
+        confidence,
+        quality_score: qualityScore,
+        metadata: {
+          ema21: ema21.toFixed(2),
+          ema50: ema50.toFixed(2),
+          ema200: ema200.toFixed(2),
+          rsi: rsi.toFixed(2),
+          macd_signal: macd.histogram > 0 ? 'bullish' : 'bearish',
+          trend_strength: trendStrength.toFixed(2),
+          volatility: volatility.toFixed(2),
+          volume_confirmation: volumeConfirmation,
+          momentum: momentum.toFixed(4),
+          bb_position: ((currentPrice - bb.lower) / (bb.upper - bb.lower)).toFixed(3)
+        }
       }
     }
     
-    // Insert signal
-    const { error } = await supabaseClient
-      .from('signals')
-      .insert(signal)
-    
-    if (error && !error.message.includes('duplicate')) {
-      console.error('Error inserting signal:', error)
-      return null
-    }
-    
-    return signal
+    return null
   } catch (error) {
-    console.error('Error in signal analysis:', error)
+    console.error('Production signal analysis error:', error)
     return null
   }
 }
 
+// Technical Analysis Functions
 function calculateEMA(values: number[], period: number): number {
   const multiplier = 2 / (period + 1)
   let ema = values[0]
@@ -184,33 +269,78 @@ function calculateEMA(values: number[], period: number): number {
   return ema
 }
 
+function calculateSMA(values: number[], period: number): number {
+  return values.slice(-period).reduce((a, b) => a + b, 0) / period
+}
+
 function calculateRSI(values: number[], period: number): number {
-  const deltas = []
+  const changes = []
   for (let i = 1; i < values.length; i++) {
-    deltas.push(values[i] - values[i - 1])
+    changes.push(values[i] - values[i - 1])
   }
   
-  const gains = deltas.map(d => d > 0 ? d : 0)
-  const losses = deltas.map(d => d < 0 ? Math.abs(d) : 0)
+  const gains = changes.map(change => change > 0 ? change : 0)
+  const losses = changes.map(change => change < 0 ? Math.abs(change) : 0)
   
-  const avgGain = gains.slice(-period).reduce((sum, g) => sum + g, 0) / period
-  const avgLoss = losses.slice(-period).reduce((sum, l) => sum + l, 0) / period
+  const avgGain = gains.slice(-period).reduce((a, b) => a + b, 0) / period
+  const avgLoss = losses.slice(-period).reduce((a, b) => a + b, 0) / period
   
   if (avgLoss === 0) return 100
-  
   const rs = avgGain / avgLoss
   return 100 - (100 / (1 + rs))
 }
 
-function calculateVolatility(values: number[], period: number): number {
-  const returns = []
-  for (let i = 1; i < values.length; i++) {
-    returns.push((values[i] - values[i - 1]) / values[i - 1])
+function calculateMACD(values: number[]) {
+  const ema12 = calculateEMA(values, 12)
+  const ema26 = calculateEMA(values, 26)
+  const macd = ema12 - ema26
+  const signal = macd * 0.9 // Simplified signal line
+  
+  return {
+    macd,
+    signal,
+    histogram: macd - signal
+  }
+}
+
+function calculateBollingerBands(values: number[], period: number, stdDev: number) {
+  const sma = calculateSMA(values, period)
+  const recentValues = values.slice(-period)
+  const squaredDiffs = recentValues.map(value => Math.pow(value - sma, 2))
+  const variance = squaredDiffs.reduce((a, b) => a + b, 0) / period
+  const standardDeviation = Math.sqrt(variance)
+  
+  return {
+    upper: sma + (standardDeviation * stdDev),
+    middle: sma,
+    lower: sma - (standardDeviation * stdDev)
+  }
+}
+
+function calculateATR(highs: number[], lows: number[], closes: number[], period: number): number {
+  const trueRanges = []
+  
+  for (let i = 1; i < highs.length; i++) {
+    const tr = Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1])
+    )
+    trueRanges.push(tr)
   }
   
-  const recentReturns = returns.slice(-period)
-  const mean = recentReturns.reduce((sum, r) => sum + r, 0) / recentReturns.length
-  const variance = recentReturns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / recentReturns.length
-  
-  return Math.sqrt(variance)
+  return calculateSMA(trueRanges, period)
+}
+
+function calculateTrendStrength(closes: number[], ema21: number, ema50: number): number {
+  const currentPrice = closes[closes.length - 1]
+  const priceToEma21 = Math.abs((currentPrice - ema21) / ema21) * 100
+  const ema21ToEma50 = Math.abs((ema21 - ema50) / ema50) * 100
+  return (priceToEma21 + ema21ToEma50) / 2
+}
+
+function calculateMomentum(values: number[], period: number): number {
+  const current = values[values.length - 1]
+  const previous = values[values.length - 1 - period]
+  return (current - previous) / previous
 }

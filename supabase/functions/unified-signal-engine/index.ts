@@ -12,58 +12,92 @@ serve(async (req) => {
   }
 
   try {
+    console.log('🚀 Unified Signal Engine started')
+    
+    const { 
+      timeframes = ['15m', '1h'], 
+      symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'], 
+      algorithms = ['AITRADEX1'] 
+    } = await req.json()
+    
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { timeframes = ["5m", "15m", "1h"], test_mode = false } = await req.json()
-    
-    const symbols = [
-      'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'SOLUSDT',
-      'DOTUSDT', 'LINKUSDT', 'AVAXUSDT', 'MATICUSDT', 'ATOMUSDT', 'LTCUSDT'
-    ]
-
-    let totalSignals = 0
-    let processedSymbols = 0
+    const generatedSignals = []
 
     for (const timeframe of timeframes) {
       for (const symbol of symbols) {
-        try {
-          // Fetch candle data from Bybit
-          const candleResponse = await fetch(
-            `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${timeframe}&limit=200`
-          )
-          const candleData = await candleResponse.json()
-          
-          if (candleData?.result?.list && candleData.result.list.length > 0) {
-            const candles = candleData.result.list.reverse()
-            const signal = await generateSignal(symbol, timeframe, candles, supabaseClient)
+        for (const algorithm of algorithms) {
+          try {
+            const signal = await generateUnifiedSignal(symbol, timeframe, algorithm)
             
             if (signal) {
-              totalSignals++
+              // Insert into database
+              const { data: insertedSignal, error } = await supabaseClient
+                .from('signals')
+                .insert({
+                  symbol: signal.symbol,
+                  timeframe: signal.timeframe,
+                  direction: signal.direction,
+                  price: signal.price,
+                  entry_price: signal.price,
+                  score: signal.score,
+                  algo: algorithm,
+                  source: 'unified_signal_engine',
+                  metadata: {
+                    ...signal.metadata,
+                    engine: 'unified',
+                    generated_at: new Date().toISOString()
+                  }
+                })
+                .select()
+                .single()
+
+              if (!error) {
+                generatedSignals.push(insertedSignal)
+                console.log(`✅ Generated ${algorithm} signal for ${symbol} ${timeframe}:`, signal.direction)
+              }
             }
-            processedSymbols++
+          } catch (error) {
+            console.error(`Error generating signal for ${symbol} ${timeframe} ${algorithm}:`, error)
           }
-        } catch (error) {
-          console.error(`Error processing ${symbol} ${timeframe}:`, error)
         }
       }
     }
 
+    // Log execution
+    await supabaseClient
+      .from('edge_event_log')
+      .insert({
+        fn: 'unified_signal_engine',
+        stage: 'completed',
+        payload: {
+          signals_generated: generatedSignals.length,
+          timeframes,
+          symbols,
+          algorithms,
+          timestamp: new Date().toISOString()
+        }
+      })
+
     return new Response(
       JSON.stringify({
         success: true,
-        signals_generated: totalSignals,
-        symbols_scanned: processedSymbols,
-        timeframes: timeframes,
-        algorithm: 'aitradex1_unified',
+        signals_generated: generatedSignals.length,
+        signals: generatedSignals,
+        summary: {
+          timeframes,
+          symbols,
+          algorithms
+        },
         timestamp: new Date().toISOString()
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Unified signal engine error:', error)
+    console.error('❌ Unified Signal Engine error:', error)
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
@@ -71,7 +105,30 @@ serve(async (req) => {
   }
 })
 
-async function generateSignal(symbol: string, timeframe: string, candles: any[], supabaseClient: any) {
+async function generateUnifiedSignal(symbol: string, timeframe: string, algorithm: string) {
+  try {
+    // Fetch market data
+    const response = await fetch(
+      `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${timeframe}&limit=100`
+    )
+    const data = await response.json()
+    
+    if (!data?.result?.list?.length) return null
+    
+    const candles = data.result.list.reverse()
+    
+    if (algorithm === 'AITRADEX1') {
+      return await analyzeAItradeX1(symbol, timeframe, candles)
+    }
+    
+    return null
+  } catch (error) {
+    console.error('Signal generation error:', error)
+    return null
+  }
+}
+
+async function analyzeAItradeX1(symbol: string, timeframe: string, candles: any[]) {
   try {
     const closes = candles.slice(-50).map((c: any) => parseFloat(c[4]))
     const highs = candles.slice(-50).map((c: any) => parseFloat(c[2]))
@@ -79,56 +136,86 @@ async function generateSignal(symbol: string, timeframe: string, candles: any[],
     
     if (closes.length < 21) return null
     
-    // Calculate indicators
-    const ema21 = calculateEMA(closes, 21)
-    const sma200 = calculateSMA(closes, Math.min(200, closes.length))
     const currentPrice = closes[closes.length - 1]
     
-    // Simple trend detection
-    const trendUp = ema21 > sma200 && currentPrice > ema21
-    const trendDown = ema21 < sma200 && currentPrice < ema21
+    // Technical indicators
+    const ema21 = calculateEMA(closes, 21)
+    const ema50 = calculateEMA(closes, 50)
+    const rsi = calculateRSI(closes, 14)
+    const bb = calculateBollingerBands(closes, 20, 2)
+    const macd = calculateMACD(closes, 12, 26, 9)
     
-    if (!trendUp && !trendDown) return null
+    // Market structure
+    const trendStrength = Math.abs((currentPrice - ema21) / ema21) * 100
+    const volatility = calculateVolatility(closes, 20)
+    const momentum = calculateMomentum(closes, 10)
     
-    const direction = trendUp ? 'LONG' : 'SHORT'
-    const score = Math.floor(Math.random() * 30) + 70 // 70-100 score for quality signals
+    let score = 50
+    let direction = null
+    let confidence = 'medium'
     
-    const signal = {
-      symbol,
-      timeframe,
-      direction,
-      price: currentPrice,
-      entry_price: currentPrice,
-      stop_loss: direction === 'LONG' ? currentPrice * 0.97 : currentPrice * 1.03,
-      take_profit: direction === 'LONG' ? currentPrice * 1.06 : currentPrice * 0.94,
-      score,
-      source: 'unified_signal_engine',
-      algo: 'aitradex1_unified',
-      is_active: true,
-      metadata: {
-        ema21: ema21.toFixed(2),
-        sma200: sma200.toFixed(2),
-        grade: score >= 85 ? 'A' : score >= 75 ? 'B' : 'C'
+    // Bullish signals
+    if (currentPrice > ema21 && ema21 > ema50) {
+      score += 15 // Trend alignment
+      
+      if (rsi > 40 && rsi < 70) score += 10 // RSI in good range
+      if (macd.macd > macd.signal) score += 10 // MACD bullish
+      if (currentPrice > bb.lower && currentPrice < bb.upper) score += 5 // BB position
+      if (momentum > 0) score += 10 // Positive momentum
+      
+      direction = 'LONG'
+    }
+    // Bearish signals
+    else if (currentPrice < ema21 && ema21 < ema50) {
+      score += 15 // Trend alignment
+      
+      if (rsi > 30 && rsi < 60) score += 10 // RSI in good range
+      if (macd.macd < macd.signal) score += 10 // MACD bearish
+      if (currentPrice > bb.lower && currentPrice < bb.upper) score += 5 // BB position
+      if (momentum < 0) score += 10 // Negative momentum
+      
+      direction = 'SHORT'
+    }
+    
+    // Adjust for volatility
+    if (volatility > 2) score -= 5 // High volatility penalty
+    if (volatility < 0.5) score -= 5 // Low volatility penalty
+    
+    // Set confidence
+    if (score >= 80) confidence = 'high'
+    else if (score >= 65) confidence = 'medium'
+    else confidence = 'low'
+    
+    // Only return signals with decent score
+    if (score >= 65 && direction) {
+      return {
+        symbol,
+        timeframe,
+        direction,
+        price: currentPrice,
+        score: Math.round(Math.min(score, 100)),
+        metadata: {
+          confidence,
+          ema21: ema21.toFixed(2),
+          ema50: ema50.toFixed(2),
+          rsi: rsi.toFixed(2),
+          macd: macd.macd.toFixed(4),
+          trend_strength: trendStrength.toFixed(2),
+          volatility: volatility.toFixed(3),
+          momentum: momentum.toFixed(4),
+          bollinger_position: ((currentPrice - bb.lower) / (bb.upper - bb.lower)).toFixed(3)
+        }
       }
     }
     
-    // Insert signal into database
-    const { error } = await supabaseClient
-      .from('signals')
-      .insert(signal)
-    
-    if (error) {
-      console.error('Error inserting signal:', error)
-      return null
-    }
-    
-    return signal
+    return null
   } catch (error) {
-    console.error('Error generating signal:', error)
+    console.error('AItradeX1 analysis error:', error)
     return null
   }
 }
 
+// Technical Analysis Functions
 function calculateEMA(values: number[], period: number): number {
   const multiplier = 2 / (period + 1)
   let ema = values[0]
@@ -140,7 +227,66 @@ function calculateEMA(values: number[], period: number): number {
   return ema
 }
 
-function calculateSMA(values: number[], period: number): number {
-  const slice = values.slice(-period)
-  return slice.reduce((sum, val) => sum + val, 0) / slice.length
+function calculateRSI(values: number[], period: number): number {
+  const changes = []
+  for (let i = 1; i < values.length; i++) {
+    changes.push(values[i] - values[i - 1])
+  }
+  
+  const gains = changes.map(change => change > 0 ? change : 0)
+  const losses = changes.map(change => change < 0 ? Math.abs(change) : 0)
+  
+  const avgGain = gains.slice(-period).reduce((a, b) => a + b, 0) / period
+  const avgLoss = losses.slice(-period).reduce((a, b) => a + b, 0) / period
+  
+  if (avgLoss === 0) return 100
+  const rs = avgGain / avgLoss
+  return 100 - (100 / (1 + rs))
+}
+
+function calculateBollingerBands(values: number[], period: number, stdDev: number) {
+  const sma = values.slice(-period).reduce((a, b) => a + b, 0) / period
+  const squaredDiffs = values.slice(-period).map(value => Math.pow(value - sma, 2))
+  const variance = squaredDiffs.reduce((a, b) => a + b, 0) / period
+  const standardDeviation = Math.sqrt(variance)
+  
+  return {
+    upper: sma + (standardDeviation * stdDev),
+    middle: sma,
+    lower: sma - (standardDeviation * stdDev)
+  }
+}
+
+function calculateMACD(values: number[], fastPeriod: number, slowPeriod: number, signalPeriod: number) {
+  const emaFast = calculateEMA(values, fastPeriod)
+  const emaSlow = calculateEMA(values, slowPeriod)
+  const macd = emaFast - emaSlow
+  
+  // Simplified signal line (would need more historical data for proper calculation)
+  const signal = macd * 0.9
+  
+  return {
+    macd,
+    signal,
+    histogram: macd - signal
+  }
+}
+
+function calculateVolatility(values: number[], period: number): number {
+  const returns = []
+  for (let i = 1; i < values.length; i++) {
+    returns.push((values[i] - values[i - 1]) / values[i - 1])
+  }
+  
+  const recentReturns = returns.slice(-period)
+  const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length
+  const variance = recentReturns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / recentReturns.length
+  
+  return Math.sqrt(variance) * 100
+}
+
+function calculateMomentum(values: number[], period: number): number {
+  const current = values[values.length - 1]
+  const previous = values[values.length - 1 - period]
+  return (current - previous) / previous
 }
