@@ -28,72 +28,69 @@ async function getSessionToken(): Promise<string | null> {
 
 export const TradingGateway = {
   async execute(params: ExecParams) {
-    if (!FEATURES.AUTOTRADE_ENABLED) {
-      return { ok: false, code: 'DISABLED', message: 'Auto-trading disabled' }
+    const autoTradingEnabled = FEATURES.AUTOTRADE_ENABLED
+    if (!autoTradingEnabled) {
+      console.warn('[TradingGateway] Auto-trading disabled in feature flags')
+      return { ok: false, message: 'Auto-trading disabled in config' }
     }
 
+    console.log('[TradingGateway] 🚀 Executing trade:', params)
+
     try {
-      console.log('🚀 Executing live trade via Bybit API:', params);
-      
-      const functionsBase = getFunctionsBaseUrl();
-      const sessionToken = await getSessionToken();
-      
-      if (!sessionToken) {
-        return { 
-          ok: false, 
-          code: 'AUTH_REQUIRED', 
-          message: 'Please sign in to execute trades' 
-        };
-      }
-      
-      const headers: Record<string, string> = {
-        'content-type': 'application/json',
-        'authorization': `Bearer ${sessionToken}`,
-      };
-      
-      // Convert to Bybit signal format
-      const bybitSignal = {
-        symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT
-        side: params.side === 'BUY' ? 'Buy' : 'Sell',
-        orderType: 'Market',
-        qty: (params.notionalUSD * 0.001).toFixed(6), // Convert notional to quantity
-        timeInForce: 'IOC'
-      };
-      
-      const response = await fetch(`${functionsBase}/bybit-live-trading`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          action: 'place_order',
-          signal: bybitSignal,
-          testMode: false // Set to true for paper trading
-        })
-      });
+      // Call the restored edge function
+      const functionsBase = getFunctionsBaseUrl()
+      const response = await fetch(
+        `${functionsBase}/aitradex1-trade-executor`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+          },
+          body: JSON.stringify({
+            symbol: params.symbol,
+            side: params.side,
+            amount_usd: params.notionalUSD || 100,
+            leverage: 1,
+          }),
+        }
+      )
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ HTTP Error:', response.status, errorText);
+        const errorText = await response.text()
+        console.error('[TradingGateway] HTTP Error:', response.status, errorText)
         return { 
           ok: false, 
-          code: 'HTTP_ERROR', 
+          code: 'HTTP_ERROR',
           message: `HTTP ${response.status}: ${errorText}` 
-        };
+        }
       }
 
-      const data = await response.json();
-      
-      if (!data.success) {
-        console.error('❌ Trade execution failed:', data);
-        const errorMessage = data?.error || data?.message || 'Unknown error';
-        return { ok: false, code: 'TRADE_FAILED', message: errorMessage };
-      }
+      const data = await response.json()
 
-      console.log('✅ Live trade executed successfully:', data);
-      return { ok: true, data: data.data || data };
-      
+      if (data.success) {
+        console.log('[TradingGateway] ✅ Trade executed:', data.orderId)
+        return { 
+          ok: true, 
+          orderId: data.orderId, 
+          data,
+          message: `Order ${data.orderId} executed successfully`
+        }
+      } else {
+        console.error('[TradingGateway] ❌ Trade failed:', data.error)
+        return { 
+          ok: false, 
+          code: 'TRADE_FAILED',
+          message: data.error || 'Failed to execute trade' 
+        }
+      }
     } catch (error: any) {
-      console.error('❌ Trading gateway error:', error);
-      return { ok: false, code: 'NETWORK_ERROR', message: error.message };
+      console.error('[TradingGateway] Exception:', error)
+      return { 
+        ok: false, 
+        code: 'NETWORK_ERROR',
+        message: `Trade execution error: ${error.message}` 
+      }
     }
   },
 
