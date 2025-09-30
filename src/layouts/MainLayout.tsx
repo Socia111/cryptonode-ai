@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import TopNavigation from '@/components/TopNavigation';
-import BottomSignalsBar from '@/components/BottomSignalsBar';
+
 import LiveMonitoringWidget from '@/components/LiveMonitoringWidget';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
@@ -29,10 +29,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
           </main>
           
-          {/* Bottom Navigation - Mobile Only */}
-          <div className="lg:hidden">
-            <BottomSignalsBar />
-          </div>
         </div>
 
         {/* Mobile Sidebar Overlay */}

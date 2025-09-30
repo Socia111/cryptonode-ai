@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import MainLayout from '../layouts/MainLayout';
 import TradingDashboard from '../components/TradingDashboard';
-import SystemDiagnostics from '@/components/SystemDiagnostics';
+
 import SystemActivation from '@/components/SystemActivation';
 
 const Index = () => {
@@ -199,7 +199,9 @@ const Index = () => {
             <TradingDashboard />
           </div>
           <div className="lg:w-96 space-y-6">
-            <SystemDiagnostics />
+            <div className="text-center py-8 text-muted-foreground">
+              System simplified
+            </div>
           </div>
         </div>
       </div>

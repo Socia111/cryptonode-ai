@@ -1,29 +1,34 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
-import SignalsList from '../components/SignalsList';
+import TradingPanel from '../components/TradingPanel';
+import LivePrice from '../components/LivePrice';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Zap, Target, Activity } from 'lucide-react';
+import { ShoppingCart, Zap } from 'lucide-react';
 
-const Signals = () => {
+const Buy = () => {
   return (
     <MainLayout>
       <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Page Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            AI Trading Signals
+            Execute Trade
           </h1>
           <p className="text-muted-foreground">
-            Advanced AI-powered signals with 80%+ confidence and real-time market analysis
+            Execute trades with real-time market prices
           </p>
         </div>
 
+        {/* Live Price Display */}
+        <LivePrice />
 
-        {/* High-Confidence Signals Only */}
-        <SignalsList />
+        {/* Trading Interface */}
+        <div className="max-w-2xl mx-auto">
+          <TradingPanel />
+        </div>
       </div>
     </MainLayout>
   );
 };
 
-export default Signals;
+export default Buy;

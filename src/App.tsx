@@ -7,25 +7,11 @@ import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
 import { isSupabaseConfigured } from '@/lib/supabaseClient';
-import Index from "./pages/Index";
-import AuthPage from "./pages/Auth";
-import Home from "./pages/Home";
-import Health from "./pages/Health";
+// Core pages only
 import Dashboard from "./pages/Dashboard";
-import AItradeX1Original from "./pages/AItradeX1Original";
-import X from "./pages/X";
-import X1 from "./pages/X1";
-import X2 from "./pages/X2";
-import Trade from "./pages/Trade";
-import TradingSystem from "./pages/TradingSystem";
-import SystemActivation from "./pages/SystemActivation";
-import Portfolio from "./pages/Portfolio";
+import ConnectAPI from "./pages/ConnectAPI";
 import Signals from "./pages/Signals";
-import Markets from "./pages/Markets";
-// Remove unused imports
-import Automation from "./pages/Automation";
-import Alerts from "./pages/Alerts";
-import SettingsPage from "./pages/Settings";
+import Buy from "./pages/Buy";
 import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
@@ -52,27 +38,12 @@ function App() {
           <PWAInstallPrompt />
           <BrowserRouter>
         <Routes>
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/" element={<Index />} />
-          <Route path="/home" element={<Home />} />
-          <Route path="/health" element={<Health />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/AITRADEX1ORIGINAL" element={<AItradeX1Original />} />
-            <Route path="/X" element={<X />} />
-            <Route path="/X1" element={<X1 />} />
-            <Route path="/X2" element={<X2 />} />
-            <Route path="/trade" element={<Trade />} />
-            <Route path="/trading-system" element={<TradingSystem />} />
-            <Route path="/system-activation" element={<SystemActivation />} />
-            <Route path="/portfolio" element={<Portfolio />} />
-            <Route path="/signals" element={<Signals />} />
-            <Route path="/markets" element={<Markets />} />
-            {/* Remove backtest route */}
-            <Route path="/automation" element={<Automation />} />
-            <Route path="/alerts" element={<Alerts />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/api" element={<ConnectAPI />} />
+          <Route path="/signals" element={<Signals />} />
+          <Route path="/buy" element={<Buy />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
         </BrowserRouter>
         </TooltipProvider>
       </ErrorBoundary>

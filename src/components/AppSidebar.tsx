@@ -1,21 +1,9 @@
 import { useState } from "react";
 import { 
   Activity,
-  BarChart3, 
-  TrendingUp, 
-  Wallet, 
-  Zap, 
-  PieChart, 
-  TestTube, 
-  Bot, 
-  Bell, 
-  Settings,
-  Home,
   Building2,
   Signal,
-  Database,
-  Cpu,
-  Target,
+  ShoppingCart,
   Shield
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
@@ -34,29 +22,10 @@ import {
 } from "@/components/ui/sidebar";
 
 const mainItems = [
-  { title: "Home", url: "/", icon: Home, description: "Landing page and overview" },
-  { title: "Dashboard", url: "/dashboard", icon: Activity, description: "Real-time system monitoring", badge: "Live" },
-  { title: "Trade", url: "/trade", icon: TrendingUp, description: "Manual trading interface" },
+  { title: "Dashboard", url: "/", icon: Activity, description: "System overview and monitoring", badge: "Live" },
+  { title: "Connect API", url: "/api", icon: Building2, description: "Connect your trading account" },
   { title: "Signals", url: "/signals", icon: Signal, description: "AI trading signals feed" },
-  { title: "Portfolio", url: "/portfolio", icon: Wallet, description: "Portfolio management" },
-  { title: "Markets", url: "/markets", icon: BarChart3, description: "Market data and analysis" },
-];
-
-const aiPlatforms = [
-  { title: "X1 System", url: "/x1", icon: Cpu, description: "Core AI trading engine" },
-  { title: "X2 Advanced", url: "/x2", icon: Database, description: "Advanced analytics platform" },
-  { title: "Original AI", url: "/AITRADEX1ORIGINAL", icon: Bot, description: "Legacy AI system" },
-  { title: "X Platform", url: "/x", icon: Zap, description: "Experimental features" },
-];
-
-const toolsItems = [
-  // Remove backtests link
-  { title: "Automation", url: "/automation", icon: Bot, description: "Automated trading setup" },
-  { title: "Alerts", url: "/alerts", icon: Bell, description: "Notification management" },
-];
-
-const settingsItems = [
-  { title: "Settings", url: "/settings", icon: Settings, description: "Application preferences" },
+  { title: "Buy", url: "/buy", icon: ShoppingCart, description: "Execute trades" },
 ];
 
 export function AppSidebar() {
@@ -139,44 +108,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* AI Platforms */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            AI Platforms
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {aiPlatforms.map((item) => (
-                <SidebarNavItem key={item.title} item={item} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Tools & Analytics */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Tools & Analytics
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {toolsItems.map((item) => (
-                <SidebarNavItem key={item.title} item={item} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Settings Section */}
-        <SidebarGroup className="mt-auto border-t border-border pt-4">
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsItems.map((item) => (
-                <SidebarNavItem key={item.title} item={item} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
 
         {/* Footer Status */}
         <div className="p-4 border-t border-border">

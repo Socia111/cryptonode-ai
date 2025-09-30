@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Settings, Zap, BarChart3, TrendingUp, ExternalLink, AlertTriangle, TestTube, Loader2 } from 'lucide-react';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { toast } from '@/hooks/use-toast';
-import TradingDiagnostics from '@/components/TradingDiagnostics';
+
 import ManualAPITest from '@/components/ManualAPITest';
 // Remove DirectBybitTest import
 import BybitTradingAuth from '@/components/BybitTradingAuth';
@@ -97,7 +97,7 @@ const LiveTradingSetup = () => {
       
       {/* API Testing Components - DirectBybitTest removed */}
       
-      <TradingDiagnostics />
+      
       
       <ManualAPITest />
       

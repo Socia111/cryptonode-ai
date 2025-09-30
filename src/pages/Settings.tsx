@@ -1,7 +1,4 @@
 import MainLayout from '@/layouts/MainLayout';
-import TradingDiagnostics from '@/components/TradingDiagnostics';
-
-import { ProductionControls } from '@/components/ProductionControls';
 import { TestnetTradeTest } from '@/components/TestnetTradeTest';
 import AutoTradingToggle from '@/components/AutoTradingToggle';
 
@@ -33,7 +30,9 @@ export default function Settings() {
           
           <div>
             <h2 className="text-xl font-semibold mb-4">Production Mode</h2>
-            <ProductionControls />
+            <div className="text-center py-8 text-muted-foreground">
+              Production controls simplified
+            </div>
           </div>
           
         </div>
@@ -41,7 +40,9 @@ export default function Settings() {
         <div className="grid gap-6 lg:grid-cols-2">
           <div>
             <h2 className="text-xl font-semibold mb-4">System Diagnostics</h2>
-            <TradingDiagnostics />
+            <div className="text-center py-8 text-muted-foreground">
+              Diagnostics simplified for streamlined interface
+            </div>
           </div>
           
           <div>

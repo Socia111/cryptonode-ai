@@ -24,10 +24,7 @@ import CleanSignalsList from './CleanSignalsList';
 import AutoTradingToggle from './AutoTradingToggle';
 import PerformancePanel from './PerformancePanel';
 import LiveTradingSetup from './LiveTradingSetup';
-import TradingDiagnostics from './TradingDiagnostics';
-import { ProductionControls } from './ProductionControls';
 import { AutoTradingStatus } from './AutoTradingStatus';
-import { AutoTradingSetupGuide } from './AutoTradingSetupGuide';
 
 const TradingDashboard = () => {
   const [activeTab, setActiveTab] = useState('signals');
@@ -136,7 +133,6 @@ const TradingDashboard = () => {
               <CleanSignalsList />
             </div>
             <div className="space-y-6">
-              <AutoTradingSetupGuide />
               <AutoTradingStatus />
             </div>
           </div>
@@ -151,11 +147,15 @@ const TradingDashboard = () => {
         </TabsContent>
         
         <TabsContent value="controls" className="space-y-6">
-          <ProductionControls />
+          <div className="text-center py-8 text-muted-foreground">
+            Controls simplified for streamlined interface
+          </div>
         </TabsContent>
         
         <TabsContent value="diagnostics" className="space-y-6">
-          <TradingDiagnostics />
+          <div className="text-center py-8 text-muted-foreground">
+            Diagnostics simplified for streamlined interface
+          </div>
         </TabsContent>
       </Tabs>
     </div>

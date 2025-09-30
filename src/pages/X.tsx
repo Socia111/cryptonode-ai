@@ -4,7 +4,7 @@ import MarketOverview from '../components/MarketOverview';
 import SignalsList from '../components/SignalsList';
 import TradingChart from '../components/TradingChart';
 import PortfolioStats from '../components/PortfolioStats';
-import DatabaseSetup from '../components/DatabaseSetup';
+
 import TradingPanel from '../components/TradingPanel';
 // Remove BacktestEngine import
 import QuantumAnalysis from '../components/QuantumAnalysis';
@@ -25,8 +25,6 @@ const X = () => {
           </p>
         </div>
         
-        {/* Database Setup */}
-        <DatabaseSetup />
         
         {/* AItradeX1 Scanner Chart */}
         <AItradeX1ScannerChart />

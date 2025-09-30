@@ -9,7 +9,7 @@ import ComprehensiveScannerDashboard from '../components/ComprehensiveScannerDas
 
 import SystemStatusSummary from '../components/SystemStatusSummary';
 import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
-import DatabaseSetup from '../components/DatabaseSetup';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const X2 = () => {
@@ -47,8 +47,6 @@ const X2 = () => {
         {/* Automated Trading */}
         
         
-        {/* Database Setup */}
-        <DatabaseSetup />
         
         {/* AItradeX1SystemDashboard removed */}
       </div>
