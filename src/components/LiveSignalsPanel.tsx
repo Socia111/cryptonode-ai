@@ -34,7 +34,7 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
     fetchLiveSignals();
     const interval = setInterval(fetchLiveSignals, 30000);
     
-    // Subscribe to new signals
+    // Subscribe to new signals - fixed filter syntax
     const channel = supabase
       .channel('live_signals')
       .on(
@@ -43,16 +43,19 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
           event: 'INSERT',
           schema: 'public',
           table: 'signals',
-          filter: 'is_active=eq.true',
         },
         (payload) => {
-          console.log('[Live Signals] New signal:', payload.new);
-          setSignals((prev) => [payload.new as Signal, ...prev].slice(0, 10));
-          
-          toast({
-            title: '🎯 New Trading Signal',
-            description: `${payload.new.symbol} ${payload.new.direction} @ ${payload.new.score}%`,
-          });
+          const newSignal = payload.new as any;
+          // Only add high-confidence signals
+          if (newSignal.is_active && newSignal.score >= 75) {
+            console.log('[Live Signals] New signal:', newSignal);
+            setSignals((prev) => [newSignal as Signal, ...prev].slice(0, 10));
+            
+            toast({
+              title: '🎯 New Trading Signal',
+              description: `${newSignal.symbol} ${newSignal.direction} @ ${newSignal.score}%`,
+            });
+          }
         }
       )
       .subscribe();

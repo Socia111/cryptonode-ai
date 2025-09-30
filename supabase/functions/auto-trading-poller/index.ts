@@ -29,7 +29,7 @@ serve(async (req) => {
       );
     }
 
-    // Fetch high-confidence signals from last 5 minutes
+    // Fetch high-confidence signals from last 5 minutes that haven't been executed
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     
     const { data: signals, error: signalsError } = await supabase
@@ -38,27 +38,29 @@ serve(async (req) => {
       .eq('is_active', true)
       .gte('score', 75)
       .gte('created_at', fiveMinutesAgo)
-      .is('executed_at', null)
       .order('score', { ascending: false })
       .limit(5);
+    
+    // Filter out already executed signals (check metadata.executed_at)
+    const unexecutedSignals = signals?.filter(s => !s.metadata?.executed_at) || [];
 
     if (signalsError) {
       throw new Error(`Failed to fetch signals: ${signalsError.message}`);
     }
 
-    if (!signals || signals.length === 0) {
-      console.log('[Auto-Trading Poller] No signals to execute');
+    if (!unexecutedSignals || unexecutedSignals.length === 0) {
+      console.log('[Auto-Trading Poller] No unexecuted signals to process');
       return new Response(
         JSON.stringify({ success: true, signals_processed: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[Auto-Trading Poller] Found ${signals.length} signals to process`);
+    console.log(`[Auto-Trading Poller] Found ${unexecutedSignals.length} signals to process`);
 
     const executedTrades = [];
 
-    for (const signal of signals) {
+    for (const signal of unexecutedSignals) {
       try {
         // Call trade executor
         const tradeExecutorUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/aitradex1-trade-executor`;
@@ -111,12 +113,12 @@ serve(async (req) => {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    console.log(`[Auto-Trading Poller] ✅ Completed: ${executedTrades.length}/${signals.length} trades executed`);
+    console.log(`[Auto-Trading Poller] ✅ Completed: ${executedTrades.length}/${unexecutedSignals.length} trades executed`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        signals_processed: signals.length,
+        signals_processed: unexecutedSignals.length,
         trades_executed: executedTrades.length,
         executed_trades: executedTrades,
       }),
