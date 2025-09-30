@@ -19,6 +19,7 @@ import {
 import MainLayout from '../layouts/MainLayout';
 import TradingDashboard from '../components/TradingDashboard';
 import SystemDiagnostics from '@/components/SystemDiagnostics';
+import SystemActivation from '@/components/SystemActivation';
 
 const Index = () => {
   return (
@@ -185,6 +186,11 @@ const Index = () => {
               </Link>
             </CardContent>
           </Card>
+        </div>
+
+        {/* System Activation */}
+        <div className="mb-8">
+          <SystemActivation />
         </div>
 
         {/* Main Trading Components */}
