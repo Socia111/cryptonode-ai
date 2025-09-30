@@ -1772,6 +1772,40 @@ export type Database = {
         Args: { days?: number }
         Returns: undefined
       }
+      claim_execution_jobs: {
+        Args: { max_jobs?: number; worker_id: string }
+        Returns: {
+          amount_usd: number
+          attempts: number | null
+          commission: number | null
+          created_at: string | null
+          exchange_order_id: string | null
+          executed_price: number | null
+          executed_qty: number | null
+          id: string
+          last_error: string | null
+          leverage: number | null
+          locked_at: string | null
+          metadata: Json | null
+          order_status: string | null
+          real_trading: boolean | null
+          side: string
+          signal: Json | null
+          signal_id: string | null
+          status: string | null
+          symbol: string
+          updated_at: string | null
+          user_id: string | null
+        }[]
+      }
+      cleanup_old_signals: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      complete_execution_job: {
+        Args: { job_id: string; result_data?: Json; success: boolean }
+        Returns: undefined
+      }
       expire_signals: {
         Args: Record<PropertyKey, never>
         Returns: undefined
