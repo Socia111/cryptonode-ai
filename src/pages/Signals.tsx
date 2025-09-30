@@ -1,6 +1,8 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import SignalsList from '../components/SignalsList';
+import AItradeX1StrategyPanel from '../components/AItradeX1StrategyPanel';
+import TradePlanGenerator from '../components/TradePlanGenerator';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Zap, Target, Activity } from 'lucide-react';
 
@@ -19,7 +21,13 @@ const Signals = () => {
         </div>
 
 
-        {/* High-Confidence Signals Only */}
+        {/* Strategy Panel */}
+        <AItradeX1StrategyPanel />
+
+        {/* Trade Plan Generator */}
+        <TradePlanGenerator />
+
+        {/* Signals List */}
         <SignalsList />
       </div>
     </MainLayout>

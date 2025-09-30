@@ -35,33 +35,14 @@ const QuantumAnalysis = () => {
 
   const fetchQuantumAnalysis = async () => {
     try {
-      // Use signals table instead of non-existent quantum_analysis table
       const { data, error } = await supabase
-        .from('signals')
+        .from('quantum_analysis')
         .select('*')
-        .gte('score', 75)
-        .order('confidence', { ascending: false })
+        .order('quantum_confidence', { ascending: false })
         .limit(10);
 
       if (error) throw error;
-      
-      // Transform signals data to match QuantumAnalysis interface
-      const transformedData = (data || []).map(signal => ({
-        token: signal.symbol,
-        breakout_probability: signal.confidence || 0.5,
-        quantum_confidence: signal.score / 100,
-        monte_carlo_simulations: 1000,
-        optimization_score: signal.score / 100,
-        path_analysis: {
-          upward_paths: signal.direction === 'LONG' ? 70 : 30,
-          downward_paths: signal.direction === 'SHORT' ? 70 : 30,
-          sideways_paths: 20
-        },
-        volatility_prediction: signal.atr || 0.02,
-        optimal_entry_window: '15-30 minutes'
-      }));
-      
-      setAnalysis(transformedData);
+      setAnalysis(data || []);
     } catch (error) {
       console.error('Failed to fetch quantum analysis:', error);
     }

@@ -53,7 +53,7 @@ const AItradeX1StrategyPanel = () => {
   const { toast } = useToast();
   
   const [strategy, setStrategy] = useState<StrategySettings>({
-    timeframe: '1h',
+    timeframe: '15m',
     leverage: 5,
     riskPerTrade: 2,
     maxOpenTrades: 3,
@@ -235,11 +235,17 @@ const AItradeX1StrategyPanel = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1h">1hour - Swing Trading (Recommended)</SelectItem>
+                  <SelectItem value="5m">5min - Scalping (High Risk)</SelectItem>
+                  <SelectItem value="15m">15min - Balanced (Recommended)</SelectItem>
+                  <SelectItem value="1h">1hour - Swing (Lower Risk)</SelectItem>
+                  <SelectItem value="4h">4hour - Position (Lowest Risk)</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
-                📈 Swing trades, 3-5x leverage, 3-8% moves per signal
+                {strategy.timeframe === '5m' && "⚡ Fast scalps, 5-10x leverage, 0.5-2% moves"}
+                {strategy.timeframe === '15m' && "🎯 Optimal balance, 5-8x leverage, 1-3% moves"}
+                {strategy.timeframe === '1h' && "📈 Swing trades, 3-5x leverage, 3-8% moves"}
+                {strategy.timeframe === '4h' && "🏔️ Position trades, 2-3x leverage, 5-15% moves"}
               </p>
             </div>
 

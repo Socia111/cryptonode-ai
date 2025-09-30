@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { subscribeSignals as subscribeSignalsRealtime } from '@/lib/realtime';
 
@@ -91,7 +91,7 @@ async function fetchSignals(): Promise<Signal[]> {
     const { data: allSignals, error: signalsError } = await supabase
       .from('signals')
       .select('*')
-      .gte('score', 60) // Score 60+ signals only (high confidence)
+      .gte('score', 80) // Score 80+ signals only (high confidence)
       .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
       .order('created_at', { ascending: false })
       .limit(50);
@@ -102,13 +102,13 @@ async function fetchSignals(): Promise<Signal[]> {
     }
 
     if (allSignals && allSignals.length > 0) {
-      console.log(`[Signals] Found ${allSignals.length} total signals (60%+ confidence)`);
+      console.log(`[Signals] Found ${allSignals.length} total signals (80%+ confidence)`);
       return mapSignalsToInterface(allSignals);
     }
 
-    // No mock data anymore - return empty array if no real signals
-    console.log('[useSignals] No signals found in database');
-    return [];
+    // Fallback to mock signals for demo purposes
+    console.log('[Signals] No live signals found, using demo signals');
+    return getMockSignals();
 
   } catch (e) {
     console.error('[Signals] Failed to fetch signals:', e);
@@ -117,9 +117,10 @@ async function fetchSignals(): Promise<Signal[]> {
 }
 
 function mapSignalsToInterface(signals: any[]): Signal[] {
-  // Only allow 1h timeframe signals now
+  const validTimeframes = ['5m', '15m', '30m', '1h', '2h', '4h'];
+  
   return signals
-    .filter(item => item.timeframe === '1h' && item.score >= 60)
+    .filter(item => validTimeframes.includes(item.timeframe) && item.score >= 80)
     .map((item: any): Signal => ({
       id: item.id.toString(),
       token: item.symbol.replace('USDT', '/USDT'),
@@ -144,23 +145,127 @@ function mapSignalsToInterface(signals: any[]): Signal[] {
     .slice(0, 20); // Limit to 20 most recent signals
 }
 
-// Remove mock signals function - no more mock data
+function getMockSignals(): Signal[] {
+  // For development - show mock signals when no real signals available
+  const { generateMockSignals } = require('@/lib/mockSignals');
+  const mockData = generateMockSignals();
+  
+  return mockData.map((mock: any): Signal => ({
+    id: mock.id,
+    token: mock.symbol.replace('USDT', '/USDT'),
+    direction: mock.direction === 'LONG' ? 'BUY' : 'SELL',
+    signal_type: `${mock.algo} ${mock.timeframe}`,
+    timeframe: mock.timeframe,
+    entry_price: mock.price,
+    exit_target: mock.tp,
+    stop_loss: mock.sl,
+    leverage: 1,
+    confidence_score: mock.score,
+    pms_score: mock.score,
+    trend_projection: mock.direction === 'LONG' ? '⬆️' : '⬇️',
+    volume_strength: 1.0,
+    roi_projection: Math.abs((mock.tp - mock.price) / mock.price * 100),
+    signal_strength: mock.score > 90 ? 'STRONG' : mock.score > 85 ? 'MEDIUM' : 'WEAK',
+    risk_level: mock.score > 90 ? 'LOW' : mock.score > 85 ? 'MEDIUM' : 'HIGH',
+    quantum_probability: mock.score / 100,
+    status: 'active',
+    created_at: mock.created_at,
+  }));
+}
 
 // Function removed - now using subscribeSignalsRealtime from @/lib/realtime
 
 export async function generateSignals() {
   try {
-    console.info('[generateSignals] Triggering EMA21/SMA200 + StochRSI + ADX strategy...');
+    console.info('[generateSignals] Triggering comprehensive live signal generation...');
     
-    // Use the proper strategy engine
-    const { data, error } = await supabase.functions.invoke('aitradex1-strategy-engine');
+    const symbols: string[] = []; // Empty array means scan ALL available USDT pairs on Bybit
+    
+    // Run multiple timeframes in parallel for faster execution
+    const scanPromises = [
+      // 5-minute comprehensive scan - all coins
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '5m',
+          relaxed_filters: true,
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      }),
+      // 15-minute comprehensive scan - all coins
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit', 
+          timeframe: '15m',
+          relaxed_filters: true,
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      }),
+      // 1-hour comprehensive scan - all coins
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '1h', 
+          relaxed_filters: false, // Use canonical settings for higher timeframe
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      }),
+      // 4-hour comprehensive scan - all coins for swing trades
+      supabase.functions.invoke('live-scanner-production', {
+        body: {
+          exchange: 'bybit',
+          timeframe: '4h', 
+          relaxed_filters: false,
+          symbols: symbols, // Scan ALL USDT pairs
+          scan_all_coins: true
+        }
+      })
+    ];
 
-    if (error) {
-      throw error;
+    // Wait for all scans to complete
+    const results = await Promise.allSettled(scanPromises);
+    
+    let totalSignals = 0;
+    const timeframes = ['5m', '15m', '1h', '4h'];
+    
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value.data) {
+        const signalsFound = result.value.data.signals_found || 0;
+        totalSignals += signalsFound;
+        console.log(`[generateSignals] ${timeframes[index]} scan: ${signalsFound} signals generated`);
+        if (result.value.error) {
+          console.warn(`[generateSignals] ${timeframes[index]} scan had errors:`, result.value.error);
+        }
+      } else if (result.status === 'rejected') {
+        console.error(`[generateSignals] ${timeframes[index]} scan failed:`, result.reason);
+      }
+    });
+
+    if (totalSignals === 0) {
+      // Fallback to regular scanner with even more relaxed settings
+      console.log('[generateSignals] No signals found, trying fallback scanner...');
+      
+      const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('live-scanner', {
+        body: { 
+          exchange: 'bybit',
+          timeframe: '1h',
+          relaxed_filters: true,
+          symbols: [], // Empty = scan ALL USDT pairs as fallback
+          scan_all_coins: true
+        }
+      });
+
+      if (fallbackError) {
+        throw fallbackError;
+      }
+
+      totalSignals = fallbackData?.signals_found || 0;
     }
-
-    const totalSignals = data?.signals_generated || 0;
-    console.info(`[generateSignals] Success: ${totalSignals} strategy-based signals generated`);
+    
+    console.info(`[generateSignals] Success: ${totalSignals} signals generated`);
     return { signals_created: totalSignals, success: true };
   } catch (e: any) {
     console.error('[generateSignals] Exception:', e);
@@ -168,6 +273,23 @@ export async function generateSignals() {
   }
 }
 
+export async function updateSpynxScores() {
+  try {
+    console.info('[updateSpynxScores] Invoking calculate-spynx-scores...');
+    const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
+    
+    if (error) {
+      console.error('[updateSpynxScores] calculate-spynx-scores failed:', error.message);
+      throw error;
+    }
+    
+    console.info('[updateSpynxScores] Success:', data);
+    return data;
+  } catch (e: any) {
+    console.error('[updateSpynxScores] Exception:', e);
+    throw e;
+  }
+}
 
 export const useSignals = () => {
   const [signals, setSignals] = useState<Signal[]>([]);
@@ -181,7 +303,7 @@ export const useSignals = () => {
       setError(null);
       const { data, error } = await supabase.from('signals')
         .select('*')
-        .gte('score', 60) // Only show 60%+ confidence signals 
+        .gte('score', 80) // Only show 80%+ confidence signals 
         .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Last 4 hours for fresh signals
         .order('created_at', { ascending: false })
         .limit(20); // Limit to 20 most recent
@@ -190,7 +312,7 @@ export const useSignals = () => {
       
       const mappedSignals = (data || []).map(mapDbToSignal);
       setSignals(mappedSignals);
-      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database (60%+ confidence only)`);
+      console.log(`[useSignals] Loaded ${mappedSignals.length} signals from database (80%+ confidence only)`);
     } catch (err: any) {
       console.error('[useSignals] refreshSignals failed:', err);
       setError(err.message || 'Failed to fetch signals');
@@ -231,6 +353,22 @@ export const useSignals = () => {
     setLoading(false);
   };
 
+  const handleUpdateSpynx = async () => {
+    try {
+      await updateSpynxScores();
+      toast({
+        title: "Spynx Scores Updated",
+        description: "Spynx scores have been recalculated successfully."
+      });
+    } catch (e: any) {
+      console.error('[useSignals] Update Spynx failed:', e);
+      toast({
+        title: "Update Failed",
+        description: e?.message ?? 'Failed to update Spynx scores',
+        variant: "destructive"
+      });
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -248,7 +386,7 @@ export const useSignals = () => {
       try {
         channel = subscribeSignalsRealtime(
           (newSignal) => { 
-            if (mounted && newSignal.confidence_score >= 60) { // Only show 60%+ signals
+            if (mounted && newSignal.confidence_score >= 80) { // Only show 80%+ signals
               setSignals(prev => [newSignal, ...prev].slice(0, 20));
               
               // Show toast notification for high-confidence signal
@@ -290,6 +428,73 @@ export const useSignals = () => {
     loading, 
     error,
     refreshSignals,
-    generateSignals: handleGenerateSignals
+    generateSignals: handleGenerateSignals,
+    updateSpynxScores: handleUpdateSpynx
+  };
+};
+
+export const useSpynxScores = () => {
+  const [scores, setScores] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchScores();
+  }, []);
+
+  const fetchScores = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('[SPYNX] Fetching scores from spynx_scores table...');
+      
+      // Fetch from the correct spynx_scores table
+      const { data: scores, error } = await supabase
+        .from('spynx_scores')
+        .select('*')
+        .order('score', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('[SPYNX] Error fetching scores:', error);
+        setError(error.message);
+        setScores([]);
+        setLoading(false);
+        return;
+      }
+
+      console.log('[SPYNX] Fetched scores:', scores);
+      setScores(scores || []);
+      setLoading(false);
+    } catch (err) {
+      console.error('[SPYNX] Fetch error:', err);
+      setError('Failed to fetch Spynx scores');
+      setScores([]);
+      setLoading(false);
+    }
+  };
+
+  const updateSpynxScores = async () => {
+    try {
+      console.log('[SPYNX] Calling calculate-spynx-scores function...');
+      const { data, error } = await supabase.functions.invoke('calculate-spynx-scores');
+      if (error) throw error;
+      
+      console.log('[SPYNX] Scores updated successfully:', data);
+      
+      // Refresh scores after calculation
+      await fetchScores();
+      return data;
+    } catch (err) {
+      console.error('[SPYNX] Update error:', err);
+      throw err;
+    }
+  };
+
+  return {
+    scores,
+    loading,
+    error,
+    updateSpynxScores
   };
 };

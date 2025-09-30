@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { 
-  Activity,
-  Building2,
-  Signal,
-  ShoppingCart,
-  Shield
+  BarChart3, 
+  TrendingUp, 
+  Wallet, 
+  Zap, 
+  PieChart, 
+  TestTube, 
+  Bot, 
+  Bell, 
+  Settings,
+  Home,
+  Building2
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
 
 import {
   Sidebar,
@@ -22,16 +27,29 @@ import {
 } from "@/components/ui/sidebar";
 
 const mainItems = [
-  { title: "Dashboard", url: "/", icon: Activity, description: "System overview and monitoring", badge: "Live" },
-  { title: "Connect API", url: "/api", icon: Building2, description: "Connect your trading account" },
-  { title: "Signals", url: "/signals", icon: Signal, description: "AI trading signals feed" },
-  { title: "Buy", url: "/buy", icon: ShoppingCart, description: "Execute trades" },
+  { title: "Dashboard", url: "/", icon: Home },
+  { title: "X Platform", url: "/x", icon: TrendingUp },
+  { title: "X1 System", url: "/x1", icon: BarChart3 },
+  { title: "X2 Advanced", url: "/x2", icon: PieChart },
+  { title: "Original AI", url: "/AITRADEX1ORIGINAL", icon: Zap },
+  { title: "Trade", url: "/trade", icon: TrendingUp },
+  { title: "Portfolio", url: "/portfolio", icon: Wallet },
+  { title: "Signals", url: "/signals", icon: Zap },
+  { title: "Markets", url: "/markets", icon: BarChart3 },
+  { title: "Backtests", url: "/backtests", icon: TestTube },
+  { title: "Automation", url: "/automation", icon: Bot },
+  { title: "Alerts", url: "/alerts", icon: Bell },
+];
+
+const settingsItems = [
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, openMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
+  const collapsed = state === "collapsed";
 
   const isActive = (path: string) => {
     if (path === "/") {
@@ -42,86 +60,78 @@ export function AppSidebar() {
 
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive 
-      ? "bg-primary/10 text-primary border-l-2 border-primary font-medium" 
+      ? "bg-primary/10 text-primary border-r-2 border-primary font-medium" 
       : "hover:bg-accent/50 text-muted-foreground hover:text-foreground";
-
-  const SidebarNavItem = ({ item }: { item: any }) => (
-    <SidebarMenuItem>
-      <SidebarMenuButton asChild>
-        <NavLink 
-          to={item.url} 
-          end={item.url === "/"}
-          className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors p-3 flex items-center gap-3`}
-        >
-          <item.icon className="w-5 h-5 shrink-0" />
-          <div className="flex flex-col items-start flex-1 min-w-0">
-            <div className="flex items-center justify-between w-full">
-              <span className="font-medium text-sm truncate">{item.title}</span>
-              {item.badge && (
-                <Badge variant="secondary" className="text-xs ml-2 shrink-0">
-                  {item.badge}
-                </Badge>
-              )}
-            </div>
-            <span className="text-xs text-muted-foreground truncate w-full">
-              {item.description}
-            </span>
-          </div>
-        </NavLink>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
-  );
 
   return (
     <Sidebar
-      className="w-80"
-      collapsible="none"
-      side="right"
+      className={collapsed ? "w-16" : "w-64"}
+      collapsible="icon"
+      side="left"
     >
-      <SidebarContent className="border-l border-border">
+      <SidebarContent className="border-r border-border">
         {/* Header */}
         <div className="p-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/60 rounded-lg flex items-center justify-center shrink-0">
-              <Activity className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center shrink-0">
+              <Zap className="w-5 h-5 text-white" />
             </div>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent truncate">
-                AItradeX1
-              </h1>
-              <p className="text-xs text-muted-foreground truncate">AI-Powered Trading Platform</p>
-            </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold brand-display bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent truncate">
+                  AItradeX
+                </h1>
+                <p className="text-xs text-muted-foreground truncate">AI-Powered Trading</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Main Navigation */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Main Navigation
+        {/* Navigation Menu */}
+        <SidebarGroup className="flex-1">
+          <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
+            Navigation
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
               {mainItems.map((item) => (
-                <SidebarNavItem key={item.title} item={item} />
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink 
+                      to={item.url} 
+                      end={item.url === "/"}
+                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors`}
+                    >
+                      <item.icon className="w-5 h-5 shrink-0" />
+                      {!collapsed && <span className="truncate">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-
-        {/* Footer Status */}
-        <div className="p-4 border-t border-border">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span>System Online</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Shield className="w-3 h-3" />
-              <span>Secure</span>
-            </div>
-          </div>
-        </div>
+        {/* Settings Section */}
+        <SidebarGroup className="mt-auto border-t border-border pt-4">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {settingsItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink 
+                      to={item.url}
+                      className={`${getNavCls({ isActive: isActive(item.url) })} rounded-lg mx-2 transition-colors`}
+                    >
+                      <item.icon className="w-5 h-5 shrink-0" />
+                      {!collapsed && <span className="truncate">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
     </Sidebar>
   );

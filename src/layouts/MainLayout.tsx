@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import TopNavigation from '@/components/TopNavigation';
-
-import LiveMonitoringWidget from '@/components/LiveMonitoringWidget';
+import BottomSignalsBar from '@/components/BottomSignalsBar';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 interface MainLayoutProps {
@@ -16,6 +15,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="h-screen flex w-full bg-background text-foreground overflow-hidden">
+        {/* Mobile Sidebar Overlay */}
+        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <SheetContent side="left" className="p-0 w-80 border-r border-border lg:hidden">
+            <div className="h-full bg-background">
+              <AppSidebar />
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* Desktop Sidebar */}
+        <div className="hidden lg:flex">
+          <AppSidebar />
+        </div>
+        
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col h-full min-w-0 w-full">
           <TopNavigation onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)} />
@@ -29,24 +42,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
           </main>
           
+          {/* Bottom Navigation - Mobile Only */}
+          <div className="lg:hidden">
+            <BottomSignalsBar />
+          </div>
         </div>
-
-        {/* Mobile Sidebar Overlay */}
-        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetContent side="right" className="p-0 w-80 border-l border-border lg:hidden">
-            <div className="h-full bg-background">
-              <AppSidebar />
-            </div>
-          </SheetContent>
-        </Sheet>
-
-        {/* Desktop Sidebar */}
-        <div className="hidden lg:flex">
-          <AppSidebar />
-        </div>
-
-        {/* Live Monitoring Widget */}
-        <LiveMonitoringWidget />
       </div>
     </SidebarProvider>
   );

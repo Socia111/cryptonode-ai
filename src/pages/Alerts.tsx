@@ -1,6 +1,6 @@
 import React from 'react';
 import MainLayout from '../layouts/MainLayout';
-
+import TelegramIntegration from '../components/TelegramIntegration';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bell, MessageCircle, Zap, Target } from 'lucide-react';
 
@@ -73,6 +73,8 @@ const Alerts = () => {
           </Card>
         </div>
 
+        {/* Telegram Integration */}
+        <TelegramIntegration />
 
         {/* Additional Alert Settings */}
         <Card className="glass-card">

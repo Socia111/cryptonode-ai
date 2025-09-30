@@ -1,49 +1,165 @@
 project_id = "codhlwjogfjywmjyjbbn"
 
+[functions.connect-bybit]
+verify_jwt = true
+
+[functions.aitradex1-trade-executor]
+verify_jwt = true
+
 [functions.bybit-broker]
 verify_jwt = false
 
-[functions.aitradex1-strategy-engine]
+[functions.automated-trading-engine]
 verify_jwt = false
 
-[functions.live-price-feed]
+[functions.test-signal-generation]
 verify_jwt = false
 
-[functions.unified-signal-engine]
+[functions.generate-test-signals]
 verify_jwt = false
 
-[functions.crypto-scheduler]
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[functions.aitradex1-original-scanner]
 verify_jwt = false
 
-[functions.auto-signals-scheduler]
+[functions.aitradex1-advanced-scanner]
 verify_jwt = false
 
-[functions.production-signal-generator]
+[functions.aitradex1-confluence-scanner]
 verify_jwt = false
 
-[functions.debug-trading-status]
+[functions.aitradex1-enhanced-scanner]
 verify_jwt = false
 
-[functions.bybit-live-trading]
+[functions.bybit-comprehensive-scanner]
 verify_jwt = false
 
-[functions.telegram-signals]
+[functions.automated-crypto-scanner]
 verify_jwt = false
 
-[functions.enhanced-signal-generation]
+[functions.live-scanner]
 verify_jwt = false
 
 [functions.live-scanner-production]
 verify_jwt = false
 
-[functions.platform-activation]
+[functions.realtime-crypto-scanner]
 verify_jwt = false
 
-[functions.live-signals-generator]
+[functions.scanner-engine]
 verify_jwt = false
 
-[functions.auto-trading-engine]
+[functions.generate-signals]
 verify_jwt = false
 
-[functions.signals-scheduler]
+[functions.enhanced-signal-generation]
 verify_jwt = false
+
+[functions.signals-api]
+verify_jwt = false
+
+[functions.live-crypto-feed]
+verify_jwt = false
+
+[functions.free-crypto-api-integration]
+verify_jwt = false
+
+[functions.coinapi-proxy]
+verify_jwt = false
+
+[functions.calculate-spynx-scores]
+verify_jwt = false
+
+[functions.quantum-analysis]
+verify_jwt = false
+
+[functions.sentiment-analysis]
+verify_jwt = false
+
+[functions.backtest-engine]
+verify_jwt = false
+
+[functions.trade-execution]
+verify_jwt = false
+
+[functions.manual-trade-execution]
+verify_jwt = false
+
+[functions.debug-trading-status]
+verify_jwt = false
+
+[functions.bybit-order-execution]
+verify_jwt = false
+
+[functions.automated-trading-engine]
+verify_jwt = false
+
+[functions.telegram-bot]
+verify_jwt = false
+
+[functions.setup-telegram-bot]
+verify_jwt = false
+
+[functions.jwt-token-generator]
+verify_jwt = false
+
+[functions.debug-bybit-api]
+verify_jwt = false
+
+[functions.aitradex1-config]
+verify_jwt = false
+
+[functions.aitradex1-trade-executor]
+verify_jwt = true
+
+[functions.trigger-comprehensive-scan]
+verify_jwt = false
+
+[functions.aira-rankings-sync]
+verify_jwt = false
+
+[functions.crypto-scheduler]
+verify_jwt = false
+
+[functions.production-monitor]
+verify_jwt = false
+
+[functions.bybit-broker]
+verify_jwt = false
+
+[functions.auto-trading-poller]
+verify_jwt = false
+
+[functions.crypto-scheduler]
+verify_jwt = false
+
+[functions.direct-bybit-test]
+verify_jwt = false
+
+[functions.direct-3commas-test]
+verify_jwt = false
+
+[functions.3commas-authenticate]
+verify_jwt = true
+
+[functions.bybit-authenticate]
+verify_jwt = true

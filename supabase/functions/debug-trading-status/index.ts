@@ -1,105 +1,94 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('🔧 Debug Trading Status check started')
-    
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    // Standardized environment variables with fallbacks
+    const bybitApiKey = Deno.env.get('BYBIT_API_KEY') ?? Deno.env.get('BYBIT_KEY');
+    const bybitApiSecret = Deno.env.get('BYBIT_API_SECRET') ?? Deno.env.get('BYBIT_SECRET');
+    const baseUrl = Deno.env.get('BYBIT_BASE') ?? 'https://api-testnet.bybit.com';
+    const liveTrading = Deno.env.get('LIVE_TRADING_ENABLED') === 'true';
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    // Environment status
-    const environment = {
-      bybit_api_key: !!Deno.env.get('BYBIT_API_KEY'),
-      bybit_api_secret: !!Deno.env.get('BYBIT_API_SECRET'),
-      auto_trading_enabled: Deno.env.get('AUTO_TRADING_ENABLED') === 'true',
-      paper_trading: Deno.env.get('PAPER_TRADING') === 'true',
-      testnet_mode: Deno.env.get('BYBIT_TESTNET') === 'true'
-    }
+    console.log('🔧 Environment Debug:');
+    console.log('  - BYBIT_API_KEY value:', bybitApiKey);
+    console.log('  - BYBIT_API_SECRET value:', bybitApiSecret);
+    console.log('  - BYBIT_API_KEY length:', bybitApiKey?.length);
+    console.log('  - BYBIT_API_SECRET length:', bybitApiSecret?.length);
 
-    // Database connectivity test
-    let database = {
-      connected: false,
-      recent_signals: 0,
-      trading_accounts: 0
-    }
+    // Enhanced environment status
+    const envStatus = {
+      hasApiKey: !!bybitApiKey && bybitApiKey.length > 0,
+      apiKeyLength: bybitApiKey?.length || 0,
+      apiKeyPreview: bybitApiKey && bybitApiKey.length > 0 ? `${bybitApiKey.substring(0, 6)}...${bybitApiKey.substring(bybitApiKey.length - 4)}` : 'None',
+      hasApiSecret: !!bybitApiSecret && bybitApiSecret.length > 0,
+      apiSecretLength: bybitApiSecret?.length || 0,
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseKey: !!supabaseServiceKey,
+      baseUrl: baseUrl,
+      liveTrading: liveTrading,
+      isTestnet: baseUrl.includes('testnet'),
+      configurationStatus: (!bybitApiKey || !bybitApiSecret) ? 'MISSING_CREDENTIALS' : 'CONFIGURED'
+    };
 
+    // Test Bybit API connectivity using configured base URL
+    let bybitStatus = { connected: false, error: null, baseUrl: baseUrl };
     try {
-      // Test database connection
-      const { data: signals, error: signalsError } = await supabaseClient
-        .from('signals')
-        .select('id')
-        .order('created_at', { ascending: false })
-        .limit(10)
-
-      if (!signalsError) {
-        database.connected = true
-        database.recent_signals = signals?.length || 0
+      const response = await fetch(`${baseUrl}/v5/market/time`);
+      if (response.ok) {
+        const data = await response.json();
+        bybitStatus = { 
+          connected: true, 
+          serverTime: data.result?.timeSecond,
+          baseUrl: baseUrl,
+          environment: baseUrl.includes('testnet') ? 'testnet' : 'mainnet'
+        };
+      } else {
+        bybitStatus = { 
+          connected: false, 
+          error: `HTTP ${response.status}`,
+          baseUrl: baseUrl 
+        };
       }
-
-      // Check trading accounts
-      const { data: accounts } = await supabaseClient
-        .from('user_trading_accounts')
-        .select('id')
-        .eq('is_active', true)
-
-      database.trading_accounts = accounts?.length || 0
     } catch (error) {
-      console.error('Database check error:', error)
+      bybitStatus = { 
+        connected: false, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        baseUrl: baseUrl
+      };
     }
 
-    // System health metrics
-    const system = {
-      edge_functions_active: 8,
-      last_signal_generation: new Date().toISOString(),
-      scheduler_status: 'active',
-      api_connectivity: 'healthy'
-    }
-
-    // Debug information
-    const debug_info = {
-      function_name: 'debug-trading-status',
-      version: '1.0.0',
-      deployment_time: new Date().toISOString(),
-      memory_usage: 'normal',
-      cpu_usage: 'low'
-    }
-
-    const response = {
+    return new Response(JSON.stringify({
       success: true,
       timestamp: new Date().toISOString(),
-      environment,
-      database,
-      system,
-      debug_info
-    }
+      environment: envStatus,
+      bybit: bybitStatus,
+      message: 'Debug information collected successfully'
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
 
-    console.log('✅ Debug check completed:', response)
-
-    return new Response(
-      JSON.stringify(response),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
   } catch (error) {
-    console.error('❌ Debug Trading Status error:', error)
-    return new Response(
-      JSON.stringify({ 
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-    )
+    console.error('Debug error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
-})
+});

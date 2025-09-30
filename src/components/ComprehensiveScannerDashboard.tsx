@@ -34,13 +34,13 @@ const ComprehensiveScannerDashboard = () => {
 
   const fetchScanStatus = async () => {
     try {
-      // Check if a scan is currently running by looking at signals
+      // Check if a scan is currently running by looking at signals_state
       const { data: scanState, error } = await supabase
-        .from('signals')
+        .from('signals_state')
         .select('*')
         .eq('symbol', 'COMPREHENSIVE_SCAN')
         .eq('direction', 'SCAN_STARTED')
-        .order('created_at', { ascending: false })
+        .order('last_emitted', { ascending: false })
         .limit(1);
 
       if (error) {
@@ -49,7 +49,7 @@ const ComprehensiveScannerDashboard = () => {
       }
 
       if (scanState && scanState.length > 0) {
-        const lastScan = new Date(scanState[0].created_at);
+        const lastScan = new Date(scanState[0].last_emitted);
         const timeSinceLastScan = Date.now() - lastScan.getTime();
         
         // Consider scan running if started within last 30 minutes
@@ -76,7 +76,7 @@ const ComprehensiveScannerDashboard = () => {
         total_symbols: 0,
         processed_symbols: 0,
         signals_generated: todaySignals || 0,
-        last_scan: scanState?.[0]?.created_at || '',
+        last_scan: scanState?.[0]?.last_emitted || '',
         estimated_completion: ''
       });
 

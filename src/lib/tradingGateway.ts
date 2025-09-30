@@ -4,14 +4,16 @@ import { FEATURES } from '@/config/featureFlags'
 export type ExecParams = {
   symbol: string
   side: 'BUY'|'SELL'
-  notionalUSD?: number  // deprecated, use amountUSD
-  amountUSD?: number    // new: USD amount to trade
-  leverage?: number     // new: leverage (1-100x)
+  notionalUSD: number
 }
 
-// Get the functions base URL using the hardcoded Supabase URL
+// Get the functions base URL dynamically from supabase client
 function getFunctionsBaseUrl(): string {
-  return 'https://codhlwjogfjywmjyjbbn.functions.supabase.co';
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (!supabaseUrl) {
+    throw new Error('VITE_SUPABASE_URL environment variable is not set');
+  }
+  return supabaseUrl.replace('.supabase.co', '.functions.supabase.co');
 }
 
 async function getSessionToken(): Promise<string | null> {
@@ -24,7 +26,6 @@ async function getSessionToken(): Promise<string | null> {
   }
 }
 
-// Update execution to use proper strategy-based risk management
 export const TradingGateway = {
   async execute(params: ExecParams) {
     if (!FEATURES.AUTOTRADE_ENABLED) {
@@ -32,7 +33,7 @@ export const TradingGateway = {
     }
 
     try {
-      console.log('🚀 Executing strategy-based trade:', params);
+      console.log('🚀 Executing live trade via Bybit API:', params);
       
       const functionsBase = getFunctionsBaseUrl();
       const sessionToken = await getSessionToken();
@@ -50,24 +51,22 @@ export const TradingGateway = {
         'authorization': `Bearer ${sessionToken}`,
       };
       
-      // Use proper position sizing based on strategy
-      const amountUSD = params.amountUSD || params.notionalUSD || 25;
-      const leverage = params.leverage || 1;
+      // Convert to Bybit signal format
+      const bybitSignal = {
+        symbol: params.symbol.replace('/', ''), // Convert PERP/USDT to PERPUSDT
+        side: params.side === 'BUY' ? 'Buy' : 'Sell',
+        orderType: 'Market',
+        qty: (params.notionalUSD * 0.001).toFixed(6), // Convert notional to quantity
+        timeInForce: 'IOC'
+      };
       
-      // Calculate proper quantity using ATR-based sizing
-      const baseQty = (amountUSD * leverage) / 50000; // Simplified calculation
-      
-      const response = await fetch(`${functionsBase}/bybit-broker`, {
+      const response = await fetch(`${functionsBase}/bybit-live-trading`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          symbol: params.symbol.replace('/', ''),
-          side: params.side === 'BUY' ? 'Buy' : 'Sell',
-          qty: String(baseQty.toFixed(6)),
-          orderType: 'Market',
-          category: 'linear',
-          timeInForce: 'IOC',
-          leverage: leverage
+          action: 'place_order',
+          signal: bybitSignal,
+          testMode: false // Set to true for paper trading
         })
       });
 
@@ -89,7 +88,7 @@ export const TradingGateway = {
         return { ok: false, code: 'TRADE_FAILED', message: errorMessage };
       }
 
-      console.log('✅ Strategy trade executed successfully:', data);
+      console.log('✅ Live trade executed successfully:', data);
       return { ok: true, data: data.data || data };
       
     } catch (error: any) {
@@ -184,35 +183,35 @@ export const TradingGateway = {
     }
   },
 
-    // Test function to check strategy engine connectivity
-    async testConnection() {
-      try {
-        const functionsBase = getFunctionsBaseUrl();
-        const sessionToken = await getSessionToken();
-        
-        const headers: Record<string, string> = {
-          'content-type': 'application/json',
-        };
-        
-        if (sessionToken) {
-          headers['authorization'] = `Bearer ${sessionToken}`;
-        }
-        
-        const response = await fetch(`${functionsBase}/aitradex1-strategy-engine`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ action: 'status' })
-        });
-
-        if (!response.ok) {
-          return { ok: false, status: response.status, statusText: response.statusText };
-        }
-
-        const data = await response.json();
-        return { ok: true, data };
-        
-      } catch (error: any) {
-        return { ok: false, error: error.message };
+  // Test function to check edge function connectivity
+  async testConnection() {
+    try {
+      const functionsBase = getFunctionsBaseUrl();
+      const sessionToken = await getSessionToken();
+      
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+      };
+      
+      if (sessionToken) {
+        headers['authorization'] = `Bearer ${sessionToken}`;
       }
+      
+      const response = await fetch(`${functionsBase}/aitradex1-trade-executor`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'status' })
+      });
+
+      if (!response.ok) {
+        return { ok: false, status: response.status, statusText: response.statusText };
+      }
+
+      const data = await response.json();
+      return { ok: true, data };
+      
+    } catch (error: any) {
+      return { ok: false, error: error.message };
     }
+  }
 }

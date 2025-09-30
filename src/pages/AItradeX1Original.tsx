@@ -4,9 +4,11 @@ import MarketOverview from '../components/MarketOverview';
 import SignalsList from '../components/SignalsList';
 import TradingChart from '../components/TradingChart';
 import PortfolioStats from '../components/PortfolioStats';
-
+import DatabaseSetup from '../components/DatabaseSetup';
+import SpynxScoreCard from '../components/SpynxScoreCard';
+import TelegramIntegration from '../components/TelegramIntegration';
 import TradingPanel from '../components/TradingPanel';
-// Remove BacktestEngine import
+import BacktestEngine from '../components/BacktestEngine';
 import QuantumAnalysis from '../components/QuantumAnalysis';
 import ScannerDashboard from '../components/ScannerDashboard';
 import AItradeX1ScannerChart from '../components/AItradeX1ScannerChart';
@@ -48,6 +50,8 @@ const AItradeX1Original = () => {
           </CardHeader>
         </Card>
         
+        {/* Database Setup */}
+        <DatabaseSetup />
         
         {/* AItradeX1 Scanner Chart */}
         <AItradeX1ScannerChart />
@@ -62,14 +66,16 @@ const AItradeX1Original = () => {
           {/* Main Trading Chart */}
           <div className="lg:col-span-2 space-y-6">
             <TradingChart />
-            {/* BacktestEngine removed */}
+            <BacktestEngine />
           </div>
           
           {/* Signals Panel */}
           <div className="space-y-6">
             <PortfolioStats />
             <TradingPanel />
+            <TelegramIntegration />
             <QuantumAnalysis />
+            <SpynxScoreCard />
             <SignalsList />
           </div>
         </div>

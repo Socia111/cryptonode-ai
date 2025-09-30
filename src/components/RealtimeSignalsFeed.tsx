@@ -26,47 +26,6 @@ const RealtimeSignalsFeed: React.FC = () => {
   const feedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Load initial signals
-    const loadInitialSignals = async () => {
-      try {
-        const { data: initialSignals, error } = await supabase
-          .from('signals')
-          .select('*')
-          .gte('score', 60)
-          .gte('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()) // Last 30 minutes
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        if (error) {
-          console.error('Error loading initial signals:', error);
-          return;
-        }
-
-        if (initialSignals && initialSignals.length > 0) {
-          const formattedSignals = initialSignals.map(signal => ({
-            id: signal.id,
-            token: signal.symbol,
-            direction: signal.direction as 'BUY' | 'SELL',
-            entry_price: signal.entry_price || signal.price,
-            sl: signal.stop_loss,
-            tp: signal.take_profit,
-            confidence_score: signal.score,
-            timeframe: signal.timeframe,
-            created_at: signal.created_at,
-            exchange: signal.exchange || 'Bybit',
-            reason: typeof signal.metadata === 'object' && signal.metadata && 'reason' in signal.metadata ? String(signal.metadata.reason) : undefined
-          }));
-          
-          setSignals(formattedSignals);
-          console.log(`🔄 Loaded ${formattedSignals.length} initial signals`);
-        }
-      } catch (error) {
-        console.error('Error in loadInitialSignals:', error);
-      }
-    };
-
-    loadInitialSignals();
-
     // Set up real-time subscription for new signals
     const channel = supabase
       .channel('realtime-signals-feed')
@@ -78,50 +37,44 @@ const RealtimeSignalsFeed: React.FC = () => {
           table: 'signals'
         },
         (payload) => {
-          console.log('🔥 New signal received:', payload);
+          console.log('New signal received:', payload);
           const newSignal = payload.new as any;
           
-          // Show signals with score >= 60
-          if (newSignal.score >= 60) {
+          // Only show signals that aren't 5m timeframe and have decent confidence
+          if (newSignal.timeframe !== '5m' && newSignal.confidence_score >= 70) {
             const formattedSignal: RealtimeSignal = {
               id: newSignal.id,
-              token: newSignal.symbol,
+              token: newSignal.token || newSignal.symbol,
               direction: newSignal.direction,
-              entry_price: newSignal.entry_price || newSignal.price,
-              sl: newSignal.stop_loss,
-              tp: newSignal.take_profit,
-              confidence_score: newSignal.score,
+              entry_price: newSignal.entry_price,
+              sl: newSignal.sl,
+              tp: newSignal.tp,
+              confidence_score: newSignal.confidence_score,
               timeframe: newSignal.timeframe,
               created_at: newSignal.created_at,
               exchange: newSignal.exchange || 'Bybit',
-              reason: typeof newSignal.metadata === 'object' && newSignal.metadata && 'reason' in newSignal.metadata ? String(newSignal.metadata.reason) : undefined
+              reason: newSignal.reason
             };
 
             setSignals(prev => {
-              // Remove duplicates and add new signal
-              const filtered = prev.filter(s => s.id !== formattedSignal.id);
-              const newSignals = [formattedSignal, ...filtered];
+              const newSignals = [formattedSignal, ...prev];
               // Keep only the latest 20 signals
               return newSignals.slice(0, 20);
             });
 
-            console.log(`✨ Added new signal: ${newSignal.symbol} ${newSignal.direction}`);
+            // Auto-scroll to bottom when new signal arrives
+            setTimeout(() => {
+              if (feedRef.current) {
+                feedRef.current.scrollTop = feedRef.current.scrollHeight;
+              }
+            }, 100);
           }
         }
       )
-      .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
-        if (status === 'CHANNEL_ERROR') {
-          console.warn('Realtime channel error - will retry');
-        }
-      });
-
-    // Refresh signals every 30 seconds
-    const refreshInterval = setInterval(loadInitialSignals, 30000);
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(refreshInterval);
     };
   }, []);
 

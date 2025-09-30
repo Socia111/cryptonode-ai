@@ -4,12 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Play, Clock, Target, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { AuthGuardedButton } from '@/components/AuthGuardedButton';
-import { TradingGateway } from '@/lib/tradingGateway';
-import { toast } from '@/hooks/use-toast';
 
 interface Signal {
-  id: string;
+  id: number;
   symbol: string;
   direction: 'LONG' | 'SHORT';
   entry_price: number;
@@ -27,7 +24,7 @@ interface LiveSignalsPanelProps {
 const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(false);
-  const [executingSignals, setExecutingSignals] = useState<Set<string>>(new Set());
+  const [executingSignals, setExecutingSignals] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetchLiveSignals();
@@ -49,12 +46,12 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
           .filter((item: any) => item.score >= 75 && item.timeframe !== '5m') // Only high-confidence signals, exclude 5m
           .slice(0, 10) // Limit to 10 most recent
           .map((item: any) => ({
-            id: String(item.id),
+            id: item.id,
             symbol: item.symbol,
             direction: item.direction === 'SHORT' ? 'SHORT' : 'LONG',
             entry_price: item.price,
-            sl: item.sl || item.stop_loss || 0,
-            tp: item.tp || item.take_profit || 0,
+            sl: item.sl,
+            tp: item.tp,
             score: item.score,
             timeframe: item.timeframe,
             created_at: item.created_at
@@ -177,44 +174,9 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
                     </div>
                   </div>
 
-                  <AuthGuardedButton
+                  <Button
                     size="sm"
-                    onClick={async () => {
-                      try {
-                        setExecutingSignals(prev => new Set(prev).add(signal.id));
-                        const res = await TradingGateway.execute({
-                          symbol: signal.symbol,
-                          side: signal.direction === 'LONG' ? 'BUY' : 'SELL',
-                          amountUSD: 25
-                        });
-                        
-                        if (res.ok) {
-                          toast({
-                            title: "✅ Trade Executed",
-                            description: `${signal.symbol} ${signal.direction} trade placed successfully`,
-                            variant: "default",
-                          });
-                        } else {
-                          toast({
-                            title: "❌ Trade Failed", 
-                            description: res.message || 'Failed to execute trade',
-                            variant: "destructive",
-                          });
-                        }
-                      } catch (error: any) {
-                        toast({
-                          title: "❌ Trade Error",
-                          description: error.message || 'Failed to execute trade',
-                          variant: "destructive",
-                        });
-                      } finally {
-                        setExecutingSignals(prev => {
-                          const newSet = new Set(prev);
-                          newSet.delete(signal.id);
-                          return newSet;
-                        });
-                      }
-                    }}
+                    onClick={() => handleExecuteTrade(signal)}
                     disabled={executingSignals.has(signal.id)}
                     className="min-w-[80px]"
                   >
@@ -226,7 +188,7 @@ const LiveSignalsPanel = ({ onExecuteTrade }: LiveSignalsPanelProps) => {
                         Execute
                       </>
                     )}
-                  </AuthGuardedButton>
+                  </Button>
                 </div>
               </div>
             </Card>

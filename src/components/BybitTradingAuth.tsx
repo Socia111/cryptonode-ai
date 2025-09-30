@@ -52,14 +52,10 @@ const BybitTradingAuth = () => {
       if (accounts && !error) {
         setAuthState({
           isAuthenticated: true,
-          accountType: (accounts.account_type as 'testnet' | 'mainnet') || 'testnet',
+          accountType: accounts.account_type || 'testnet',
           balance: accounts.balance_info,
           permissions: accounts.permissions || [],
-          riskSettings: typeof accounts.risk_settings === 'object' ? accounts.risk_settings as any : {
-            maxPositionSize: 1000,
-            stopLossEnabled: true,
-            takeProfitEnabled: true
-          }
+          riskSettings: accounts.risk_settings
         });
         setUseTestnet(accounts.account_type === 'testnet');
       }
@@ -69,11 +65,6 @@ const BybitTradingAuth = () => {
   };
 
   const authenticateWithBybit = async () => {
-    if (!credentials.apiKey || !credentials.apiSecret) {
-      toast.error("Please enter both API key and secret");
-      return;
-    }
-
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       toast.error("Sign in first");
@@ -82,39 +73,20 @@ const BybitTradingAuth = () => {
 
     setIsConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('bybit-authenticate', {
-        body: {
-          apiKey: credentials.apiKey.trim(),
-          apiSecret: credentials.apiSecret.trim(),
-          isTestnet: useTestnet
-        }
+      const { data, error } = await supabase.functions.invoke('connect-bybit', {
+        body: { accountType: useTestnet ? 'testnet' : 'mainnet' }
       });
 
-      if (error || !data?.success) {
-        throw new Error(data?.message || error?.message || 'Authentication failed');
-      }
-
-      // Save connection state to database
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('user_trading_accounts').upsert({
-          user_id: user.id,
-          exchange: 'bybit',
-          account_type: useTestnet ? 'testnet' : 'mainnet',
-          is_active: true,
-          connected_at: new Date().toISOString(),
-          balance_info: data.balance,
-          permissions: data.permissions || ['read', 'trade'],
-          risk_settings: data.riskSettings
-        }, { onConflict: 'user_id,exchange' });
+      if (error || !data?.ok) {
+        throw new Error(data?.error || error?.message || 'Connect failed');
       }
 
       setAuthState({
         isAuthenticated: true,
         accountType: useTestnet ? 'testnet' : 'mainnet',
-        balance: data.balance,
-        permissions: data.permissions || ['read', 'trade'],
-        riskSettings: data.riskSettings
+        balance: null,
+        permissions: ['read', 'trade'],
+        riskSettings: null
       });
       
       const network = useTestnet ? 'Testnet' : 'Mainnet';
@@ -180,29 +152,6 @@ const BybitTradingAuth = () => {
             </Alert>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="apiKey">API Key</Label>
-                  <Input
-                    id="apiKey"
-                    type="password"
-                    placeholder="Enter Bybit API Key"
-                    value={credentials.apiKey}
-                    onChange={(e) => setCredentials(prev => ({ ...prev, apiKey: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="apiSecret">API Secret</Label>
-                  <Input
-                    id="apiSecret"
-                    type="password"
-                    placeholder="Enter Bybit API Secret"
-                    value={credentials.apiSecret}
-                    onChange={(e) => setCredentials(prev => ({ ...prev, apiSecret: e.target.value }))}
-                  />
-                </div>
-              </div>
-
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <Label>Trading Environment</Label>
@@ -228,7 +177,7 @@ const BybitTradingAuth = () => {
 
               <Button
                 onClick={authenticateWithBybit}
-                disabled={isConnecting || !credentials.apiKey || !credentials.apiSecret}
+                disabled={isConnecting}
                 className="w-full"
               >
                 {isConnecting ? (

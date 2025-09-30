@@ -12,7 +12,7 @@ const TradingHeader = () => {
           <div className="flex items-center space-x-3">
             <div className="relative">
               <img 
-                src="/icons/icon-96.png" 
+                src="/src/assets/unireli-icon.png" 
                 alt="Unireli Logo" 
                 className="w-10 h-10 rounded-lg glow-primary object-contain"
               />

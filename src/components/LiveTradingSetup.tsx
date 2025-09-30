@@ -6,9 +6,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Settings, Zap, BarChart3, TrendingUp, ExternalLink, AlertTriangle, TestTube, Loader2 } from 'lucide-react';
 import { TradingGateway } from '@/lib/tradingGateway';
 import { toast } from '@/hooks/use-toast';
-
+import TradingDiagnostics from '@/components/TradingDiagnostics';
 import ManualAPITest from '@/components/ManualAPITest';
-// Remove DirectBybitTest import
+import DirectBybitTest from '@/components/DirectBybitTest';
+import { Direct3CommasTest } from '@/components/Direct3CommasTest';
+import ThreeCommasAuth from '@/components/ThreeCommasAuth';
 import BybitTradingAuth from '@/components/BybitTradingAuth';
 import TradingViewIntegration from '@/components/TradingViewIntegration';
 
@@ -91,13 +93,18 @@ const LiveTradingSetup = () => {
       {/* Real Trading Authorization */}
       <div className="grid gap-6 md:grid-cols-2">
         <BybitTradingAuth />
+        <ThreeCommasAuth />
       </div>
       
       <TradingViewIntegration />
       
-      {/* API Testing Components - DirectBybitTest removed */}
+      {/* API Testing Components */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <DirectBybitTest />
+        <Direct3CommasTest />
+      </div>
       
-      
+      <TradingDiagnostics />
       
       <ManualAPITest />
       
@@ -231,10 +238,15 @@ const LiveTradingSetup = () => {
                 <div className="space-y-3">
                   <Alert>
                     <AlertDescription>
-                      Connect your AITRADEX1 signals to copy trading platforms like Cornix or TradeSanta.
+                      Connect your AITRADEX1 signals to copy trading platforms like 3Commas, Cornix, or TradeSanta.
                     </AlertDescription>
                   </Alert>
                   <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <a href="https://3commas.io" target="_blank" rel="noopener noreferrer">
+                        3Commas <ExternalLink className="w-3 h-3 ml-1" />
+                      </a>
+                    </Button>
                     <Button variant="outline" size="sm" asChild>
                       <a href="https://cornix.io" target="_blank" rel="noopener noreferrer">
                         Cornix <ExternalLink className="w-3 h-3 ml-1" />
