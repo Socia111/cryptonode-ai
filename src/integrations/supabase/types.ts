@@ -1729,23 +1729,30 @@ export type Database = {
       signals_live: {
         Row: {
           algo: string | null
+          algorithm_version: string | null
           atr: number | null
           bar_time: string | null
           confidence: number | null
           created_at: string | null
+          diagnostics: Json | null
           direction: string | null
           entry_price: number | null
           exchange: string | null
           exchange_source: string | null
+          execution_priority: number | null
           expires_at: string | null
           filters: Json | null
-          grade: string | null
+          hvp: number | null
           hvp_value: number | null
           id: string | null
+          indicators: Json | null
           is_active: boolean | null
+          market_conditions: Json | null
           meta: Json | null
           metadata: Json | null
           price: number | null
+          relaxed_mode: boolean | null
+          risk: number | null
           score: number | null
           side: string | null
           signal_grade: string | null
@@ -1756,66 +1763,6 @@ export type Database = {
           take_profit: number | null
           timeframe: string | null
           volume_ratio: number | null
-        }
-        Insert: {
-          algo?: string | null
-          atr?: number | null
-          bar_time?: string | null
-          confidence?: number | null
-          created_at?: string | null
-          direction?: string | null
-          entry_price?: number | null
-          exchange?: string | null
-          exchange_source?: string | null
-          expires_at?: string | null
-          filters?: Json | null
-          grade?: never
-          hvp_value?: number | null
-          id?: string | null
-          is_active?: boolean | null
-          meta?: Json | null
-          metadata?: Json | null
-          price?: number | null
-          score?: number | null
-          side?: string | null
-          signal_grade?: string | null
-          signal_type?: string | null
-          source?: string | null
-          stop_loss?: number | null
-          symbol?: string | null
-          take_profit?: number | null
-          timeframe?: string | null
-          volume_ratio?: number | null
-        }
-        Update: {
-          algo?: string | null
-          atr?: number | null
-          bar_time?: string | null
-          confidence?: number | null
-          created_at?: string | null
-          direction?: string | null
-          entry_price?: number | null
-          exchange?: string | null
-          exchange_source?: string | null
-          expires_at?: string | null
-          filters?: Json | null
-          grade?: never
-          hvp_value?: number | null
-          id?: string | null
-          is_active?: boolean | null
-          meta?: Json | null
-          metadata?: Json | null
-          price?: number | null
-          score?: number | null
-          side?: string | null
-          signal_grade?: string | null
-          signal_type?: string | null
-          source?: string | null
-          stop_loss?: number | null
-          symbol?: string | null
-          take_profit?: number | null
-          timeframe?: string | null
-          volume_ratio?: number | null
         }
         Relationships: []
       }
@@ -1850,6 +1797,10 @@ export type Database = {
           updated_at: string | null
           user_id: string | null
         }[]
+      }
+      cleanup_old_signals: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       complete_execution_job: {
         Args: { p_id: string }
