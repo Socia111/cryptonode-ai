@@ -21,24 +21,31 @@ serve(async (req) => {
 
     const tasks = []
     
-    // 1. Generate unified signals
+    // 1. Update live market scanner with real data
     tasks.push(
-      supabaseClient.functions.invoke('unified-signal-engine', {
-        body: { timeframes: ["15m", "1h"], symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT"] }
+      supabaseClient.functions.invoke('live-scanner-production', {
+        body: { mode: 'scan', force: true }
       })
     )
     
-    // 2. Update live price feeds
+    // 2. Generate enhanced signals using EMA21/SMA200 strategy
     tasks.push(
-      supabaseClient.functions.invoke('live-price-feed', {
-        body: { action: 'update_prices' }
+      supabaseClient.functions.invoke('enhanced-signal-generation', {
+        body: { mode: 'generate', symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT", "BNBUSDT", "XRPUSDT"] }
       })
     )
     
-    // 3. Generate production signals
+    // 3. Process signals for automated trading
     tasks.push(
-      supabaseClient.functions.invoke('production-signal-generator', {
-        body: { timeframes: ["1h"], force_refresh: true }
+      supabaseClient.functions.invoke('auto-trading-engine', {
+        body: { action: 'process_signals', min_score: 75 }
+      })
+    )
+    
+    // 4. Run signals scheduler for full cycle
+    tasks.push(
+      supabaseClient.functions.invoke('signals-scheduler', {
+        body: { mode: 'production' }
       })
     )
     
