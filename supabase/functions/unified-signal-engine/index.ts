@@ -33,23 +33,63 @@ serve(async (req) => {
           const data = await response.json()
           if (!data.result?.list?.length) continue
 
-          const closes = data.result.list.map(k => parseFloat(k[4])).reverse()
-          const currentPrice = closes[closes.length - 1]
-          const score = 65 + Math.random() * 20
+          const candles = data.result.list.map(k => ({
+            time: k[0],
+            open: parseFloat(k[1]),
+            high: parseFloat(k[2]),
+            low: parseFloat(k[3]),
+            close: parseFloat(k[4]),
+            volume: parseFloat(k[5])
+          })).reverse()
 
-          if (score >= 60) {
+          const currentPrice = candles[candles.length - 1].close
+          const closes = candles.map(c => c.close)
+          
+          // Calculate trend strength
+          const ma20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20
+          const trendScore = currentPrice > ma20 ? 25 : 15
+          
+          // Volume analysis
+          const avgVolume = candles.slice(-10).reduce((a, b) => a + b.volume, 0) / 10
+          const currentVolume = candles[candles.length - 1].volume
+          const volumeScore = currentVolume > avgVolume * 1.2 ? 20 : 10
+          
+          // Price momentum
+          const priceChange = (currentPrice - closes[closes.length - 10]) / closes[closes.length - 10]
+          const momentumScore = Math.abs(priceChange) > 0.02 ? 20 : 10
+          
+          const baseScore = 35
+          const totalScore = baseScore + trendScore + volumeScore + momentumScore
+          
+          const direction = currentPrice > ma20 ? 'LONG' : 'SHORT'
+
+          if (totalScore >= 65) {
+            const stopLoss = direction === 'LONG' 
+              ? currentPrice * 0.98 
+              : currentPrice * 1.02
+            const takeProfit = direction === 'LONG'
+              ? currentPrice * 1.03
+              : currentPrice * 0.97
+
             generatedSignals.push({
               symbol,
               timeframe,
-              direction: Math.random() > 0.5 ? 'LONG' : 'SHORT',
+              direction,
               price: currentPrice,
-              score: Math.round(score),
-              confidence: 0.75,
+              entry_price: currentPrice,
+              stop_loss: stopLoss,
+              take_profit: takeProfit,
+              score: Math.round(totalScore),
+              confidence: totalScore / 100,
               source: 'unified_signal_engine',
               algo: 'AITRADEX1_unified',
-              metadata: { engine: 'unified' },
-              bar_time: new Date().toISOString(),
-              entry_price: currentPrice
+              metadata: { 
+                engine: 'unified',
+                ma20,
+                volume_ratio: currentVolume / avgVolume,
+                price_change: priceChange
+              },
+              bar_time: new Date().toISOString()
             })
           }
         } catch (error) {

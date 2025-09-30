@@ -90,7 +90,10 @@ serve(async (req) => {
   }
 
   try {
-    const { action, signal, symbol, side, quantity } = await req.json()
+    const body = await req.json().catch(() => ({}))
+    const { action, signal, symbol, side, quantity } = body
+    
+    console.log('📥 Request:', { action, symbol, side })
     
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -100,14 +103,21 @@ serve(async (req) => {
     // Get API credentials
     const apiKey = Deno.env.get('BYBIT_API_KEY')
     const apiSecret = Deno.env.get('BYBIT_API_SECRET')
-    const isTestnet = Deno.env.get('BYBIT_TESTNET') === 'true'
+    const isTestnet = Deno.env.get('BYBIT_TESTNET') !== 'false'
+
+    console.log('🔑 Credentials check:', { 
+      hasApiKey: !!apiKey, 
+      hasApiSecret: !!apiSecret, 
+      isTestnet 
+    })
 
     if (!apiKey || !apiSecret) {
+      console.error('❌ Missing API credentials')
       return new Response(
         JSON.stringify({ 
           success: false,
           error: 'Missing Bybit API credentials',
-          details: 'BYBIT_API_KEY and BYBIT_API_SECRET must be set'
+          details: 'BYBIT_API_KEY and BYBIT_API_SECRET must be configured in Edge Function secrets'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
@@ -259,10 +269,16 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Bybit Live Trading error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    
+    console.error('Error details:', { errorMessage, errorStack })
+    
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
+        details: errorStack,
         timestamp: new Date().toISOString()
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }

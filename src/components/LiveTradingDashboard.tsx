@@ -287,22 +287,7 @@ const LiveTradingDashboard = () => {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${systemStatus.signals_generator ? 'bg-green-500' : 'bg-red-500'}`} />
-              <span className="text-sm">Signal Generator</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${systemStatus.bybit_connection ? 'bg-green-500' : 'bg-red-500'}`} />
-              <span className="text-sm">Bybit Connection</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${systemStatus.auto_trading ? 'bg-green-500' : 'bg-yellow-500'}`} />
-              <span className="text-sm">Auto Trading</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${systemStatus.scanner ? 'bg-green-500' : 'bg-red-500'}`} />
-              <span className="text-sm">Market Scanner</span>
-            </div>
+            {/* System status indicators removed */}
           </div>
         </CardContent>
       </Card>

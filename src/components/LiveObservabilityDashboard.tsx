@@ -108,42 +108,7 @@ export const LiveObservabilityDashboard = () => {
         </Card>
       </div>
 
-      {/* System Services Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle>System Services</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {systemStatus.length === 0 ? (
-              <p className="text-muted-foreground">No system status data available</p>
-            ) : (
-              systemStatus.map((service) => (
-                <div key={service.service_name} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-2 h-2 rounded-full ${getStatusColor(service.status)}`} />
-                    <div>
-                      <h4 className="font-medium">{service.service_name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Last update: {new Date(service.last_update).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {getStatusBadge(service.status)}
-                    {service.metadata && (
-                      <div className="text-xs text-muted-foreground">
-                        {service.success_count && `✓ ${service.success_count}`}
-                        {service.error_count && ` ✗ ${service.error_count}`}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* System Services section removed */}
 
       {/* Quick Actions */}
       <Card>
