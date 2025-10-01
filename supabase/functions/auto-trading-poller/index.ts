@@ -19,8 +19,15 @@ serve(async (req) => {
 
     console.log('[Auto-Trading Poller] Starting polling cycle...');
 
-    // Check if auto-trading is enabled
-    const autoTradingEnabled = Deno.env.get('AUTO_TRADING_ENABLED') === 'true';
+    // Check if auto-trading is enabled from app_settings
+    const { data: settings } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'AUTO_TRADING_ENABLED')
+      .single();
+    
+    const autoTradingEnabled = settings?.value === true || settings?.value === 'true' || Deno.env.get('AUTO_TRADING_ENABLED') === 'true';
+    
     if (!autoTradingEnabled) {
       console.log('[Auto-Trading Poller] Auto-trading is disabled');
       return new Response(
@@ -28,6 +35,8 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('[Auto-Trading Poller] ✅ Auto-trading is ENABLED');
 
     // Fetch high-confidence signals from last 5 minutes that haven't been executed
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
