@@ -25,25 +25,49 @@ serve(async (req) => {
 
     for (const symbol of symbols) {
       try {
-        // Fetch market data
+        // Fetch market data with error handling
         const tickerUrl = `https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`;
         const tickerResp = await fetch(tickerUrl);
+        
+        if (!tickerResp.ok) {
+          console.error(`[Quantum Analysis] HTTP ${tickerResp.status} for ${symbol}`);
+          continue;
+        }
+        
+        const contentType = tickerResp.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.error(`[Quantum Analysis] Invalid response type for ${symbol}`);
+          continue;
+        }
+        
         const tickerData = await tickerResp.json();
 
-        if (tickerData.retCode !== 0) continue;
+        if (tickerData.retCode !== 0) {
+          console.error(`[Quantum Analysis] API error for ${symbol}: ${tickerData.retMsg}`);
+          continue;
+        }
 
         const ticker = tickerData.result.list[0];
         const price = parseFloat(ticker.lastPrice);
         const volume24h = parseFloat(ticker.volume24h);
         const priceChange = parseFloat(ticker.price24hPcnt) * 100;
 
-        // Fetch kline data
+        // Fetch kline data with error handling
         const intervalMap: Record<string, string> = { '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240' };
         const klineUrl = `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=${intervalMap[timeframe]}&limit=200`;
         const klineResp = await fetch(klineUrl);
+        
+        if (!klineResp.ok) {
+          console.error(`[Quantum Analysis] HTTP ${klineResp.status} for kline ${symbol}`);
+          continue;
+        }
+        
         const klineData = await klineResp.json();
 
-        if (klineData.retCode !== 0) continue;
+        if (klineData.retCode !== 0) {
+          console.error(`[Quantum Analysis] Kline API error for ${symbol}: ${klineData.retMsg}`);
+          continue;
+        }
 
         const candles = klineData.result.list.reverse();
         const closes = candles.map((c: any) => parseFloat(c[4]));

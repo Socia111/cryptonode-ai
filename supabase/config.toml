@@ -70,3 +70,9 @@ verify_jwt = false
 
 [functions.calculate-spynx-scores]
 verify_jwt = false
+
+[functions.scanner-engine]
+verify_jwt = false
+
+[functions.aitradex1-config]
+verify_jwt = false
