@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import LivePrice from '@/components/LivePrice';
 import UserMenu from '@/components/UserMenu';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { LiveBadge } from '@/components/LiveBadge';
 
 interface TopNavigationProps {
   onMobileMenuToggle?: () => void;
@@ -45,6 +46,8 @@ const TopNavigation: React.FC<TopNavigationProps> = ({ onMobileMenuToggle }) => 
 
         {/* Center section - Live tickers - Hidden on mobile */}
         <div className="hidden md:flex items-center gap-3 lg:gap-6 min-w-0">
+          <LiveBadge />
+          
           <div className="hidden lg:block">
             <LivePrice />
           </div>

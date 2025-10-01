@@ -3,6 +3,7 @@ import MainLayout from '@/layouts/MainLayout'
 import AutoTradingToggle from '@/components/AutoTradingToggle'
 import LiveSignalsPanel from '@/components/LiveSignalsPanel'
 import AutomationDashboard from '@/components/AutomationDashboard'
+import { ScannerTrigger } from '@/components/ScannerTrigger'
 import { AutomationAPI } from '@/lib/automation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Activity } from 'lucide-react'
@@ -34,6 +35,9 @@ export default function Automation() {
             Fully automated signal generation and trade execution system
           </p>
         </div>
+
+        {/* Scanner Controls */}
+        <ScannerTrigger />
 
         {/* Automation Dashboard */}
         <AutomationDashboard />
