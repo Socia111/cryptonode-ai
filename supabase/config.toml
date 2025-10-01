@@ -55,3 +55,18 @@ verify_jwt = false
 
 [functions.jwt-token-generator]
 verify_jwt = false
+
+[functions.aitradex1-enhanced-scanner]
+verify_jwt = false
+
+[functions.quantum-analysis]
+verify_jwt = false
+
+[functions.calculate-aira-rankings]
+verify_jwt = false
+
+[functions.telegram-signal-bot]
+verify_jwt = false
+
+[functions.calculate-spynx-scores]
+verify_jwt = false

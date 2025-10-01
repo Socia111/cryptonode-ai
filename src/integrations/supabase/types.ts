@@ -14,6 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
+      aira_rankings: {
+        Row: {
+          aira_indicators: Json | null
+          created_at: string | null
+          id: string
+          market_cap: number | null
+          price_change_24h: number | null
+          rank: number
+          score: number
+          symbol: string
+          updated_at: string | null
+          volume_24h: number | null
+        }
+        Insert: {
+          aira_indicators?: Json | null
+          created_at?: string | null
+          id?: string
+          market_cap?: number | null
+          price_change_24h?: number | null
+          rank: number
+          score: number
+          symbol: string
+          updated_at?: string | null
+          volume_24h?: number | null
+        }
+        Update: {
+          aira_indicators?: Json | null
+          created_at?: string | null
+          id?: string
+          market_cap?: number | null
+          price_change_24h?: number | null
+          rank?: number
+          score?: number
+          symbol?: string
+          updated_at?: string | null
+          volume_24h?: number | null
+        }
+        Relationships: []
+      }
+      alert_subscriptions: {
+        Row: {
+          alert_type: string
+          created_at: string | null
+          email_enabled: boolean | null
+          id: string
+          is_active: boolean | null
+          symbol: string
+          telegram_enabled: boolean | null
+          threshold: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          alert_type: string
+          created_at?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          symbol: string
+          telegram_enabled?: boolean | null
+          threshold?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          symbol?: string
+          telegram_enabled?: boolean | null
+          threshold?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       api_keys: {
         Row: {
           api_key_encrypted: string | null
@@ -1164,6 +1242,48 @@ export type Database = {
           take_profit?: number | null
           timeframe?: string
           volume_ratio?: number | null
+        }
+        Relationships: []
+      }
+      spynx_scores: {
+        Row: {
+          confidence: number
+          created_at: string | null
+          id: string
+          indicators: Json | null
+          momentum: number | null
+          score: number
+          symbol: string
+          timeframe: string
+          trend_strength: number | null
+          volatility: number | null
+          volume_profile: number | null
+        }
+        Insert: {
+          confidence: number
+          created_at?: string | null
+          id?: string
+          indicators?: Json | null
+          momentum?: number | null
+          score: number
+          symbol: string
+          timeframe: string
+          trend_strength?: number | null
+          volatility?: number | null
+          volume_profile?: number | null
+        }
+        Update: {
+          confidence?: number
+          created_at?: string | null
+          id?: string
+          indicators?: Json | null
+          momentum?: number | null
+          score?: number
+          symbol?: string
+          timeframe?: string
+          trend_strength?: number | null
+          volatility?: number | null
+          volume_profile?: number | null
         }
         Relationships: []
       }
